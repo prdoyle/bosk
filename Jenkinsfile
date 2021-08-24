@@ -18,11 +18,6 @@ pipeline {
         ])
     }
 
-    // Make use of globally configured maven in Jenkins
-    tools {
-        maven 'MAVEN_TOOL'
-    }
-
     parameters {
         string(name: 'SHA',
                defaultValue: '',
