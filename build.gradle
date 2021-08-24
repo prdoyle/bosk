@@ -50,6 +50,7 @@ allprojects {
 	apply plugin: 'jacoco'
 	apply plugin: 'com.github.spotbugs'
 	apply plugin: 'com.diffplug.gradle.spotless'
+	apply plugin: 'maven-publish'
 
 	spotless {
 		enforceCheck false
@@ -147,7 +148,9 @@ pitest {
 artifactory {
     def publishRepo = project.hasProperty("publishRepo") ? publishRepo : 'snapshot'
 
+    // This http URL is keeping us on Gradle 6.  Gradle 7 mandates HTTP.
     contextUrl = 'http://artifactory.devops.vena.vpn:8081/artifactory'
+
     publish {
         repository {
             repoKey = "libs-${publishRepo}-local"
@@ -157,10 +160,6 @@ artifactory {
         defaults {
             publications('mavenJava')
         }
-    }
-    defaults {
-	publishArtifacts = true
-	publishPom = true
     }
     resolve {
         repository {
