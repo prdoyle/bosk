@@ -2,6 +2,7 @@
 import org.vena.shared.VenaCommon
 
 def STATUS_BUILD = 'bosk.build'
+def STATUS_SPOTLESS_CHECK = 'bosk.spotless.check'
 
 pipeline {
     // Runs this job on a Jenkins worker machine (not the primary)
