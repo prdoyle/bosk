@@ -37,7 +37,7 @@ pipeline {
                     env.CURRENT_COMMIT_SHA = VenaCommon.checkoutMainSource(this)
 
                     // Setting job build information for better high level context of build
-                    currentBuild.description = "${env.BUILD_TRIGGER_COMMENT} : ${env.CURRENT_COMMIT_SHA}"
+                    currentBuild.description = "bosk : ${env.CURRENT_COMMIT_SHA}"
 
                     VenaCommon.setupGitReferences(this)
                 }
