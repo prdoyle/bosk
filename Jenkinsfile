@@ -92,7 +92,7 @@ pipeline {
         }
 
         stage('Publish to Artifactory') {
-            when { branch 'main' }
+            // when { branch 'main' }
             steps {
                 rtServer(
                     id: 'vena-artifactory-server',
