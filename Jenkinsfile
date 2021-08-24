@@ -109,8 +109,6 @@ pipeline {
                 rtGradleResolver(
                     id: 'GRADLE_RESOLVER',
                     serverId: 'vena-artifactory-server',
-                    releaseRepo: 'libs-release',
-                    snapshotRepo: 'libs-snapshot'
                 )
 
                 rtGradleRun (
