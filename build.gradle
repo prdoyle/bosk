@@ -2,7 +2,7 @@
 plugins {
 	id 'java'
 	id 'application'
-	id 'com.jfrog.artifactory' version '4.4.18' // latest is '4.24.16'
+	id 'com.jfrog.artifactory' version '3.2.0' // latest is '4.24.16'
 	id 'info.solidsoft.pitest' version '1.6.0'
 	id 'com.github.spotbugs' version '4.5.0' // 4.6 drops support for Java 8
 	id 'com.diffplug.gradle.spotless' version '3.25.0'
