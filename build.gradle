@@ -52,27 +52,27 @@ allprojects {
 	apply plugin: 'com.diffplug.gradle.spotless'
 	apply plugin: 'maven-publish'
 
-	spotless {
-		enforceCheck false
-		java {
-			importOrder '', '\\#' // Static imports after regular imports, as per mt-server standard and IntelliJ default
-			removeUnusedImports()
-			trimTrailingWhitespace()
-			indentWithTabs()
-			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
-			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
-			paddedCell()
-		}
-		format 'misc', {
-			target '**/*.gradle', '**/*.md', '**/.gitignore'
-
-			trimTrailingWhitespace()
-			indentWithTabs()
-			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
-			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
-			endWithNewline()
-		}
-	}
+//	spotless {
+//		enforceCheck false
+//		java {
+//			importOrder '', '\\#' // Static imports after regular imports, as per mt-server standard and IntelliJ default
+//			removeUnusedImports()
+//			trimTrailingWhitespace()
+//			indentWithTabs()
+//			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
+//			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
+//			paddedCell()
+//		}
+//		format 'misc', {
+//			target '**/*.gradle', '**/*.md', '**/.gitignore'
+//
+//			trimTrailingWhitespace()
+//			indentWithTabs()
+//			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
+//			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
+//			endWithNewline()
+//		}
+//	}
 
 	spotbugs {
 		// Won't fail the build if errors are found
