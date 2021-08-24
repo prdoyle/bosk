@@ -142,3 +142,31 @@ pitest {
 	outputFormats = ['XML', 'HTML']
 	timestampedReports = false
 }
+
+artifactory {
+    def publishRepo = project.hasProperty("publishRepo") ? publishRepo : 'snapshot'
+
+    contextUrl = "${artifactory_contextUrl}"
+    publish {
+        repository {
+            repoKey = "libs-${publishRepo}-local"
+            username = "${artifactoryUser}"
+            password = "${artifactoryPassword}"
+            maven = true
+
+        }
+        defaults {
+            publications('mavenJava')
+        }
+    }
+    defaults {
+	publishArtifacts = true
+	publishPom = true
+    }
+    resolve {
+        repository {
+            repoKey = "libs-${publishRepo}"
+            maven = true
+        }
+    }
+}

@@ -115,7 +115,7 @@ pipeline {
                 rtGradleRun (
                     useWrapper: true,
                     buildFile: 'build.gradle',
-                    tasks: 'clean build',
+                    tasks: 'clean artifactoryPublish',
                     deployerId: "GRADLE_DEPLOYER",
                     resolverId: "GRADLE_RESOLVER"
                 )
