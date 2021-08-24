@@ -147,14 +147,12 @@ pitest {
 artifactory {
     def publishRepo = project.hasProperty("publishRepo") ? publishRepo : 'snapshot'
 
-    contextUrl = "${artifactory_contextUrl}"
+    contextUrl = 'http://artifactory.devops.vena.vpn:8081/artifactory',
     publish {
         repository {
             repoKey = "libs-${publishRepo}-local"
-            username = "${artifactoryUser}"
-            password = "${artifactoryPassword}"
             maven = true
-
+            credentialsId = 'artifactory-automation-credentials'
         }
         defaults {
             publications('mavenJava')
