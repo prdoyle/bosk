@@ -52,27 +52,27 @@ allprojects {
 	apply plugin: 'com.diffplug.gradle.spotless'
 	apply plugin: 'maven-publish'
 
-//	spotless {
-//		enforceCheck false
-//		java {
-//			importOrder '', '\\#' // Static imports after regular imports, as per mt-server standard and IntelliJ default
-//			removeUnusedImports()
-//			trimTrailingWhitespace()
-//			indentWithTabs()
-//			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
-//			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
-//			paddedCell()
-//		}
-//		format 'misc', {
-//			target '**/*.gradle', '**/*.md', '**/.gitignore'
-//
-//			trimTrailingWhitespace()
-//			indentWithTabs()
-//			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
-//			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
-//			endWithNewline()
-//		}
-//	}
+	spotless {
+		enforceCheck false
+		java {
+			importOrder '', '\\#' // Static imports after regular imports, as per mt-server standard and IntelliJ default
+			removeUnusedImports()
+			trimTrailingWhitespace()
+			indentWithTabs()
+			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
+			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
+			paddedCell()
+		}
+		format 'misc', {
+			target '**/*.gradle', '**/*.md', '**/.gitignore'
+
+			trimTrailingWhitespace()
+			indentWithTabs()
+			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
+			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
+			endWithNewline()
+		}
+	}
 
 	spotbugs {
 		// Won't fail the build if errors are found
@@ -146,25 +146,25 @@ pitest {
 }
 
 artifactory {
-    def publishRepo = project.hasProperty("publishRepo") ? publishRepo : 'snapshot'
+	def publishRepo = project.hasProperty("publishRepo") ? publishRepo : 'snapshot'
 
-    // This http URL is keeping us on Gradle 6.  Gradle 7 mandates HTTP.
-    contextUrl = 'http://artifactory.devops.vena.vpn:8081/artifactory'
+	// This http URL is keeping us on Gradle 6.  Gradle 7 mandates HTTP.
+	contextUrl = 'http://artifactory.devops.vena.vpn:8081/artifactory'
 
-    publish {
-        repository {
-            repoKey = "libs-${publishRepo}-local"
-            maven = true
-            //credentialsId = 'artifactory-automation-credentials'
-        }
-        defaults {
-            publications('mavenJava')
-        }
-    }
-    resolve {
-        repository {
-            repoKey = "libs-${publishRepo}"
-            maven = true
-        }
-    }
+	publish {
+		repository {
+			repoKey = "libs-${publishRepo}-local"
+			maven = true
+			//credentialsId = 'artifactory-automation-credentials'
+		}
+		defaults {
+			publications('mavenJava')
+		}
+	}
+	resolve {
+		repository {
+			repoKey = "libs-${publishRepo}"
+			maven = true
+		}
+	}
 }
