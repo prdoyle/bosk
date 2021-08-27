@@ -50,6 +50,7 @@ allprojects {
 	apply plugin: 'jacoco'
 	apply plugin: 'com.github.spotbugs'
 	apply plugin: 'com.diffplug.gradle.spotless'
+	apply plugin: 'com.jfrog.artifactory'
 	apply plugin: 'maven-publish'
 
 	spotless {
