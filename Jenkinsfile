@@ -97,11 +97,11 @@ pipeline {
 
         stage('Publish to Artifactory') {
             steps {
-                VenaCommon.publishCustomStatus(this, 'pending', STATUS_PUBLISH, 'Publishing to artifactory...', 'display/redirect')
+                script { VenaCommon.publishCustomStatus(this, 'pending', STATUS_PUBLISH, 'Publishing to artifactory...', 'display/redirect') }
                 withCredentials([usernamePassword(credentialsId: 'artifactory-automation-credentials', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                     sh './gradlew publish -PVenaArtifactoryUsername=$USERNAME -PVenaArtifactoryPassword=$PASSWORD'
                 }
-                VenaCommon.publishCustomStatus(this, 'success', STATUS_PUBLISH, 'Library published to artifactory', 'display/redirect')
+                script { VenaCommon.publishCustomStatus(this, 'success', STATUS_PUBLISH, 'Library published to artifactory', 'display/redirect') }
             }
             post {
                 failure {
