@@ -3,6 +3,7 @@ import org.vena.shared.VenaCommon
 
 def STATUS_BUILD = 'bosk.build'
 def STATUS_SPOTLESS_CHECK = 'bosk.spotless.check'
+def STATUS_PUBLISH = 'bosk.publish'
 
 pipeline {
     // Runs this job on a Jenkins worker machine (not the primary)
@@ -41,6 +42,9 @@ pipeline {
                     currentBuild.description = "bosk : ${env.CURRENT_COMMIT_SHA}"
 
                     VenaCommon.setupGitReferences(this)
+
+		    // Clear publication status
+                    VenaCommon.publishCustomStatus(this, 'pending', STATUS_PUBLISH, 'Will publish to artifactory...', 'display/redirect')
                 }
             }
         }
@@ -93,8 +97,15 @@ pipeline {
 
         stage('Publish to Artifactory') {
             steps {
+                VenaCommon.publishCustomStatus(this, 'pending', STATUS_PUBLISH, 'Publishing to artifactory...', 'display/redirect')
                 withCredentials([usernamePassword(credentialsId: 'artifactory-automation-credentials', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                     sh './gradlew publish -PVenaArtifactoryUsername=$USERNAME -PVenaArtifactoryPassword=$PASSWORD'
+                }
+                VenaCommon.publishCustomStatus(this, 'success', STATUS_PUBLISH, 'Library published to artifactory', 'display/redirect')
+            }
+            post {
+                failure {
+                    script { VenaCommon.publishCustomStatus(this, 'failure', STATUS_PUBLISH, 'Unable to publish to artifactory', 'display/redirect') }
                 }
             }
         }
