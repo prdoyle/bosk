@@ -98,43 +98,6 @@ pipeline {
                 }
             }
         }
-
-//         stage('Publish to Artifactory') {
-//             // when { branch 'main' }
-//             steps {
-//                 rtServer(
-//                     id: 'vena-artifactory-server',
-//                     url: 'http://artifactory.devops.vena.vpn:8081/artifactory',
-//                     credentialsId: 'artifactory-automation-credentials'
-//                 )
-//
-//                 rtGradleDeployer(
-//                     id: 'GRADLE_DEPLOYER',
-//                     serverId: 'vena-artifactory-server',
-//                     releaseRepo: 'libs-release-local',
-//                     snapshotRepo: 'libs-snapshot-local'
-//                 )
-//
-//                 rtGradleResolver(
-//                     id: 'GRADLE_RESOLVER',
-//                     serverId: 'vena-artifactory-server',
-//                 )
-//
-//                 rtGradleRun (
-//                     useWrapper: true,
-//                     usesPlugin: true,
-//                     buildFile: 'build.gradle',
-//                     tasks: 'clean artifactoryPublish',
-//                     deployerId: "GRADLE_DEPLOYER",
-//                     resolverId: "GRADLE_RESOLVER"
-//                 )
-//
-//                 rtPublishBuildInfo(
-//                     serverId: 'vena-artifactory-server'
-//                 )
-//             }
-//         }
-
     }
 
     post {

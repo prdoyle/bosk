@@ -161,8 +161,8 @@ publishing {
 			}
 			pom {
 				name = 'Bosk'
-				description = 'Control plane state management librar'
-				//url = 'http://www.example.com/library'
+				description = 'Control plane state management library'
+				url = 'http://bosk.works'
 				licenses {
 					license {
 						name = 'The Apache License, Version 2.0'
@@ -198,27 +198,3 @@ publishing {
 		}
 	}
 }
-
-//artifactory {
-//	def publishRepo = project.hasProperty("publishRepo") ? publishRepo : 'snapshot'
-//
-//	// This http URL is keeping us on Gradle 6.  Gradle 7 mandates HTTP.
-//	contextUrl = 'http://artifactory.devops.vena.vpn:8081/artifactory'
-//
-//	publish {
-//		repository {
-//			repoKey = "libs-${publishRepo}-local"
-//			maven = true
-//			//credentialsId = 'artifactory-automation-credentials'
-//		}
-//		defaults {
-//			publications('mavenJava')
-//		}
-//	}
-//	resolve {
-//		repository {
-//			repoKey = "libs-${publishRepo}"
-//			maven = true
-//		}
-//	}
-//}
