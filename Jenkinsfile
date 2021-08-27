@@ -92,8 +92,10 @@ pipeline {
         }
 
         stage('Publish to Artifactory') {
-            withCredentials([usernamePassword(credentialsId: 'artifactory-automation-credentials', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                sh './gradlew artifactoryPublish -Partifactory_user=$USERNAME -Partifactory_password=$PASSWORD'
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'artifactory-automation-credentials', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                    sh './gradlew artifactoryPublish -Partifactory_user=$USERNAME -Partifactory_password=$PASSWORD'
+                }
             }
         }
 
