@@ -191,7 +191,9 @@ publishing {
 	}
 	repositories {
 		maven {
-			//url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+			name = "VenaArtifactory"
+			credentials( PasswordCredentials )
+			allowInsecureProtocol = true
 			url = 'http://artifactory.devops.vena.vpn:8081/artifactory/libs-snapshot-local/'
 		}
 	}
