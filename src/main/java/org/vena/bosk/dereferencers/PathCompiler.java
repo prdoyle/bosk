@@ -359,7 +359,7 @@ public final class PathCompiler {
 		public class PhantomValueStep implements DeletableStep {
 			Type targetType;
 
-			@Override public void generate_get() { pop(); pushReference(); invoke(THROW_NONEXISTENT_ENTRY); }
+			@Override public void generate_get() { pop(); pushReference(); invoke(THROW_PHANTOM_DEREFERENCE); }
 			@Override public void generate_with() { pop(); pop(); pushReference(); invoke(THROW_CANNOT_REPLACE_PHANTOM); }
 			@Override public void generate_without() { /* No effect */ }
 		}
@@ -390,7 +390,7 @@ public final class PathCompiler {
 	static final Method LISTING_GET, LISTING_WITH, LISTING_WITHOUT;
 	static final Method SIDE_TABLE_GET, SIDE_TABLE_WITH, SIDE_TABLE_WITHOUT;
 	static final Method OPTIONAL_OF, OPTIONAL_OR_THROW, OPTIONAL_EMPTY;
-	static final Method THROW_NONEXISTENT_ENTRY, THROW_CANNOT_REPLACE_PHANTOM;
+	static final Method THROW_NONEXISTENT_ENTRY, THROW_PHANTOM_DEREFERENCE, THROW_CANNOT_REPLACE_PHANTOM;
 	static final Method INVALID_WITHOUT;
 
 	static {
@@ -408,6 +408,7 @@ public final class PathCompiler {
 			OPTIONAL_OR_THROW = DereferencerRuntime.class.getDeclaredMethod("optionalOrThrow", Optional.class, Reference.class);
 			OPTIONAL_EMPTY = Optional.class.getDeclaredMethod("empty");
 			THROW_NONEXISTENT_ENTRY = DereferencerRuntime.class.getDeclaredMethod("throwNonexistentEntry", Reference.class);
+			THROW_PHANTOM_DEREFERENCE = DereferencerRuntime.class.getDeclaredMethod("throwPhantomDereference", Reference.class);
 			THROW_CANNOT_REPLACE_PHANTOM = DereferencerRuntime.class.getDeclaredMethod("throwCannotReplacePhantom", Reference.class);
 			INVALID_WITHOUT = DereferencerRuntime.class.getDeclaredMethod("invalidWithout", Object.class, Reference.class);
 		} catch (NoSuchMethodException e) {

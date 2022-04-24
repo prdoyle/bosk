@@ -1,7 +1,9 @@
 package org.vena.bosk.dereferencers;
 
 import java.util.Optional;
+import org.vena.bosk.Bosk;
 import org.vena.bosk.Bosk.NonexistentEntryException;
+import org.vena.bosk.Bosk.PhantomDereferenceException;
 import org.vena.bosk.Catalog;
 import org.vena.bosk.Identifier;
 import org.vena.bosk.Listing;
@@ -25,6 +27,10 @@ public abstract class DereferencerRuntime implements Dereferencer {
 
 	protected static Object throwNonexistentEntry(Reference<?> ref) throws NonexistentEntryException {
 		throw new NonexistentEntryException(ref.path());
+	}
+
+	protected static Object throwPhantomDereference(Reference<?> ref) throws NonexistentEntryException {
+		throw new PhantomDereferenceException(ref.path());
 	}
 
 	protected static Object throwCannotReplacePhantom(Reference<?> ref) {

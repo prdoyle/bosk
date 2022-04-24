@@ -290,6 +290,8 @@ public class Bosk<R extends Entity> {
 				currentRoot = (R) requireNonNull(dereferencer.with(currentRoot, target, requireNonNull(newValue)));
 			} catch (AccessorThrewException e) {
 				throw new AccessorThrewException("Unable to submitReplacement(\"" + target + "\", " + newValue + ")", e);
+			} catch (PhantomDereferenceException e) {
+				throw new IllegalArgumentException("Cannot replace phantom \"" + target + "\"");
 			} catch (NonexistentEntryException e) {
 				LOGGER.debug("Ignoring replacement of {}", target, e);
 				return false;
@@ -312,6 +314,8 @@ public class Bosk<R extends Entity> {
 				currentRoot = (R)requireNonNull(dereferencer.without(currentRoot, target));
 			} catch (AccessorThrewException e) {
 				throw new AccessorThrewException("Unable to submitDeletion(\"" + target + "\")", e);
+			} catch (PhantomDereferenceException e) {
+				throw new IllegalArgumentException("Cannot delete phantom \"" + target + "\"");
 			} catch (NonexistentEntryException e) {
 				LOGGER.debug("Ignoring deletion of {}", target, e);
 				return false;
@@ -892,7 +896,7 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 	}
 
 	/**
-	 * An {@link Optional#empty()}, or missing {@link Catalog} or
+	 * An {@link Optional#empty()}, {@link Phantom#empty()}, or missing {@link Catalog} or
 	 * {@link SideTable} entry, was encountered by a Locator when walking along
 	 * object fields, indicating that the desired item is absent.
 	 *
@@ -903,12 +907,29 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 	 */
 	@Getter
 	@Accessors(fluent=true)
-	public static final class NonexistentEntryException extends Exception {
+	public static class NonexistentEntryException extends Exception {
 		final Path path;
 
 		public NonexistentEntryException(Path path) {
 			super("No object at path \"" + path.toString() + "\"");
 			this.path = path;
+		}
+	}
+
+	/**
+	 * A {@link NonexistentEntryException} specifically for {@link Phantom} objects.
+	 *
+	 * <p>
+	 * Phantoms are a bit different from other nonexistent items because they
+	 * <em>cannot ever</em> exist, and so we can provide stronger checks; for example,
+	 * updates to nonexistent objects are generally ignored because they could potentially
+	 * succeed and be useful in certain scenarios involving concurrency,
+	 * but updates to phantoms can't succeed under any circumstances, so we can be more helpful
+	 * and alert the user to help troubleshooting.
+	 */
+	public static class PhantomDereferenceException extends NonexistentEntryException {
+		public PhantomDereferenceException(Path path) {
+			super(path);
 		}
 	}
 

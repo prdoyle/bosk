@@ -61,6 +61,7 @@ class BoskTest {
 	Bosk<Root> bosk;
 	Root root;
 	CatalogReference<TestEntity> entitiesRef;
+	TestEntity ernie;
 
 	@BeforeEach
 	void initializeBosk() throws InvalidTypeException {
@@ -69,20 +70,24 @@ class BoskTest {
 		entitiesRef = bosk.rootReference().thenCatalog(TestEntity.class, Root.Fields.entities);
 		Identifier ernieID = Identifier.from("ernie");
 		Identifier bertID = Identifier.from("bert");
-		TestEntity ernie = new TestEntity(ernieID, 1,
+		ernie = new TestEntity(ernieID, 1,
 				bosk.reference(TestEntity.class, Path.of(Root.Fields.entities, bertID.toString())),
 				Catalog.empty(),
 				Listing.of(entitiesRef, bertID),
 				SideTable.of(entitiesRef, bertID, "buddy"),
 				ListValue.empty(),
-				Optional.empty());
+				Optional.empty(),
+				Phantom.empty(),
+				Phantom.empty());
 		TestEntity bert = new TestEntity(bertID, 1,
 				bosk.reference(TestEntity.class, Path.of(Root.Fields.entities, ernieID.toString())),
 				Catalog.empty(),
 				Listing.of(entitiesRef, ernieID),
 				SideTable.of(entitiesRef, ernieID, "pal"),
 				ListValue.empty(),
-				Optional.empty());
+				Optional.empty(),
+				Phantom.empty(),
+				Phantom.empty());
 		bosk.driver().submitReplacement(entitiesRef, Catalog.of(ernie, bert));
 		root = bosk.currentRoot();
 	}
@@ -106,6 +111,8 @@ class BoskTest {
 		SideTable<TestEntity, String> sideTable;
 		ListValue<String> listValue;
 		Optional<TestEntity> optional;
+		Phantom<TestEntity> phantomEntity;
+		Phantom<Catalog<TestEntity>> phantomCatalog;
 	}
 
 	@Test
@@ -249,6 +256,20 @@ class BoskTest {
 	void testBogusReferenceReference() {
 		assertThrows(InvalidTypeException.class, ()->
 			bosk.reference(Classes.reference(String.class), Path.empty())); // Root object isn't a reference to a String
+	}
+
+	@Test
+	void testPhantomEntityUpdate() throws InvalidTypeException {
+		Reference<TestEntity> phantomRef = bosk.reference(TestEntity.class, Path.of(Root.Fields.entities, "bert", TestEntity.Fields.phantomEntity));
+		assertThrows(IllegalArgumentException.class, ()->
+			bosk.driver().submitReplacement(phantomRef, ernie));
+	}
+
+	@Test
+	void testPhantomCatalogEntryUpdate() throws InvalidTypeException {
+		Reference<TestEntity> phantomRef = bosk.reference(TestEntity.class, Path.of(Root.Fields.entities, "bert", TestEntity.Fields.phantomCatalog, "nonexistent"));
+		assertThrows(IllegalArgumentException.class, ()->
+			bosk.driver().submitReplacement(phantomRef, ernie));
 	}
 
 	@Test
