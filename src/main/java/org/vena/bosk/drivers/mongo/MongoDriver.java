@@ -1,9 +1,13 @@
 package org.vena.bosk.drivers.mongo;
 
+import com.mongodb.ClientSessionOptions;
 import com.mongodb.ErrorCategory;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoException;
 import com.mongodb.MongoWriteException;
+import com.mongodb.TransactionOptions;
+import com.mongodb.WriteConcern;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
@@ -18,6 +22,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Value;
 import org.bson.BsonDocument;
+import org.bson.BsonInt64;
 import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.BsonValue;
@@ -34,11 +39,15 @@ import org.vena.bosk.exceptions.InvalidTypeException;
 import org.vena.bosk.exceptions.NotYetImplementedException;
 
 import static com.mongodb.ErrorCategory.DUPLICATE_KEY;
+import static com.mongodb.WriteConcern.MAJORITY;
 import static java.lang.String.format;
+import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.bson.BsonBoolean.FALSE;
 import static org.vena.bosk.drivers.mongo.Formatter.DocumentFields.echo;
 import static org.vena.bosk.drivers.mongo.Formatter.DocumentFields.state;
+import static org.vena.bosk.drivers.mongo.Formatter.DocumentFields.txn1;
+import static org.vena.bosk.drivers.mongo.Formatter.DocumentFields.txn2;
 import static org.vena.bosk.drivers.mongo.Formatter.dottedFieldNameOf;
 import static org.vena.bosk.drivers.mongo.Formatter.enclosingReference;
 
@@ -279,6 +288,26 @@ public final class MongoDriver<R extends Entity> implements BoskDriver<R> {
 			} else {
 				MongoResumeTokenSequenceMark sequenceMark = new MongoResumeTokenSequenceMark(resumeToken.getString("_data").getValue());
 				LOGGER.debug("| SequenceMark: {}", sequenceMark);
+			}
+			LOGGER.info("+ Bonus transaction!");
+			try (ClientSession session = mongoClient.startSession()) {
+				try {
+					session.startTransaction(
+						TransactionOptions.builder()
+							.writeConcern(MAJORITY)
+							.build());
+					collection.updateOne(session, documentFilter(), new BsonDocument("$set", new BsonDocument(
+						txn1.name(),
+						new BsonInt64(currentTimeMillis()))));
+					collection.updateOne(session, documentFilter(), new BsonDocument("$set", new BsonDocument(
+						txn1.name(),
+						new BsonInt64(currentTimeMillis()))));
+					session.commitTransaction();
+				} finally {
+					if (session.hasActiveTransaction()) {
+						session.abortTransaction();
+					}
+				}
 			}
 		} finally {
 			receiver.removeEchoListener(echoToken);

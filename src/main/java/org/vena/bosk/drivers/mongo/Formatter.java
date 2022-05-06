@@ -54,6 +54,7 @@ final class Formatter {
 	enum DocumentFields {
 		state,
 		echo,
+		txn1, txn2
 	}
 
 	//

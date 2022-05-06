@@ -356,6 +356,13 @@ class MongoDriverTest extends DriverConformanceTest {
 		assertEquals(expected, actual);
 	}
 
+	@Test
+	void justFlush() throws IOException, InterruptedException {
+		bosk = new Bosk<TestEntity>("Bosk", TestEntity.class, this::initialRoot, driverFactory);
+		bosk.driver().flush();
+		bosk.driver().flush();
+	}
+
 	private <E extends Entity> BiFunction<BoskDriver<E>, Bosk<E>, BoskDriver<E>> createDriverFactory() {
 		return (downstream, bosk) -> {
 			MongoDriver<E> driver = new MongoDriver<>(
