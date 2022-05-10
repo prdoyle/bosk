@@ -13,6 +13,5 @@ public class MongoDriverSettings {
 	String database;
 	String collection;
 
-	@Default Identifier documentID = Identifier.from("boskDocument");
 	@Default long flushTimeoutMS = 30_000;
 }
