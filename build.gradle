@@ -122,8 +122,12 @@ dependencies {
 	// https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
 	testImplementation "ch.qos.logback:logback-classic:${logbackVersion}"
 
-	implementation "com.github.spotbugs:spotbugs-annotations:${spotbugsVersion}"
+	// For drivers
 	implementation "org.mongodb:mongo-java-driver:${mongoDriverVersion}"
+	implementation 'com.amazonaws:aws-java-sdk-dynamodb:1.12.220'
+
+	implementation "com.github.spotbugs:spotbugs-annotations:${spotbugsVersion}"
+
 	api "com.google.code.gson:gson:${gsonVersion}"
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation group: 'org.ow2.asm', name: 'asm', version: "${asmVersion}"
