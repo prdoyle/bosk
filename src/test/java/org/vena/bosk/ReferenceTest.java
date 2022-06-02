@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.vena.bosk.exceptions.InvalidTypeException;
+import org.vena.bosk.util.MicroBenchmark;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -160,5 +161,83 @@ class ReferenceTest extends AbstractBoskTest {
 
 		assertEquals(expectedValues, actualValues);
 		assertEquals(expectedEnvironments, actualEnvironments);
+	}
+
+	@Test
+	void referencePerf_emptyBenchmark() {
+		Reference<TestRoot> rootRef = bosk.rootReference();
+		double rate = new MicroBenchmark() {
+			@Override
+			protected void doIterations(long count) {
+				for (long i = 0; i < count; i++) {
+				}
+			}
+		}.computeRate();
+		System.out.println("Rate: " + rate);
+	}
+
+	@Test
+	void referencePerf_reused_root() {
+		Reference<TestRoot> rootRef = bosk.rootReference();
+		double rate = new MicroBenchmark() {
+			@Override
+			protected void doIterations(long count) {
+				for (long i = 0; i < count; i++) {
+					rootRef.value();
+				}
+			}
+		}.computeRate();
+		System.out.println("Rate: " + rate);
+	}
+
+	@Test
+	void referencePerf_fresh_root() {
+		double rate = new MicroBenchmark() {
+			@Override
+			protected void doIterations(long count) {
+				for (long i = 0; i < count; i++) {
+					bosk.rootReference().value();
+				}
+			}
+		}.computeRate();
+		System.out.println("Rate: " + rate);
+}
+
+	@Test
+	void referencePerf_reused_5segments() throws InvalidTypeException {
+		Reference<TestEnum> ref = bosk.reference(TestEnum.class, Path.of(
+			TestRoot.Fields.entities, "parent",
+			TestEntity.Fields.children, "child1",
+			TestChild.Fields.testEnum
+		));
+		double rate = new MicroBenchmark() {
+			public TestEnum escape;
+
+			@Override
+			protected void doIterations(long count) {
+				for (long i = 0; i < count; i++) {
+					escape = ref.value();
+				}
+			}
+		}.computeRate();
+		System.out.println("Rate: " + rate);
+	}
+
+	@Test
+	void referencePerf_javaOnly_5segments() {
+		TestRoot object = bosk.rootReference().value();
+		Identifier parentID = Identifier.from("parent");
+		Identifier child1ID = Identifier.from("child1");
+		double rate = new MicroBenchmark() {
+			public TestEnum escape;
+
+			@Override
+			protected void doIterations(long count) {
+				for (long i = 0; i < count; i++) {
+					escape = object.entities().get(parentID).children().get(child1ID).testEnum();
+				}
+			}
+		}.computeRate();
+		System.out.println("Rate: " + rate);
 	}
 }
