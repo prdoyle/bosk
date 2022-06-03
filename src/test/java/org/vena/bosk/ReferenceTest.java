@@ -165,7 +165,6 @@ class ReferenceTest extends AbstractBoskTest {
 
 	@Test
 	void referencePerf_emptyBenchmark() {
-		Reference<TestRoot> rootRef = bosk.rootReference();
 		double rate = new MicroBenchmark() {
 			@Override
 			protected void doIterations(long count) {
@@ -225,16 +224,34 @@ class ReferenceTest extends AbstractBoskTest {
 
 	@Test
 	void referencePerf_javaOnly_5segments() {
-		TestRoot object = bosk.rootReference().value();
 		Identifier parentID = Identifier.from("parent");
 		Identifier child1ID = Identifier.from("child1");
+		ThreadLocal<TestRoot> root = ThreadLocal.withInitial(bosk.rootReference()::value);
 		double rate = new MicroBenchmark() {
 			public TestEnum escape;
 
 			@Override
 			protected void doIterations(long count) {
 				for (long i = 0; i < count; i++) {
-					escape = object.entities().get(parentID).children().get(child1ID).testEnum();
+					escape = root.get().entities().get(parentID).children().get(child1ID).testEnum();
+				}
+			}
+		}.computeRate();
+		System.out.println("Rate: " + rate);
+	}
+
+	@Test
+	void referencePerf_javaObjectsOnly_5segments() {
+		Identifier parentID = Identifier.from("parent");
+		Identifier child1ID = Identifier.from("child1");
+		TestRoot root = bosk.rootReference().value();
+		double rate = new MicroBenchmark() {
+			public TestEnum escape;
+
+			@Override
+			protected void doIterations(long count) {
+				for (long i = 0; i < count; i++) {
+					escape = root.entities().get(parentID).children().get(child1ID).testEnum();
 				}
 			}
 		}.computeRate();
