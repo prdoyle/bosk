@@ -1,21 +1,34 @@
 package org.vena.bosk.util;
 
+import java.text.DecimalFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public abstract class MicroBenchmark {
-	private final long duration = 10_000;
+	private final long warmupDuration;
+	private final long runDuration;
+
+	protected MicroBenchmark(long warmupDuration, long runDuration) {
+		this.warmupDuration = warmupDuration;
+		this.runDuration = runDuration;
+	}
+
+	protected MicroBenchmark() {
+		this(5000, 5000);
+	}
 
 	protected abstract void doIterations(long count);
 
 	public double computeRate() {
 		LOGGER.info("Warmup");
 		for (int i = 1; i <= 5; i++) {
-			runFor(duration / 10);
+			runFor(warmupDuration / 5);
 		}
 		LOGGER.info("Run");
-		double rate = runFor(duration / 2);
-		LOGGER.info("Finished");
+		double rate = runFor(runDuration);
+		if (LOGGER.isInfoEnabled()) {
+			LOGGER.info("Finished. Rate is {} per second", new DecimalFormat("##0.#E0").format(rate));
+		}
 		return rate;
 	}
 
