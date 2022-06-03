@@ -1,5 +1,6 @@
 package org.vena.bosk.bytecode;
 
+import java.io.PrintWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -14,6 +15,9 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.util.TraceClassVisitor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static java.lang.reflect.Modifier.isStatic;
 import static java.security.AccessController.doPrivileged;
@@ -71,7 +75,11 @@ public final class ClassBuilder<T> implements Opcodes {
 			interfaces = new String[0];
 		}
 		this.classWriter = new ClassWriter(COMPUTE_FRAMES);
-		this.classVisitor = classWriter;
+		if (LOGGER.isDebugEnabled()) {
+			this.classVisitor = new TraceClassVisitor(classWriter, new PrintWriter(System.out));
+		} else {
+			this.classVisitor = classWriter;
+		}
 		classVisitor.visit(V1_8, ACC_PUBLIC | ACC_FINAL | ACC_SUPER, slashyName, null, superClassName, interfaces);
 		classVisitor.visitSource(sourceFileOrigin.getFileName(), null);
 	}
@@ -367,4 +375,6 @@ public final class ClassBuilder<T> implements Opcodes {
 			return defineClass(dottyName, b, 0, b.length);
 		}
 	}
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(ClassBuilder.class);
 }

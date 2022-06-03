@@ -127,6 +127,7 @@ dependencies {
 	api "com.google.code.gson:gson:${gsonVersion}"
 	implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 	implementation group: 'org.ow2.asm', name: 'asm', version: "${asmVersion}"
+	implementation group: 'org.ow2.asm', name: 'asm-util', version: "${asmVersion}"
 }
 
 test {
