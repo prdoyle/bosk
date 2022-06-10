@@ -41,6 +41,7 @@ abstract class SkeletonDereferencerBuilder implements DereferencerBuilder {
 		generate_without();
 		cb.finishMethod();
 
+		++PathCompiler.numCompilations;
 		return cb.buildInstance();
 	}
 

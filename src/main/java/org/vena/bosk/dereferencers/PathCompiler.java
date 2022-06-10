@@ -51,6 +51,7 @@ import static org.vena.bosk.bytecode.ClassBuilder.here;
  */
 @RequiredArgsConstructor(access = PRIVATE)
 public final class PathCompiler {
+	public static volatile long numCompilations = 0;
 	private final Type sourceType;
 	private final Map<Path, DereferencerBuilder> memoizedBuilders = synchronizedMap(new WeakHashMap<>());
 	private final Map<DereferencerBuilder, Dereferencer> memoizedDereferencers = synchronizedMap(new WeakHashMap<>());

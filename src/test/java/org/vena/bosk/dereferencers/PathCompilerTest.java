@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.vena.bosk.AbstractBoskTest;
 import org.vena.bosk.Bosk;
 import org.vena.bosk.Bosk.NonexistentEntryException;
@@ -41,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 import static org.vena.bosk.ListingEntry.LISTING_ENTRY;
 
+@ExtendWith(ReportCompilationCounter.class)
 public class PathCompilerTest extends AbstractBoskTest {
 	PathCompiler pathCompiler;
 	Bosk<TestRoot> bosk;
