@@ -5,6 +5,7 @@ import com.mongodb.ServerAddress;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import java.io.Closeable;
+import java.util.concurrent.atomic.AtomicLong;
 import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -28,18 +29,21 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * <p>
  * All instances use the same MongoDB container, so
  * different tests should use different database names.
- * All instances use the same proxy, so network outage tests
- * will disrupt other tests running in parallel.
  *
+ * <p>
+ * Each instance gets its own proxy, so network outage tests
+ * do not disrupt other tests running in parallel.
  */
 public class MongoService implements Closeable {
 	// Expensive stuff shared among instances as much as possible
 	private static final Network NETWORK = Network.newNetwork();
 	private static final GenericContainer<?> MONGO_CONTAINER = mongoContainer();
 	private static final ToxiproxyContainer TOXIPROXY_CONTAINER = toxiproxyContainer();
-	private static final ToxiproxyContainer.ContainerProxy proxy = TOXIPROXY_CONTAINER.getProxy(MONGO_CONTAINER, 27017);
-	private static final MongoClientSettings clientSettings = mongoClientSettings(new ServerAddress(proxy.getContainerIpAddress(), proxy.getProxyPort()));
-	private static final MongoClient mongoClient = MongoClients.create(clientSettings);
+	private static final AtomicLong nextSubscript = new AtomicLong(1);
+
+	private final ToxiproxyContainer.ContainerProxy proxy = TOXIPROXY_CONTAINER.getProxy(MONGO_CONTAINER, 27017, Long.toString(nextSubscript.getAndIncrement()));
+	private final MongoClientSettings clientSettings = mongoClientSettings(new ServerAddress(proxy.getContainerIpAddress(), proxy.getProxyPort()));
+	private final MongoClient mongoClient = MongoClients.create(clientSettings);
 
 	public ToxiproxyContainer.ContainerProxy proxy() {
 		return proxy;

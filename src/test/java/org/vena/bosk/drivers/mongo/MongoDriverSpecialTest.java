@@ -10,6 +10,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.function.BiFunction;
 import lombok.Value;
 import lombok.experimental.Accessors;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,14 +69,13 @@ class MongoDriverSpecialTest {
 		tearDownActions.forEach(Runnable::run);
 	}
 
-	//@AfterAll
+	@AfterAll
 	static void deleteDatabase() {
 		mongoService.client().getDatabase(TEST_DB).drop();
 		mongoService.close();
 	}
 
 	@Test
-	@UsesMongoService
 	void warmStart_stateMatches() throws InvalidTypeException, InterruptedException, IOException {
 		Bosk<TestEntity> setupBosk = new Bosk<TestEntity>("Test bosk", TestEntity.class, this::initialRoot, driverFactory);
 		CatalogReference<TestEntity> catalogRef = setupBosk.catalogReference(TestEntity.class, Path.just(TestEntity.Fields.catalog));
@@ -99,7 +99,6 @@ class MongoDriverSpecialTest {
 	}
 
 	@Test
-	@UsesMongoService
 	void flush_localStateUpdated() throws InvalidTypeException, InterruptedException, IOException {
 		// Set up MongoDriver writing to a modified BufferingDriver that lets us
 		// have tight control over all the comings and goings from MongoDriver.
@@ -154,7 +153,6 @@ class MongoDriverSpecialTest {
 	}
 
 	@Test
-	@UsesMongoService
 	void listing_stateMatches() throws InvalidTypeException, InterruptedException, IOException {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test bosk", TestEntity.class, this::initialRoot, driverFactory);
 		BoskDriver<TestEntity> driver = bosk.driver();
@@ -192,7 +190,6 @@ class MongoDriverSpecialTest {
 	}
 
 	@Test
-	@DisruptsMongoService
 	void networkOutage_boskRecovers() throws InvalidTypeException, InterruptedException, IOException {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test bosk", TestEntity.class, this::initialRoot, driverFactory);
 		BoskDriver<TestEntity> driver = bosk.driver();
@@ -234,7 +231,6 @@ class MongoDriverSpecialTest {
 	}
 
 	@Test
-	@UsesMongoService
 	void initialStateHasNonexistentFields_ignored() {
 		// Upon creating bosk, the initial value will be saved to MongoDB
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Newer bosk", TestEntity.class, this::initialRoot, driverFactory);
@@ -256,7 +252,6 @@ class MongoDriverSpecialTest {
 	}
 
 	@Test
-	@UsesMongoService
 	void updateHasNonexistentFields_ignored() throws InvalidTypeException, IOException, InterruptedException {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Newer bosk", TestEntity.class, this::initialRoot, driverFactory);
 		Bosk<OldEntity> prevBosk = new Bosk<OldEntity>(
@@ -284,7 +279,6 @@ class MongoDriverSpecialTest {
 	}
 
 	@Test
-	@UsesMongoService
 	void updateNonexistentField_ignored() throws InvalidTypeException, IOException, InterruptedException {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Newer bosk", TestEntity.class, this::initialRoot, driverFactory);
 		Bosk<OldEntity> prevBosk = new Bosk<OldEntity>(
@@ -312,7 +306,6 @@ class MongoDriverSpecialTest {
 	}
 
 	@Test
-	@UsesMongoService
 	void deleteNonexistentField_ignored() throws InvalidTypeException, IOException, InterruptedException {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Newer bosk", TestEntity.class, this::initialRoot, driverFactory);
 		Bosk<OldEntity> prevBosk = new Bosk<OldEntity>(

@@ -3,6 +3,7 @@ package org.vena.bosk.drivers.mongo;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.function.BiFunction;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,7 +13,6 @@ import org.vena.bosk.BsonPlugin;
 import org.vena.bosk.Entity;
 import org.vena.bosk.drivers.DriverConformanceTest;
 
-@UsesMongoService
 class MongoDriverConformanceTest extends DriverConformanceTest {
 	public static final String TEST_DB = MongoDriverConformanceTest.class.getSimpleName() + "_DB";
 	public static final String TEST_COLLECTION = "testCollection";
@@ -35,7 +35,7 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 		tearDownActions.forEach(Runnable::run);
 	}
 
-	//@AfterAll
+	@AfterAll
 	static void deleteDatabase() {
 		mongoService.client().getDatabase(TEST_DB).drop();
 		mongoService.close();
