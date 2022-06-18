@@ -54,6 +54,7 @@ allprojects {
 	spotless {
 		enforceCheck false
 		java {
+			targetExclude("src/test/java/org/testcontainers/containers/ToxiproxyContainer.java")
 			importOrder '', '\\#' // Static imports after regular imports, as per mt-server standard and IntelliJ default
 			removeUnusedImports()
 			trimTrailingWhitespace()
@@ -110,7 +111,7 @@ dependencies {
 
 	testImplementation "org.testcontainers:testcontainers:${testcontainersVersion}"
 	testImplementation "org.testcontainers:junit-jupiter:${testcontainersVersion}"
-	testImplementation "org.testcontainers:toxiproxy:1.17.2"
+	testImplementation "org.testcontainers:toxiproxy:1.17.2" // NOTE: We have forked the ToxiproxyContainer class. Consider this before upgrading!
 
 	testImplementation "org.hamcrest:hamcrest:${hamcrestVersion}"
 	testImplementation "org.hamcrest:hamcrest-library:${hamcrestVersion}"
