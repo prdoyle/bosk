@@ -909,7 +909,7 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		final Path path;
 
 		public NonexistentEntryException(Path path) {
-			super("No object at path \"" + path.toString() + "\"");
+			super("No object at the following path: \"" + path.toString() + "\"");
 			this.path = path;
 		}
 	}
