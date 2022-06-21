@@ -87,7 +87,7 @@ public class Bosk<R extends Entity> {
 	@Getter private final Identifier instanceID = Identifier.from(randomUUID().toString());
 	@Getter private final BoskDriver<R> driver;
 	private final LocalDriver localDriver;
-	private final Type rootType;
+	private final Type rootDataType;
 	private final ThreadLocal<R> rootSnapshot = new ThreadLocal<>();
 	private final List<HookRegistration<?>> hooks = new ArrayList<>();
 	private final PathCompiler pathCompiler;
@@ -97,7 +97,7 @@ public class Bosk<R extends Entity> {
 
 	/**
 	 * @param name Any string that identifies this object.
-	 * @param rootType The @{link Type} of the root object.
+	 * @param rootDataType The @{link Type} of the root object.
 	 * @param defaultRootFunction The root object to use if the driver chooses not to supply one,
 	 *    and instead delegates {@link BoskDriver#initialRoot} all the way to the local driver.
 	 *    Note that this function may or may not be called, so don't use it as a means to initialize
@@ -108,15 +108,15 @@ public class Bosk<R extends Entity> {
 	 * BoskDriver#submitReplacement(Reference, Object)} and {@link
 	 * BoskDriver#submitDeletion(Reference)}.
 	 */
-	public Bosk(String name, Type rootType, DefaultRootFunction<R> defaultRootFunction, BiFunction<BoskDriver<R>, Bosk<R>, BoskDriver<R>> driverFactory) {
+	public Bosk(String name, Type rootDataType, DefaultRootFunction<R> defaultRootFunction, BiFunction<BoskDriver<R>, Bosk<R>, BoskDriver<R>> driverFactory) {
 		this.name = name;
 		this.localDriver = new LocalDriver(defaultRootFunction);
-		this.rootType = rootType;
-		this.pathCompiler = PathCompiler.withSourceType(rootType);
+		this.rootDataType = rootDataType;
+		this.pathCompiler = PathCompiler.withSourceType(rootDataType);
 		try {
-			validateType(rootType);
+			validateType(rootDataType);
 		} catch (InvalidTypeException e) {
-			throw new IllegalArgumentException("Invalid root type " + rootType + ": " + e.getMessage(), e);
+			throw new IllegalArgumentException("Invalid root type " + rootDataType + ": " + e.getMessage(), e);
 		}
 
 		// We do this last because the driver factory is allowed to do such things
@@ -124,12 +124,12 @@ public class Bosk<R extends Entity> {
 		// have completed already.
 		this.driver = driverFactory.apply(this.localDriver, this);
 		try {
-			this.currentRoot = requireNonNull(driver.initialRoot(rootType));
+			this.currentRoot = requireNonNull(driver.initialRoot(rootDataType));
 		} catch (InvalidTypeException | IOException | InterruptedException e) {
 			throw new IllegalArgumentException("Error computing initial root: " + e.getMessage(), e);
 		}
-		if (!rawClass(rootType).isInstance(this.currentRoot)) {
-			throw new IllegalArgumentException("Initial root must be an instance of " + rawClass(rootType).getSimpleName());
+		if (!rawClass(rootDataType).isInstance(this.currentRoot)) {
+			throw new IllegalArgumentException("Initial root must be an instance of " + rawClass(rootDataType).getSimpleName());
 		}
 	}
 
@@ -137,8 +137,8 @@ public class Bosk<R extends Entity> {
 		RR apply(Bosk<RR> bosk) throws InvalidTypeException;
 	}
 
-	public Bosk(String name, Type rootType, R defaultRoot, BiFunction<BoskDriver<R>, Bosk<R>, BoskDriver<R>> driverFactory) {
-		this(name, rootType, b->defaultRoot, driverFactory);
+	public Bosk(String name, Type rootDataType, R defaultRoot, BiFunction<BoskDriver<R>, Bosk<R>, BoskDriver<R>> driverFactory) {
+		this(name, rootDataType, b->defaultRoot, driverFactory);
 	}
 
 	/**
@@ -750,7 +750,7 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 				throw new InvalidTypeException("Error looking up enclosing " + targetClass.getSimpleName() + " from " + path);
 			}
 			// Might be the root
-			if (targetClass.isAssignableFrom(rawClass(rootType))) {
+			if (targetClass.isAssignableFrom(rawClass(rootDataType))) {
 				return (Reference<TT>) rootReference();
 			} else {
 				throw new InvalidTypeException("No enclosing " + targetClass.getSimpleName() + " from " + path);
@@ -793,7 +793,7 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		}
 
 		private Type rootType() {
-			return Bosk.this.rootType;
+			return Bosk.this.rootDataType;
 		}
 
 		@Override
@@ -929,7 +929,7 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		if (Optional.class.isAssignableFrom(requestedClass)) {
 			throw new InvalidTypeException("Reference<Optional<T>> not supported; create a Reference<T> instead and use Reference.optionalValue()");
 		} else if (!requestedClass.isAssignableFrom(targetClass)) {
-			throw new InvalidTypeException("Path from " + rawClass(rootType).getSimpleName()
+			throw new InvalidTypeException("Path from " + rawClass(rootDataType).getSimpleName()
 				+ " returns " + targetClass.getSimpleName()
 				+ "; requested " + requestedClass.getSimpleName()
 				+ ": " + path);
@@ -942,9 +942,9 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 	@SuppressWarnings("unchecked")
 	public final Reference<R> rootReference() {
 		try {
-			return (Reference<R>)reference(rawClass(rootType), Path.empty());
+			return (Reference<R>)reference(rawClass(rootDataType), Path.empty());
 		} catch (InvalidTypeException e) {
-			throw new AssertionError("Root reference must be of class " + rawClass(rootType).getSimpleName(), e);
+			throw new AssertionError("Root reference must be of class " + rawClass(rootDataType).getSimpleName(), e);
 		}
 	}
 
@@ -969,7 +969,7 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 
 	@Override
 	public final String toString() {
-		return instanceID() + " \"" + name + "\"::" + rawClass(rootType).getSimpleName();
+		return instanceID() + " \"" + name + "\"::" + rawClass(rootDataType).getSimpleName();
 	}
 
 	/**
