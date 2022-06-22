@@ -27,7 +27,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * can proceed in parallel with other tests without disrupting them.
  *
  */
-public class MongoConnection implements Closeable {
+public class MongoService implements Closeable {
 	// Expensive stuff shared among instances as much as possible
 	private static final Network NETWORK = Network.newNetwork();
 	private static final GenericContainer<?> MONGO_CONTAINER = mongoContainer();
