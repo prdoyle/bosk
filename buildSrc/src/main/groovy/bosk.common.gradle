@@ -30,6 +30,7 @@ allprojects {
 			testcontainersVersion = '1.17.2'
 		}
 	}
+
 	repositories {
 		maven {
 			url 'https://plugins.gradle.org/m2/'
@@ -37,8 +38,6 @@ allprojects {
 		mavenCentral()
 	}
 
-	apply plugin: 'eclipse'
-	apply plugin: 'idea'
 	apply plugin: 'jacoco'
 	apply plugin: 'com.github.spotbugs'
 	apply plugin: 'com.diffplug.gradle.spotless'
