@@ -1,9 +1,9 @@
 
 plugins {
 	id 'bosk.common'
-	id 'info.solidsoft.pitest' version '1.6.0'
-	id 'com.github.spotbugs' version '5.0.6'
-	id 'com.diffplug.gradle.spotless' version '3.25.0'
+	id 'info.solidsoft.pitest'
+	id 'com.github.spotbugs'
+	id 'com.diffplug.gradle.spotless'
 }
 
 pitest {
