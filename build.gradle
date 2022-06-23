@@ -1,5 +1,7 @@
 
 plugins {
+	id "nebula.lint" version "17.7.0"
+
 	id 'bosk.common'
 
 	// pdoyle - not sure why these need to be here
