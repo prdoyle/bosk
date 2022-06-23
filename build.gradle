@@ -1,17 +1,9 @@
 
 plugins {
 	id 'bosk.common'
+
+	// pdoyle - not sure why these need to be here
 	id 'info.solidsoft.pitest'
 	id 'com.github.spotbugs'
 	id 'com.diffplug.gradle.spotless'
-}
-
-pitest {
-	junit5PluginVersion = '0.15'
-	jvmArgs = ['-ea'] // Our unit tests check for assert statements
-	targetClasses = ['org.vena.bosk.Path*']  //by default "${project.group}.*"
-	targetTests   = ['org.vena.bosk.PathTest*']
-	threads = 4
-	outputFormats = ['XML', 'HTML']
-	timestampedReports = false
 }

@@ -1,7 +1,6 @@
 
 plugins {
 	id 'java-library'
-	id 'maven-publish'
 }
 
 compileTestJava.options.encoding = 'UTF-8'
@@ -38,13 +37,13 @@ allprojects {
 		mavenCentral()
 	}
 
-	apply plugin: 'java'
 	apply plugin: 'eclipse'
 	apply plugin: 'idea'
 	apply plugin: 'jacoco'
 	apply plugin: 'com.github.spotbugs'
 	apply plugin: 'com.diffplug.gradle.spotless'
 	apply plugin: 'maven-publish'
+	apply plugin: 'info.solidsoft.pitest'
 
 	spotless {
 		enforceCheck false
@@ -74,6 +73,16 @@ allprojects {
 	spotbugs {
 		// Won't fail the build if errors are found
 		ignoreFailures = true
+	}
+
+	pitest {
+		junit5PluginVersion = '0.15'
+		jvmArgs = ['-ea'] // Our unit tests check for assert statements
+		targetClasses = ['org.vena.bosk.Path*']  //by default "${project.group}.*"
+		targetTests   = ['org.vena.bosk.PathTest*']
+		threads = 4
+		outputFormats = ['XML', 'HTML']
+		timestampedReports = false
 	}
 
 	tasks.withType(Tar) {
