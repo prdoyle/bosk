@@ -13,4 +13,5 @@ public class MongoDriverSettings {
 	String collection;
 
 	@Default long flushTimeoutMS = 30_000;
+	@Default Upgrader upgrader = null;
 }

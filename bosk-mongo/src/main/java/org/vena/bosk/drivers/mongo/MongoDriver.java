@@ -16,6 +16,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.Nullable;
 import lombok.Value;
 import org.bson.BsonDocument;
 import org.bson.BsonNull;
@@ -49,6 +50,8 @@ public final class MongoDriver<R extends Entity> implements BoskDriver<R> {
 	private final MongoClient mongoClient;
 	private final MongoCollection<Document> collection;
 	private final BsonString documentID;
+	private final @Nullable Upgrader<?,?> upgrader;
+	private final @Nullable Reference<?> upgraderScope;
 	private final Reference<R> rootRef;
 	private final String echoPrefix;
 	private final AtomicLong echoCounter = new AtomicLong(1_000_000_000_000L); // Start with a big number so the length doesn't change often
@@ -65,6 +68,8 @@ public final class MongoDriver<R extends Entity> implements BoskDriver<R> {
 		this.documentID = new BsonString("boskDocument");
 		this.rootRef = bosk.rootReference();
 
+		upgrader = null; // TODO
+		upgraderScope = null;
 	}
 
 	@Override
