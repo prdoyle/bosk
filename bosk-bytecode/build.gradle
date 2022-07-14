@@ -1,5 +1,6 @@
 plugins {
 	id 'bosk.development'
+	id 'bosk.maven-publish'
 	id 'com.github.spotbugs' version '5.0.6'
 	id 'com.diffplug.gradle.spotless' version '3.25.0'
 }
