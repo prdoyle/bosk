@@ -29,6 +29,7 @@ import org.vena.bosk.drivers.mongo.Formatter.DocumentFields;
 import org.vena.bosk.exceptions.InvalidTypeException;
 import org.vena.bosk.exceptions.NotYetImplementedException;
 
+import static java.lang.System.identityHashCode;
 import static java.lang.Thread.currentThread;
 import static java.util.Collections.synchronizedSet;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -153,6 +154,7 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 	@Override
 	public void close() {
 		isClosed = true;
+		LOGGER.warn("pdoyle - closing eventCursor {}", identityHashCode(eventCursor));
 		eventCursor.close();
 		ex.shutdown();
 		try {
