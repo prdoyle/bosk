@@ -192,9 +192,11 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 			case INSERT: case REPLACE:// Both of these represent replacing the whole document
 				// getFullDocument is reliable for INSERT and REPLACE operations:
 				//   https://docs.mongodb.com/v4.0/reference/change-events/#change-stream-output
-				LOGGER.debug("| Replace document - IGNORE");
-				//driver.submitReplacement(rootRef, document2object(event.getFullDocument().get(DocumentFields.root), rootRef));
-				// TODO
+				assert event.getFullDocument() != null;
+
+				LOGGER.debug("| Replace document");
+				Document newRoot = event.getFullDocument().get(DocumentFields.state.name(), Document.class);
+				downstream.submitReplacement(rootRef, formatter.document2object(newRoot, rootRef));
 				break;
 			case UPDATE:
 				UpdateDescription updateDescription = event.getUpdateDescription();
