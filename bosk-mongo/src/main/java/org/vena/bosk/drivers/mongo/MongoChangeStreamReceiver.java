@@ -208,7 +208,8 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 				}
 				break;
 			default:
-				throw new NotYetImplementedException("Unknown change stream event: " + event);
+				LOGGER.warn("Ignoring unrecognized change stream event: {}", event);
+				break;
 		}
 		lastProcessedResumeToken = event.getResumeToken();
 	}
