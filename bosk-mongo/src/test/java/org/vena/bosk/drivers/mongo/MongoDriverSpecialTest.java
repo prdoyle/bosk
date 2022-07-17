@@ -51,6 +51,7 @@ class MongoDriverSpecialTest {
 
 	private static final Identifier entity123 = Identifier.from("123");
 	private static final Identifier entity124 = Identifier.from("124");
+	private static final Identifier entity125 = Identifier.from("125");
 	private static final Identifier rootID = Identifier.from("root");
 
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
@@ -380,6 +381,83 @@ class MongoDriverSpecialTest {
 			after = originalBosk.rootReference().value().values();
 		}
 		assertEquals(Optional.of(TestValues.blank()), after); // Now it's there
+	}
+
+	@Test
+	@UsesMongoService
+	void collectionDropped_recovers() throws IOException, InterruptedException, InvalidTypeException {
+		TestEntity expected;
+
+		Bosk<TestEntity> victimBosk = new Bosk<TestEntity>(
+			"Victim",
+			TestEntity.class,
+			this::initialRoot,
+			createDriverFactory()
+		);
+
+		TestEntity initialRoot = initialRoot(victimBosk);
+
+		// Make a change we'll recognize
+		ListingReference<TestEntity> listingRef = victimBosk.rootReference().thenListing(TestEntity.class, TestEntity.Fields.listing);
+		victimBosk.driver().submitReplacement(listingRef.then(entity123), LISTING_ENTRY);
+		victimBosk.driver().flush();
+
+		mongoService.client()
+			.getDatabase(TEST_DB)
+			.getCollection(TEST_COLLECTION)
+			.drop();
+
+		// flush trivially works because there's no document, so there can't
+		// possibly be any updates we haven't seen.
+		victimBosk.driver().flush();
+
+		// Updates should throw BUT THEY ARE CURRENTLY SILENTLY IGNORED.
+		// This isn't very satisfactory...
+		//assertThrows(MongoException.class, () -> {
+			victimBosk.driver().submitReplacement(listingRef.then(entity124), LISTING_ENTRY);
+		//});
+
+		// Should continue to return the last known good state
+		TestEntity disconnectedState;
+		try (@SuppressWarnings("unused") Bosk<?>.ReadContext readContext = victimBosk.readContext()) {
+			disconnectedState = victimBosk.rootReference().value();
+		}
+		expected = initialRoot
+			.withListing(Listing.of(initialRoot.listing().domain(), entity123));
+		assertEquals(expected, disconnectedState);
+
+		// Use heroBosk to re-create the collection
+		Bosk<TestEntity> heroBosk = new Bosk<TestEntity>(
+			"Hero",
+			TestEntity.class,
+			this::initialRoot,
+			createDriverFactory()
+		);
+		heroBosk.driver().flush();
+
+		// Wait till victimBosk gets the hint
+		victimBosk.driver().flush();
+
+		// Should see the state that heroBosk put there
+		TestEntity recoveredState;
+		try (@SuppressWarnings("unused") Bosk<?>.ReadContext readContext = victimBosk.readContext()) {
+			recoveredState = victimBosk.rootReference().value();
+		}
+		assertEquals(initialRoot, recoveredState);
+
+		// Make a different change we'll recognize
+		heroBosk.driver().submitReplacement(listingRef.then(entity125), LISTING_ENTRY);
+		heroBosk.driver().flush();
+
+		// Should see that change
+		TestEntity subsequentState;
+		try (@SuppressWarnings("unused") Bosk<?>.ReadContext readContext = victimBosk.readContext()) {
+			subsequentState = victimBosk.rootReference().value();
+		}
+		expected = initialRoot
+			.withListing(Listing.of(initialRoot.listing().domain(), entity125));
+		assertEquals(expected, subsequentState);
+
 	}
 
 	private <E extends Entity> BiFunction<BoskDriver<E>, Bosk<E>, BoskDriver<E>> createDriverFactory() {
