@@ -11,6 +11,7 @@ import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -110,7 +111,7 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 				try {
 					LOGGER.debug("- Awaiting event");
 					event = eventCursor.next();
-				} catch (MongoException e) {
+				} catch (MongoException | NoSuchElementException e) {
 					if (isClosed.get()) {
 						LOGGER.trace("Receiver is closed. Exiting event processing loop", e);
 						break;
