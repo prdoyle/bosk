@@ -171,9 +171,18 @@ public class TracingDriver<R extends Entity> implements BoskDriver<R> {
 	}
 
 	private SpanBuilder spanBuilder(String operationName) {
-		return tracer.spanBuilder("BoskDriver." + operationName)
-			.setAllAttributes(customAttributes)
+		SpanBuilder result = tracer.spanBuilder("BoskDriver." + operationName)
+//			.setAllAttributes(customAttributes) // Not available until API version 1.2.0
 			.setAttribute(ATTR_OPERATION, operationName);
+		customAttributes.forEach((k,v)-> addAttributeToSpanBuilder(result, k, v));
+		return result;
+	}
+
+	@SuppressWarnings("unchecked")
+	private void addAttributeToSpanBuilder(SpanBuilder result, AttributeKey<?> key, Object value) {
+		@SuppressWarnings("rawtypes")
+		AttributeKey erasedKey = key;
+		result.setAttribute(erasedKey, value);
 	}
 
 	static final AttributeKey<String> ATTR_OPERATION = AttributeKey.stringKey(
