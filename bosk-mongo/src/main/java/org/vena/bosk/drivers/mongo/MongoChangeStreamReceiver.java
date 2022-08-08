@@ -6,6 +6,10 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.UpdateDescription;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanBuilder;
+import io.opentelemetry.context.Scope;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.HashSet;
@@ -30,11 +34,13 @@ import org.vena.bosk.drivers.mongo.Formatter.DocumentFields;
 import org.vena.bosk.exceptions.InvalidTypeException;
 import org.vena.bosk.exceptions.NotYetImplementedException;
 
+import static io.opentelemetry.api.trace.StatusCode.OK;
 import static java.lang.String.format;
 import static java.lang.System.identityHashCode;
 import static java.lang.Thread.currentThread;
 import static java.util.Collections.synchronizedSet;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.vena.bosk.OpenTelemetryConfiguration.tracer;
 import static org.vena.bosk.drivers.mongo.Formatter.referenceTo;
 
 /**
@@ -120,11 +126,16 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 						continue;
 					}
 				}
-				try {
+				Span span = span(event);
+				try (Scope ignored = span.makeCurrent()) {
 					processEvent(event);
+					span.setStatus(OK);
 				} catch (Throwable e) {
 					LOGGER.error("Unable to process event: " + event, e);
+					span.recordException(e);
 					// TODO: How to handle this? For now, just keep soldiering on
+				} finally {
+					span.end();
 				}
 			}
 		} catch (Throwable e) {
@@ -134,6 +145,36 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 			LOGGER.debug("Terminating MongoDB event processing thread");
 			currentThread().setName(oldName);
 		}
+	}
+
+	private Span span(ChangeStreamDocument<Document> event) {
+		SpanBuilder spanBuilder = tracer().spanBuilder("submitConditionalDeletion")
+			.setAttribute(ATTR_RECEIVER_ID, identityString)
+			.setAttribute(ATTR_EVENT_TYPE, event.getOperationType().getValue());
+		UpdateDescription updateDescription = event.getUpdateDescription();
+		if (updateDescription != null) {
+			if (updateDescription.getUpdatedFields() != null) {
+				Set<Map.Entry<String, BsonValue>> fields = updateDescription.getUpdatedFields().entrySet();
+				String updatedField;
+				if (fields.size() == 1) {
+					updatedField = "." + fields.iterator().next().getKey();
+				} else {
+					updatedField = "*" + fields.size();
+				}
+				spanBuilder.setAttribute(ATTR_UPDATED_FIELD, updatedField);
+			}
+			if (updateDescription.getRemovedFields() != null) {
+				List<String> foo = updateDescription.getRemovedFields();
+				String removedField;
+				if (foo.size() == 1) {
+					removedField = "." + foo.iterator().next();
+				} else {
+					removedField = "*" + foo.size();
+				}
+				spanBuilder.setAttribute(ATTR_REMOVED_FIELD, removedField);
+			}
+		}
+		return spanBuilder.startSpan();
 	}
 
 	private void reconnectCursor() {
@@ -278,4 +319,15 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 	private static final Set<String> ALREADY_WARNED = synchronizedSet(new HashSet<>());
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MongoChangeStreamReceiver.class);
+
+	private static final String PRE = "bosk.driver.mongo.";
+
+	private static final AttributeKey<String> ATTR_RECEIVER_ID = AttributeKey.stringKey(
+		PRE + "receiver.id");
+	private static final AttributeKey<String> ATTR_EVENT_TYPE = AttributeKey.stringKey(
+		PRE + "event.type");
+	private static final AttributeKey<String> ATTR_UPDATED_FIELD = AttributeKey.stringKey(
+		PRE + "event.updated-field");
+	private static final AttributeKey<String> ATTR_REMOVED_FIELD = AttributeKey.stringKey(
+		PRE + "event.removed-field");
 }

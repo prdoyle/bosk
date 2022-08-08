@@ -1,11 +1,8 @@
 package org.vena.bosk;
 
-import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
-import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.api.trace.TracerProvider;
 import io.opentelemetry.context.Scope;
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
@@ -44,6 +41,7 @@ import org.vena.bosk.util.Classes;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
+import static org.vena.bosk.OpenTelemetryConfiguration.tracer;
 import static org.vena.bosk.Path.parameterNameFromSegment;
 import static org.vena.bosk.ReferenceUtils.rawClass;
 import static org.vena.bosk.TypeValidation.validateType;
@@ -1020,38 +1018,8 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 	}
 	private static final Logger LOGGER = LoggerFactory.getLogger(Bosk.class);
 
-	// OpenTelemetry
-
-	/**
-	 * <em>Usage note</em>
-	 *
-	 * Our primary purpose for supporting OpenTelemetry is to help users understand
-	 * their own code, not to diagnose performance problems in the Bosk library.
-	 * To that end, we will do such things as create a {@link Span} when calling
-	 * user-supplied code, and propagate context in a helpful manner; but think twice
-	 * about adding self-serving instrumentation that doesn't help our users' troubleshooting.
-	 */
-	private static Tracer tracer;
-
-	static {
-		setTracerFrom(GlobalOpenTelemetry.getTracerProvider());
-	}
-
-	public static synchronized void setTracerFrom(TracerProvider provider) {
-		tracer = provider.get("bosk", libraryVersion());
-	}
-
-	private static String libraryVersion() {
-		String result = Bosk.class.getPackage().getImplementationVersion();
-		if (result == null) {
-			return "dev";
-		} else {
-			return result;
-		}
-	}
-
 	private SpanBuilder spanBuilder(String s) {
-		return tracer.spanBuilder(s)
+		return tracer().spanBuilder(s)
 			.setAttribute(ATTR_BOSK_NAME, name)
 			.setAttribute(ATTR_BOSK_INSTANCE, instanceID.toString());
 	}

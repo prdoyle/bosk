@@ -18,6 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.vena.bosk.Bosk;
 import org.vena.bosk.BoskDriver;
 import org.vena.bosk.Identifier;
+import org.vena.bosk.OpenTelemetryConfiguration;
 import org.vena.bosk.drivers.state.TestEntity;
 import org.vena.bosk.drivers.state.TestValues;
 
@@ -43,7 +44,7 @@ public class TracingDriverTest extends AbstractDriverTest {
 	@BeforeEach
 	void setup() {
 		// Prevent any extra Bosk tracing from messing up the results
-		Bosk.setTracerFrom(TracerProvider.noop());
+		OpenTelemetryConfiguration.setTracerFrom(TracerProvider.noop());
 
 		tracerProvider = OTEL.getOpenTelemetry().getTracerProvider();
 		customAttributes = Attributes.of(KEY_1, "value1");
