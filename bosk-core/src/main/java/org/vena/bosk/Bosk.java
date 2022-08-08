@@ -1,5 +1,12 @@
 package org.vena.bosk;
 
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanBuilder;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.trace.TracerProvider;
+import io.opentelemetry.context.Scope;
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -270,8 +277,17 @@ public class Bosk<R extends Entity> {
 			drainQueueIfAllowed();
 		}
 
+		/**
+		 * Runs a user-supplied function that returns the root object for
+		 * the Bosk constructor, so we create a Span to give users observability.
+		 */
 		private R computeInitialRoot() throws InvalidTypeException {
-			return initialRootFunction.apply(Bosk.this);
+			Span span = spanBuilder("Compute initial root").startSpan();
+			try (Scope __ = span.makeCurrent()) {
+				return initialRootFunction.apply(Bosk.this);
+			} finally {
+				span.end();
+			}
 		}
 
 		/**
@@ -354,8 +370,19 @@ public class Bosk<R extends Entity> {
 			});
 		}
 
+		/**
+		 * Runs a user-supplied hook function, so we create a Span to give users observability.
+		 */
 		private <S> void runHook(HookRegistration<S> reg, Reference<S> changedRef) {
-			reg.hook.onChanged(changedRef);
+			Span span = spanBuilder("Run hook")
+				.setAttribute(ATTR_BOSK_HOOK_NAME, reg.name)
+				.setAttribute(ATTR_BOSK_HOOK_REFERENCE, changedRef.toString()) // Is the overhead of Reference.toString acceptable here?
+				.startSpan();
+			try (Scope __ = span.makeCurrent()) {
+				reg.hook.onChanged(changedRef);
+			} finally {
+				span.end();
+			}
 		}
 
 		/**
@@ -992,4 +1019,50 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		return (Class) EnumerableByIdentifier.class;
 	}
 	private static final Logger LOGGER = LoggerFactory.getLogger(Bosk.class);
+
+	// OpenTelemetry
+
+	/**
+	 * <em>Usage note</em>
+	 *
+	 * Our primary purpose for supporting OpenTelemetry is to help users understand
+	 * their own code, not to diagnose performance problems in the Bosk library.
+	 * To that end, we will do such things as create a {@link Span} when calling
+	 * user-supplied code, and propagate context in a helpful manner; but think twice
+	 * about adding self-serving instrumentation that doesn't help our users' troubleshooting.
+	 */
+	private static Tracer tracer;
+
+	static {
+		setTracerFrom(GlobalOpenTelemetry.getTracerProvider());
+	}
+
+	public static synchronized void setTracerFrom(TracerProvider provider) {
+		tracer = provider.get("bosk", libraryVersion());
+	}
+
+	private static String libraryVersion() {
+		String result = Bosk.class.getPackage().getImplementationVersion();
+		if (result == null) {
+			return "dev";
+		} else {
+			return result;
+		}
+	}
+
+	private SpanBuilder spanBuilder(String s) {
+		return tracer.spanBuilder(s)
+			.setAttribute(ATTR_BOSK_NAME, name)
+			.setAttribute(ATTR_BOSK_INSTANCE, instanceID.toString());
+	}
+
+	private static final AttributeKey<String> ATTR_BOSK_NAME = AttributeKey.stringKey(
+		"bosk.name");
+	private static final AttributeKey<String> ATTR_BOSK_INSTANCE = AttributeKey.stringKey(
+		"bosk.instance");
+	private static final AttributeKey<String> ATTR_BOSK_HOOK_NAME = AttributeKey.stringKey(
+		"bosk.hook.name");
+	private static final AttributeKey<String> ATTR_BOSK_HOOK_REFERENCE = AttributeKey.stringKey(
+		"bosk.hook.reference");
+
 }
