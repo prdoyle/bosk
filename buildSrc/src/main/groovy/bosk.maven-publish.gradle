@@ -10,7 +10,7 @@ plugins {
 }
 
 jar.archiveBaseName = "${archivesBaseName}"
-var publicationType = version.contains('SNAPSHOT') ? 'snapshot' : 'release'
+var publicationType = version.endsWith('-SNAPSHOT') ? 'snapshot' : 'release'
 
 jar {
 	manifest {
