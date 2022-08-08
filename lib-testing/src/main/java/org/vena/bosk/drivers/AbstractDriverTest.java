@@ -36,7 +36,7 @@ public class AbstractDriverTest {
 	}
 
 	@Nonnull
-	private static TestEntity initialRoot(Bosk<TestEntity> b) throws InvalidTypeException {
+	static TestEntity initialRoot(Bosk<TestEntity> b) throws InvalidTypeException {
 		return TestEntity.empty(Identifier.from("root"), b.catalogReference(TestEntity.class, Path.just(TestEntity.Fields.catalog)));
 	}
 

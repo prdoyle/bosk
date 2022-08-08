@@ -1,0 +1,21 @@
+
+plugins {
+	id 'bosk.development'
+	id 'bosk.maven-publish'
+	id 'com.github.spotbugs' version '5.0.9'
+	id 'com.diffplug.gradle.spotless' version '3.25.0'
+}
+
+archivesBaseName = 'bosk-opentelemetry'
+
+dependencies {
+	api project(":bosk-core")
+
+	// We don't need to bring in the opentelemetry API here because we already
+	// bring that in for all subprojects.
+
+	testImplementation project(":lib-testing")
+	testImplementation group: 'io.opentelemetry', name: 'opentelemetry-sdk-testing', version: '1.16.0'
+	testImplementation group: 'org.assertj', name: 'assertj-core', version: '3.23.1' // opentelemetry-sdk-testing needs this. Why doesn't it bring it in as a dependency? Dunno
+
+}
