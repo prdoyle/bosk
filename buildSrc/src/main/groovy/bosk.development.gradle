@@ -111,8 +111,11 @@ dependencies {
 	// Our requirements:
 	// - SpanBuilder.setAllAttributes requires 1.2.0
 	//
+	// However, the Spring OTel starter 0.16.1 is apparently incompatible with 1.2.0.
+	// It pulls in 1.16.0 so let's use that.
+	//
 	// https://mvnrepository.com/artifact/io.opentelemetry/opentelemetry-api
-	implementation group: 'io.opentelemetry', name: 'opentelemetry-api', version: '1.2.0'
+	implementation group: 'io.opentelemetry', name: 'opentelemetry-api', version: '1.16.0'
 
 }
 
