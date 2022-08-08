@@ -148,7 +148,8 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 	}
 
 	private Span span(ChangeStreamDocument<Document> event) {
-		SpanBuilder spanBuilder = tracer().spanBuilder("submitConditionalDeletion")
+		SpanBuilder spanBuilder = tracer().spanBuilder(format(
+			"%s event: %s", MongoChangeStreamReceiver.class.getSimpleName(), event.getOperationType().getValue()))
 			.setAttribute(ATTR_RECEIVER_ID, identityString)
 			.setAttribute(ATTR_EVENT_TYPE, event.getOperationType().getValue());
 		UpdateDescription updateDescription = event.getUpdateDescription();
