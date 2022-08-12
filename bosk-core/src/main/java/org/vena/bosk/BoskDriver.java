@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import org.vena.bosk.Bosk.ReadContext;
 import org.vena.bosk.drivers.ForwardingDriver;
+import org.vena.bosk.exceptions.FlushFailureException;
 import org.vena.bosk.exceptions.InvalidTypeException;
 
 /**
@@ -19,7 +20,9 @@ public interface BoskDriver<R extends Entity> {
 	 * <p>
 	 * Meant to be called only once during initialization by the Bosk;
 	 * the behaviour of subsequent calls depends on the implementation,
-	 * and may even throw an exception.
+	 * and may even throw an exception. As a convenience to implementations,
+	 * this method is allowed to throw a variety of checked exceptions
+	 * that are common to implementations.
 	 *
 	 * <p>
 	 * For a "stackable layer" driver, it is conventional to delegate to the
@@ -143,6 +146,8 @@ public interface BoskDriver<R extends Entity> {
 	 * <strong>Evolution note</strong>: This method currently acts as a full barrier, while
 	 * ultimately we may want a more efficient release-acquire pair that allows writes
 	 * to be reliably visible to subsequent reads.
+	 *
+	 * @see FlushFailureException
 	 */
 	void flush() throws IOException, InterruptedException;
 
