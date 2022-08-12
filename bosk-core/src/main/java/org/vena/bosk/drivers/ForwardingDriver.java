@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import lombok.RequiredArgsConstructor;
 import org.vena.bosk.BoskDriver;
 import org.vena.bosk.Entity;
@@ -17,10 +18,11 @@ public class ForwardingDriver<R extends Entity> implements BoskDriver<R> {
 
 	/**
 	 * @return The result of calling <code>initialRoot</code> on the first downstream driver
-	 * that doesn't throw {@link UnsupportedOperationException}.
+	 * that doesn't throw {@link UnsupportedOperationException}. Other exceptions are propagated as-is,
+	 * and abort the initialization immediately.
 	 */
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException {
 		List<UnsupportedOperationException> exceptions = new ArrayList<>();
 		for (BoskDriver<R> d: downstream) {
 			try {

@@ -10,6 +10,7 @@ import java.util.ListIterator;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -125,7 +126,7 @@ public class Bosk<R extends Entity> {
 		this.driver = driverFactory.apply(this.localDriver, this);
 		try {
 			this.currentRoot = requireNonNull(driver.initialRoot(rootType));
-		} catch (InvalidTypeException | IOException | InterruptedException e) {
+		} catch (InvalidTypeException | IOException | InterruptedException | ExecutionException e) {
 			throw new IllegalArgumentException("Error computing initial root: " + e.getMessage(), e);
 		}
 		if (!rawClass(rootType).isInstance(this.currentRoot)) {

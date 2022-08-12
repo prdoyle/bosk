@@ -2,6 +2,7 @@ package org.vena.bosk;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.concurrent.ExecutionException;
 import org.vena.bosk.Bosk.ReadContext;
 import org.vena.bosk.drivers.ForwardingDriver;
 import org.vena.bosk.exceptions.FlushFailureException;
@@ -43,7 +44,7 @@ public interface BoskDriver<R extends Entity> {
 	 * but it can be used downstream of a {@link ForwardingDriver} provided there is
 	 * another downstream driver that can provide the initial root instead.
 	 */
-	R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException;
+	R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException;
 
 	/**
 	 * Requests that the object referenced by <code>target</code> be changed to <code>newValue</code>.

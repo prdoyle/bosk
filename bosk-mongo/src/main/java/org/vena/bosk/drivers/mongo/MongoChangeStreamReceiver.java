@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,7 +76,7 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException {
 		return downstream.initialRoot(rootType);
 	}
 

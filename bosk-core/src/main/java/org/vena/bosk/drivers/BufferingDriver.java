@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import org.vena.bosk.BoskDriver;
@@ -38,7 +39,7 @@ public class BufferingDriver<R extends Entity> implements BoskDriver<R> {
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException {
 		return downstream.initialRoot(rootType);
 	}
 

@@ -20,6 +20,7 @@ import java.lang.reflect.Type;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Value;
 import org.bson.BsonDocument;
@@ -87,7 +88,7 @@ public final class MongoDriver<R extends Entity> implements BoskDriver<R> {
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException {
 		LOGGER.debug("+ initialRoot");
 
 		// Ensure at least one change stream update is seen by the receiver before we

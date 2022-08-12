@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutionException;
 import org.bson.BsonDocument;
 import org.vena.bosk.BoskDriver;
 import org.vena.bosk.Entity;
@@ -37,7 +38,7 @@ interface MongoReceiver<R extends Entity> extends Closeable {
 	void close();
 
 	// Proxied methods for downstream driver
-	R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException;
+	R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException;
 	void flushDownstream() throws InterruptedException, IOException;
 
 	// Echo functionality to implement flush()

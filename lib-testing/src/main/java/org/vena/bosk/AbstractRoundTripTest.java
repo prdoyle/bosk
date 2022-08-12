@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -226,7 +227,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		abstract <T> T preprocess(Reference<T> reference, T newValue);
 
 		@Override
-		public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+		public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException {
 			return downstream.initialRoot(rootType);
 		}
 
