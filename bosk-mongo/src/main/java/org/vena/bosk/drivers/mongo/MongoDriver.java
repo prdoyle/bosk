@@ -88,7 +88,7 @@ public final class MongoDriver<R extends Entity> implements BoskDriver<R> {
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException {
+	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		LOGGER.debug("+ initialRoot");
 
 		// Ensure at least one change stream update is seen by the receiver before we

@@ -126,7 +126,7 @@ public class Bosk<R extends Entity> {
 		this.driver = driverFactory.apply(this.localDriver, this);
 		try {
 			this.currentRoot = requireNonNull(driver.initialRoot(rootType));
-		} catch (InvalidTypeException | IOException | InterruptedException | ExecutionException e) {
+		} catch (InvalidTypeException | IOException | InterruptedException e) {
 			throw new IllegalArgumentException("Error computing initial root: " + e.getMessage(), e);
 		}
 		if (!rawClass(rootType).isInstance(this.currentRoot)) {

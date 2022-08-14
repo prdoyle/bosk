@@ -12,8 +12,9 @@ import org.vena.bosk.BoskDriver;
  * from {@link BoskDriver} implementations.
  *
  * <p>
- * Implements {@link IOException} because we expect that any code that already
+ * Extends {@link IOException} because we expect that any code that already
  * handles that will do the right thing for this (eg. aborting, retrying, logging).
+ * The same is not necessarily true for {@link RuntimeException}.
  */
 public class FlushFailureException extends IOException {
 	public FlushFailureException(String message) { super(message); }

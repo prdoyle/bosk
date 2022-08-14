@@ -76,7 +76,7 @@ final class MongoChangeStreamReceiver<R extends Entity> implements MongoReceiver
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException {
+	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		return downstream.initialRoot(rootType);
 	}
 

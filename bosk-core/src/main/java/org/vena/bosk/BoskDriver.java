@@ -36,15 +36,17 @@ public interface BoskDriver<R extends Entity> {
 	 * @param rootType The full {@link Type} of the root object, including any
 	 * type parameters if it's parameterized, as a convenience to the initialization logic.
 	 * @throws InvalidTypeException as a convenience to support initialization logic
-	 * that creates {@link Reference References}, so implementations do not need to
-	 * catch that exception and wrap it or otherwise deal with it: the caller of this
-	 * method is expected to know how to deal with this exception.
+	 * that creates {@link Reference References} (which is very common) so that implementations
+	 * do not need to catch that exception and wrap it or otherwise deal with it:
+	 * the caller of this method is expected to know how to deal with that exception.
 	 * @throws UnsupportedOperationException if this driver is unable to provide
 	 * an initial root. Such a driver cannot be used on its own to initialize a Bosk,
 	 * but it can be used downstream of a {@link ForwardingDriver} provided there is
 	 * another downstream driver that can provide the initial root instead.
+	 *
+	 * @see org.vena.bosk.exceptions.InitializationFailureException
 	 */
-	R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException;
+	R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException;
 
 	/**
 	 * Requests that the object referenced by <code>target</code> be changed to <code>newValue</code>.

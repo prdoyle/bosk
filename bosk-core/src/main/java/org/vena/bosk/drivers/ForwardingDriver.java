@@ -22,7 +22,7 @@ public class ForwardingDriver<R extends Entity> implements BoskDriver<R> {
 	 * and abort the initialization immediately.
 	 */
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException, ExecutionException {
+	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		List<UnsupportedOperationException> exceptions = new ArrayList<>();
 		for (BoskDriver<R> d: downstream) {
 			try {
