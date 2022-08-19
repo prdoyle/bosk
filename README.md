@@ -1,15 +1,25 @@
 # Bosk
-Control plane state management library
+Bosk is a control plane state management system for distributed applications.
+It aims to ease the transition from a single standalone Java application to a replicated cluster
+with minimal surprise.
 
-## Usage
+## Quick start
 
 The `bosk-core` library is enough to get started.
-You can create a `Bosk` object and start writing your application.
+Create a `Bosk` singleton object, and use it to house your application's state tree.
+Use `Bosk::simpleDriver` as your driver.
+Register hook functions to take the appropriate actions when parts of the state change.
 
 Add in other packages as you need them,
-like `bosk-gson` for JSON serialization
-or `bosk-mongo` for persistence and replication.
+like `bosk-gson` for JSON serialization.
 Use the same version number for all packages.
+
+Once you've got your application running,
+you can bring in the `bosk-mongo` package,
+and replace `Bosk::simpleDriver` with a `MongoDriver`.
+Then run MongoDB along with one or more replicas of your application,
+all configured to use the same MongoDB collection to store state.
+If you've done it right, you now have a replica set of servers all sharing the same state!
 
 ## Development
 
