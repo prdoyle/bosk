@@ -1,14 +1,21 @@
 package org.vena.bosk;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.vena.bosk.Bosk.ReadContext;
 import org.vena.bosk.HookRecorder.Event;
 import org.vena.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.vena.bosk.HookRecorder.Event.Kind.CHANGED;
 
@@ -307,5 +314,39 @@ public class HooksTest extends AbstractBoskTest {
 		try (ReadContext context = bosk.readContext()) {
 			assertEquals(expectedString, child2StringRef.value(), "Correct value got copied");
 		}
+	}
+
+	/////////////
+	//
+	// Controller tests
+	//
+
+	@ParameterizedTest
+	@MethodSource("actuatorCases")
+	void nullSetpoint_actuatorCalledWhenDifferent(String sensor, String setpoint, List<String> expectedActuated) throws IOException, InterruptedException {
+		List<String> actuatedValues = new ArrayList<>();
+		bosk.registerHook("Null test", bosk.rootReference(), BoskHook.controller(
+			__ ->setpoint,
+			() -> sensor,
+			actuatedValues::add
+		));
+
+		// Hooks fire when they're registered. We should already have seen the actuator get called.
+
+		assertEquals(expectedActuated, actuatedValues);
+	}
+
+	static Stream<Arguments> actuatorCases() {
+		return Stream.of(
+			actuatorCase(null, null, emptyList()),
+			actuatorCase(null, "x", singletonList("x")),
+			actuatorCase("x", null, singletonList(null)),
+			actuatorCase("x", "x", emptyList()),
+			actuatorCase("y", "x", singletonList("x"))
+		);
+	}
+
+	static Arguments actuatorCase(String sensor, String setpoint, List<String> expected) {
+		return Arguments.of(sensor, setpoint, expected);
 	}
 }
