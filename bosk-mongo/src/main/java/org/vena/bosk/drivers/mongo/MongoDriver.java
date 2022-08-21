@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.vena.bosk.Bosk;
 import org.vena.bosk.BoskDriver;
-import org.vena.bosk.DriverFactory;
 import org.vena.bosk.Entity;
 import org.vena.bosk.Identifier;
 import org.vena.bosk.Reference;
@@ -60,7 +59,7 @@ public final class MongoDriver<R extends Entity> implements BoskDriver<R> {
 	private final String echoPrefix;
 	private final AtomicLong echoCounter = new AtomicLong(1_000_000_000_000L); // Start with a big number so the length doesn't change often
 
-	public MongoDriver(Bosk<R> bosk, MongoClientSettings clientSettings, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin, BoskDriver<R> downstream) {
+	private MongoDriver(Bosk<R> bosk, MongoClientSettings clientSettings, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin, BoskDriver<R> downstream) {
 		validateMongoClientSettings(clientSettings);
 		this.description = MongoDriver.class.getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;
@@ -75,7 +74,21 @@ public final class MongoDriver<R extends Entity> implements BoskDriver<R> {
 		this.rootRef = bosk.rootReference();
 	}
 
-	public static <RR extends Entity> DriverFactory<RR> factory(MongoClientSettings clientSettings, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin) {
+	/**
+	 * @see #factory(MongoClientSettings, MongoDriverSettings, BsonPlugin)
+	 */
+	public static <RR extends Entity> MongoDriverFactory<RR> factory(MongoClientSettings clientSettings, MongoDriverSettings driverSettings) {
+		return factory(clientSettings, driverSettings, new BsonPlugin());
+	}
+
+	/**
+	 * @return a factory that uses the given {@link BsonPlugin} so that
+	 * you can control serialization and deserialization with, for example,
+	 * {@link org.vena.bosk.SerializationPlugin.DeserializationScope DeserializationScope}.
+	 *
+	 * @see #factory(MongoClientSettings, MongoDriverSettings, BsonPlugin)
+	 */
+	public static <RR extends Entity> MongoDriverFactory<RR> factory(MongoClientSettings clientSettings, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin) {
 		return (b,d) -> new MongoDriver<>(b, clientSettings, driverSettings, bsonPlugin, d);
 	}
 
