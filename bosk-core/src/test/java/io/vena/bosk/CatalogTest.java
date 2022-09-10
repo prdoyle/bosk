@@ -14,12 +14,14 @@ import lombok.EqualsAndHashCode;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.NonFinal;
+import lombok.var;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -175,6 +177,33 @@ class CatalogTest {
 	}
 
 	@ParameterizedTest
+	@MethodSource("distinctCases")
+	void containsAll_matchesLinkedHashSet(BasicEntity[] contents) {
+		Catalog<BasicEntity> catalog = Catalog.of(contents);
+
+		assertTrue(catalog.containsAll(emptySet()));
+		assertFalse(catalog.containsAll(singletonList(wrongEntity)));
+
+		for (int i = 0; i < contents.length && i <= 8; i++) {
+			List<BasicEntity> entities = asList(contents).subList(i / 2, i);
+			assertTrue(catalog.containsAll(entities));
+			assertTrue(catalog.containsAllIDs(entities.stream().map(Entity::id)));
+		}
+
+		if (contents.length >= 1) {
+			assertFalse(catalog.containsAll(asList(contents[0], wrongEntity)));
+			assertFalse(catalog.containsAll(asList(wrongEntity, contents[0])));
+			assertFalse(catalog.containsAll(asList(contents[0], wrongEntity, contents[0])));
+
+			Identifier rightID = contents[0].id();
+			Identifier wrongID = wrongEntity.id();
+			assertFalse(catalog.containsAllIDs(Stream.of(rightID, wrongID)));
+			assertFalse(catalog.containsAllIDs(Stream.of(wrongID, rightID)));
+			assertFalse(catalog.containsAllIDs(Stream.of(rightID, wrongID, rightID)));
+		}
+	}
+
+	@ParameterizedTest
 	@MethodSource("allCases")
 	void iterator_matchesLinkedHashSet(BasicEntity[] contents) {
 		assertThrows(NoSuchElementException.class, () -> fromContents(new BasicEntity[0]).iterator().next());
@@ -287,6 +316,19 @@ class CatalogTest {
 		Catalog<BasicEntity> withoutMById = catalog.without(entity.id);
 		assertEquals(catalog, fromContents(contents));
 		assertEquals(withoutM, withoutMById);
+	}
+
+	@ParameterizedTest
+	@MethodSource("distinctCases")
+	void toString_matchesLinkedHashMap(BasicEntity[] contents) {
+		// Too strict? How much do we care about toString?
+		LinkedHashMap<Identifier, BasicEntity> map = new LinkedHashMap<>();
+		for (BasicEntity e: contents) {
+			map.put(e.id(), e);
+		}
+		String expected = map.toString();
+		String actual = Catalog.of(contents).toString();
+		assertEquals(expected, actual);
 	}
 
 	@Test
