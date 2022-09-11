@@ -152,18 +152,18 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 			int rln = rl.size();
 			int rrn = rr.size();
 			if (rln < rrn) {
-				return single_L(
-					key, value,
+				// single_L
+				return new OccupiedNode<>(
 					rightTree.key, rightTree.value,
-					left, rl, rr);
+					new OccupiedNode<>(key, value, left, rl),
+					rr);
 			} else {
+				// double_L
 				OccupiedNode<KK,VV> rlTree = (OccupiedNode<KK, VV>) rightTree.left;
-				return doubleRotation(
-					key, value,
+				return new OccupiedNode<>(
 					rlTree.key, rlTree.value,
-					rightTree.key, rightTree.value,
-					left, rlTree.left, rlTree.right, rr
-				);
+					new OccupiedNode<>(key, value, left, rlTree.left),
+					new OccupiedNode<>(rightTree.key, rightTree.value, rlTree.right, rr));
 			}
 		} else if (ln > BALANCE_RATIO * rn) {
 			OccupiedNode<KK,VV> leftTree = (OccupiedNode<KK, VV>) left;
@@ -172,56 +172,22 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 			int lln = ll.size();
 			int lrn = lr.size();
 			if (lrn < lln) {
-				return single_R(
+				// single_R
+				return new OccupiedNode<>(
 					leftTree.key, leftTree.value,
-					key, value,
-					ll, lr, right);
+					ll,
+					new OccupiedNode<>(key, value, lr, right));
 			} else {
+				// double_R
 				OccupiedNode<KK,VV> lrTree = (OccupiedNode<KK, VV>) leftTree.right;
-				return doubleRotation(
-					leftTree.key, leftTree.value,
+				return new OccupiedNode<>(
 					lrTree.key, lrTree.value,
-					key, value,
-					ll, lrTree.left, lrTree.right, right
-				);
+					new OccupiedNode<>(leftTree.key, leftTree.value, ll, lrTree.left),
+					new OccupiedNode<>(key, value, lrTree.right, right));
 			}
 		} else {
 			return new OccupiedNode<>(key, value, left, right);
 		}
-	}
-
-	private static <KK,VV> TreeNode<KK,VV> single_L(
-		KK aKey, VV aValue,
-		KK bKey, VV bValue,
-		TreeNode<KK,VV> x, TreeNode<KK,VV> y, TreeNode<KK,VV> z
-	) {
-		return new OccupiedNode<>(
-			bKey, bValue,
-			new OccupiedNode<>(aKey, aValue, x, y),
-			z);
-	}
-
-	private static <KK,VV> TreeNode<KK,VV> single_R(
-		KK aKey, VV aValue,
-		KK bKey, VV bValue,
-		TreeNode<KK,VV> x, TreeNode<KK,VV> y, TreeNode<KK,VV> z
-	) {
-		return new OccupiedNode<>(
-			aKey, aValue,
-			x,
-			new OccupiedNode<>(bKey, bValue, y, z));
-	}
-
-	private static <KK,VV> TreeNode<KK,VV> doubleRotation(
-		KK aKey, VV aValue,
-		KK bKey, VV bValue,
-		KK cKey, VV cValue,
-		TreeNode<KK,VV> x, TreeNode<KK,VV> y1, TreeNode<KK,VV> y2, TreeNode<KK,VV> z
-	) {
-		return new OccupiedNode<>(
-			bKey, bValue,
-			new OccupiedNode<>(aKey, aValue, x, y1),
-			new OccupiedNode<>(cKey, cValue, y2, z));
 	}
 
 	static final int BALANCE_RATIO = 5;
