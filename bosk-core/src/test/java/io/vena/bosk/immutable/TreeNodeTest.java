@@ -43,6 +43,13 @@ class TreeNodeTest {
 	}
 
 	@Test
+	void replaceSingleton_equivalent() {
+		assertEquivalentToTreeMap(
+			entryList(IntStream.of(1,1)),
+			String::compareTo);
+	}
+
+	@Test
 	void ascendingOrder_equivalent() {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.rangeClosed(1, 3)),
@@ -150,6 +157,17 @@ class TreeNodeTest {
 			entryList(IntStream.of(2, 1, 3)),
 			// Delete the root
 			entryList(IntStream.of(3)),
+			emptyList(),
+			String::compareTo
+		);
+	}
+
+	@Test
+	void deleteRootOfCompleteTree_equivalent() {
+		assertEquivalentToTreeMap(
+			entryList(IntStream.of(8, 4, 12, 2, 10, 6, 14, 1, 9, 5, 13, 3, 11, 7, 15)),
+			// Delete the root
+			entryList(IntStream.of(8)),
 			emptyList(),
 			String::compareTo
 		);
