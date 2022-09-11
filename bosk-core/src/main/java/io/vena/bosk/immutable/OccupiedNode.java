@@ -207,9 +207,9 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 		TreeNode<KK,VV> x, TreeNode<KK,VV> y, TreeNode<KK,VV> z
 	) {
 		return new OccupiedNode<>(
-			bKey, bValue,
-			new OccupiedNode<>(aKey, aValue, x, y),
-			z);
+			aKey, aValue,
+			x,
+			new OccupiedNode<>(bKey, bValue, y, z));
 	}
 
 	private static <KK,VV> TreeNode<KK,VV> doubleRotation(
