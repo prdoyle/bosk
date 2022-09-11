@@ -1,10 +1,8 @@
 package io.vena.bosk.immutable;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.function.ToIntFunction;
 
 import static java.util.Collections.emptyIterator;
 
@@ -51,4 +49,8 @@ class EmptyNode<K, V> implements TreeNode<K,V> {
 		return emptyIterator();
 	}
 
+	@Override
+	public String toString() {
+		return "EmptyNode";
+	}
 }

@@ -17,4 +17,8 @@ interface TreeNode<K, V> {
 	static <KK,VV> TreeNode<KK,VV> empty() {
 		return EmptyNode.instance();
 	}
+
+	static <KK,VV> TreeNode<KK,VV> of(KK key, VV value) {
+		return TreeNode.<KK,VV>empty().with(key, value, (a,b)->0); // Comparator doesn't matter
+	}
 }

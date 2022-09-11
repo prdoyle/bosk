@@ -1,26 +1,23 @@
 package io.vena.bosk.immutable;
 
+import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
-import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
+import lombok.var;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.testcontainers.shaded.org.apache.commons.lang3.builder.ToStringExclude;
 
 import static io.vena.bosk.immutable.OccupiedNode.BALANCE_RATIO;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -239,12 +236,52 @@ class TreeNodeTest {
 		assertEquals(empty, empty.union(empty, String::compareTo));
 	}
 
+	@Test
+	void distinctSingletonUnion_containsBoth() {
+		TreeNode<String, String> left = TreeNode.of("key1", "value1");
+		TreeNode<String, String> right = TreeNode.of("key2", "value2");
+		TreeNode<String, String> expected = left.with("key2", "value2", String::compareTo);
+		TreeNode<String, String> actual = left.union(right, String::compareTo);
+		assertEquals(expected, actual);
+	}
+
+	@Test
+	void duplicateSingletonUnion_containsOne() {
+		TreeNode<String, String> left = TreeNode.of("key", "value");
+		TreeNode<String, String> right = TreeNode.of("key", "value");
+		TreeNode<String, String> actual = left.union(right, String::compareTo);
+		assertEquals(left, actual);
+		assertEquals(right, actual);
+	}
+
+	@Test
+	void evensAndOddsSmall_correctlyInterleaved() {
+		TreeNode<String, String> evens = treeFrom(IntStream.rangeClosed(1,20).map(i -> i*2));
+		TreeNode<String, String> odds  = treeFrom(IntStream.rangeClosed(1,20).map(i -> i*2-1));
+		TreeMap<String, String> expected = entryList(IntStream.rangeClosed(1, 40)).stream()
+			.collect(toMap(
+				Map.Entry::getKey,
+				e -> "Value for " + e.getKey(),
+				(a,b)->{ throw new NotYetImplementedException(); },
+				TreeMap::new));
+		TreeNode<String, String> actual = evens.union(odds, String::compareTo);
+		assertEntriesEqual(actual, expected);
+	}
+
 	@NotNull
 	static List<Map.Entry<String, DistinctValue>> entryList(IntStream numbers) {
 		return numbers
 			.mapToObj(i -> String.format("%012d", i))
 			.map(s -> new SimpleEntry<>("key" + s, new DistinctValue(s)))
 			.collect(toList());
+	}
+
+	static TreeNode<String, String> treeFrom(IntStream numbers) {
+		TreeNode<String, String> result = TreeNode.empty();
+		for (Map.Entry<String, DistinctValue> entry: entryList(numbers)) {
+			result = result.with(entry.getKey(), "Value for " + entry.getKey(), String::compareTo);
+		}
+		return result;
 	}
 
 	/**
@@ -280,15 +317,26 @@ class TreeNodeTest {
 		Iterable<Map.Entry<K, V>> moreEntriesToAdd,
 		Comparator<K> comparator
 	) {
-		TreeNode<K,V> treeNode = TreeNode.<K,V>empty();
+		TreeNode<K,V> withNode = TreeNode.<K,V>empty();
+		TreeNode<K,V> leftUnionNode = TreeNode.<K,V>empty();
+		TreeNode<K,V> rightUnionNode = TreeNode.<K,V>empty();
 		for (Map.Entry<K, V> entry: entriesToAdd) {
-			treeNode = treeNode.with(entry.getKey(), entry.getValue(), comparator);
+			withNode = withNode.with(entry.getKey(), entry.getValue(), comparator);
+			TreeNode<K, V> singleton = TreeNode.of(entry.getKey(), entry.getValue());
+			leftUnionNode = leftUnionNode.union(singleton, comparator);
+			rightUnionNode = singleton.union(rightUnionNode, comparator);
 		}
 		for (Map.Entry<K, V> entry: entriesToRemove) {
-			treeNode = treeNode.without(entry.getKey(), comparator);
+			withNode = withNode.without(entry.getKey(), comparator);
+			TreeNode<K, V> singleton = TreeNode.of(entry.getKey(), entry.getValue());
+			leftUnionNode = leftUnionNode.difference(singleton, comparator);
+			rightUnionNode = singleton.difference(rightUnionNode, comparator);
 		}
 		for (Map.Entry<K, V> entry: moreEntriesToAdd) {
-			treeNode = treeNode.with(entry.getKey(), entry.getValue(), comparator);
+			withNode = withNode.with(entry.getKey(), entry.getValue(), comparator);
+			TreeNode<K, V> singleton = TreeNode.of(entry.getKey(), entry.getValue());
+			leftUnionNode = leftUnionNode.union(singleton, comparator);
+			rightUnionNode = singleton.union(rightUnionNode, comparator);
 		}
 
 		TreeMap<K,V> treeMap = new TreeMap<>(comparator);
@@ -302,8 +350,13 @@ class TreeNodeTest {
 			treeMap.put(entry.getKey(), entry.getValue());
 		}
 
-		assertEntriesEqual(treeNode, treeMap);
-		assertBalanced(treeNode);
+		assertEntriesEqual(withNode, treeMap);
+		assertEntriesEqual(leftUnionNode, treeMap);
+		assertEntriesEqual(rightUnionNode, treeMap);
+
+		assertBalanced(withNode);
+		assertBalanced(leftUnionNode);
+		assertBalanced(rightUnionNode);
 	}
 
 	static <K, V> void assertEntriesEqual(TreeNode<K, V> treeNode, TreeMap<K, V> treeMap) {

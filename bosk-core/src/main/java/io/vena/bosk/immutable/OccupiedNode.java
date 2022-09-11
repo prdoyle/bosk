@@ -101,8 +101,8 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 		TreeNode<K,V> r_prime = split_gt(this, otherTree.key, otherTree.value, comparator);
 		return concat3(
 			otherTree.key, otherTree.value,
-			l_prime.union(left, comparator),
-			r_prime.union(right, comparator),
+			l_prime.union(otherTree.left, comparator),
+			r_prime.union(otherTree.right, comparator),
 			comparator
 		);
 	}
