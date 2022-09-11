@@ -91,18 +91,28 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 	}
 
 	@Override
-	public TreeNode<K, V> union(TreeNode<K, V> other, Comparator<K> comparator) {
+	public TreeNode<K, V> withAll(TreeNode<K, V> other, Comparator<K> comparator) {
 		if (other.size() == 0) {
 			return this;
 		}
-
 		OccupiedNode<K,V> otherTree = (OccupiedNode<K, V>) other;
-		TreeNode<K,V> l_prime = split_lt(this, otherTree.key, otherTree.value, comparator);
-		TreeNode<K,V> r_prime = split_gt(this, otherTree.key, otherTree.value, comparator);
+
+		TreeNode<K,V> leftPart = split_lt(other, this.key, comparator);
+		TreeNode<K,V> rightPart = split_gt(other, this.key, comparator);
+
+		// Other node's value takes precedence
+		V resultValue;
+		if (this.key.equals(otherTree.key)) {
+			resultValue = otherTree.value;
+		} else {
+			resultValue = this.value;
+		}
+
 		return concat3(
-			otherTree.key, otherTree.value,
-			l_prime.union(otherTree.left, comparator),
-			r_prime.union(otherTree.right, comparator),
+			this.key, // Existing key takes precedence
+			resultValue,
+			this.left.withAll(leftPart, comparator),
+			this.right.withAll(rightPart, comparator),
 			comparator
 		);
 	}
@@ -229,7 +239,7 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 		}
 	}
 
-	private static <KK,VV> TreeNode<KK,VV> split_lt(TreeNode<KK,VV> node, KK key, VV value, Comparator<KK> comparator) {
+	private static <KK,VV> TreeNode<KK,VV> split_lt(TreeNode<KK,VV> node, KK key, Comparator<KK> comparator) {
 		if (node.size() == 0) {
 			return node;
 		}
@@ -237,15 +247,15 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 		OccupiedNode<KK,VV> tree = (OccupiedNode<KK, VV>) node;
 		int discriminator = comparator.compare(key, tree.key);
 		if (discriminator < 0) {
-			return split_lt(tree.left, key, value, comparator);
+			return split_lt(tree.left, key, comparator);
 		} else if (discriminator > 0) {
-			return concat3(tree.key, tree.value, tree.left, split_lt(tree.right, key, value, comparator), comparator);
+			return concat3(tree.key, tree.value, tree.left, split_lt(tree.right, key, comparator), comparator);
 		} else {
 			return tree.left;
 		}
 	}
 
-	private static <KK,VV> TreeNode<KK,VV> split_gt(TreeNode<KK,VV> node, KK key, VV value, Comparator<KK> comparator) {
+	private static <KK,VV> TreeNode<KK,VV> split_gt(TreeNode<KK,VV> node, KK key, Comparator<KK> comparator) {
 		if (node.size() == 0) {
 			return node;
 		}
@@ -253,9 +263,9 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 		OccupiedNode<KK,VV> tree = (OccupiedNode<KK, VV>) node;
 		int discriminator = comparator.compare(tree.key, key);
 		if (discriminator < 0) {
-			return split_gt(tree.right, key, value, comparator);
+			return split_gt(tree.right, key, comparator);
 		} else if (discriminator > 0) {
-			return concat3(tree.key, tree.value, split_gt(tree.left, key, value, comparator), tree.right, comparator);
+			return concat3(tree.key, tree.value, split_gt(tree.left, key, comparator), tree.right, comparator);
 		} else {
 			return tree.right;
 		}

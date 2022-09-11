@@ -8,7 +8,7 @@ interface TreeNode<K, V> {
 	int size();
 	TreeNode<K, V> with(K key, V value, Comparator<K> comparator);
 	TreeNode<K,V> without(K key, Comparator<K> comparator);
-	TreeNode<K,V> union(TreeNode<K,V> other, Comparator<K> comparator);
+	TreeNode<K,V> withAll(TreeNode<K,V> other, Comparator<K> comparator);
 	TreeNode<K,V> difference(TreeNode<K,V> other, Comparator<K> comparator);
 	TreeNode<K,V> intersection(TreeNode<K,V> other, Comparator<K> comparator);
 

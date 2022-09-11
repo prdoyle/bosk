@@ -30,7 +30,7 @@ class EmptyNode<K, V> implements TreeNode<K,V> {
 	}
 
 	@Override
-	public TreeNode<K, V> union(TreeNode<K, V> other, Comparator<K> comparator) {
+	public TreeNode<K, V> withAll(TreeNode<K, V> other, Comparator<K> comparator) {
 		return other;
 	}
 
