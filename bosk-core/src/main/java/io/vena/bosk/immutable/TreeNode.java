@@ -9,7 +9,7 @@ interface TreeNode<K, V> {
 	TreeNode<K, V> with(K key, V value, Comparator<K> comparator);
 	TreeNode<K,V> without(K key, Comparator<K> comparator);
 	TreeNode<K,V> withAll(TreeNode<K,V> other, Comparator<K> comparator);
-	TreeNode<K,V> difference(TreeNode<K,V> other, Comparator<K> comparator);
+	TreeNode<K,V> withoutAll(TreeNode<K,V> other, Comparator<K> comparator);
 	TreeNode<K,V> intersection(TreeNode<K,V> other, Comparator<K> comparator);
 
 	Iterator<Map.Entry<K,V>> entryIterator();

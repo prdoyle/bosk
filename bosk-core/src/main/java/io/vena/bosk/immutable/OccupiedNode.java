@@ -118,7 +118,14 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 	}
 
 	@Override
-	public TreeNode<K, V> difference(TreeNode<K, V> other, Comparator<K> comparator) {
+	public TreeNode<K, V> withoutAll(TreeNode<K, V> other, Comparator<K> comparator) {
+		if (other.size() == 0) {
+			return this;
+		}
+		OccupiedNode<K,V> otherTree = (OccupiedNode<K, V>) other;
+
+		TreeNode<K,V> leftPart = split_lt(other, this.key, comparator);
+		TreeNode<K,V> rightPart = split_gt(other, this.key, comparator);
 		return null;
 	}
 

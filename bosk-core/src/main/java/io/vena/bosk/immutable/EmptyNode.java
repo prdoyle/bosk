@@ -35,7 +35,7 @@ class EmptyNode<K, V> implements TreeNode<K,V> {
 	}
 
 	@Override
-	public TreeNode<K, V> difference(TreeNode<K, V> other, Comparator<K> comparator) {
+	public TreeNode<K, V> withoutAll(TreeNode<K, V> other, Comparator<K> comparator) {
 		return this;
 	}
 

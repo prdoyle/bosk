@@ -329,8 +329,8 @@ class TreeNodeTest {
 		for (Map.Entry<K, V> entry: entriesToRemove) {
 			withNode = withNode.without(entry.getKey(), comparator);
 			TreeNode<K, V> singleton = TreeNode.of(entry.getKey(), entry.getValue());
-			leftUnionNode = leftUnionNode.difference(singleton, comparator);
-			rightUnionNode = singleton.difference(rightUnionNode, comparator);
+			leftUnionNode = leftUnionNode.withoutAll(singleton, comparator);
+			rightUnionNode = singleton.withoutAll(rightUnionNode, comparator);
 		}
 		for (Map.Entry<K, V> entry: moreEntriesToAdd) {
 			withNode = withNode.with(entry.getKey(), entry.getValue(), comparator);
