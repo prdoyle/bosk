@@ -43,21 +43,21 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void ascendingOrder_expectedItems() {
+	void ascendingOrder_equivalent() {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.rangeClosed(1, 3)),
 			String::compareTo);
 	}
 
 	@Test
-	void descendingOrder_expectedItems() {
+	void descendingOrder_equivalent() {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.rangeClosed(3, 1)),
 			String::compareTo);
 	}
 
 	@Test
-	void mixedOrder_expectedItems() {
+	void mixedOrder_equivalent() {
 		assertEquivalentToTreeMap(
 			// This order was observed to trigger a bug
 			entryList(IntStream.of(850536, 447530, 534792, 231632, 718173, 704060)),
@@ -75,7 +75,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void deleteLeftDoubletonRoot_expectedItems() {
+	void deleteLeftDoubletonRoot_equivalent() {
 		assertEquivalentToTreeMap(
 			// Set up a left-leaning two-node tree
 			entryList(IntStream.of(2, 1)),
@@ -87,7 +87,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void deleteLeftDoubletonLeaf_expectedItems() {
+	void deleteLeftDoubletonLeaf_equivalent() {
 		assertEquivalentToTreeMap(
 			// Set up a left-leaning two-node tree
 			entryList(IntStream.of(2, 1)),
@@ -99,7 +99,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void deleteRightDoubletonRoot_expectedItems() {
+	void deleteRightDoubletonRoot_equivalent() {
 		assertEquivalentToTreeMap(
 			// Set up a right-leaning two-node tree
 			entryList(IntStream.of(1, 2)),
@@ -111,7 +111,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void deleteRightDoubletonLeaf_expectedItems() {
+	void deleteRightDoubletonLeaf_equivalent() {
 		assertEquivalentToTreeMap(
 			// Set up a right-leaning two-node tree
 			entryList(IntStream.of(1, 2)),
@@ -123,7 +123,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void deleteTripletonRoot_expectedItems() {
+	void deleteTripletonRoot_equivalent() {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.of(2, 1, 3)),
 			// Delete the root
@@ -134,7 +134,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void deleteTripletonLeftLeaf_expectedItems() {
+	void deleteTripletonLeftLeaf_equivalent() {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.of(2, 1, 3)),
 			// Delete the root
@@ -145,7 +145,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void deleteTripletonRightLeaf_expectedItems() {
+	void deleteTripletonRightLeaf_equivalent() {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.of(2, 1, 3)),
 			// Delete the root
@@ -156,7 +156,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void singleLeftRotation_expectedItems() {
+	void singleLeftRotation_equivalent() {
 		assertEquivalentToTreeMap(
 			// Set up a right-leaning tree with a right-leaning subtree
 			entryList(IntStream.of(
@@ -171,7 +171,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void doubleLeftRotation_expectedItems() {
+	void doubleLeftRotation_equivalent() {
 		assertEquivalentToTreeMap(
 			// Set up a right-leaning tree with a left-leaning subtree
 			entryList(IntStream.of(
@@ -186,7 +186,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void singleRightRotation_expectedItems() {
+	void singleRightRotation_equivalent() {
 		assertEquivalentToTreeMap(
 			// Set up a left-leaning tree with a left-leaning subtree
 			entryList(IntStream.of(
@@ -201,7 +201,7 @@ class TreeNodeTest {
 	}
 
 	@Test
-	void doubleRightRotation_expectedItems() {
+	void doubleRightRotation_equivalent() {
 		assertEquivalentToTreeMap(
 			// Set up a left-leaning tree with a right-leaning subtree
 			entryList(IntStream.of(
@@ -217,7 +217,7 @@ class TreeNodeTest {
 
 	@ParameterizedTest
 	@MethodSource("randomSeeds")
-	void randomList_expectedItems(long seed) {
+	void randomList_equivalent(long seed) {
 		assertEquivalentToTreeMap(
 			entryList(new Random(seed).ints(1000, 0, 1_000_000)),
 			String::compareTo
@@ -226,7 +226,7 @@ class TreeNodeTest {
 
 	@ParameterizedTest
 	@MethodSource("randomSeeds")
-	void randomListWithManyCollisions_expectedItems(long seed) {
+	void randomListWithManyCollisions_equivalent(long seed) {
 		assertEquivalentToTreeMap(
 			entryList(new Random(seed).ints(1000, 0, 20)),
 			String::compareTo
