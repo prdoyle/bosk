@@ -215,32 +215,8 @@ class TreeNodeTest {
 			String::compareTo);
 	}
 
-	@ParameterizedTest
-	@MethodSource("randomSeeds")
-	void randomList_equivalent(long seed) {
-		assertEquivalentToTreeMap(
-			entryList(new Random(seed).ints(1000, 0, 1_000_000)),
-			String::compareTo
-		);
-	}
-
-	@ParameterizedTest
-	@MethodSource("randomSeeds")
-	void randomListWithManyCollisions_equivalent(long seed) {
-		assertEquivalentToTreeMap(
-			entryList(new Random(seed).ints(1000, 0, 20)),
-			String::compareTo
-		);
-	}
-
-	public static Stream<Arguments> randomSeeds() {
-		return new Random(123)
-			.longs(20)
-			.mapToObj(Arguments::of);
-	}
-
 	@NotNull
-	private static List<Map.Entry<String, DistinctValue>> entryList(IntStream numbers) {
+	static List<Map.Entry<String, DistinctValue>> entryList(IntStream numbers) {
 		return numbers
 			.mapToObj(i -> String.format("%012d", i))
 			.map(s -> new SimpleEntry<>("key" + s, new DistinctValue(s)))
@@ -267,14 +243,14 @@ class TreeNodeTest {
 		return TreeNode.empty();
 	}
 
-	private static <K,V> void assertEquivalentToTreeMap(
+	static <K,V> void assertEquivalentToTreeMap(
 		Iterable<Map.Entry<K, V>> entriesToAdd,
 		Comparator<K> comparator
 	) {
 		assertEquivalentToTreeMap(entriesToAdd, emptyList(), emptyList(), comparator);
 	}
 
-	private static <K,V> void assertEquivalentToTreeMap(
+	static <K,V> void assertEquivalentToTreeMap(
 		Iterable<Map.Entry<K, V>> entriesToAdd,
 		Iterable<Map.Entry<K, V>> entriesToRemove,
 		Iterable<Map.Entry<K, V>> moreEntriesToAdd,
@@ -302,6 +278,11 @@ class TreeNodeTest {
 			treeMap.put(entry.getKey(), entry.getValue());
 		}
 
+		assertEntriesEqual(treeNode, treeMap);
+		assertBalanced(treeNode);
+	}
+
+	static <K, V> void assertEntriesEqual(TreeNode<K, V> treeNode, TreeMap<K, V> treeMap) {
 		List<Map.Entry<K,V>> actualEntries = new ArrayList<>();
 		treeNode.entryIterator().forEachRemaining(actualEntries::add);
 
@@ -309,7 +290,6 @@ class TreeNodeTest {
 		treeMap.entrySet().iterator().forEachRemaining(expectedEntries::add);
 
 		assertEquals(expectedEntries, actualEntries);
-		assertBalanced(treeNode);
 	}
 
 	static <K,V> void assertBalanced(TreeNode<K,V> node) {
