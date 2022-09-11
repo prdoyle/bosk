@@ -92,7 +92,19 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 
 	@Override
 	public TreeNode<K, V> union(TreeNode<K, V> other, Comparator<K> comparator) {
-		return null;
+		if (other.size() == 0) {
+			return this;
+		}
+
+		OccupiedNode<K,V> otherTree = (OccupiedNode<K, V>) other;
+		TreeNode<K,V> l_prime = split_lt(this, otherTree.key, otherTree.value, comparator);
+		TreeNode<K,V> r_prime = split_gt(this, otherTree.key, otherTree.value, comparator);
+		return concat3(
+			otherTree.key, otherTree.value,
+			l_prime.union(left, comparator),
+			r_prime.union(right, comparator),
+			comparator
+		);
 	}
 
 	@Override
@@ -187,6 +199,65 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 			}
 		} else {
 			return new OccupiedNode<>(key, value, left, right);
+		}
+	}
+
+	private static <KK,VV> TreeNode<KK,VV> concat3(KK key, VV value, TreeNode<KK,VV> left, TreeNode<KK,VV> right, Comparator<KK> comparator) {
+		int n1 = left.size();
+		int n2 = right.size();
+		if (n1 == 0) {
+			return right.with(key, value, comparator);
+		} else if (n2 == 0) {
+			return left.with(key, value, comparator);
+		}
+
+		OccupiedNode<KK,VV> leftTree = (OccupiedNode<KK, VV>) left;
+		OccupiedNode<KK,VV> rightTree = (OccupiedNode<KK, VV>) right;
+
+		if (BALANCE_RATIO * n1 < n2) {
+			return balanced(
+				rightTree.key, rightTree.value,
+				concat3(key, value, left, rightTree.left, comparator),
+				rightTree.right);
+		} else if (BALANCE_RATIO * n2 < n1) {
+			return balanced(
+				leftTree.key, leftTree.value,
+				leftTree.left,
+				concat3(key, value, leftTree.right, right, comparator));
+		} else {
+			return new OccupiedNode<>(key, value, left, right);
+		}
+	}
+
+	private static <KK,VV> TreeNode<KK,VV> split_lt(TreeNode<KK,VV> node, KK key, VV value, Comparator<KK> comparator) {
+		if (node.size() == 0) {
+			return node;
+		}
+
+		OccupiedNode<KK,VV> tree = (OccupiedNode<KK, VV>) node;
+		int discriminator = comparator.compare(key, tree.key);
+		if (discriminator < 0) {
+			return split_lt(tree.left, key, value, comparator);
+		} else if (discriminator > 0) {
+			return concat3(tree.key, tree.value, tree.left, split_lt(tree.right, key, value, comparator), comparator);
+		} else {
+			return tree.left;
+		}
+	}
+
+	private static <KK,VV> TreeNode<KK,VV> split_gt(TreeNode<KK,VV> node, KK key, VV value, Comparator<KK> comparator) {
+		if (node.size() == 0) {
+			return node;
+		}
+
+		OccupiedNode<KK,VV> tree = (OccupiedNode<KK, VV>) node;
+		int discriminator = comparator.compare(tree.key, key);
+		if (discriminator < 0) {
+			return split_gt(tree.right, key, value, comparator);
+		} else if (discriminator > 0) {
+			return concat3(tree.key, tree.value, split_gt(tree.left, key, value, comparator), tree.right, comparator);
+		} else {
+			return tree.right;
 		}
 	}
 

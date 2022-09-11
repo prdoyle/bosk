@@ -233,6 +233,12 @@ class TreeNodeTest {
 			String::compareTo);
 	}
 
+	@Test
+	void emptyUnionEmpty_isEmpty() {
+		TreeNode<String, String> empty = TreeNode.empty();
+		assertEquals(empty, empty.union(empty, String::compareTo));
+	}
+
 	@NotNull
 	static List<Map.Entry<String, DistinctValue>> entryList(IntStream numbers) {
 		return numbers
