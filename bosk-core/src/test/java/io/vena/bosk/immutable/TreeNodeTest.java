@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
+import lombok.var;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
@@ -256,8 +258,8 @@ class TreeNodeTest {
 
 	@Test
 	void evensAndOddsSmall_correctlyInterleaved() {
-		TreeNode<String, String> evens = treeFrom(IntStream.rangeClosed(1,20).map(i -> i*2));
-		TreeNode<String, String> odds  = treeFrom(IntStream.rangeClosed(1,20).map(i -> i*2-1));
+		TreeNode<String, String> evens = stringTreeFrom(IntStream.rangeClosed(1,20).map(i -> i*2));
+		TreeNode<String, String> odds  = stringTreeFrom(IntStream.rangeClosed(1,20).map(i -> i*2-1));
 		TreeMap<String, String> expected = entryList(IntStream.rangeClosed(1, 40)).stream()
 			.collect(toMap(
 				Map.Entry::getKey,
@@ -268,6 +270,17 @@ class TreeNodeTest {
 		assertEntriesEqual(actual, expected);
 	}
 
+	@Test
+	void matchingNonRootNode_rightTakesPrecedence() {
+		TreeNode<String, DistinctValue> left = treeFrom(IntStream.of(2, 1, 3));
+		TreeNode<String, DistinctValue> right  = treeFrom(IntStream.of(4, 2, 6));
+
+		TreeMap<String, DistinctValue> expected = new TreeMap<>();
+		treeEntries(left).forEach(e -> expected.put(e.getKey(), e.getValue()));
+		treeEntries(right).forEach(e -> expected.put(e.getKey(), e.getValue()));
+		assertEntriesEqual(left.withAll(right, String::compareTo), expected);
+	}
+
 	@NotNull
 	static List<Map.Entry<String, DistinctValue>> entryList(IntStream numbers) {
 		return numbers
@@ -276,7 +289,15 @@ class TreeNodeTest {
 			.collect(toList());
 	}
 
-	static TreeNode<String, String> treeFrom(IntStream numbers) {
+	static TreeNode<String, DistinctValue> treeFrom(IntStream numbers) {
+		TreeNode<String, DistinctValue> result = TreeNode.empty();
+		for (Map.Entry<String, DistinctValue> entry: entryList(numbers)) {
+			result = result.with(entry.getKey(), entry.getValue(), String::compareTo);
+		}
+		return result;
+	}
+
+	static TreeNode<String, String> stringTreeFrom(IntStream numbers) {
 		TreeNode<String, String> result = TreeNode.empty();
 		for (Map.Entry<String, DistinctValue> entry: entryList(numbers)) {
 			result = result.with(entry.getKey(), "Value for " + entry.getKey(), String::compareTo);
@@ -360,13 +381,19 @@ class TreeNodeTest {
 	}
 
 	static <K, V> void assertEntriesEqual(TreeNode<K, V> treeNode, TreeMap<K, V> treeMap) {
-		List<Map.Entry<K,V>> actualEntries = new ArrayList<>();
-		treeNode.entryIterator().forEachRemaining(actualEntries::add);
+		List<Map.Entry<K, V>> actualEntries = treeEntries(treeNode);
 
 		List<Map.Entry<K,V>> expectedEntries = new ArrayList<>();
 		treeMap.entrySet().iterator().forEachRemaining(expectedEntries::add);
 
 		assertEquals(expectedEntries, actualEntries);
+	}
+
+	@NotNull
+	private static <K, V> List<Map.Entry<K, V>> treeEntries(TreeNode<K, V> treeNode) {
+		List<Map.Entry<K,V>> actualEntries = new ArrayList<>();
+		treeNode.entryIterator().forEachRemaining(actualEntries::add);
+		return actualEntries;
 	}
 
 	static <K,V> void assertBalanced(TreeNode<K,V> node) {

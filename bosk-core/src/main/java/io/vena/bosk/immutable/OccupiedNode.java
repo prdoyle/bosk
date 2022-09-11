@@ -94,25 +94,33 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 	public TreeNode<K, V> withAll(TreeNode<K, V> other, Comparator<K> comparator) {
 		if (other.size() == 0) {
 			return this;
-		}
-		OccupiedNode<K,V> otherTree = (OccupiedNode<K, V>) other;
-
-		TreeNode<K,V> leftPart = split_lt(other, this.key, comparator);
-		TreeNode<K,V> rightPart = split_gt(other, this.key, comparator);
-
-		// Other node's value takes precedence
-		V resultValue;
-		if (this.key.equals(otherTree.key)) {
-			resultValue = otherTree.value;
 		} else {
-			resultValue = this.value;
+			// The entries in <code>other</code> take precedence, including its root.
+			// By swapping receivers here, we save ourselves of looking for other's
+			// root in this tree: it doesn't matter, because if it's there, it should
+			// be dropped anyway.
+			return ((OccupiedNode<K, V>) other).augmentFrom(this, comparator);
 		}
+	}
+
+	/**
+	 * Include entries from <code>other</code> unless the corresponding key is already
+	 * present in <code>this</code>.
+	 */
+	private TreeNode<K, V> augmentFrom(TreeNode<K, V> other, Comparator<K> comparator) {
+		if (other.size() == 0) {
+			return this;
+		}
+
+		OccupiedNode<K,V> otherTree = (OccupiedNode<K, V>) other;
+		TreeNode<K,V> leftPart = split_lt(otherTree, this.key, comparator);
+		TreeNode<K,V> rightPart = split_gt(otherTree, this.key, comparator);
 
 		return concat3(
-			this.key, // Existing key takes precedence
-			resultValue,
-			this.left.withAll(leftPart, comparator),
-			this.right.withAll(rightPart, comparator),
+			this.key,
+			this.value,
+			leftPart.withAll(this.left, comparator),
+			rightPart.withAll(this.right, comparator),
 			comparator
 		);
 	}
