@@ -6,6 +6,7 @@ import java.util.Map;
 
 interface TreeNode<K, V> {
 	int size();
+	V get(K key, Comparator<K> comparator);
 	TreeNode<K,V> with(K key, V value, Comparator<K> comparator);
 	TreeNode<K,V> without(K key, Comparator<K> comparator);
 	TreeNode<K,V> withAll(TreeNode<K,V> other, Comparator<K> comparator);

@@ -31,6 +31,18 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 	}
 
 	@Override
+	public V get(K needle, Comparator<K> comparator) {
+		int discriminator = comparator.compare(needle, key);
+		if (discriminator < 0) {
+			return left.get(needle, comparator);
+		} else if (discriminator > 0) {
+			return right.get(needle, comparator);
+		} else {
+			return value;
+		}
+	}
+
+	@Override
 	public TreeNode<K, V> with(K givenKey, V givenValue, Comparator<K> comparator) {
 		int discriminator = comparator.compare(givenKey, this.key);
 		if (discriminator < 0) {
@@ -136,11 +148,6 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 		TreeNode<K,V> rightPart = split_gt(this, otherTree.key, comparator);
 		return leftPart.withoutAll(otherTree.left, comparator)
 			.withAll(rightPart.withoutAll(otherTree.left, comparator), comparator);
-	}
-
-	@Override
-	public TreeNode<K, V> intersection(TreeNode<K, V> other, Comparator<K> comparator) {
-		return null;
 	}
 
 	@Override

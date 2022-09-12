@@ -20,6 +20,11 @@ class EmptyNode<K, V> implements TreeNode<K,V> {
 	}
 
 	@Override
+	public V get(K key, Comparator<K> comparator) {
+		return null;
+	}
+
+	@Override
 	public TreeNode<K, V> with(K key, V value, Comparator<K> comparator) {
 		return new OccupiedNode<>(key, value, this, this);
 	}
@@ -36,11 +41,6 @@ class EmptyNode<K, V> implements TreeNode<K,V> {
 
 	@Override
 	public TreeNode<K, V> withoutAll(TreeNode<K, V> other, Comparator<K> comparator) {
-		return this;
-	}
-
-	@Override
-	public TreeNode<K, V> intersection(TreeNode<K, V> other, Comparator<K> comparator) {
 		return this;
 	}
 
