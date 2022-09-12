@@ -1,23 +1,27 @@
 package io.vena.bosk;
 
+import io.vena.bosk.immutable.ImmutableTreeMap;
+import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Spliterator;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableCollection;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static lombok.AccessLevel.PROTECTED;
 
 /**
@@ -39,47 +43,70 @@ import static lombok.AccessLevel.PROTECTED;
 @RequiredArgsConstructor(access=PROTECTED)
 @EqualsAndHashCode
 public class Catalog<E extends Entity> implements Iterable<E>, EnumerableByIdentifier<E> {
-	private final Map<Identifier, E> contents;
+	private final ImmutableTreeMap<Identifier, E> elementsById;
+	private final ImmutableTreeMap<Long, Identifier> idsBySequence;
+	private final ImmutableTreeMap<Identifier, Long> sequenceById;
 
-	public int size() { return contents.size(); }
+	public int size() { return elementsById.size(); }
 
-	public boolean isEmpty() { return contents.isEmpty(); }
+	public boolean isEmpty() { return elementsById.size() == 0; }
 
 	@Override
 	public E get(Identifier key) {
-		return contents.get(requireNonNull(key));
+		return elementsById.get(requireNonNull(key));
 	}
 
 	@Override
 	public List<Identifier> ids() {
-		return unmodifiableList(new ArrayList<>(contents.keySet()));
+		return unmodifiableList(new ArrayList<>(idsBySequence.values()));
 	}
 
 	public Collection<E> asCollection() {
-		return unmodifiableCollection(contents.values());
+		return idsBySequence.values().stream()
+			.map(elementsById::get)
+			.collect(toList());
 	}
 
 	public Map<Identifier, E> asMap() {
-		return unmodifiableMap(contents);
+		Set<Map.Entry<Identifier, E>> entrySet = idsBySequence.values().stream()
+			.map(id -> new SimpleImmutableEntry<>(id, elementsById.get(id)))
+			.collect(toSet());
+		return new AbstractMap<Identifier, E>() {
+			@Override
+			public Set<Entry<Identifier, E>> entrySet() {
+				return entrySet;
+			}
+		};
 	}
 
 	@Override
 	public Iterator<E> iterator() {
-		return contents.values().iterator();
+		Iterator<Identifier> idIterator = idsBySequence.values().iterator();
+		return new Iterator<E>() {
+			@Override
+			public boolean hasNext() {
+				return idIterator.hasNext();
+			}
+
+			@Override
+			public E next() {
+				return elementsById.get(idIterator.next());
+			}
+		};
 	}
 
 	public Stream<Identifier> idStream() {
-		return contents.keySet().stream();
+		return idsBySequence.values().stream();
 	}
 
 	public Stream<E> stream() {
-		return contents.values().stream();
+		return idStream().map(elementsById::get);
 	}
 
 	public Spliterator<E> spliterator() {
 		// Note that we could add DISTINCT, IMMUTABLE and NONNULL to the
 		// characteristics if it turns out to be worth the trouble.  Similar for idStream.
-		return contents.values().spliterator();
+		return stream().spliterator();
 	}
 
 	public boolean containsID(Identifier key) {
@@ -117,7 +144,10 @@ public class Catalog<E extends Entity> implements Iterable<E>, EnumerableByIdent
 	}
 
 	public static <TT extends Entity> Catalog<TT> empty() {
-		return new Catalog<>(emptyMap());
+		return new Catalog<>(
+			ImmutableTreeMap.empty(),
+			ImmutableTreeMap.empty(),
+			ImmutableTreeMap.empty());
 	}
 
 	@SafeVarargs
@@ -131,26 +161,50 @@ public class Catalog<E extends Entity> implements Iterable<E>, EnumerableByIdent
 	}
 
 	public static <TT extends Entity> Catalog<TT> of(Collection<TT> entities) {
-		Map<Identifier, TT> newValues = new LinkedHashMap<>(entities.size());
+		ImmutableTreeMap<Identifier, TT> elementsById = ImmutableTreeMap.empty();
+		ImmutableTreeMap<Long, Identifier> idsBySequence = ImmutableTreeMap.empty();
+		ImmutableTreeMap<Identifier, Long> sequenceById = ImmutableTreeMap.empty();
 		for (TT entity: entities) {
-			TT old = newValues.put(requireNonNull(entity.id()), entity);
-			if (old != null) {
-				throw new IllegalArgumentException("Multiple entities with id " + old.id());
+			if (elementsById.get(entity.id()) != null) {
+				throw new IllegalArgumentException("Multiple entities with id " + entity.id());
 			}
+			elementsById = elementsById.with(entity.id(), entity);
+			idsBySequence = idsBySequence.with((long)sequenceById.size(), entity.id());
+			sequenceById = sequenceById.with(entity.id(), (long)sequenceById.size());
 		}
-		return new Catalog<>(unmodifiableMap(newValues));
+		return new Catalog<>(elementsById, idsBySequence, sequenceById);
 	}
 
 	public Catalog<E> with(E entity) {
-		Map<Identifier, E> newValues = new LinkedHashMap<>(this.contents);
-		newValues.put(requireNonNull(entity.id()), entity);
-		return new Catalog<>(unmodifiableMap(newValues));
+		return new Catalog<>(
+			this.elementsById.with(entity.id(), entity),
+			this.idsBySequence.with((long)sequenceById.size(), entity.id()),
+			this.sequenceById.with(entity.id(), (long)sequenceById.size())
+		);
 	}
 
 	public Catalog<E> withAll(Stream<E> entities) {
-		Map<Identifier, E> newValues = new LinkedHashMap<>(this.contents);
-		entities.forEachOrdered(entity -> newValues.put(requireNonNull(entity.id()), entity));
-		return new Catalog<>(unmodifiableMap(newValues));
+		// We need to process the entities multiple times
+		List<E> list = entities.collect(toList());
+		Map<Identifier, E> newElementsById = new LinkedHashMap<>();
+		Map<Long, Identifier> newIdsBySequence = new LinkedHashMap<>();
+		Map<Identifier, Long> newSequenceById = new LinkedHashMap<>();
+		entities.forEachOrdered(e -> {
+//			newElementsById.put(e.id(), e);
+//			HEY this needs to be the largest sequence number + 1
+//			newIdsBySequence.put(sequenceById.size() + newSequenceById.size());
+
+		});
+		Object state = new Object() {
+			ImmutableTreeMap<Identifier, E> newElementsById = elementsById;
+			ImmutableTreeMap<Long, Identifier> newIdsBySequence = idsBySequence;
+			ImmutableTreeMap<Identifier, Long> newSequenceById = sequenceById;
+		};
+		return new Catalog<>(
+			elementsById1,
+			idsBySequence1,
+			sequenceById1
+		);
 	}
 
 	public Catalog<E> without(E entity) {

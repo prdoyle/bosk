@@ -17,7 +17,8 @@ public final class ImmutableVector<E> extends AbstractImmutableList<E> {
 
 	@Override
 	public ImmutableList<E> without(int index) {
-		return new ImmutableVector<>(root.without(index, INTEGER_COMPARATOR));
+		throw new NotYetImplementedException();
+		//return new ImmutableVector<>(root.without(index, INTEGER_COMPARATOR));
 	}
 
 	@Override

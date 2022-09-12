@@ -1,5 +1,6 @@
 package io.vena.bosk;
 
+import java.util.Comparator;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
@@ -7,8 +8,16 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @EqualsAndHashCode
-public final class Identifier {
+public final class Identifier implements Comparable<Identifier> {
 	@NonNull final String value;
+
+	/**
+	 * Compares by lexicographic order on the string representation.
+	 */
+	@Override
+	public int compareTo(Identifier other) {
+		return value.compareTo(other.value);
+	}
 
 	// TODO: Intern these.  No need to have several Identifier objects for the same value
 	public static Identifier from(String value) {
@@ -32,4 +41,6 @@ public final class Identifier {
 	private static long uniqueIdCounter = 1000;
 
 	@Override public String toString() { return value; }
+
+	public static final Comparator<Identifier> LEXICAL_ORDER = Identifier::compareTo;
 }

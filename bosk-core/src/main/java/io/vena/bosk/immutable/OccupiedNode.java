@@ -6,6 +6,7 @@ import java.util.Map;
 import lombok.Value;
 import lombok.experimental.Accessors;
 
+import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 
 @Value
@@ -151,18 +152,40 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 	}
 
 	@Override
+	public Iterator<K> keyIterator() {
+		return iterator3(
+			left.keyIterator(),
+			singleton(key).iterator(),
+			right().keyIterator()
+		);
+	}
+
+	@Override
+	public Iterator<V> valueIterator() {
+		return iterator3(
+			left.valueIterator(),
+			singleton(value).iterator(),
+			right().valueIterator()
+		);
+	}
+
+	@Override
 	public Iterator<Map.Entry<K, V>> entryIterator() {
-		Iterator<Map.Entry<K, V>> leftIter = left.entryIterator();
-		Iterator<Map.Entry<K, V>> selfIter = singletonMap(key, value).entrySet().iterator();
-		Iterator<Map.Entry<K, V>> rightIter = right.entryIterator();
-		return new Iterator<Map.Entry<K, V>>() {
+		return iterator3(
+			left.entryIterator(),
+			singletonMap(key, value).entrySet().iterator(),
+			right.entryIterator());
+	}
+
+	private static <TT> Iterator<TT> iterator3(Iterator<TT> leftIter, Iterator<TT> selfIter, Iterator<TT> rightIter) {
+		return new Iterator<TT>() {
 			@Override
 			public boolean hasNext() {
 				return leftIter.hasNext() || selfIter.hasNext() || rightIter.hasNext();
 			}
 
 			@Override
-			public Map.Entry<K, V> next() {
+			public TT next() {
 				if (leftIter.hasNext()) {
 					return leftIter.next();
 				} else if (selfIter.hasNext()) {

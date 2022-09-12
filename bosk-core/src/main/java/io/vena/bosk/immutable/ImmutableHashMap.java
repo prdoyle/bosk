@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import lombok.experimental.Accessors;
+import lombok.var;
 
 import static io.vena.bosk.immutable.ImmutableVector.INTEGER_COMPARATOR;
 import static java.util.Collections.emptyIterator;
@@ -22,10 +23,37 @@ public final class ImmutableHashMap<K,V> extends AbstractImmutableMap<K,V> {
 	}
 
 	@Override
+	public V get(Object key) {
+		ImmutableList<Entry<K, V>> bucket = rootNode.get(key.hashCode(), INTEGER_COMPARATOR);
+		if (bucket != null) {
+			for (Entry<K, V> entry: bucket) {
+				if (entry.key.equals(key)) {
+					return entry.value;
+				}
+			}
+		}
+		return null;
+	}
+
+	@Override
 	public ImmutableMap<K, V> with(K key, V value) {
 		int hash = key.hashCode();
 		ImmutableList<Entry<K,V>> bucket = rootNode.get(hash, INTEGER_COMPARATOR);
 		return new ImmutableHashMap<>(rootNode.with(hash, bucket.with(new Entry<>(key, value)), INTEGER_COMPARATOR));
+	}
+
+	@Override
+	public ImmutableMap<K, V> withAll(Iterator<Map.Entry<K, V>> newEntries) {
+		TreeNode<Integer, ImmutableList<Entry<K, V>>> newRoot = this.rootNode;
+		Iterable<Map.Entry<K,V>> iter = ()->newEntries;
+		for (Map.Entry<K, V> entry: iter) {
+			K key = entry.getKey();
+			V value = entry.getValue();
+			int hash = key.hashCode();
+			ImmutableList<Entry<K,V>> bucket = rootNode.get(hash, INTEGER_COMPARATOR);
+			newRoot = newRoot.with(hash, bucket.with(new Entry<>(key, value)), INTEGER_COMPARATOR);
+		}
+		return new ImmutableHashMap<>(newRoot);
 	}
 
 	@Override
@@ -55,7 +83,7 @@ public final class ImmutableHashMap<K,V> extends AbstractImmutableMap<K,V> {
 							vIter = entryIter.next().getValue().iterator();
 						}
 						Entry<K, V> next = vIter.next();
-						return new SimpleEntry<>(next.key, next.value);
+						return new SimpleImmutableEntry<>(next.key, next.value);
 					}
 				};
 			}

@@ -6,6 +6,9 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public abstract class AbstractImmutableMap<K,V> extends AbstractMap<K,V> implements ImmutableMap<K,V> {
+	// Don't forget to re-implement this! The built-in one is O(n)
+	@Override public abstract V get(Object key);
+
 	@Override
 	public void replaceAll(BiFunction<? super K, ? super V, ? extends V> function) {
 		unsupported();

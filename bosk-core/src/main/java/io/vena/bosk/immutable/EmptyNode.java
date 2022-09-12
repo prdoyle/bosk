@@ -45,6 +45,16 @@ class EmptyNode<K, V> implements TreeNode<K,V> {
 	}
 
 	@Override
+	public Iterator<K> keyIterator() {
+		return emptyIterator();
+	}
+
+	@Override
+	public Iterator<V> valueIterator() {
+		return emptyIterator();
+	}
+
+	@Override
 	public Iterator<Map.Entry<K, V>> entryIterator() {
 		return emptyIterator();
 	}

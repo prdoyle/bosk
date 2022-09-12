@@ -4,7 +4,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
 
-interface TreeNode<K, V> {
+public interface TreeNode<K, V> {
 	int size();
 	V get(K key, Comparator<K> comparator);
 	TreeNode<K,V> with(K key, V value, Comparator<K> comparator);
@@ -12,6 +12,8 @@ interface TreeNode<K, V> {
 	TreeNode<K,V> withAll(TreeNode<K,V> other, Comparator<K> comparator);
 	TreeNode<K,V> withoutAll(TreeNode<K,V> other, Comparator<K> comparator);
 
+	Iterator<K> keyIterator();
+	Iterator<V> valueIterator();
 	Iterator<Map.Entry<K,V>> entryIterator();
 
 	static <KK,VV> TreeNode<KK,VV> empty() {
