@@ -131,7 +131,7 @@ class TreeNodeTest {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.of(2, 1, 3)),
 			// Delete the root
-			entryList(IntStream.of(1)),
+			entryList(IntStream.of(2)),
 			emptyList(),
 			String::compareTo
 		);
@@ -141,8 +141,8 @@ class TreeNodeTest {
 	void deleteTripletonLeftLeaf_equivalent() {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.of(2, 1, 3)),
-			// Delete the root
-			entryList(IntStream.of(2)),
+			// Delete the leaf
+			entryList(IntStream.of(1)),
 			emptyList(),
 			String::compareTo
 		);
@@ -152,7 +152,7 @@ class TreeNodeTest {
 	void deleteTripletonRightLeaf_equivalent() {
 		assertEquivalentToTreeMap(
 			entryList(IntStream.of(2, 1, 3)),
-			// Delete the root
+			// Delete the leaf
 			entryList(IntStream.of(3)),
 			emptyList(),
 			String::compareTo

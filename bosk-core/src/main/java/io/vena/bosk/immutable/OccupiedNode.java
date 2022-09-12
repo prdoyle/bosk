@@ -132,9 +132,10 @@ class OccupiedNode<K,V> implements TreeNode<K,V> {
 		}
 		OccupiedNode<K,V> otherTree = (OccupiedNode<K, V>) other;
 
-		TreeNode<K,V> leftPart = split_lt(other, this.key, comparator);
-		TreeNode<K,V> rightPart = split_gt(other, this.key, comparator);
-		return null;
+		TreeNode<K,V> leftPart = split_lt(this, otherTree.key, comparator);
+		TreeNode<K,V> rightPart = split_gt(this, otherTree.key, comparator);
+		return leftPart.withoutAll(otherTree.left, comparator)
+			.withAll(rightPart.withoutAll(otherTree.left, comparator), comparator);
 	}
 
 	@Override
