@@ -1,5 +1,6 @@
 package io.vena.bosk;
 
+import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -10,14 +11,17 @@ import java.util.Spliterator;
 import java.util.stream.Stream;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import org.pcollections.HashTreePMap;
+import org.pcollections.OrderedPSet;
+import org.pcollections.PMap;
+import org.pcollections.POrderedSet;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableCollection;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static lombok.AccessLevel.PROTECTED;
 
 /**
@@ -39,7 +43,12 @@ import static lombok.AccessLevel.PROTECTED;
 @RequiredArgsConstructor(access=PROTECTED)
 @EqualsAndHashCode
 public class Catalog<E extends Entity> implements Iterable<E>, EnumerableByIdentifier<E> {
-	private final Map<Identifier, E> contents;
+	private final PMap<Identifier, E> contents;
+	private final POrderedSet<Identifier> ids; // Preserves insertion order
+
+	// Note: pcollections is in the process of adding an ordered map.
+	// We can adopt that once it's ready.
+	// https://github.com/hrldcpr/pcollections/issues/95#issuecomment-1247207869
 
 	public int size() { return contents.size(); }
 
@@ -52,38 +61,42 @@ public class Catalog<E extends Entity> implements Iterable<E>, EnumerableByIdent
 
 	@Override
 	public List<Identifier> ids() {
-		return unmodifiableList(new ArrayList<>(contents.keySet()));
+		return unmodifiableList(new ArrayList<>(ids));
 	}
 
 	public Collection<E> asCollection() {
-		return unmodifiableCollection(contents.values());
+		return unmodifiableList(ids.stream().map(contents::get).collect(toList()));
 	}
 
 	public Map<Identifier, E> asMap() {
-		return unmodifiableMap(contents);
+		return unmodifiableMap(ids.stream().collect(toMap(
+			id -> id,
+			contents::get,
+			(a,b) ->{ throw new NotYetImplementedException(); },
+			LinkedHashMap::new)));
 	}
 
 	@Override
 	public Iterator<E> iterator() {
-		return contents.values().iterator();
+		return stream().iterator();
 	}
 
 	public Stream<Identifier> idStream() {
-		return contents.keySet().stream();
+		return ids.stream();
 	}
 
 	public Stream<E> stream() {
-		return contents.values().stream();
+		return ids.stream().map(contents::get);
 	}
 
 	public Spliterator<E> spliterator() {
 		// Note that we could add DISTINCT, IMMUTABLE and NONNULL to the
 		// characteristics if it turns out to be worth the trouble.  Similar for idStream.
-		return contents.values().spliterator();
+		return stream().spliterator();
 	}
 
 	public boolean containsID(Identifier key) {
-		return get(key) != null;
+		return ids.contains(key);
 	}
 
 	public boolean containsAllIDs(Stream<Identifier> keys) {
@@ -117,7 +130,7 @@ public class Catalog<E extends Entity> implements Iterable<E>, EnumerableByIdent
 	}
 
 	public static <TT extends Entity> Catalog<TT> empty() {
-		return new Catalog<>(emptyMap());
+		return new Catalog<>(HashTreePMap.empty(), OrderedPSet.empty());
 	}
 
 	@SafeVarargs
@@ -138,31 +151,33 @@ public class Catalog<E extends Entity> implements Iterable<E>, EnumerableByIdent
 				throw new IllegalArgumentException("Multiple entities with id " + old.id());
 			}
 		}
-		return new Catalog<>(unmodifiableMap(newValues));
+		return new Catalog<>(
+			HashTreePMap.from(newValues),
+			OrderedPSet.from(entities.stream().map(Entity::id).collect(toList())));
 	}
 
 	public Catalog<E> with(E entity) {
-		Map<Identifier, E> newValues = new LinkedHashMap<>(this.contents);
-		newValues.put(requireNonNull(entity.id()), entity);
-		return new Catalog<>(unmodifiableMap(newValues));
+		return new Catalog<>(contents.plus(entity.id(), entity), ids.plus(entity.id()));
 	}
 
 	public Catalog<E> withAll(Stream<E> entities) {
-		Map<Identifier, E> newValues = new LinkedHashMap<>(this.contents);
-		entities.forEachOrdered(entity -> newValues.put(requireNonNull(entity.id()), entity));
-		return new Catalog<>(unmodifiableMap(newValues));
+		PMap<Identifier, E> newContents = contents;
+		POrderedSet<Identifier> newIDs = ids;
+		Iterator<E> iter = entities.iterator();
+		while (iter.hasNext()) {
+			E entity = iter.next();
+			newContents = newContents.plus(entity.id(), entity);
+			newIDs = newIDs.plus(entity.id());
+		}
+		return new Catalog<>(newContents, newIDs);
 	}
 
 	public Catalog<E> without(E entity) {
-		Map<Identifier, E> newValues = new LinkedHashMap<>(this.contents);
-		newValues.remove(requireNonNull(entity.id()));
-		return new Catalog<>(unmodifiableMap(newValues));
+		return new Catalog<>(contents.minus(entity.id()), ids.minus(entity.id()));
 	}
 
 	public Catalog<E> without(Identifier id) {
-		Map<Identifier, E> newValues = new LinkedHashMap<>(this.contents);
-		newValues.remove(requireNonNull(id));
-		return new Catalog<>(unmodifiableMap(newValues));
+		return new Catalog<>(contents.minus(id), ids.minus(id));
 	}
 
 	@Override

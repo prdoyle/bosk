@@ -35,6 +35,8 @@ import static java.util.Objects.requireNonNull;
 @RequiredArgsConstructor(access= AccessLevel.PRIVATE)
 @EqualsAndHashCode
 public final class MapValue<V> implements Map<String, V> {
+	// Can't delegate to PMap yet because it doesn't throw UnsupportedOperationException for mutators
+	// https://github.com/hrldcpr/pcollections/pull/97
 	@Delegate private final Map<String, V> contents;
 
 	@SuppressWarnings("unchecked")

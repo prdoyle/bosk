@@ -4,6 +4,7 @@ import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -18,11 +19,16 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
+import org.pcollections.AbstractUnmodifiableMap;
+import org.pcollections.HashTreePMap;
+import org.pcollections.OrderedPSet;
+import org.pcollections.PMap;
+import org.pcollections.POrderedSet;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
-import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
+import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toList;
 
 @Accessors(fluent = true)
 @EqualsAndHashCode
@@ -30,7 +36,12 @@ import static java.util.Collections.unmodifiableMap;
 public final class SideTable<K extends Entity, V> implements EnumerableByIdentifier<V> {
 	@Getter
 	private final CatalogReference<K> domain;
-	private final Map<Identifier, V> valuesById;
+	private final PMap<Identifier, V> valuesById;
+	private final POrderedSet<Identifier> ids; // Preserves insertion order
+
+	// Note: pcollections is in the process of adding an ordered map.
+	// We can adopt that once it's ready.
+	// https://github.com/hrldcpr/pcollections/issues/95#issuecomment-1247207869
 
 	public V get(Identifier id) { return valuesById.get(id); }
 	public V get(K key)         { return valuesById.get(key.id()); }
@@ -40,12 +51,26 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 
 	public boolean isEmpty() { return valuesById.isEmpty(); }
 	public int size() { return valuesById.size(); }
-	public List<Identifier> ids() { return unmodifiableList(new ArrayList<>(valuesById.keySet())); }
-	public Listing<K> keys() { return new Listing<>(domain, valuesById.keySet()); }
-	public Collection<V> values() { return valuesById.values(); }
-	public Set<Entry<Identifier, V>> idEntrySet() { return valuesById.entrySet(); }
+	public List<Identifier> ids() { return unmodifiableList(new ArrayList<>(ids)); }
+	public Listing<K> keys() { return new Listing<>(domain, ids); }
+	public Collection<V> values() { return unmodifiableList(ids.stream().map(valuesById::get).collect(toList())); }
 
-	public Map<Identifier, V> asMap() { return valuesById; }
+	public Set<Entry<Identifier, V>> idEntrySet() {
+		// Type checker needs a little help here
+		Supplier<LinkedHashSet<SimpleImmutableEntry<Identifier, V>>> newLinkedHashSet = LinkedHashSet::new;
+
+		return unmodifiableSet(ids.stream()
+			.map(id -> new SimpleImmutableEntry<>(id, get(id)))
+			.collect(toCollection(newLinkedHashSet))); }
+
+	public Map<Identifier, V> asMap() {
+		return new AbstractUnmodifiableMap<Identifier, V>() {
+			@Override
+			public Set<Entry<Identifier, V>> entrySet() {
+				return idEntrySet();
+			}
+		};
+	}
 
 	public Stream<Entry<K, V>> valueEntryStream() {
 		AddressableByIdentifier<K> domainValue = domain.value();
@@ -62,17 +87,15 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 	 */
 	public void forEach(BiConsumer<? super K, ? super V> action) {
 		AddressableByIdentifier<K> domainValue = domain.value();
-		valuesById.forEach((id, value) -> action.accept(domainValue.get(id), value));
+		ids.forEach(id -> action.accept(domainValue.get(id), valuesById.get(id)));
 	}
 
 	public void forEachID(BiConsumer<Identifier, ? super V> action) {
-		valuesById.forEach(action);
+		ids.forEach(id -> action.accept(id, valuesById.get(id)));
 	}
 
 	public SideTable<K,V> with(Identifier id, V value) {
-		Map<Identifier, V> newMap = new LinkedHashMap<>(this.valuesById);
-		newMap.put(id, value);
-		return new SideTable<>(this.domain, unmodifiableMap(newMap));
+		return new SideTable<>(this.domain, this.valuesById.plus(id, value), this.ids.plus(id));
 	}
 
 	public SideTable<K,V> with(K key, V value) {
@@ -91,9 +114,7 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 	}
 
 	public SideTable<K,V> without(Identifier id) {
-		Map<Identifier, V> newMap = new LinkedHashMap<>(this.valuesById);
-		newMap.remove(id);
-		return new SideTable<>(this.domain, unmodifiableMap(newMap));
+		return new SideTable<>(this.domain, valuesById.minus(id), ids.minus(id));
 	}
 
 	public SideTable<K,V> without(K key) {
@@ -105,7 +126,7 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 	 * with {@link #empty(Reference, Class)}.
 	 */
 	public static <KK extends Entity,VV> SideTable<KK,VV> empty(Reference<Catalog<KK>> domain) {
-		return new SideTable<>(CatalogReference.from(domain), emptyMap());
+		return new SideTable<>(CatalogReference.from(domain), HashTreePMap.empty(), OrderedPSet.empty());
 	}
 
 	public static <KK extends Entity,VV> SideTable<KK,VV> empty(Reference<Catalog<KK>> domain, Class<VV> ignored) {
@@ -113,7 +134,7 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 	}
 
 	public static <KK extends Entity, VV> SideTable<KK,VV> of(Reference<Catalog<KK>> domain, Identifier id, VV value) {
-		return new SideTable<>(CatalogReference.from(domain), singletonMap(id, value));
+		return new SideTable<>(CatalogReference.from(domain), HashTreePMap.singleton(id, value), OrderedPSet.singleton(id));
 	}
 
 	public static <KK extends Entity, VV> SideTable<KK,VV> of(Reference<Catalog<KK>> domain, KK key, VV value) {
@@ -121,7 +142,7 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 	}
 
 	public static <KK extends Entity,VV> SideTable<KK,VV> fromOrderedMap(Reference<Catalog<KK>> domain, Map<Identifier, VV> contents) {
-		return new SideTable<>(CatalogReference.from(domain), unmodifiableMap(new LinkedHashMap<>(contents)));
+		return new SideTable<>(CatalogReference.from(domain), HashTreePMap.from(contents), OrderedPSet.from(contents.keySet()));
 	}
 
 	public static <KK extends Entity,VV> SideTable<KK,VV> fromFunction(Reference<Catalog<KK>> domain, Stream<Identifier> keyIDs, Function<Identifier, VV> function) {
@@ -132,7 +153,7 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 				throw new IllegalArgumentException("Multiple entries with id \"" + id + "\"");
 			}
 		});
-		return new SideTable<>(CatalogReference.from(domain), unmodifiableMap(map));
+		return new SideTable<>(CatalogReference.from(domain), HashTreePMap.from(map), OrderedPSet.from(map.keySet()));
 	}
 
 	@Override
