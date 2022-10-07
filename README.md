@@ -27,6 +27,8 @@ like `bosk-gson` for JSON serialization
 or `bosk-mongo` for persistence and replication.
 Use the same version number for all packages.
 
+See also [Getting Started](./doc/getting-started.md), [Brain Dump](./doc/brain-dump.md).
+
 ### Compiler flags
 
 Ensure `javac` is supplied the `-parameters` flag.
