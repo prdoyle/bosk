@@ -19,11 +19,10 @@ import static java.util.Arrays.asList;
 
 public abstract class AbstractBoskTest {
 	@Value
-	@EqualsAndHashCode(callSuper=false)
 	@Accessors(fluent=true)
 	@With
 	@FieldNameConstants
-	public static class TestRoot extends AbstractEntity {
+	public static class TestRoot implements Entity {
 		Identifier id;
 		Catalog<TestEntity> entities;
 		StringListValueSubclass someStrings;
@@ -37,11 +36,10 @@ public abstract class AbstractBoskTest {
 	}
 
 	@Value
-	@EqualsAndHashCode(callSuper=false)
 	@Accessors(fluent=true)
 	@With
 	@FieldNameConstants
-	public static class TestEntity extends AbstractEntity {
+	public static class TestEntity implements Entity {
 		Identifier id;
 		String string;
 		TestEnum testEnum;
@@ -58,11 +56,10 @@ public abstract class AbstractBoskTest {
 	}
 
 	@Value
-	@EqualsAndHashCode(callSuper=false)
 	@Accessors(fluent=true)
 	@With
 	@FieldNameConstants
-	public static class TestChild extends AbstractEntity {
+	public static class TestChild implements Entity {
 		Identifier id;
 		String string;
 		TestEnum testEnum;
@@ -70,11 +67,10 @@ public abstract class AbstractBoskTest {
 	}
 
 	@Value
-	@EqualsAndHashCode(callSuper=false)
 	@Accessors(fluent=true)
 	@With
 	@FieldNameConstants
-	public static class Optionals extends AbstractEntity {
+	public static class Optionals implements Entity {
 		Identifier id;
 		Optional<String> optionalString;
 		Optional<TestChild> optionalEntity;
@@ -91,11 +87,10 @@ public abstract class AbstractBoskTest {
 	}
 
 	@Value
-	@EqualsAndHashCode(callSuper=false)
 	@Accessors(fluent=true)
 	@With
 	@FieldNameConstants
-	public static class Phantoms extends AbstractEntity {
+	public static class Phantoms implements Entity {
 		Identifier id;
 		Phantom<String> phantomString;
 		Phantom<TestChild> phantomEntity;
