@@ -1,5 +1,6 @@
 package io.vena.bosk;
 
+import org.pcollections.OrderedPMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.vena.bosk.annotations.Enclosing;
@@ -14,6 +15,20 @@ import lombok.Value;
 import lombok.With;
 import lombok.experimental.Accessors;
 import lombok.experimental.FieldNameConstants;
+import org.pcollections.OrderedPSet;
+import org.pcollections.PBag;
+import org.pcollections.PCollection;
+import org.pcollections.PMap;
+import org.pcollections.PQueue;
+import org.pcollections.PSequence;
+import org.pcollections.PSet;
+import org.pcollections.PSortedMap;
+import org.pcollections.PSortedSet;
+import org.pcollections.PStack;
+import org.pcollections.PVector;
+import org.pcollections.TreePMap;
+import org.pcollections.TreePSet;
+import org.pcollections.TreePVector;
 
 import static java.util.Arrays.asList;
 
@@ -49,6 +64,7 @@ public abstract class AbstractBoskTest {
 		Phantoms phantoms;
 		Optionals optionals;
 		ImplicitRefs implicitRefs;
+		PCollections pCollections;
 
 		public TestEntity withChild(TestChild child) {
 			return this.withChildren(children.with(child));
@@ -127,6 +143,22 @@ public abstract class AbstractBoskTest {
 		}
 	}
 
+	/**
+	 * We support pcollections that have a defined order.
+	 */
+	@Value
+	@Accessors(fluent=true)
+	@With
+	@FieldNameConstants
+	public static class PCollections implements Entity {
+		Identifier id;
+//		PSequence<String> pSequence;
+//		PSortedSet<String> pSortedSet;
+//		PSortedMap<String, String> pSortedMap;
+		OrderedPSet<String> orderedPSet;
+		OrderedPMap<String, String> orderedPMap;
+	}
+
 	public enum TestEnum {
 		OK,
 		NOT_SO_OK
@@ -184,7 +216,15 @@ public abstract class AbstractBoskTest {
 			),
 			new ImplicitRefs(Identifier.from("parent_implicitRefs"),
 				teb.implicitRefsRef(parentID), parentRef,
-				teb.implicitRefsRef(parentID), parentRef));
+				teb.implicitRefsRef(parentID), parentRef),
+			new PCollections(Identifier.from("pcollections"),
+				// Note that alphabetical and numerical order differ in these test values
+//				TreePVector.singleton("one").plus("two").plus("three"),
+//				TreePSet.singleton("one").plus("two").plus("three"),
+//				TreePMap.singleton("oneK", "oneV").plus("twoK","twoV").plus("threeK","threeV"),
+				OrderedPSet.singleton("one").plus("two").plus("three"),
+				OrderedPMap.singleton("oneK", "oneV").plus("twoK","twoV").plus("threeK","threeV")
+				));
 		return new TestRoot(
 			Identifier.from("root"),
 			Catalog.of(entity),

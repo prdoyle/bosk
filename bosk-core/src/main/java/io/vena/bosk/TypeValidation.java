@@ -18,6 +18,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.pcollections.PCollection;
 
 import static io.vena.bosk.ReferenceUtils.getterMethod;
 import static io.vena.bosk.ReferenceUtils.parameterType;
@@ -76,6 +77,8 @@ public final class TypeValidation {
 					validateType(targetType, alreadyValidated);
 				}
 			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
+				validateStateTreeNodeClass(theClass, alreadyValidated);
+			} else if (theClass.getPackage().equals(PCollection.class.getPackage())) {
 				validateStateTreeNodeClass(theClass, alreadyValidated);
 			} else if (ListValue.class.isAssignableFrom(theClass) || MapValue.class.isAssignableFrom(theClass)) {
 				validateFieldsAreFinal(theClass);

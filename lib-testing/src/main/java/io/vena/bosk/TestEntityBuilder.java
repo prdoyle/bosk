@@ -8,6 +8,14 @@ import io.vena.bosk.AbstractBoskTest.TestEntity;
 import io.vena.bosk.AbstractBoskTest.TestEnum;
 import io.vena.bosk.AbstractBoskTest.TestRoot;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import java.util.SortedSet;
+import org.pcollections.OrderedPMap;
+import org.pcollections.OrderedPSet;
+import org.pcollections.PSequence;
+import org.pcollections.PSortedSet;
+import org.pcollections.TreePMap;
+import org.pcollections.TreePSet;
+import org.pcollections.TreePVector;
 
 public class TestEntityBuilder {
 	private final Reference<TestEntity> anyEntity;
@@ -35,7 +43,13 @@ public class TestEntityBuilder {
 			Optionals.empty(Identifier.from(id + "_optionals")),
 			new ImplicitRefs(Identifier.from(id + "_implicitRefs"),
 				implicitRefsRef(id), entityRef(id),
-				implicitRefsRef(id), entityRef(id)));
+				implicitRefsRef(id), entityRef(id)),
+			new AbstractBoskTest.PCollections(Identifier.from(id + "_pcollections"),
+//				TreePVector.empty(),
+//				TreePSet.empty(),
+//				TreePMap.empty(),
+				OrderedPSet.empty(),
+				OrderedPMap.empty()));
 	}
 
 }
