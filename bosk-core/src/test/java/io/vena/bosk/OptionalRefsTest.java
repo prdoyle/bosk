@@ -24,7 +24,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 	@Test
 	void testReferenceOptionalNotAllowed() {
 		Bosk<OptionalString> bosk = new Bosk<>("optionalNotAllowed", OptionalString.class, new OptionalString(ID, Optional.empty()), Bosk::simpleDriver);
-		InvalidTypeException e = assertThrows(InvalidTypeException.class, () -> bosk.reference(Optional.class, Path.just("field")));
+		InvalidTypeException e = assertThrows(InvalidTypeException.class, () -> bosk.references().reference(Optional.class, Path.just("field")));
 		assertThat(e.getMessage(), containsString("not supported"));
 	}
 
@@ -58,7 +58,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 	//@ParameterizedTest // TODO: Reference<Reference<?>> is not yet supported
 	@MethodSource("driverFactories")
 	void testOptionalReference(DriverFactory<OptionalReference> driverFactory) throws InvalidTypeException {
-		doTest(new OptionalReference(ID, Optional.empty()), Bosk::rootReference, driverFactory);
+		doTest(new OptionalReference(ID, Optional.empty()), optionalReferenceBosk -> optionalReferenceBosk.references().rootReference(), driverFactory);
 	}
 
 	@EqualsAndHashCode(callSuper = false)
@@ -86,7 +86,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 	@MethodSource("driverFactories")
 	void testOptionalListing(DriverFactory<OptionalListing> driverFactory) throws InvalidTypeException {
 		OptionalListing empty = new OptionalListing(ID, Catalog.empty(), Optional.empty());
-		doTest(empty, b->Listing.of(b.rootReference().thenCatalog(OptionalListing.class, "catalog"), ID), driverFactory);
+		doTest(empty, b -> Listing.of(b.references().rootReference().thenCatalog(OptionalListing.class, "catalog"), ID), driverFactory);
 	}
 
 	@EqualsAndHashCode(callSuper = false)
@@ -101,7 +101,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 	@MethodSource("driverFactories")
 	void testOptionalSideTable(DriverFactory<OptionalSideTable> driverFactory) throws InvalidTypeException {
 		OptionalSideTable empty = new OptionalSideTable(ID, Catalog.empty(), Optional.empty());
-		doTest(empty, b-> SideTable.of(b.rootReference().thenCatalog(OptionalSideTable.class, "catalog"), ID, "Howdy"), driverFactory);
+		doTest(empty, b -> SideTable.of(b.references().rootReference().thenCatalog(OptionalSideTable.class, "catalog"), ID, "Howdy"), driverFactory);
 	}
 
 	@EqualsAndHashCode(callSuper = false)
@@ -120,7 +120,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		Bosk<E> bosk = new Bosk<>("bosk", initialRoot.getClass(), initialRoot, driverFactory);
 		V value = valueFactory.createFrom(bosk);
 		@SuppressWarnings("unchecked")
-		Reference<V> optionalRef = bosk.rootReference().then((Class<V>)value.getClass(), "field");
+		Reference<V> optionalRef = bosk.references().rootReference().then((Class<V>)value.getClass(), "field");
 		try (val context = bosk.readContext()) {
 			assertEquals(null, optionalRef.valueIfExists());
 		}
@@ -135,7 +135,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 
 		// Try other ways of getting the same reference
 		@SuppressWarnings("unchecked")
-		Reference<V> ref2 = bosk.reference((Class<V>)value.getClass(), Path.just("field"));
+		Reference<V> ref2 = bosk.references().reference((Class<V>) value.getClass(), Path.just("field"));
 		assertEquals(optionalRef, ref2);
 	}
 

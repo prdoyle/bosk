@@ -31,7 +31,7 @@ class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
 	}
 
 	private CatalogReference<TestEntity> rootCatalogRef(Bosk<TestEntity> bosk) throws InvalidTypeException {
-		return bosk.catalogReference(TestEntity.class, Path.just( TestEntity.Fields.catalog));
+		return bosk.references().catalogReference(TestEntity.class, Path.just( TestEntity.Fields.catalog));
 	}
 
 	static class PathArgumentProvider implements ArgumentsProvider {
@@ -60,8 +60,8 @@ class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
 	@ParameterizedTest
 	@ArgumentsSource(PathArgumentProvider.class)
 	void testDottedFieldNameOf(String boskPath, String dottedFieldName) throws InvalidTypeException {
-		Reference<?> reference = bosk.reference(Object.class, Path.parse(boskPath));
-		String actual = Formatter.dottedFieldNameOf(reference, bosk.rootReference());
+		Reference<?> reference = bosk.references().reference(Object.class, Path.parse(boskPath));
+		String actual = Formatter.dottedFieldNameOf(reference, bosk.references().rootReference());
 		assertEquals(dottedFieldName, actual);
 		//assertThrows(AssertionError.class, ()-> MongoDriver.dottedFieldNameOf(reference, catalogReference.then(Identifier.from("whoopsie"))));
 	}
@@ -69,8 +69,8 @@ class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
 	@ParameterizedTest
 	@ArgumentsSource(PathArgumentProvider.class)
 	void testReferenceTo(String boskPath, String dottedFieldName) throws InvalidTypeException {
-		Reference<?> expected = bosk.reference(Object.class, Path.parse(boskPath));
-		Reference<?> actual = Formatter.referenceTo(dottedFieldName, bosk.rootReference());
+		Reference<?> expected = bosk.references().reference(Object.class, Path.parse(boskPath));
+		Reference<?> actual = Formatter.referenceTo(dottedFieldName, bosk.references().rootReference());
 		assertEquals(expected, actual);
 		assertEquals(expected.path(), actual.path());
 		assertEquals(expected.targetType(), actual.targetType());

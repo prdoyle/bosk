@@ -270,7 +270,7 @@ public class Bosk<R extends Entity> {
 		 */
 		void triggerEverywhere(HookRegistration<?> reg) {
 			synchronized (this) {
-				triggerQueueingOfHooks(rootReference(), null, currentRoot, reg);
+				triggerQueueingOfHooks(references().rootReference(), null, currentRoot, reg);
 			}
 			drainQueueIfAllowed();
 		}
@@ -528,7 +528,7 @@ public class Bosk<R extends Entity> {
 				// could correspond to changed objects and then recursing.
 				//
 				Path containerPath = effectiveScope.path().truncatedTo(effectiveScope.path().firstParameterIndex());
-				Reference<EnumerableByIdentifier<?>> containerRef = reference(enumerableByIdentifierClass(), containerPath);
+				Reference<EnumerableByIdentifier<?>> containerRef = references().reference(enumerableByIdentifierClass(), containerPath);
 				EnumerableByIdentifier<?> priorContainer = refValueIfExists(containerRef, priorRoot);
 				EnumerableByIdentifier<?> newContainer = refValueIfExists(containerRef, newRoot);
 
@@ -733,27 +733,28 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 
 		@Override
 		public final <U> Reference<U> then(Class<U> targetClass, String... segments) throws InvalidTypeException {
-			return reference(targetClass, path.then(segments));
+			return references().reference(targetClass, path.then(segments));
 		}
 
 		@Override
 		public final <U extends Entity> CatalogReference<U> thenCatalog(Class<U> entryClass, String... segments) throws InvalidTypeException {
-			return catalogReference(entryClass, path.then(segments));
+			return references().catalogReference(entryClass, path.then(segments));
 		}
 
 		@Override
 		public final <U extends Entity> ListingReference<U> thenListing(Class<U> entryClass, String... segments) throws InvalidTypeException {
-			return listingReference(entryClass, path.then(segments));
+			return references().listingReference(entryClass, path.then(segments));
 		}
 
 		@Override
 		public final <K extends Entity, V> SideTableReference<K, V> thenSideTable(Class<K> keyClass, Class<V> valueClass, String... segments) throws InvalidTypeException {
-			return sideTableReference(keyClass, valueClass, path.then(segments));
+			return references().sideTableReference(keyClass, valueClass, path.then(segments));
 		}
 
 		@Override
 		public final <TT> Reference<Reference<TT>> thenReference(Class<TT> targetClass, String... segments) throws InvalidTypeException {
-			return referenceReference(targetClass, path.then(segments));
+			// This is my new favourite line of code
+			return references().referenceReference(targetClass, path.then(segments));
 		}
 
 		@SuppressWarnings("unchecked")
@@ -765,14 +766,14 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 			for (Path p = this.path.truncatedBy(1); !p.isEmpty(); p = p.truncatedBy(1)) try {
 				Type targetType = pathCompiler.targetTypeOf(p);
 				if (targetClass.isAssignableFrom(rawClass(targetType))) {
-					return reference(targetClass, p);
+					return references().reference(targetClass, p);
 				}
 			} catch (InvalidTypeException e) {
 				throw new InvalidTypeException("Error looking up enclosing " + targetClass.getSimpleName() + " from " + path);
 			}
 			// Might be the root
 			if (targetClass.isAssignableFrom(rawClass(rootType))) {
-				return (Reference<TT>) rootReference();
+				return (Reference<TT>) references().rootReference();
 			} else {
 				throw new InvalidTypeException("No enclosing " + targetClass.getSimpleName() + " from " + path);
 			}
@@ -882,7 +883,7 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 			Path containerPath = path.truncatedTo(firstParameterIndex);
 			Reference<EnumerableByIdentifier<?>> containerRef;
 			try {
-				containerRef = reference(enumerableByIdentifierClass(), containerPath);
+				containerRef = references().reference(enumerableByIdentifierClass(), containerPath);
 			} catch (InvalidTypeException e) {
 				throw new NotYetImplementedException("Parameter reference should come after a " + EnumerableByIdentifier.class, e);
 			}
@@ -926,31 +927,6 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 			super("No object at path \"" + path.toString() + "\"");
 			this.path = path;
 		}
-	}
-
-	public final <T> Reference<T> reference(Class<T> requestedClass, Path path) throws InvalidTypeException {
-		return references().reference(requestedClass, path);
-	}
-
-	public final Reference<R> rootReference() {
-		return references().rootReference();
-	}
-
-	public final <T extends Entity> CatalogReference<T> catalogReference(Class<T> entryClass, Path path) throws InvalidTypeException {
-		return references().catalogReference(entryClass, path);
-	}
-
-	public final <T extends Entity> ListingReference<T> listingReference(Class<T> entryClass, Path path) throws InvalidTypeException {
-		return references().listingReference(entryClass, path);
-	}
-
-	public final <K extends Entity,V> SideTableReference<K,V> sideTableReference(Class<K> keyClass, Class<V> valueClass, Path path) throws InvalidTypeException {
-		return references().sideTableReference(keyClass, valueClass, path);
-	}
-
-	public final <TT> Reference<Reference<TT>> referenceReference(Class<TT> targetClass, Path path) throws InvalidTypeException {
-		// This is my new favourite line of code
-		return references().referenceReference(targetClass, path);
 	}
 
 	public final ReferenceFactory<R> references() {

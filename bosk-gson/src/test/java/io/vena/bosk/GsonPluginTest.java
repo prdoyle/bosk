@@ -64,7 +64,7 @@ class GsonPluginTest extends AbstractBoskTest {
 	void setUpGson() throws Exception {
 		bosk = setUpBosk(Bosk::simpleDriver);
 		teb = new TestEntityBuilder(bosk);
-		entitiesRef = bosk.catalogReference(TestEntity.class, Path.just(TestRoot.Fields.entities));
+		entitiesRef = bosk.references().catalogReference(TestEntity.class, Path.just(TestRoot.Fields.entities));
 		parentRef = entitiesRef.then(Identifier.from("parent"));
 
 		plainGson = new GsonBuilder()
@@ -205,7 +205,7 @@ class GsonPluginTest extends AbstractBoskTest {
 
 	@Test
 	void testRootReference() {
-		String json = boskGson.toJson(bosk.rootReference());
+		String json = boskGson.toJson(bosk.references().rootReference());
 		assertEquals("\"/\"", json);
 	}
 
@@ -352,7 +352,7 @@ class GsonPluginTest extends AbstractBoskTest {
 
 	@Test
 	void testDeserializationPath() throws InvalidTypeException {
-		Reference<ImplicitRefs> anyImplicitRefs = bosk.reference(ImplicitRefs.class, Path.of(TestRoot.Fields.entities, "-entity-", TestEntity.Fields.implicitRefs));
+		Reference<ImplicitRefs> anyImplicitRefs = bosk.references().reference(ImplicitRefs.class, Path.of(TestRoot.Fields.entities, "-entity-", TestEntity.Fields.implicitRefs));
 		Reference<ImplicitRefs> ref1 = anyImplicitRefs.boundTo(Identifier.from("123"));
 		ImplicitRefs firstObject = new ImplicitRefs(
 			Identifier.from("firstObject"),

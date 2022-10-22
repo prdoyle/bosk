@@ -30,20 +30,20 @@ public class HooksTest extends AbstractBoskTest {
 	@BeforeEach
 	void setupBosk() throws InvalidTypeException {
 		bosk = setUpBosk(Bosk::simpleDriver);
-		rootIDRef = bosk.rootReference().then(Identifier.class, "id");
-		parentRef = bosk.rootReference().then(TestEntity.class, TestRoot.Fields.entities, "parent");
+		rootIDRef = bosk.references().rootReference().then(Identifier.class, "id");
+		parentRef = bosk.references().rootReference().then(TestEntity.class, TestRoot.Fields.entities, "parent");
 		childrenRef = parentRef.thenCatalog(TestChild.class, TestEntity.Fields.children);
 		child1Ref = childrenRef.then(Identifier.from("child1"));
 		child2Ref = childrenRef.then(Identifier.from("child2"));
 		child3Ref = childrenRef.then(Identifier.from("child3"));
-		anyChildRef = bosk.reference(TestChild.class, Path.of(
+		anyChildRef = bosk.references().reference(TestChild.class, Path.of(
 			TestRoot.Fields.entities, "-entity-", TestEntity.Fields.children, "-child-"));
 		parentStringRef = parentRef.then(String.class, TestEntity.Fields.string);
 		child1StringRef = child1Ref.then(String.class, TestEntity.Fields.string);
 		child2StringRef = child2Ref.then(String.class, TestEntity.Fields.string);
 		child3StringRef = child3Ref.then(String.class, TestEntity.Fields.string);
 		try (val __ = bosk.readContext()) {
-			originalRoot = bosk.rootReference().value();
+			originalRoot = bosk.references().rootReference().value();
 			originalParent = parentRef.value();
 			originalChild1 = child1Ref.value();
 			originalChild2 = child2Ref.value();
@@ -436,7 +436,7 @@ public class HooksTest extends AbstractBoskTest {
 
 			private Reference<Identifier> rootIDReference(Bosk<?> bosk) {
 				try {
-					return bosk.rootReference().then(Identifier.class, "id");
+					return bosk.references().rootReference().then(Identifier.class, "id");
 				} catch (InvalidTypeException e) {
 					throw new AssertionError(e);
 				}

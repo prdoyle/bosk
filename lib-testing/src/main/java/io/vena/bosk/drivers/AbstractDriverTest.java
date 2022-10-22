@@ -37,7 +37,7 @@ public class AbstractDriverTest {
 
 	@Nonnull
 	private static TestEntity initialRoot(Bosk<TestEntity> b) throws InvalidTypeException {
-		return TestEntity.empty(Identifier.from("root"), b.catalogReference(TestEntity.class, Path.just(TestEntity.Fields.catalog)));
+		return TestEntity.empty(Identifier.from("root"), b.references().catalogReference(TestEntity.class, Path.just(TestEntity.Fields.catalog)));
 	}
 
 	TestEntity autoInitialize(Reference<TestEntity> ref) {
@@ -84,10 +84,10 @@ public class AbstractDriverTest {
 		}
 		TestEntity expected, actual;
 		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadContext context = canonicalBosk.readContext()) {
-			expected = canonicalBosk.rootReference().value();
+			expected = canonicalBosk.references().rootReference().value();
 		}
 		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadContext context = bosk.readContext()) {
-			actual = bosk.rootReference().value();
+			actual = bosk.references().rootReference().value();
 		}
 		assertEquals(expected, actual);
 	}

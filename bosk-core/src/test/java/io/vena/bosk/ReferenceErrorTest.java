@@ -26,7 +26,7 @@ public class ReferenceErrorTest {
 
 	@Test
 	void referenceGet_brokenGetter_propagatesException() throws InvalidTypeException {
-		Reference<Identifier> idRef = bosk.reference(Identifier.class, Path.just("id"));
+		Reference<Identifier> idRef = bosk.references().reference(Identifier.class, Path.just("id"));
 		try (val __ = bosk.readContext()) {
 			assertThrows(UnsupportedOperationException.class, idRef::value,
 				"Reference.value() should propagate the exception as-is");
@@ -35,7 +35,7 @@ public class ReferenceErrorTest {
 
 	@Test
 	void referenceUpdate_brokenGetter_propagatesException() throws InvalidTypeException {
-		Reference<String> stringRef = bosk.reference(String.class, Path.of(BadGetters.Fields.nestedObject, NestedObject.Fields.string));
+		Reference<String> stringRef = bosk.references().reference(String.class, Path.of(BadGetters.Fields.nestedObject, NestedObject.Fields.string));
 		assertThrows(UnsupportedOperationException.class, ()->
 			bosk.driver().submitReplacement(stringRef, "newValue"));
 		assertThrows(UnsupportedOperationException.class, ()->

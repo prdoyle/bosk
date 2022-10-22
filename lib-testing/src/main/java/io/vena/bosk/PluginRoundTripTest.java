@@ -14,18 +14,18 @@ public class PluginRoundTripTest extends AbstractRoundTripTest {
 		Bosk<TestRoot> bosk = setUpBosk(driverFactory);
 		TestRoot originalRoot;
 		try (val context = bosk.readContext()) {
-			originalRoot = bosk.rootReference().value();
+			originalRoot = bosk.references().rootReference().value();
 		}
-		bosk.driver().submitReplacement(bosk.rootReference(), originalRoot);
+		bosk.driver().submitReplacement(bosk.references().rootReference(), originalRoot);
 
 		try (val context = bosk.readContext()) {
 			// Use our entity's equals() to check that all is well
 			//
-			assertEquals(originalRoot, bosk.rootReference().value());
+			assertEquals(originalRoot, bosk.references().rootReference().value());
 
 			// Ensure enclosing references point to the right entities
 			//
-			Reference<TestEntity> parentRef = bosk.rootReference().then(TestEntity.class, "entities", "parent");
+			Reference<TestEntity> parentRef = bosk.references().rootReference().then(TestEntity.class, "entities", "parent");
 			assertEquals(parentRef.then(ImplicitRefs.class, "implicitRefs"), parentRef.value().implicitRefs().reference());
 			assertEquals(parentRef, parentRef.value().implicitRefs().enclosingRef());
 		}

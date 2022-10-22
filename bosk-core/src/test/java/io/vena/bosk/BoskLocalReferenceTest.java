@@ -62,18 +62,18 @@ class BoskLocalReferenceTest {
 	void initializeBosk() throws InvalidTypeException {
 		Root initialRoot = new Root(Identifier.from("root"), 1, Catalog.empty());
 		bosk = new Bosk<>(BOSK_NAME, Root.class, initialRoot, Bosk::simpleDriver);
-		entitiesRef = bosk.rootReference().thenCatalog(TestEntity.class, Root.Fields.entities);
+		entitiesRef = bosk.references().rootReference().thenCatalog(TestEntity.class, Root.Fields.entities);
 		Identifier ernieID = Identifier.from("ernie");
 		Identifier bertID = Identifier.from("bert");
 		TestEntity ernie = new TestEntity(ernieID, 1,
-				bosk.reference(TestEntity.class, Path.of(Root.Fields.entities, bertID.toString())),
+			bosk.references().reference(TestEntity.class, Path.of(Root.Fields.entities, bertID.toString())),
 				Catalog.empty(),
 				Listing.of(entitiesRef, bertID),
 				SideTable.of(entitiesRef, bertID, "buddy"),
 				ListValue.empty(),
 				Optional.empty());
 		TestEntity bert = new TestEntity(bertID, 1,
-				bosk.reference(TestEntity.class, Path.of(Root.Fields.entities, ernieID.toString())),
+			bosk.references().reference(TestEntity.class, Path.of(Root.Fields.entities, ernieID.toString())),
 				Catalog.empty(),
 				Listing.of(entitiesRef, ernieID),
 				SideTable.of(entitiesRef, ernieID, "pal"),
@@ -106,9 +106,9 @@ class BoskLocalReferenceTest {
 
 	@Test
 	void testRootReference() throws Exception {
-		checkReferenceProperties(bosk.rootReference(), Path.empty(), root);
-		checkUpdates(bosk.rootReference(), ROOT_UPDATER);
-		assertThrows(IllegalArgumentException.class, ()->bosk.driver().submitDeletion(bosk.rootReference()));
+		checkReferenceProperties(bosk.references().rootReference(), Path.empty(), root);
+		checkUpdates(bosk.references().rootReference(), ROOT_UPDATER);
+		assertThrows(IllegalArgumentException.class, () -> bosk.driver().submitDeletion(bosk.references().rootReference()));
 	}
 
 	@Test
@@ -117,9 +117,9 @@ class BoskLocalReferenceTest {
 		Class<Catalog<TestEntity>> catalogClass = (Class<Catalog<TestEntity>>)(Class)Catalog.class;
 		Path entitiesPath = Path.just(Root.Fields.entities);
 		List<Reference<Catalog<TestEntity>>> refs = asList(
-				bosk.reference(catalogClass, entitiesPath),
-				bosk.catalogReference(TestEntity.class, entitiesPath),
-				bosk.rootReference().thenCatalog(TestEntity.class, Root.Fields.entities));
+			bosk.references().reference(catalogClass, entitiesPath),
+			bosk.references().catalogReference(TestEntity.class, entitiesPath),
+				bosk.references().rootReference().thenCatalog(TestEntity.class, Root.Fields.entities));
 		for (Reference<Catalog<TestEntity>> catalogRef: refs) {
 			checkReferenceProperties(catalogRef, entitiesPath, root.entities());
 			for (Identifier id: root.entities.ids()) {
@@ -139,9 +139,9 @@ class BoskLocalReferenceTest {
 		for (Identifier id: root.entities.ids()) {
 			Path listingPath = Path.of(Root.Fields.entities, id.toString(), TestEntity.Fields.listing);
 			List<ListingReference<TestEntity>> refs = asList(
-					bosk.listingReference(TestEntity.class, listingPath),
-					bosk.rootReference().thenListing(TestEntity.class, Root.Fields.entities, id.toString(), TestEntity.Fields.listing),
-					bosk.rootReference().thenListing(TestEntity.class, Root.Fields.entities, "-entity-", TestEntity.Fields.listing).boundTo(id)
+				bosk.references().listingReference(TestEntity.class, listingPath),
+					bosk.references().rootReference().thenListing(TestEntity.class, Root.Fields.entities, id.toString(), TestEntity.Fields.listing),
+					bosk.references().rootReference().thenListing(TestEntity.class, Root.Fields.entities, "-entity-", TestEntity.Fields.listing).boundTo(id)
 					);
 			for (ListingReference<TestEntity> listingRef: refs) {
 				// Check the Listing reference itself
@@ -187,9 +187,9 @@ class BoskLocalReferenceTest {
 		for (Identifier id: root.entities.ids()) {
 			Path sideTablePath = Path.of(Root.Fields.entities, id.toString(), TestEntity.Fields.sideTable);
 			List<SideTableReference<TestEntity,String>> refs = asList(
-					bosk.sideTableReference(TestEntity.class, String.class, sideTablePath),
-					bosk.rootReference().thenSideTable(TestEntity.class, String.class, Root.Fields.entities, id.toString(), TestEntity.Fields.sideTable),
-					bosk.rootReference().thenSideTable(TestEntity.class, String.class, Root.Fields.entities, "-entity-", TestEntity.Fields.sideTable).boundTo(id)
+				bosk.references().sideTableReference(TestEntity.class, String.class, sideTablePath),
+					bosk.references().rootReference().thenSideTable(TestEntity.class, String.class, Root.Fields.entities, id.toString(), TestEntity.Fields.sideTable),
+					bosk.references().rootReference().thenSideTable(TestEntity.class, String.class, Root.Fields.entities, "-entity-", TestEntity.Fields.sideTable).boundTo(id)
 					);
 			for (SideTableReference<TestEntity,String> sideTableRef: refs) {
 				SideTable<TestEntity, String> sideTable = root.entities().get(id).sideTable();
@@ -220,10 +220,11 @@ class BoskLocalReferenceTest {
 	void testReferenceReference() throws Exception {
 		for (Identifier id: root.entities.ids()) {
 			Path refPath = Path.of(Root.Fields.entities, id.toString(), TestEntity.Fields.refField);
+			// This is my new favourite line of code
 			List<Reference<Reference<TestEntity>>> refs = asList(
-					bosk.referenceReference(TestEntity.class, refPath),
-					bosk.rootReference().thenReference(TestEntity.class, Root.Fields.entities, id.toString(), TestEntity.Fields.refField),
-					bosk.rootReference().thenReference(TestEntity.class, Root.Fields.entities, "-entity-", TestEntity.Fields.refField).boundTo(id)
+				bosk.references().referenceReference(TestEntity.class, refPath),
+					bosk.references().rootReference().thenReference(TestEntity.class, Root.Fields.entities, id.toString(), TestEntity.Fields.refField),
+					bosk.references().rootReference().thenReference(TestEntity.class, Root.Fields.entities, "-entity-", TestEntity.Fields.refField).boundTo(id)
 			);
 			for (Reference<Reference<TestEntity>> ref: refs) {
 				Reference<TestEntity> refField = root.entities().get(id).refField();
@@ -243,8 +244,7 @@ class BoskLocalReferenceTest {
 	 */
 	@Test
 	void testBogusReferenceReference() {
-		assertThrows(InvalidTypeException.class, ()->
-			bosk.reference(Classes.reference(String.class), Path.empty())); // Root object isn't a reference to a String
+		assertThrows(InvalidTypeException.class, () -> bosk.references().reference(Classes.reference(String.class), Path.empty())); // Root object isn't a reference to a String
 	}
 
 	@Test
@@ -344,7 +344,7 @@ class BoskLocalReferenceTest {
 		T firstValue;
 		assertThrows(IllegalStateException.class, ref::value, "Can't read from Bosk before ReadContext");
 		try (val __ = bosk.readContext()) {
-			originalRoot = bosk.rootReference().value();
+			originalRoot = bosk.references().rootReference().value();
 			firstValue = ref.value();
 		}
 		assertThrows(IllegalStateException.class, ref::value, "Can't read from Bosk between ReadContexts");
@@ -393,13 +393,13 @@ class BoskLocalReferenceTest {
 		// Reset the bosk for subsequent tests.  This is necessary because we do
 		// a lot of strong assertSame checks, and so it's not good enough to
 		// leave it in an "equivalent" state; it must be composed of the same objects.
-		bosk.driver().submitReplacement(bosk.rootReference(), originalRoot);
+		bosk.driver().submitReplacement(bosk.references().rootReference(), originalRoot);
 	}
 
 	private <T> void checkDeletion(Reference<T> ref, T expectedValue) {
 		Root originalRoot;
 		try (val __ = bosk.readContext()) {
-			originalRoot = bosk.rootReference().value();
+			originalRoot = bosk.references().rootReference().value();
 			assertSame(expectedValue, ref.valueIfExists(), "Value is present before deletion");
 			bosk.driver().submitDeletion(ref);
 			assertSame(expectedValue, ref.valueIfExists(), "Bosk deletions not visible during the same ReadContext");
@@ -411,7 +411,7 @@ class BoskLocalReferenceTest {
 				assertThrows(NonexistentReferenceException.class, ref::value);
 			}
 		}
-		bosk.driver().submitReplacement(bosk.rootReference(), originalRoot);
+		bosk.driver().submitReplacement(bosk.references().rootReference(), originalRoot);
 	}
 
 	private static final UnaryOperator<Root>       ROOT_UPDATER   = r -> r.withVersion(1 + r.version());
@@ -421,7 +421,7 @@ class BoskLocalReferenceTest {
 		List<String> pathSegments = ref.path().segmentStream().collect(toList());
 		pathSegments.set(1, "REPLACED_ID"); // second segment is the entity ID
 		try {
-			return bosk.reference(ref.targetClass(), Path.of(pathSegments));
+			return bosk.references().reference(ref.targetClass(), Path.of(pathSegments));
 		} catch (InvalidTypeException e) {
 			throw new AssertionError("Unexpected!", e);
 		}

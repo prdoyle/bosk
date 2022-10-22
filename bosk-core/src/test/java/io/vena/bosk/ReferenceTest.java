@@ -30,7 +30,7 @@ class ReferenceTest extends AbstractBoskTest {
 	void setup() {
 		this.bosk = setUpBosk(Bosk::simpleDriver);
 		context = bosk.readContext();
-		this.root = bosk.rootReference().value();
+		this.root = bosk.references().rootReference().value();
 	}
 
 	@AfterEach
@@ -40,20 +40,20 @@ class ReferenceTest extends AbstractBoskTest {
 
 	@Test
 	void rootFields_referenceValue_returnsCorrectObject() throws InvalidTypeException {
-		assertSame(root.entities(), bosk.catalogReference(TestEntity.class, Path.just(
+		assertSame(root.entities(), bosk.references().catalogReference(TestEntity.class, Path.just(
 			TestRoot.Fields.entities
 		)).value());
-		assertSame(root.someStrings(), bosk.reference(StringListValueSubclass.class, Path.just(
+		assertSame(root.someStrings(), bosk.references().reference(StringListValueSubclass.class, Path.just(
 			TestRoot.Fields.someStrings
 		)).value());
-		assertSame(root.someMappedStrings(), bosk.reference(mapValue(String.class), Path.just(
+		assertSame(root.someMappedStrings(), bosk.references().reference(mapValue(String.class), Path.just(
 			TestRoot.Fields.someMappedStrings
 		)).value());
 	}
 
 	@Test
 	void parentFields_referenceValue_returnsCorrectObject() throws InvalidTypeException {
-		Reference<TestEntity> parentRef = bosk.reference(TestEntity.class, Path.of(
+		Reference<TestEntity> parentRef = bosk.references().reference(TestEntity.class, Path.of(
 			TestRoot.Fields.entities, "parent"
 		));
 		TestEntity parent = root.entities().get(Identifier.from("parent"));
@@ -71,7 +71,7 @@ class ReferenceTest extends AbstractBoskTest {
 
 	@Test
 	void phantomFields_reference_nonexistent() throws InvalidTypeException {
-		Reference<Phantoms> phantomsRef = bosk.reference(Phantoms.class, Path.of(
+		Reference<Phantoms> phantomsRef = bosk.references().reference(Phantoms.class, Path.of(
 			TestRoot.Fields.entities, "parent", TestEntity.Fields.phantoms
 		));
 		Phantoms phantoms = root.entities().get(Identifier.from("parent")).phantoms();
@@ -87,7 +87,7 @@ class ReferenceTest extends AbstractBoskTest {
 
 	@Test
 	void optionalFields_referenceValueIfExists_returnsCorrectResult() throws InvalidTypeException {
-		Reference<Optionals> optionalsRef = bosk.reference(Optionals.class, Path.of(
+		Reference<Optionals> optionalsRef = bosk.references().reference(Optionals.class, Path.of(
 			TestRoot.Fields.entities, "parent", TestEntity.Fields.optionals
 		));
 		Optionals optionals = root.entities().get(Identifier.from("parent")).optionals();
@@ -104,7 +104,7 @@ class ReferenceTest extends AbstractBoskTest {
 	@Test
 	void forEach_definiteReference_noMatches() throws InvalidTypeException {
 		assertForEachValueWorks(
-			bosk.reference(TestEntity.class, Path.of(
+			bosk.references().reference(TestEntity.class, Path.of(
 				TestRoot.Fields.entities, "nonexistent")),
 			emptyList(),
 			emptyList()
@@ -114,7 +114,7 @@ class ReferenceTest extends AbstractBoskTest {
 	@Test
 	void forEach_definiteReference_oneMatch() throws InvalidTypeException {
 		assertForEachValueWorks(
-			bosk.reference(TestEntity.class, Path.of(
+			bosk.references().reference(TestEntity.class, Path.of(
 				TestRoot.Fields.entities, "parent")),
 			singletonList(root.entities().get(Identifier.from("parent"))),
 			singletonList(BindingEnvironment.empty())
@@ -124,7 +124,7 @@ class ReferenceTest extends AbstractBoskTest {
 	@Test
 	void forEach_indefiniteReference_noMatches() throws InvalidTypeException {
 		assertForEachValueWorks(
-			bosk.reference(String.class, Path.of(
+			bosk.references().reference(String.class, Path.of(
 				TestRoot.Fields.entities, "nonexistent", TestEntity.Fields.stringSideTable, "-child-")),
 			emptyList(),
 			emptyList()
@@ -134,7 +134,7 @@ class ReferenceTest extends AbstractBoskTest {
 	@Test
 	void forEach_indefiniteReference_oneMatch() throws InvalidTypeException {
 		assertForEachValueWorks(
-			bosk.reference(String.class, Path.of(
+			bosk.references().reference(String.class, Path.of(
 				TestRoot.Fields.entities, "parent", TestEntity.Fields.stringSideTable, "-child-")),
 			singletonList(root.entities().get(Identifier.from("parent")).stringSideTable().get(Identifier.from("child2"))),
 			singletonList(BindingEnvironment.singleton("child", Identifier.from("child2")))
@@ -145,7 +145,7 @@ class ReferenceTest extends AbstractBoskTest {
 	void forEach_indefiniteReference_multipleMatches() throws InvalidTypeException {
 		Catalog<TestChild> children = root.entities().get(Identifier.from("parent")).children();
 		assertForEachValueWorks(
-			bosk.reference(TestChild.class, Path.of(
+			bosk.references().reference(TestChild.class, Path.of(
 				TestRoot.Fields.entities, "parent", TestEntity.Fields.children, "-child-")),
 			children.stream().collect(toList()),
 			children.idStream().map(id -> BindingEnvironment.singleton("child", id)).collect(toList())
@@ -177,7 +177,7 @@ class ReferenceTest extends AbstractBoskTest {
 
 	@PerformanceTest
 	void referencePerf_reused_root() {
-		Reference<TestRoot> rootRef = bosk.rootReference();
+		Reference<TestRoot> rootRef = bosk.references().rootReference();
 		double rate = new MicroBenchmark(callingMethodInfo()) {
 			@Override
 			protected void doIterations(long count) {
@@ -194,7 +194,7 @@ class ReferenceTest extends AbstractBoskTest {
 			@Override
 			protected void doIterations(long count) {
 				for (long i = 0; i < count; i++) {
-					bosk.rootReference().value();
+					bosk.references().rootReference().value();
 				}
 			}
 		}.computeRate();
@@ -202,7 +202,7 @@ class ReferenceTest extends AbstractBoskTest {
 
 	@PerformanceTest
 	void referencePerf_reused_5segments() throws InvalidTypeException {
-		Reference<TestEnum> ref = bosk.reference(TestEnum.class, Path.of(
+		Reference<TestEnum> ref = bosk.references().reference(TestEnum.class, Path.of(
 			TestRoot.Fields.entities, "parent",
 			TestEntity.Fields.children, "child1",
 			TestChild.Fields.testEnum
@@ -223,7 +223,7 @@ class ReferenceTest extends AbstractBoskTest {
 	void referencePerf_javaOnly_5segments() {
 		Identifier parentID = Identifier.from("parent");
 		Identifier child1ID = Identifier.from("child1");
-		ThreadLocal<TestRoot> root = ThreadLocal.withInitial(bosk.rootReference()::value);
+		ThreadLocal<TestRoot> root = ThreadLocal.withInitial(bosk.references().rootReference()::value);
 		double rate = new MicroBenchmark(callingMethodInfo()) {
 			public TestEnum escape;
 
@@ -240,7 +240,7 @@ class ReferenceTest extends AbstractBoskTest {
 	void referencePerf_javaObjectsOnly_5segments() {
 		Identifier parentID = Identifier.from("parent");
 		Identifier child1ID = Identifier.from("child1");
-		TestRoot root = bosk.rootReference().value();
+		TestRoot root = bosk.references().rootReference().value();
 		double rate = new MicroBenchmark(callingMethodInfo()) {
 			public TestEnum escape;
 

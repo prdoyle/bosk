@@ -56,7 +56,7 @@ public class PathCompilerTest extends AbstractBoskTest {
 		bosk = setUpBosk(Bosk::simpleDriver);
 		teb = new TestEntityBuilder(bosk);
 		root = initialRoot(bosk);
-		bosk.driver().submitReplacement(bosk.rootReference(), root);
+		bosk.driver().submitReplacement(bosk.references().rootReference(), root);
 		bosk.driver().flush();
 	}
 
@@ -273,8 +273,8 @@ public class PathCompilerTest extends AbstractBoskTest {
 			initialRoot,
 			Bosk::simpleDriver
 		);
-		Reference<Identifier> idRef = differentBosk.reference(Identifier.class, Path.parse(
-			"/id" ));
+		Reference<Identifier> idRef = differentBosk.references().reference(Identifier.class, Path.parse(
+			"/id"));
 
 		try (Bosk<Entity>.ReadContext context = differentBosk.readContext()) {
 			assertSame(rootID, idRef.valueIfExists());
@@ -388,7 +388,7 @@ public class PathCompilerTest extends AbstractBoskTest {
 			// Because this is a test of PathCompiler, we want this to look like
 			// a test failure, not an initialization error, especially because
 			// pitest doesn't count initialization errors as "killed mutations".
-			ref = bosk.reference(Object.class, path);
+			ref = bosk.references().reference(Object.class, path);
 			actual = pathCompiler.compiled(path);
 		} catch (Exception | AssertionError e) {
 			return singletonList(DynamicTest.dynamicTest(description + ": PathCompiler should not throw", () -> { throw new AssertionError("PathCompiler exception", e); }));

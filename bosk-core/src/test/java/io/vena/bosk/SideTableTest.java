@@ -23,7 +23,7 @@ class SideTableTest extends AbstractBoskTest {
 	@BeforeEach
 	void setup() throws InvalidTypeException {
 		bosk = setUpBosk(Bosk::simpleDriver);
-		entitiesRef = bosk.catalogReference(TestEntity.class, Path.just(TestRoot.Fields.entities));
+		entitiesRef = bosk.references().catalogReference(TestEntity.class, Path.just(TestRoot.Fields.entities));
 		readContext = bosk.readContext();
 		firstEntity = entitiesRef.value().iterator().next();
 	}

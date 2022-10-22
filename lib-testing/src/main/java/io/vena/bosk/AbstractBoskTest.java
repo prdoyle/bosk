@@ -206,7 +206,7 @@ public abstract class AbstractBoskTest {
 
 	protected Reference<TestEntity> entityReference(Identifier id, Bosk<TestRoot> bosk) {
 		try {
-			return bosk.catalogReference(TestEntity.class, Path.just(TestRoot.Fields.entities)).then(id);
+			return bosk.references().catalogReference(TestEntity.class, Path.just(TestRoot.Fields.entities)).then(id);
 		} catch (InvalidTypeException e) {
 			throw new AssertionError("Expected entities reference to work", e);
 		}

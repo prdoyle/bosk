@@ -43,14 +43,14 @@ public class BoskConstructorTest {
 			});
 
 		assertEquals(name, bosk.name());
-		assertEquals(rootType, bosk.rootReference().targetType());
+		assertEquals(rootType, bosk.references().rootReference().targetType());
 
 		// The driver object and root node should be exactly the same object passed in
 
 		assertSame(driver.get(), bosk.driver());
 
 		try (val __ = bosk.readContext()) {
-			assertSame(root, bosk.rootReference().value());
+			assertSame(root, bosk.references().rootReference().value());
 		}
 	}
 
@@ -106,7 +106,7 @@ public class BoskConstructorTest {
 			__ -> {throw new AssertionError("Shouldn't be called");},
 			initialRootDriver(()->root));
 		try (val __ = bosk.readContext()) {
-			assertSame(root, bosk.rootReference().value());
+			assertSame(root, bosk.references().rootReference().value());
 		}
 	}
 
@@ -116,14 +116,14 @@ public class BoskConstructorTest {
 		{
 			Bosk<Entity> valueBosk = new Bosk<>("By value", SimpleTypes.class, root, Bosk::simpleDriver);
 			try (val __ = valueBosk.readContext()) {
-				assertSame(root, valueBosk.rootReference().value());
+				assertSame(root, valueBosk.references().rootReference().value());
 			}
 		}
 
 		{
 			Bosk<Entity> functionBosk = new Bosk<Entity>("By value", SimpleTypes.class, __ -> root, Bosk::simpleDriver);
 			try (val __ = functionBosk.readContext()) {
-				assertSame(root, functionBosk.rootReference().value());
+				assertSame(root, functionBosk.references().rootReference().value());
 			}
 		}
 	}

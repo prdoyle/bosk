@@ -36,7 +36,7 @@ class BsonPluginTest {
 		Codec<Root> codec = registry.get(Root.class);
 		try (ReadContext context = bosk.readContext()) {
 			BsonDocument document = new BsonDocument();
-			Root original = bosk.rootReference().value();
+			Root original = bosk.references().rootReference().value();
 			codec.encode(new BsonDocumentWriter(document), original, EncoderContext.builder().build());
 			Root decoded = codec.decode(new BsonDocumentReader(document), DecoderContext.builder().build());
 			assertEquals(original, decoded);
@@ -44,7 +44,7 @@ class BsonPluginTest {
 	}
 
 	private Root defaultRoot(Bosk<Root> bosk) throws InvalidTypeException {
-		CatalogReference<Item> catalogRef = bosk.catalogReference(Item.class, Path.just(Root.Fields.items));
+		CatalogReference<Item> catalogRef = bosk.references().catalogReference(Item.class, Path.just(Root.Fields.items));
 		return new Root(Identifier.from("root"), Catalog.empty(), SideTable.empty(catalogRef));
 	}
 
