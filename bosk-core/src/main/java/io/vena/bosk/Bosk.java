@@ -928,57 +928,88 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		}
 	}
 
-	//
-	// Reference factory methods
-	//
-
 	public final <T> Reference<T> reference(Class<T> requestedClass, Path path) throws InvalidTypeException {
-		Type targetType;
-		try {
-			targetType = pathCompiler.targetTypeOf(path);
-		} catch (InvalidTypeException e) {
-			throw new InvalidTypeException("Invalid path: " + path, e);
-		}
-		Class<?> targetClass = rawClass(targetType);
-		if (Optional.class.isAssignableFrom(requestedClass)) {
-			throw new InvalidTypeException("Reference<Optional<T>> not supported; create a Reference<T> instead and use Reference.optionalValue()");
-		} else if (!requestedClass.isAssignableFrom(targetClass)) {
-			throw new InvalidTypeException("Path from " + rawClass(rootType).getSimpleName()
-				+ " returns " + targetClass.getSimpleName()
-				+ "; requested " + requestedClass.getSimpleName()
-				+ ": " + path);
-		} else if (Reference.class.isAssignableFrom(requestedClass)) {
-			// TODO: Disallow references to implicit references {Self and Enclosing}
-		}
-		return newReference(path, targetType);
+		return references().reference(requestedClass, path);
 	}
 
-	@SuppressWarnings("unchecked")
 	public final Reference<R> rootReference() {
-		try {
-			return (Reference<R>)reference(rawClass(rootType), Path.empty());
-		} catch (InvalidTypeException e) {
-			throw new AssertionError("Root reference must be of class " + rawClass(rootType).getSimpleName(), e);
-		}
+		return references().rootReference();
 	}
 
 	public final <T extends Entity> CatalogReference<T> catalogReference(Class<T> entryClass, Path path) throws InvalidTypeException {
-		Reference<Catalog<T>> ref = reference(Classes.catalog(entryClass), path);
-		return new CatalogRef<>(ref, entryClass);
+		return references().catalogReference(entryClass, path);
 	}
 
 	public final <T extends Entity> ListingReference<T> listingReference(Class<T> entryClass, Path path) throws InvalidTypeException {
-		Reference<Listing<T>> ref = reference(Classes.listing(entryClass), path);
-		return new ListingRef<>(ref);
+		return references().listingReference(entryClass, path);
 	}
 
 	public final <K extends Entity,V> SideTableReference<K,V> sideTableReference(Class<K> keyClass, Class<V> valueClass, Path path) throws InvalidTypeException {
-		Reference<SideTable<K,V>> ref = reference(Classes.sideTable(keyClass, valueClass), path);
-		return new SideTableRef<>(ref, keyClass, valueClass);
+		return references().sideTableReference(keyClass, valueClass, path);
 	}
 
 	public final <TT> Reference<Reference<TT>> referenceReference(Class<TT> targetClass, Path path) throws InvalidTypeException {
-		return reference(Classes.reference(targetClass), path);
+		// This is my new favourite line of code
+		return references().referenceReference(targetClass, path);
+	}
+
+	public final ReferenceFactory<R> references() {
+		return new ReferenceFactory<R>() {
+			@Override
+			@SuppressWarnings("unchecked")
+			public Reference<R> rootReference() {
+				try {
+					return (Reference<R>)reference(rawClass(rootType), Path.empty());
+				} catch (InvalidTypeException e) {
+					throw new AssertionError("Root reference must be of class " + rawClass(rootType).getSimpleName(), e);
+				}
+			}
+
+			@Override
+			public <T> Reference<T> reference(Class<T> requestedClass, Path path) throws InvalidTypeException {
+				Type targetType;
+				try {
+					targetType = pathCompiler.targetTypeOf(path);
+				} catch (InvalidTypeException e) {
+					throw new InvalidTypeException("Invalid path: " + path, e);
+				}
+				Class<?> targetClass = rawClass(targetType);
+				if (Optional.class.isAssignableFrom(requestedClass)) {
+					throw new InvalidTypeException("Reference<Optional<T>> not supported; create a Reference<T> instead and use Reference.optionalValue()");
+				} else if (!requestedClass.isAssignableFrom(targetClass)) {
+					throw new InvalidTypeException("Path from " + rawClass(rootType).getSimpleName()
+						+ " returns " + targetClass.getSimpleName()
+						+ "; requested " + requestedClass.getSimpleName()
+						+ ": " + path);
+				} else if (Reference.class.isAssignableFrom(requestedClass)) {
+					// TODO: Disallow references to implicit references {Self and Enclosing}
+				}
+				return newReference(path, targetType);
+			}
+
+			@Override
+			public <T extends Entity> CatalogReference<T> catalogReference(Class<T> entryClass, Path path) throws InvalidTypeException {
+				Reference<Catalog<T>> ref = reference(Classes.catalog(entryClass), path);
+				return new CatalogRef<>(ref, entryClass);
+			}
+
+			@Override
+			public <T extends Entity> ListingReference<T> listingReference(Class<T> entryClass, Path path) throws InvalidTypeException {
+				Reference<Listing<T>> ref = reference(Classes.listing(entryClass), path);
+				return new ListingRef<>(ref);
+			}
+
+			@Override
+			public <K extends Entity, V> SideTableReference<K, V> sideTableReference(Class<K> keyClass, Class<V> valueClass, Path path) throws InvalidTypeException {
+				Reference<SideTable<K,V>> ref = reference(Classes.sideTable(keyClass, valueClass), path);
+				return new SideTableRef<>(ref, keyClass, valueClass);
+			}
+
+			@Override
+			public <T> Reference<Reference<T>> referenceReference(Class<T> targetClass, Path path) throws InvalidTypeException {
+				return reference(Classes.reference(targetClass), path);
+			}
+		};
 	}
 
 	@Override
