@@ -57,9 +57,9 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 	}
 
 	public static <R extends Entity> DriverFactory<R> factoryThatMakesAReference() {
-		return (bosk, downstream) -> {
-			bosk.rootReference();
-			return Bosk.simpleDriver(bosk, downstream);
+		return (refs, downstream) -> {
+			refs.rootReference();
+			return Bosk.simpleDriver(refs, downstream);
 		};
 	}
 
@@ -73,9 +73,9 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		private final UnaryOperator<GsonBuilder> customizer;
 
 		@Override
-		public BoskDriver<R> build(Bosk<R> bosk, BoskDriver<R> driver) {
+		public BoskDriver<R> build(ReferenceFactory<R> refs, BoskDriver<R> driver) {
 			return new PreprocessingDriver<R>(driver) {
-				final GsonBuilder builder = new GsonBuilder().registerTypeAdapterFactory(gp.adaptersFor(bosk));
+				final GsonBuilder builder = new GsonBuilder().registerTypeAdapterFactory(gp.adaptersFor(refs));
 				final Gson gson = customizer.apply(builder).create();
 
 				@Override
@@ -103,10 +103,10 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 	@RequiredArgsConstructor
 	private static class BsonRoundTripDriverFactory<R extends Entity> implements DriverFactory<R> {
 		@Override
-		public BoskDriver<R> build(Bosk<R> bosk, BoskDriver<R> driver) {
+		public BoskDriver<R> build(ReferenceFactory<R> refs, BoskDriver<R> driver) {
 			final BsonPlugin bp = new BsonPlugin();
 			return new PreprocessingDriver<R>(driver) {
-				final CodecRegistry codecRegistry = CodecRegistries.fromProviders(bp.codecProviderFor(bosk));
+				final CodecRegistry codecRegistry = CodecRegistries.fromProviders(bp.codecProviderFor(refs));
 
 				/**
 				 * The shortcomings of the Bson library's type system make this
@@ -120,7 +120,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 				 */
 				@Override
 				<T> T preprocess(Reference<T> reference, T newValue) {
-					Codec<T> codec = bp.getCodec(reference.targetType(), reference.targetClass(), codecRegistry, bosk);
+					Codec<T> codec = bp.getCodec(reference.targetType(), reference.targetClass(), codecRegistry, refs);
 					BsonDocument document = new BsonDocument();
 					try (BsonDocumentWriter writer = new BsonDocumentWriter(document)) {
 						writer.writeStartDocument();

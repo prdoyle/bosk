@@ -32,7 +32,7 @@ class BsonPluginTest {
 	void sideTableOfSideTables() {
 		BsonPlugin bp = new BsonPlugin();
 		Bosk<Root> bosk = new Bosk<Root>("Test bosk", Root.class, this::defaultRoot, Bosk::simpleDriver);
-		CodecRegistry registry = CodecRegistries.fromProviders(bp.codecProviderFor(bosk), new ValueCodecProvider());
+		CodecRegistry registry = CodecRegistries.fromProviders(bp.codecProviderFor(bosk.references()), new ValueCodecProvider());
 		Codec<Root> codec = registry.get(Root.class);
 		try (ReadContext context = bosk.readContext()) {
 			BsonDocument document = new BsonDocument();

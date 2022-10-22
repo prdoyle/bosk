@@ -197,10 +197,10 @@ public abstract class AbstractBoskTest {
 			MapValue.fromFunction(asList("key1", "key2"), k ->k + "_value"));
 	}
 
-	protected Gson gsonFor(Bosk<TestRoot> bosk) {
+	protected Gson gsonFor(ReferenceFactory<TestRoot> refs) {
 		return new GsonBuilder()
 			.setPrettyPrinting()
-			.registerTypeAdapterFactory(new GsonPlugin().adaptersFor(bosk))
+			.registerTypeAdapterFactory(new GsonPlugin().adaptersFor(refs))
 			.create();
 	}
 

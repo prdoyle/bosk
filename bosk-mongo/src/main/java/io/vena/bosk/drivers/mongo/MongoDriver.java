@@ -21,6 +21,7 @@ import io.vena.bosk.DriverFactory;
 import io.vena.bosk.Entity;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
+import io.vena.bosk.ReferenceFactory;
 import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
@@ -60,23 +61,23 @@ public final class MongoDriver<R extends Entity> implements BoskDriver<R> {
 	private final String echoPrefix;
 	private final AtomicLong echoCounter = new AtomicLong(1_000_000_000_000L); // Start with a big number so the length doesn't change often
 
-	public MongoDriver(Bosk<R> bosk, MongoClientSettings clientSettings, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin, BoskDriver<R> downstream) {
+	public MongoDriver(ReferenceFactory<R> refs, MongoClientSettings clientSettings, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin, BoskDriver<R> downstream) {
 		validateMongoClientSettings(clientSettings);
 		this.description = MongoDriver.class.getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;
 		this.mongoClient = MongoClients.create(clientSettings);
-		this.formatter = new Formatter(bosk, bsonPlugin);
+		this.formatter = new Formatter(refs, bsonPlugin);
 		this.collection = mongoClient
 			.getDatabase(driverSettings.database())
 			.getCollection(driverSettings.collection());
-		this.receiver = new MongoChangeStreamReceiver<>(downstream, bosk.rootReference(), collection, formatter);
-		this.echoPrefix = bosk.instanceID().toString();
+		this.receiver = new MongoChangeStreamReceiver<>(downstream, refs.rootReference(), collection, formatter);
+		this.echoPrefix = refs.boskInstanceID().toString();
 		this.documentID = new BsonString("boskDocument");
-		this.rootRef = bosk.rootReference();
+		this.rootRef = refs.rootReference();
 	}
 
 	public static <RR extends Entity> DriverFactory<RR> factory(MongoClientSettings clientSettings, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin) {
-		return (b,d) -> new MongoDriver<>(b, clientSettings, driverSettings, bsonPlugin, d);
+		return (r,d) -> new MongoDriver<>(r, clientSettings, driverSettings, bsonPlugin, d);
 	}
 
 	private void validateMongoClientSettings(MongoClientSettings clientSettings) {

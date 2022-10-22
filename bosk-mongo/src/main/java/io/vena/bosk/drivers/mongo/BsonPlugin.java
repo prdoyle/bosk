@@ -11,6 +11,7 @@ import io.vena.bosk.MapValue;
 import io.vena.bosk.Path;
 import io.vena.bosk.Phantom;
 import io.vena.bosk.Reference;
+import io.vena.bosk.ReferenceFactory;
 import io.vena.bosk.SerializationPlugin;
 import io.vena.bosk.SideTable;
 import io.vena.bosk.StateTreeNode;
@@ -89,36 +90,36 @@ public final class BsonPlugin extends SerializationPlugin {
 	 *
 	 * <p>
 	 * In response to this shortcoming, you can access {@link Codec}s for any
-	 * type using {@link #getCodec(Type, Class, CodecRegistry, Bosk)}
+	 * type using {@link #getCodec(Type, Class, CodecRegistry, ReferenceFactory)}
 	 */
-	public <R extends Entity> CodecProvider codecProviderFor(Bosk<R> bosk) {
+	public <R extends Entity> CodecProvider codecProviderFor(ReferenceFactory<R> refs) {
 		return new CodecProvider() {
 			public <T> Codec<T> get(Class<T> targetClass, CodecRegistry registry) {
 				// Without generic type info, we just use the class as the type;
 				// this will throw IllegalArgumentException if that's insufficient
-				return getCodec(targetClass, targetClass, registry, bosk);
+				return getCodec(targetClass, targetClass, registry, refs);
 			}
 		};
 	}
 
 	/**
-	 * Like {@link #codecProviderFor(Bosk) codecProviderFor(bosk)}{@link
+	 * Like {@link #codecProviderFor(ReferenceFactory) codecProviderFor(refs)}{@link
 	 * CodecProvider#get(Class, CodecRegistry) .get(targetType, registry)}
 	 * except this works more broadly because it can accept a {@link
 	 * ParameterizedType} for generic classes.
 	 *
-	 * @param <R> root type of <code>bosk</code>
+	 * @param <R> root type of the bosk
 	 * @param targetClass must match <code>targetType</code>. This is provided only to help Java do type inference and avoid ugly and unnecessary type casts.
 	 */
 	@SuppressWarnings("unchecked")
-	public <T, R extends Entity> Codec<T> getCodec(Type targetType, Class<T> targetClass, CodecRegistry registry, Bosk<R> bosk) {
+	public <T, R extends Entity> Codec<T> getCodec(Type targetType, Class<T> targetClass, CodecRegistry registry, ReferenceFactory<R> refs) {
 		if (rawClass(targetType) != targetClass) {
 			throw new IllegalArgumentException("Type does not match Class " + targetClass.getSimpleName() + ": " + targetType);
 		}
 
 		Codec<T> result = (Codec<T>) memoizedCodecs.get(targetType);
 		if (result == null) {
-			result = computeCodec(targetType, targetClass, registry, bosk);
+			result = computeCodec(targetType, targetClass, registry, refs);
 			if (result != null) {
 				memoizedCodecs.putIfAbsent(targetType, result);
 			}
@@ -131,8 +132,8 @@ public final class BsonPlugin extends SerializationPlugin {
 	 * if required, and if that fails, falls back to the registry.
 	 */
 	@SuppressWarnings("unused") // GET_ANY_CODEC
-	private <T, R extends Entity> Codec<T> getAnyCodec(Type targetType, Class<T> targetClass, CodecRegistry registry, Bosk<R> bosk) {
-		Codec<T> result = getCodec(targetType, targetClass, registry, bosk);
+	private <T, R extends Entity> Codec<T> getAnyCodec(Type targetType, Class<T> targetClass, CodecRegistry registry, ReferenceFactory<R> refs) {
+		Codec<T> result = getCodec(targetType, targetClass, registry, refs);
 		if (result == null) {
 			return requireNonNull(registry.get(targetClass), "Codec required for " + targetType);
 		} else {
@@ -141,7 +142,7 @@ public final class BsonPlugin extends SerializationPlugin {
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" }) // This method is trusted to handle types properly, so other methods can have good strong type checking
-	private Codec computeCodec(Type targetType, Class targetClass, CodecRegistry registry, Bosk bosk) {
+	private Codec computeCodec(Type targetType, Class targetClass, CodecRegistry registry, ReferenceFactory refs) {
 		// Classes that we can handle without type parameter info
 		//
 		if (Identifier.class.isAssignableFrom(targetClass)) {
@@ -149,7 +150,7 @@ public final class BsonPlugin extends SerializationPlugin {
 		} else if (ListingEntry.class.isAssignableFrom(targetClass)) {
 			return listingEntryCodec();
 		} else if (Reference.class.isAssignableFrom(targetClass)) {
-			return referenceCodec(bosk);
+			return referenceCodec(refs);
 		} else if (Enum.class.isAssignableFrom(targetClass)) {
 			// Bosk explicitly supports enums
 			return enumCodec(targetClass);
@@ -157,15 +158,15 @@ public final class BsonPlugin extends SerializationPlugin {
 			return listingCodec(targetClass, registry);
 		} else if (StateTreeNode.class.isAssignableFrom(targetClass)) {
 			// TODO: What about generic node classes?
-			return stateTreeNodeCodec(targetClass, registry, bosk);
+			return stateTreeNodeCodec(targetClass, registry, refs);
 		} else if (Catalog.class.isAssignableFrom(targetClass)) {
-			return catalogCodec(targetType, targetClass, registry, bosk);
+			return catalogCodec(targetType, targetClass, registry, refs);
 		} else if (SideTable.class.isAssignableFrom(targetClass)) {
-			return sideTableCodec(targetType, targetClass, registry, bosk);
+			return sideTableCodec(targetType, targetClass, registry, refs);
 		} else if (ListValue.class.isAssignableFrom(targetClass)) {
-			return listValueCodec(targetType, targetClass, registry, bosk);
+			return listValueCodec(targetType, targetClass, registry, refs);
 		} else if (MapValue.class.isAssignableFrom(targetClass)) {
-			return mapValueCodec(targetType, targetClass, registry, bosk);
+			return mapValueCodec(targetType, targetClass, registry, refs);
 		} else if (Optional.class.isAssignableFrom(targetClass)) {
 			// Optional.empty() can't be serialized on its own because the field name itself must also be omitted
 			throw new IllegalArgumentException("Cannot serialize an Optional on its own; only as a field of another object");
@@ -295,11 +296,11 @@ public final class BsonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private <V> Codec<MapValue<V>> mapValueCodec(Type mapValueType, Class<MapValue<V>> targetClass, CodecRegistry registry, Bosk<?> bosk) {
+	private <V> Codec<MapValue<V>> mapValueCodec(Type mapValueType, Class<MapValue<V>> targetClass, CodecRegistry registry, ReferenceFactory<?> refs) {
 		Type valueType = parameterType(mapValueType, MapValue.class, 0);
 		@SuppressWarnings("unchecked")
 		Class<V> valueClass = (Class<V>) rawClass(valueType);
-		Codec<V> valueCodec = getCodec(valueType, valueClass, registry, bosk);
+		Codec<V> valueCodec = getCodec(valueType, valueClass, registry, refs);
 		return new Codec<MapValue<V>>() {
 
 			@Override
@@ -336,12 +337,12 @@ public final class BsonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private <V> Codec<ListValue<V>> listValueCodec(Type listValueType, Class<ListValue<V>> targetClass, CodecRegistry registry, Bosk<?> bosk) {
+	private <V> Codec<ListValue<V>> listValueCodec(Type listValueType, Class<ListValue<V>> targetClass, CodecRegistry registry, ReferenceFactory<?> refs) {
 		Constructor<? extends ListValue<V>> ctor = theOnlyConstructorFor(targetClass);
 		Type entryType = parameterType(listValueType, ListValue.class, 0);
 		@SuppressWarnings("unchecked")
 		Class<V> entryClass = (Class<V>) rawClass(entryType);
-		Codec<V> entryCodec = getCodec(entryType, entryClass, registry, bosk);
+		Codec<V> entryCodec = getCodec(entryType, entryClass, registry, refs);
 		return new Codec<ListValue<V>>() {
 
 			@Override
@@ -377,7 +378,7 @@ public final class BsonPlugin extends SerializationPlugin {
 	}
 
 
-	private static <R extends Entity> Codec<Reference<?>> referenceCodec(Bosk<R> bosk) {
+	private static <R extends Entity> Codec<Reference<?>> referenceCodec(ReferenceFactory<R> refs) {
 		return new Codec<Reference<?>>() {
 			@Override @SuppressWarnings({ "rawtypes", "unchecked" })
 			public Class<Reference<?>> getEncoderClass() { return (Class)Reference.class; }
@@ -391,7 +392,7 @@ public final class BsonPlugin extends SerializationPlugin {
 			public Reference<?> decode(BsonReader reader, DecoderContext decoderContext) {
 				String urlEncoded = reader.readString();
 				try {
-					return bosk.reference(Object.class, Path.parse(urlEncoded));
+					return refs.reference(Object.class, Path.parse(urlEncoded));
 				} catch (InvalidTypeException e) {
 					throw new UnexpectedPathException(e);
 				}
@@ -399,13 +400,13 @@ public final class BsonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private <T extends StateTreeNode, R extends Entity> Codec<T> stateTreeNodeCodec(Class<T> nodeClass, CodecRegistry registry, Bosk<R> bosk) {
+	private <T extends StateTreeNode, R extends Entity> Codec<T> stateTreeNodeCodec(Class<T> nodeClass, CodecRegistry registry, ReferenceFactory<R> refs) {
 		// Pre-compute some reflection-based stuff
 		//
 		Constructor<?> constructor = theOnlyConstructorFor(nodeClass);
 		LinkedHashMap<String, Parameter> parametersByName = Stream.of(constructor.getParameters()).collect(toMap(Parameter::getName, p->p, (x,y)->{ throw new NotYetImplementedException("Two parameters with same name \"" + x.getName() + "\": " + x + "; " + y); }, LinkedHashMap::new));
 
-		MethodHandle writerHandle = computeAllFieldsWriterHandle(nodeClass, parametersByName, registry, bosk);
+		MethodHandle writerHandle = computeAllFieldsWriterHandle(nodeClass, parametersByName, registry, refs);
 		MethodHandle factoryHandle = computeFactoryHandle(constructor);
 
 		return new Codec<T>() {
@@ -424,9 +425,9 @@ public final class BsonPlugin extends SerializationPlugin {
 			@SuppressWarnings("unchecked")
 			public T decode(BsonReader reader, DecoderContext decoderContext) {
 				reader.readStartDocument();
-				Map<String, Object> parameterValuesByName = gatherParameterValuesByName(nodeClass, parametersByName, reader, decoderContext, registry, bosk);
+				Map<String, Object> parameterValuesByName = gatherParameterValuesByName(nodeClass, parametersByName, reader, decoderContext, registry, refs);
 				reader.readEndDocument();
-				List<Object> parameterValues = parameterValueList(nodeClass, parameterValuesByName, parametersByName, bosk);
+				List<Object> parameterValues = parameterValueList(nodeClass, parameterValuesByName, parametersByName, refs);
 				try {
 					return (T) factoryHandle.invoke(parameterValues.toArray());
 				} catch (Throwable e) {
@@ -438,17 +439,17 @@ public final class BsonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private <E extends Entity, R extends Entity> Codec<Catalog<E>> catalogCodec(Type catalogType, Class<Catalog<E>> catalogClass, CodecRegistry registry, Bosk<R> bosk) {
+	private <E extends Entity, R extends Entity> Codec<Catalog<E>> catalogCodec(Type catalogType, Class<Catalog<E>> catalogClass, CodecRegistry registry, ReferenceFactory<R> refs) {
 		Type entryType = parameterType(catalogType, Catalog.class, 0);
 		@SuppressWarnings("unchecked")
 		Class<E> entryClass = (Class<E>) rawClass(entryType).asSubclass(Entity.class);
-		Codec<E> entryCodec = getCodec(entryType, entryClass, registry, bosk);
+		Codec<E> entryCodec = getCodec(entryType, entryClass, registry, refs);
 		return new Codec<Catalog<E>>() {
 			@Override public Class<Catalog<E>> getEncoderClass() { return catalogClass; }
 
 			@Override
 			public void encode(BsonWriter writer, Catalog<E> value, EncoderContext encoderContext) {
-				MethodHandle fieldWriter = catalogWriterHandle(entryClass, registry, bosk);
+				MethodHandle fieldWriter = catalogWriterHandle(entryClass, registry, refs);
 				try {
 					fieldWriter.invoke(value, writer, encoderContext);
 				} catch (Throwable e) {
@@ -484,29 +485,29 @@ public final class BsonPlugin extends SerializationPlugin {
 				return result;
 			}
 
-			private MethodHandle catalogWriterHandle(Class<? extends Entity> entryClass, CodecRegistry codecRegistry, Bosk<R> bosk) {
+			private MethodHandle catalogWriterHandle(Class<? extends Entity> entryClass, CodecRegistry codecRegistry, ReferenceFactory<R> refs) {
 				// Curry in the codec suppliers
 				return collectArguments(
 						WRITE_CATALOG,
-						0, codecSupplierHandle(entryClass, codecRegistry, bosk));
+						0, codecSupplierHandle(entryClass, codecRegistry, refs));
 			}
 		};
 	}
 
-	private <K extends Entity, V, R extends Entity> Codec<SideTable<K,V>> sideTableCodec(Type sideTableType, Class<SideTable<K,V>> sideTableClass, CodecRegistry registry, Bosk<R> bosk) {
+	private <K extends Entity, V, R extends Entity> Codec<SideTable<K,V>> sideTableCodec(Type sideTableType, Class<SideTable<K,V>> sideTableClass, CodecRegistry registry, ReferenceFactory<R> refs) {
 		Type valueType = parameterType(sideTableType, SideTable.class, 1);
 		@SuppressWarnings("unchecked")
 		Class<V> valueClass = (Class<V>) rawClass(valueType);
-		Codec<V> valueCodec = getCodec(valueType, valueClass, registry, bosk);
+		Codec<V> valueCodec = getCodec(valueType, valueClass, registry, refs);
 		@SuppressWarnings("rawtypes")
-		Codec<Reference> referenceCodec = getCodec(Reference.class, Reference.class, registry, bosk);
+		Codec<Reference> referenceCodec = getCodec(Reference.class, Reference.class, registry, refs);
 
 		return new Codec<SideTable<K,V>>() {
 			@Override public Class<SideTable<K, V>> getEncoderClass() { return sideTableClass; }
 
 			@Override
 			public void encode(BsonWriter writer, SideTable<K, V> value, EncoderContext encoderContext) {
-				MethodHandle fieldWriter = sideTableWriterHandle(valueType, registry, bosk);
+				MethodHandle fieldWriter = sideTableWriterHandle(valueType, registry, refs);
 				try {
 					fieldWriter.invoke(value, writer, encoderContext);
 				} catch (Throwable e) {
@@ -544,12 +545,12 @@ public final class BsonPlugin extends SerializationPlugin {
 				return SideTable.fromOrderedMap(domain, valuesById);
 			}
 
-			private MethodHandle sideTableWriterHandle(Type valueType, CodecRegistry codecRegistry, Bosk<R> bosk) {
+			private MethodHandle sideTableWriterHandle(Type valueType, CodecRegistry codecRegistry, ReferenceFactory<R> refs) {
 				// Curry in the codec suppliers
 				return collectArguments(collectArguments(
 						WRITE_SIDE_TABLE,
-						0, codecSupplierHandle(Reference.class, codecRegistry, bosk)),
-						0, codecSupplierHandle(valueType, codecRegistry, bosk));
+						0, codecSupplierHandle(Reference.class, codecRegistry, refs)),
+						0, codecSupplierHandle(valueType, codecRegistry, refs));
 			}
 		};
 	}
@@ -557,7 +558,7 @@ public final class BsonPlugin extends SerializationPlugin {
 	/**
 	 * @return Map not necessarily in any particular order; caller is expected to apply any desired ordering.
 	 */
-	private <R extends Entity> Map<String, Object> gatherParameterValuesByName(Class<? extends StateTreeNode> nodeClass, Map<String, Parameter> parametersByName, BsonReader reader, DecoderContext decoderContext, CodecRegistry registry, Bosk<R> bosk) {
+	private <R extends Entity> Map<String, Object> gatherParameterValuesByName(Class<? extends StateTreeNode> nodeClass, Map<String, Parameter> parametersByName, BsonReader reader, DecoderContext decoderContext, CodecRegistry registry, ReferenceFactory<R> refs) {
 		Map<String, Object> parameterValuesByName = new HashMap<>();
 		while (reader.readBsonType() != BsonType.END_OF_DOCUMENT) {
 			String fieldName = reader.readName();
@@ -571,7 +572,7 @@ public final class BsonPlugin extends SerializationPlugin {
 			}
 			Object value;
 			try (@SuppressWarnings("unused") DeserializationScope s = nodeFieldDeserializationScope(nodeClass, fieldName)) {
-				value = decodeValue(parameter.getParameterizedType(), reader, decoderContext, registry, bosk);
+				value = decodeValue(parameter.getParameterizedType(), reader, decoderContext, registry, refs);
 			}
 			Object old = parameterValuesByName.put(fieldName, value);
 			if (old != null) {
@@ -581,7 +582,7 @@ public final class BsonPlugin extends SerializationPlugin {
 		return parameterValuesByName;
 	}
 
-	private <R extends Entity> Object decodeValue(Type valueType, BsonReader reader, DecoderContext decoderContext, CodecRegistry registry, Bosk<R> bosk) {
+	private <R extends Entity> Object decodeValue(Type valueType, BsonReader reader, DecoderContext decoderContext, CodecRegistry registry, ReferenceFactory<R> refs) {
 		Class<?> valueClass = rawClass(valueType);
 		Object value;
 		if (Phantom.class.isAssignableFrom(valueClass)) {
@@ -589,14 +590,14 @@ public final class BsonPlugin extends SerializationPlugin {
 		} else if (Optional.class.isAssignableFrom(valueClass)) {
 			// Optional field is present in BSON; wrap it using Optional.of
 			Type contentsType = parameterType(valueType, Optional.class, 0);
-			value = Optional.of(decodeValue(contentsType, reader, decoderContext, registry, bosk));
+			value = Optional.of(decodeValue(contentsType, reader, decoderContext, registry, refs));
 		} else {
-			value = getCodec(valueType, valueClass, registry, bosk).decode(reader, decoderContext);
+			value = getCodec(valueType, valueClass, registry, refs).decode(reader, decoderContext);
 		}
 		return value;
 	}
 
-	private <T extends StateTreeNode, R extends Entity> MethodHandle computeAllFieldsWriterHandle(Class<T> nodeClass, Map<String, Parameter> parametersByName, CodecRegistry codecRegistry, Bosk<R> bosk) {
+	private <T extends StateTreeNode, R extends Entity> MethodHandle computeAllFieldsWriterHandle(Class<T> nodeClass, Map<String, Parameter> parametersByName, CodecRegistry codecRegistry, ReferenceFactory<R> refs) {
 		MethodHandle handleUnderConstruction = writeNothingHandle(nodeClass);
 		for (Entry<String, Parameter> e: parametersByName.entrySet()) {
 			// Here, handleUnderConstruction has args (N,W,E)
@@ -608,7 +609,7 @@ public final class BsonPlugin extends SerializationPlugin {
 			} catch (IllegalAccessException | InvalidTypeException e1) {
 				throw new NotYetImplementedException("Eh?", e1);
 			}
-			MethodHandle fieldWriter = parameterWriterHandle(nodeClass, name, parameter, codecRegistry, bosk); // (P,W,E)
+			MethodHandle fieldWriter = parameterWriterHandle(nodeClass, name, parameter, codecRegistry, refs); // (P,W,E)
 			MethodHandle writerCall = filterArguments(fieldWriter, 0, getter); // (N,W,E)
 			MethodHandle nestedCall = collectArguments(writerCall, 0, handleUnderConstruction); // (N,W,E,N,W,E)
 			handleUnderConstruction = permuteArguments(nestedCall, writerCall.type(), 0, 1, 2, 0, 1, 2); // (N,W,E)
@@ -616,15 +617,15 @@ public final class BsonPlugin extends SerializationPlugin {
 		return handleUnderConstruction;
 	}
 
-	private <R extends Entity> MethodHandle parameterWriterHandle(Class<?> nodeClass, String name, Parameter parameter, CodecRegistry codecRegistry, Bosk<R> bosk) {
+	private <R extends Entity> MethodHandle parameterWriterHandle(Class<?> nodeClass, String name, Parameter parameter, CodecRegistry codecRegistry, ReferenceFactory<R> refs) {
 		if (isImplicitParameter(nodeClass, parameter)) {
 			return writeNothingHandle(parameter.getType());
 		} else {
-			return valueWriterHandle(name, parameter.getParameterizedType(), codecRegistry, bosk);
+			return valueWriterHandle(name, parameter.getParameterizedType(), codecRegistry, refs);
 		}
 	}
 
-	private <R extends Entity> MethodHandle valueWriterHandle(String name, Type valueType, CodecRegistry codecRegistry, Bosk<R> bosk) {
+	private <R extends Entity> MethodHandle valueWriterHandle(String name, Type valueType, CodecRegistry codecRegistry, ReferenceFactory<R> refs) {
 		MethodHandle fieldWriter;
 		Class<?> valueClass = rawClass(valueType);
 		if (Phantom.class.isAssignableFrom(valueClass)) {
@@ -632,28 +633,28 @@ public final class BsonPlugin extends SerializationPlugin {
 		} else if (Optional.class.isAssignableFrom(valueClass)) {
 			// Serialize Optional values only when present
 			Type contentsType = parameterType(valueType, Optional.class, 0);
-			MethodHandle contentsWriter = valueWriterHandle(name, contentsType, codecRegistry, bosk);
+			MethodHandle contentsWriter = valueWriterHandle(name, contentsType, codecRegistry, refs);
 			MethodHandle unwrapper = filterArguments(contentsWriter, 0, OPTIONAL_GET.asType(OPTIONAL_GET.type().changeReturnType(rawClass(contentsType))));
 			fieldWriter = guardWithTest(OPTIONAL_IS_PRESENT, unwrapper, writeNothingHandle(Optional.class));
 		} else {
 			// Curry in the codec suppliers
 			MethodHandle customized = collectArguments(
 					insertArguments(WRITE_FIELD, 0, name),
-					0, codecSupplierHandle(valueType, codecRegistry, bosk));
+					0, codecSupplierHandle(valueType, codecRegistry, refs));
 			fieldWriter = customized.asType(customized.type().changeParameterType(0, valueClass));
 		}
 		return fieldWriter;
 	}
 
 	/**
-	 * We can't call {@link #getCodec(Type, Class, CodecRegistry, Bosk)
+	 * We can't call {@link #getCodec(Type, Class, CodecRegistry, ReferenceFactory)
 	 * getCodec} during the construction of our Codecs, because there
 	 * could be cyclic dependencies; we want to defer the call until
 	 * run time, at which point all the Codecs will be known already.
 	 *
 	 * @return {@link MethodHandle} taking no arguments and returning the desired {@link Codec}.
 	 */
-	private MethodHandle codecSupplierHandle(Type targetType, CodecRegistry codecRegistry, Bosk<?> bosk) {
+	private MethodHandle codecSupplierHandle(Type targetType, CodecRegistry codecRegistry, ReferenceFactory<?> refs) {
 		Class<?> targetClass = rawClass(targetType);
 		if (targetClass.getTypeParameters().length >= 1) {
 			if ((targetType instanceof ParameterizedType) || EASYGOING_GENERICS.contains(targetClass)) {
@@ -663,7 +664,7 @@ public final class BsonPlugin extends SerializationPlugin {
 				throw new AssertionError("Class " + targetClass.getSimpleName() + " requires type parameters");
 			}
 		}
-		return insertArguments(GET_ANY_CODEC, 0, this, targetType, targetClass, codecRegistry, bosk);
+		return insertArguments(GET_ANY_CODEC, 0, this, targetType, targetClass, codecRegistry, refs);
 	}
 
 	/**
@@ -735,7 +736,7 @@ public final class BsonPlugin extends SerializationPlugin {
 			WRITE_CATALOG = LOOKUP.findStatic(BsonPlugin.class, "writeCatalog", methodType(void.class, Codec.class, Catalog.class, BsonWriter.class, EncoderContext.class));
 			WRITE_SIDE_TABLE = LOOKUP.findStatic(BsonPlugin.class, "writeSideTable", methodType(void.class, Codec.class, Codec.class, SideTable.class, BsonWriter.class, EncoderContext.class));
 			WRITE_NOTHING = LOOKUP.findStatic(BsonPlugin.class, "writeNothing", methodType(void.class, Object.class, BsonWriter.class, EncoderContext.class));
-			GET_ANY_CODEC = LOOKUP.findVirtual(BsonPlugin.class, "getAnyCodec", methodType(Codec.class, Type.class, Class.class, CodecRegistry.class, Bosk.class));
+			GET_ANY_CODEC = LOOKUP.findVirtual(BsonPlugin.class, "getAnyCodec", methodType(Codec.class, Type.class, Class.class, CodecRegistry.class, ReferenceFactory.class));
 			OPTIONAL_IS_PRESENT = LOOKUP.findVirtual(Optional.class, "isPresent", methodType(boolean.class));
 			OPTIONAL_GET        = LOOKUP.findVirtual(Optional.class, "get", methodType(Object.class));
 		} catch (NoSuchMethodException | IllegalAccessException e) {

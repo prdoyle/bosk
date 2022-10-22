@@ -5,13 +5,13 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
-import io.vena.bosk.Bosk;
 import io.vena.bosk.Catalog;
 import io.vena.bosk.Entity;
 import io.vena.bosk.GsonPlugin;
 import io.vena.bosk.GsonPlugin.FieldModerator;
 import io.vena.bosk.Phantom;
 import io.vena.bosk.Reference;
+import io.vena.bosk.ReferenceFactory;
 import io.vena.bosk.ReflectiveEntity;
 import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.bytecode.ClassBuilder;
@@ -63,7 +63,7 @@ public final class GsonAdapterCompiler {
 	 *
 	 * @return a newly compiled {@link TypeAdapter} for values of the given <code>nodeType</code>.
 	 */
-	public <T> TypeAdapter<T> compiled(TypeToken<T> nodeTypeToken, Bosk<?> bosk, Gson gson, FieldModerator moderator) {
+	public <T> TypeAdapter<T> compiled(TypeToken<T> nodeTypeToken, ReferenceFactory<?> refs, Gson gson, FieldModerator moderator) {
 		try {
 			// Record that we're compiling this one to avoid infinite recursion
 			compilationsInProgress.get().addLast(nodeTypeToken.getType());
@@ -86,7 +86,7 @@ public final class GsonAdapterCompiler {
 			// Return a CodecWrapper for the codec
 			LinkedHashMap<String, Parameter> parametersByName = new LinkedHashMap<>();
 			parameters.forEach(p -> parametersByName.put(p.getName(), p));
-			return new CodecWrapper<>(codec, gson, bosk, nodeClass, parametersByName, moderator);
+			return new CodecWrapper<>(codec, gson, refs, nodeClass, parametersByName, moderator);
 		} finally {
 			Type removed = compilationsInProgress.get().removeLast();
 			assert removed.equals(nodeTypeToken.getType());
@@ -356,7 +356,7 @@ public final class GsonAdapterCompiler {
 	private class CodecWrapper<T> extends TypeAdapter<T> {
 		Codec codec;
 		Gson gson;
-		Bosk<?> bosk;
+		ReferenceFactory<?> refs;
 		Class<T> nodeClass;
 		LinkedHashMap<String, Parameter> parametersByName;
 		FieldModerator moderator;
@@ -378,7 +378,7 @@ public final class GsonAdapterCompiler {
 			Map<String, Object> valueMap = gsonPlugin.gatherParameterValuesByName(nodeClass, parametersByName, moderator, in, gson);
 			in.endObject();
 
-			List<Object> parameterValues = gsonPlugin.parameterValueList(nodeClass, valueMap, parametersByName, bosk);
+			List<Object> parameterValues = gsonPlugin.parameterValueList(nodeClass, valueMap, parametersByName, refs);
 
 			@SuppressWarnings("unchecked")
 			T result = (T)codec.instantiateFrom(parameterValues);

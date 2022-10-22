@@ -37,7 +37,7 @@ public class BoskConstructorTest {
 			name,
 			rootType,
 			__ -> root,
-			(b,d)-> {
+			(r,d)-> {
 				driver.set(new ForwardingDriver<>(singleton(d)));
 				return driver.get();
 			});
@@ -153,7 +153,7 @@ public class BoskConstructorTest {
 
 	@NotNull
 	private static DriverFactory<Entity> initialRootDriver(InitialRootFunction initialRootFunction) {
-		return (b,d) -> new ForwardingDriver<Entity>(emptyList()) {
+		return (r,d) -> new ForwardingDriver<Entity>(emptyList()) {
 			@Override
 			public Entity initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 				return initialRootFunction.get();

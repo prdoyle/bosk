@@ -114,7 +114,7 @@ class MongoDriverSpecialTest {
 		// have tight control over all the comings and goings from MongoDriver.
 		BlockingQueue<Reference<?>> replacementsSeen = new LinkedBlockingDeque<>();
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test bosk", TestEntity.class, this::initialRoot,
-			(b,d) -> driverFactory.build(b, new BufferingDriver<TestEntity>(d){
+			(r,d) -> driverFactory.build(r, new BufferingDriver<TestEntity>(d){
 				@Override
 				public <T> void submitReplacement(Reference<T> target, T newValue) {
 					super.submitReplacement(target, newValue);
@@ -381,9 +381,9 @@ class MongoDriverSpecialTest {
 	}
 
 	private <E extends Entity> DriverFactory<E> createDriverFactory() {
-		return (bosk, downstream) -> {
+		return (refs, downstream) -> {
 			MongoDriver<E> driver = new MongoDriver<E>(
-				bosk, mongoService.clientSettings(), driverSettings, new BsonPlugin(),
+				refs, mongoService.clientSettings(), driverSettings, new BsonPlugin(),
 				downstream
 			);
 			tearDownActions.addFirst(driver::close);

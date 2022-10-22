@@ -158,13 +158,13 @@ public abstract class SerializationPlugin {
 	 * supplied where possible, such as <code>Optional.empty()</code> and
 	 * {@link Enclosing} references.
 	 */
-	public final List<Object> parameterValueList(Class<?> nodeClass, Map<String, Object> parameterValuesByName, LinkedHashMap<String, Parameter> parametersByName, Bosk<?> bosk) {
+	public final List<Object> parameterValueList(Class<?> nodeClass, Map<String, Object> parameterValuesByName, LinkedHashMap<String, Parameter> parametersByName, ReferenceFactory<?> refs) {
 		List<Object> parameterValues = new ArrayList<>();
 		for (Entry<String, Parameter> entry: parametersByName.entrySet()) {
 			String name = entry.getKey();
 			Parameter parameter = entry.getValue();
 			Class<?> type = parameter.getType();
-			Reference<?> implicitReference = findImplicitReferenceIfAny(nodeClass, parameter, bosk);
+			Reference<?> implicitReference = findImplicitReferenceIfAny(nodeClass, parameter, refs);
 
 			Object value = parameterValuesByName.remove(name);
 			if (value == null) {
@@ -202,13 +202,13 @@ public abstract class SerializationPlugin {
 		return infoFor(nodeClass).getAnnotatedParameters_DeserializationPath().containsKey(parameter.getName());
 	}
 
-	private Reference<?> findImplicitReferenceIfAny(Class<?> nodeClass, Parameter parameter, Bosk<?> bosk) {
+	private Reference<?> findImplicitReferenceIfAny(Class<?> nodeClass, Parameter parameter, ReferenceFactory<?> refs) {
 		if (isSelfReference(nodeClass, parameter)) {
 			Class<?> targetClass = rawClass(parameterType(parameter.getParameterizedType(), Reference.class, 0));
-			return selfReference(targetClass, bosk);
+			return selfReference(targetClass, refs);
 		} else if (isEnclosingReference(nodeClass, parameter)) {
 			Class<?> targetClass = rawClass(parameterType(parameter.getParameterizedType(), Reference.class, 0));
-			Reference<Object> selfRef = selfReference(Object.class, bosk);
+			Reference<Object> selfRef = selfReference(Object.class, refs);
 			try {
 				return selfRef.enclosingReference(targetClass);
 			} catch (InvalidTypeException e) {
@@ -222,10 +222,10 @@ public abstract class SerializationPlugin {
 		}
 	}
 
-	private <T> Reference<T> selfReference(Class<T> targetClass, Bosk<?> bosk) throws AssertionError {
+	private <T> Reference<T> selfReference(Class<T> targetClass, ReferenceFactory<?> refs) throws AssertionError {
 		Path currentPath = currentScope.get().path();
 		try {
-			return bosk.reference(targetClass, currentPath);
+			return refs.reference(targetClass, currentPath);
 		} catch (InvalidTypeException e) {
 			throw new UnexpectedPathException("currentDeserializationPath should be valid: \"" + currentPath + "\"", e);
 		}

@@ -23,10 +23,10 @@ public interface DriverStack<R extends Entity> extends DriverFactory<R> {
 	static <RR extends Entity> DriverStack<RR> of(DriverFactory<RR>...factories) {
 		return new DriverStack<RR>() {
 			@Override
-			public BoskDriver<RR> build(Bosk<RR> bosk, BoskDriver<RR> downstream) {
+			public BoskDriver<RR> build(ReferenceFactory<RR> refs, BoskDriver<RR> downstream) {
 				BoskDriver<RR> result = downstream;
 				for (int i = factories.length - 1; i >= 0; i--) {
-					result = factories[i].build(bosk, result);
+					result = factories[i].build(refs, result);
 				}
 				return result;
 			}

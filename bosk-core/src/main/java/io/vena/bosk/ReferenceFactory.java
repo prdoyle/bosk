@@ -9,4 +9,6 @@ public interface ReferenceFactory<R extends Entity> {
 	<T extends Entity> ListingReference<T> listingReference(Class<T> entryClass, Path path) throws InvalidTypeException;
 	<K extends Entity,V> SideTableReference<K,V> sideTableReference(Class<K> keyClass, Class<V> valueClass, Path path) throws InvalidTypeException;
 	<T> Reference<Reference<T>> referenceReference(Class<T> targetClass, Path path) throws InvalidTypeException;
+
+	Identifier boskInstanceID();
 }

@@ -22,7 +22,7 @@ public class MirroringDriver<R extends Entity> implements BoskDriver<R> {
 	private final Bosk<R> mirror;
 
 	public static <RR extends Entity> DriverFactory<RR> targeting(Bosk<RR> mirror) {
-		return (bosk, downstream) -> new ForwardingDriver<>(asList(
+		return (refs, downstream) -> new ForwardingDriver<>(asList(
 			new MirroringDriver<>(mirror),
 			downstream
 		));

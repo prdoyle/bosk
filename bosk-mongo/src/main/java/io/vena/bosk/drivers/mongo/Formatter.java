@@ -3,6 +3,7 @@ package io.vena.bosk.drivers.mongo;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.Listing;
 import io.vena.bosk.Reference;
+import io.vena.bosk.ReferenceFactory;
 import io.vena.bosk.SerializationPlugin;
 import io.vena.bosk.SideTable;
 import io.vena.bosk.exceptions.InvalidTypeException;
@@ -43,9 +44,9 @@ final class Formatter {
 	private final Function<Type, Codec<?>> preferredBoskCodecs;
 	private final Function<Reference<?>, SerializationPlugin.DeserializationScope> deserializationScopeFunction;
 
-	Formatter(Bosk<?> bosk, BsonPlugin bsonPlugin) {
-		this.simpleCodecs = CodecRegistries.fromProviders(bsonPlugin.codecProviderFor(bosk), new ValueCodecProvider(), new DocumentCodecProvider());
-		this.preferredBoskCodecs = type -> bsonPlugin.getCodec(type, rawClass(type), simpleCodecs, bosk);
+	Formatter(ReferenceFactory<?> refs, BsonPlugin bsonPlugin) {
+		this.simpleCodecs = CodecRegistries.fromProviders(bsonPlugin.codecProviderFor(refs), new ValueCodecProvider(), new DocumentCodecProvider());
+		this.preferredBoskCodecs = type -> bsonPlugin.getCodec(type, rawClass(type), simpleCodecs, refs);
 		this.deserializationScopeFunction = bsonPlugin::newDeserializationScope;
 	}
 

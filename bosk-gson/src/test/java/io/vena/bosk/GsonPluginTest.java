@@ -72,7 +72,7 @@ class GsonPluginTest extends AbstractBoskTest {
 				.create();
 
 		gsonPlugin = new GsonPlugin();
-		TypeAdapterFactory typeAdapterFactory = gsonPlugin.adaptersFor(bosk);
+		TypeAdapterFactory typeAdapterFactory = gsonPlugin.adaptersFor(bosk.references());
 		boskGson = new GsonBuilder()
 			.registerTypeAdapterFactory(typeAdapterFactory)
 			.excludeFieldsWithoutExposeAnnotation()

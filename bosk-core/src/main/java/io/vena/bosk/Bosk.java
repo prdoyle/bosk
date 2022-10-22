@@ -113,7 +113,7 @@ public class Bosk<R extends Entity> {
 		// We do this last because the driver factory is allowed to do such things
 		// as create References, so it needs the rest of the initialization to
 		// have completed already.
-		this.driver = driverFactory.build(this, this.localDriver);
+		this.driver = driverFactory.build(this.references(), this.localDriver);
 		try {
 			this.currentRoot = requireNonNull(driver.initialRoot(rootType));
 		} catch (InvalidTypeException | IOException | InterruptedException e) {
@@ -136,7 +136,7 @@ public class Bosk<R extends Entity> {
 	 * You can use <code>Bosk::simpleDriver</code> as the
 	 * <code>driverFactory</code> if you don't want any additional driver functionality.
 	 */
-	public static <RR extends Entity> BoskDriver<RR> simpleDriver(@SuppressWarnings("unused") Bosk<RR> bosk, BoskDriver<RR> downstream) {
+	public static <RR extends Entity> BoskDriver<RR> simpleDriver(@SuppressWarnings("unused") ReferenceFactory<RR> refs, BoskDriver<RR> downstream) {
 		return downstream;
 	}
 
@@ -1008,6 +1008,11 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 			@Override
 			public <T> Reference<Reference<T>> referenceReference(Class<T> targetClass, Path path) throws InvalidTypeException {
 				return reference(Classes.reference(targetClass), path);
+			}
+
+			@Override
+			public Identifier boskInstanceID() {
+				return instanceID();
 			}
 		};
 	}

@@ -8,7 +8,7 @@ public class ForwardingDriverConformanceTest extends DriverConformanceTest {
 
 	@BeforeEach
 	void setupDriverFactory() {
-		driverFactory = (b,d)-> new ForwardingDriver<>(singletonList(d));
+		driverFactory = (r,d)-> new ForwardingDriver<>(singletonList(d));
 	}
 
 }

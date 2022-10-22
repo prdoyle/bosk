@@ -40,7 +40,7 @@ public final class GsonPlugin extends SerializationPlugin {
 	// This method leaps on the generics grenade so most of this class can
 	// benefit from solid type checking.
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public <R extends Entity> TypeAdapterFactory adaptersFor(Bosk<R> bosk) {
+	public <R extends Entity> TypeAdapterFactory adaptersFor(ReferenceFactory<R> refs) {
 		return new TypeAdapterFactory() {
 			@Override
 			public TypeAdapter create(Gson gson, TypeToken typeToken) {
@@ -54,13 +54,13 @@ public final class GsonPlugin extends SerializationPlugin {
 			private TypeAdapter getTypeAdapter(Gson gson, TypeToken typeToken) {
 				Class theClass = typeToken.getRawType();
 				if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-					return derivedRecordAdapter(gson, typeToken, bosk);
+					return derivedRecordAdapter(gson, typeToken, refs);
 				} else if (Catalog.class.isAssignableFrom(theClass)) {
 					return catalogAdapter(gson, typeToken);
 				} else if (Listing.class.isAssignableFrom(theClass)) {
 					return listingAdapter(gson);
 				} else if (Reference.class.isAssignableFrom(theClass)) {
-					return referenceAdapter(bosk);
+					return referenceAdapter(refs);
 				} else if (Identifier.class.isAssignableFrom(theClass)) {
 					return identifierAdapter();
 				} else if (ListingEntry.class.isAssignableFrom(theClass)) {
@@ -68,7 +68,7 @@ public final class GsonPlugin extends SerializationPlugin {
 				} else if (SideTable.class.isAssignableFrom(theClass)) {
 					return sideTableAdapter(gson, typeToken);
 				} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
-					return stateTreeNodeAdapter(gson, typeToken, bosk);
+					return stateTreeNodeAdapter(gson, typeToken, refs);
 				} else if (Optional.class.isAssignableFrom(theClass)) {
 					// Optional.empty() can't be serialized on its own because the field name itself must also be omitted
 					throw new IllegalArgumentException("Cannot serialize an Optional on its own; only as a field of another object");
@@ -142,7 +142,7 @@ public final class GsonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private TypeAdapter<Reference<?>> referenceAdapter(Bosk<?> bosk) {
+	private TypeAdapter<Reference<?>> referenceAdapter(ReferenceFactory<?> refs) {
 		return new TypeAdapter<Reference<?>>() {
 			@Override
 			public void write(JsonWriter out, Reference<?> ref) throws IOException {
@@ -152,7 +152,7 @@ public final class GsonPlugin extends SerializationPlugin {
 			@Override
 			public Reference<?> read(JsonReader in) throws IOException {
 				try {
-					return bosk.reference(Object.class, Path.parse(in.nextString()));
+					return refs.reference(Object.class, Path.parse(in.nextString()));
 				} catch (InvalidTypeException e) {
 					throw new UnexpectedPathException(e);
 				}
@@ -371,12 +371,12 @@ public final class GsonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private <N extends StateTreeNode> TypeAdapter<N> stateTreeNodeAdapter(Gson gson, TypeToken<N> typeToken, Bosk<?> bosk) {
+	private <N extends StateTreeNode> TypeAdapter<N> stateTreeNodeAdapter(Gson gson, TypeToken<N> typeToken, ReferenceFactory<?> refs) {
 		StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(typeToken.getType());
-		return compiler.compiled(typeToken, bosk, gson, moderator);
+		return compiler.compiled(typeToken, refs, gson, moderator);
 	}
 
-	private <T> TypeAdapter<T> derivedRecordAdapter(Gson gson, TypeToken<T> typeToken, Bosk<?> bosk) {
+	private <T> TypeAdapter<T> derivedRecordAdapter(Gson gson, TypeToken<T> typeToken, ReferenceFactory<?> refs) {
 		Type objType = typeToken.getType();
 
 		// Check for special cases
@@ -394,7 +394,7 @@ public final class GsonPlugin extends SerializationPlugin {
 
 		// Default DerivedRecord handling
 		DerivedRecordFieldModerator moderator = new DerivedRecordFieldModerator(objType);
-		return compiler.compiled(typeToken, bosk, gson, moderator);
+		return compiler.compiled(typeToken, refs, gson, moderator);
 	}
 
 

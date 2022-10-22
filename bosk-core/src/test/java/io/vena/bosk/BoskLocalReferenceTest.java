@@ -272,7 +272,7 @@ class BoskLocalReferenceTest {
 	void testDriver() {
 		// This doesn't test the operation of the driver; merely that the right driver is returned
 		AtomicReference<BoskDriver<Root>> driver = new AtomicReference<>();
-		Bosk<Root> myBosk = new Bosk<>("My bosk", Root.class, new Root(Identifier.unique("root"), 123, Catalog.empty()), (b,d) -> {
+		Bosk<Root> myBosk = new Bosk<>("My bosk", Root.class, new Root(Identifier.unique("root"), 123, Catalog.empty()), (r,d) -> {
 			BoskDriver<Root> bd = new ProxyDriver(d);
 			driver.set(bd);
 			return bd;

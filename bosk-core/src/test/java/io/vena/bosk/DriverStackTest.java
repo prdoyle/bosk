@@ -21,8 +21,8 @@ class DriverStackTest {
 	@Test
 	void stackedDrivers_correctOrder() {
 		DriverStack<TestEntity> stack = DriverStack.of(
-			(b,d) -> new TestDriver<>("first", d),
-			(b,d) -> new TestDriver<>("second", d)
+			(r,d) -> new TestDriver<>("first", d),
+			(r,d) -> new TestDriver<>("second", d)
 		);
 
 		TestDriver<TestEntity> firstDriver = (TestDriver<TestEntity>) stack.build(null, baseDriver);
