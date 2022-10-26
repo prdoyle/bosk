@@ -37,7 +37,7 @@ public abstract class MicroBenchmark {
 		LOGGER.debug("Run");
 		double rate = runFor(runDuration);
 		if (LOGGER.isInfoEnabled()) {
-			LOGGER.info(String.format("%8s / sec: %s", new DecimalFormat("##0.#E0").format(rate), name));
+			LOGGER.info(String.format("%8s sec: %s", new DecimalFormat("##0.#E0").format(rate), name));
 		}
 		return rate;
 	}
@@ -80,7 +80,7 @@ public abstract class MicroBenchmark {
 			}
 		}
 		//LOGGER.debug("{} iterations in {} ms", totalIterations, totalDuration);
-		return 1000.0 * totalIterations / totalDuration; // Per second
+		return totalDuration * 1e-3 / totalIterations; // seconds
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MicroBenchmark.class);
