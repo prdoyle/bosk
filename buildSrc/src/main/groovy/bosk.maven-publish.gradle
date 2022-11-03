@@ -12,6 +12,11 @@ plugins {
 
 var publicationType = version.endsWith('-SNAPSHOT') ? 'snapshot' : 'release'
 
+java {
+	withSourcesJar()
+	withJavadocJar()
+}
+
 jar {
 	manifest {
 		// https://docs.gradle.org/current/userguide/building_java_projects.html#sec:jar_manifest
@@ -20,20 +25,6 @@ jar {
 }
 
 // https://central.sonatype.org/publish/publish-gradle/#jar-files
-
-task javadocJar(type: Jar) {
-	classifier = 'javadoc'
-	from javadoc
-}
-
-task sourcesJar(type: Jar, dependsOn: classes) {
-	archiveClassifier.set('sources')
-	from sourceSets.main.allSource
-}
-
-artifacts {
-	archives javadocJar, sourcesJar
-}
 
 javadoc {
 	failOnError = false
@@ -53,6 +44,7 @@ publishing {
 			}
 			pom {
 				name = 'Bosk'
+				packaging = 'jar'
 				description = 'Control plane state management library'
 				url = 'http://bosk.works'
 				licenses {
