@@ -7,7 +7,7 @@
 plugins {
 	id 'java-library'
 	id 'maven-publish'
-	id 'signing'
+//	id 'signing'
 }
 
 var publicationType = version.endsWith('-SNAPSHOT') ? 'snapshot' : 'release'
@@ -19,17 +19,30 @@ jar {
 	}
 }
 
+// https://central.sonatype.org/publish/publish-gradle/#jar-files
+
+task javadocJar(type: Jar) {
+	classifier = 'javadoc'
+	from javadoc
+}
+
 task sourcesJar(type: Jar, dependsOn: classes) {
-	// https://stackoverflow.com/questions/41825699/publishing-artifactswith-sources-and-javadoc-with-gradle
 	archiveClassifier.set('sources')
 	from sourceSets.main.allSource
+}
+
+artifacts {
+	archives javadocJar, sourcesJar
+}
+
+javadoc {
+	failOnError = false
 }
 
 publishing {
 	publications {
 		mavenJava(MavenPublication) {
 			from components.java
-			artifact sourcesJar
 			versionMapping {
 				usage('java-api') {
 					fromResolutionOf('runtimeClasspath')
@@ -70,12 +83,23 @@ publishing {
 	}
 	repositories {
 		maven {
+			def releasesRepoUrl = 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/'
+			def snapshotsRepoUrl = 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+			url version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+
+			credentials {
+				username ossrhUsername
+				password ossrhPassword
+			}
+		}
+
+		/*
+		maven {
 			name = "VenaArtifactoryDeprecated"
 			credentials( PasswordCredentials )
 			allowInsecureProtocol = true
 			url = "http://artifactory.devops.vena.vpn:8081/artifactory/libs-${publicationType}-local/"
 		}
-		/*
 		maven {
 			name = "VenaArtifactory"
 			credentials( PasswordCredentials )
@@ -85,9 +109,9 @@ publishing {
 	}
 }
 
-signing {
-	sign publishing.publications.mavenJava
-}
+//signing {
+//	sign publishing.publications.mavenJava
+//}
 
 javadoc {
 	if(JavaVersion.current().isJava9Compatible()) {
