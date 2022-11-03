@@ -1,15 +1,15 @@
 
 /*
- * Settings related to Bosk development and developers.
+ * Settings related to publishing Maven artifacts.
  * Actual technological dependencies of Bosk should go into the project's Gradle files.
  */
 
 plugins {
 	id 'java-library'
 	id 'maven-publish'
+	id 'signing'
 }
 
-jar.archiveBaseName = "${archivesBaseName}"
 var publicationType = version.endsWith('-SNAPSHOT') ? 'snapshot' : 'release'
 
 jar {
@@ -82,5 +82,15 @@ publishing {
 			url = "https://venasolutions.jfrog.io/artifactory/vena-libs-${publicationType}-local/"
 		}
 		*/
+	}
+}
+
+signing {
+	sign publishing.publications.mavenJava
+}
+
+javadoc {
+	if(JavaVersion.current().isJava9Compatible()) {
+		options.addBooleanOption('html5', true)
 	}
 }
