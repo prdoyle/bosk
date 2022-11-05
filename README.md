@@ -1,6 +1,6 @@
 # Bosk
 
-![Three cartoon trees](/art/bosk-3trees.png)
+![Three inquisitive cartoon trees with eyes](/art/bosk-3trees.png)
 
 Bosk is a state management library for developing distributed control-plane logic.
 It's a bit like server-side Redux for Java, but without the boilerplate code.
