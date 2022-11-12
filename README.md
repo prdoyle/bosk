@@ -1,3 +1,5 @@
+![Release status](https://github.com/venasolutions/bosk/actions/workflows/release.yml/badge.svg)
+
 # Bosk
 
 ![Three inquisitive cartoon trees with eyes](/art/bosk-3trees.png)
