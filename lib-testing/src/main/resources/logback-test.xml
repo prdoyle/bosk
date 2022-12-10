@@ -1,17 +1,14 @@
 <configuration>
 	<appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>
-			<pattern>%d %-5level [%thread] %logger{25}: %msg%n</pattern>
+			<pattern>YOLO %d %-5level [%thread] %logger{25}: %msg%n</pattern>
 		</encoder>
 		<immediateFlush>true</immediateFlush>
 	</appender>
 	<root level="WARN">
-		<appender-ref ref="CONSOLE" />
+		<appender-ref ref="NONEXISTENT" /> <!-- Log levels are being ignored during replay. Due to be fixed in SLF4J 2.0.6. https://jira.qos.ch/browse/SLF4J-575 -->
 	</root>
 
 	<logger name="io.vena.bosk.MicroBenchmark" level="DEBUG"/>
-	<!-- How to add more tracing during unit tests
-	<logger name="io.vena.bosk.dereferencers" level="DEBUG"/>
-	 -->
 
 </configuration>
