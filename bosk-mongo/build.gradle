@@ -12,4 +12,5 @@ dependencies {
 	api project(":bosk-core")
 	testImplementation project(":lib-testing")
 	implementation "org.mongodb:mongo-java-driver:3.12.11" // Supports up to MongoDB 4.4: http://mongodb.github.io/mongo-java-driver/3.12/upgrading/
+	testImplementation fileTree(dir: 'testlibs', include: ['*.jar'])
 }
