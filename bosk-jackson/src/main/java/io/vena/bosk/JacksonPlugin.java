@@ -549,16 +549,14 @@ public final class JacksonPlugin extends SerializationPlugin {
 		return compiler.compiled(type, bosk, moderator);
 	}
 
-	private <T> TypeAdapter<T> derivedRecordAdapter(Gson gson, TypeToken<T> typeToken, Bosk<?> bosk) {
-		Type objType = typeToken.getType();
-
+	private <T> SerDes<T> derivedRecordSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
 		// Check for special cases
-		Class<?> objClass = rawClass(objType);
+		Class<?> objClass = type.getRawClass();
 		if (ListValue.class.isAssignableFrom(objClass)) { // TODO: MapValue?
-			Class<?> entryClass = rawClass(parameterType(objType, ListValue.class, 0));
+			Class<?> entryClass = rawClass(javaParameterType(type, ListValue.class, 0));
 			if (ReflectiveEntity.class.isAssignableFrom(entryClass)) {
 				@SuppressWarnings("unchecked")
-				TypeAdapter<T> result = derivedRecordListValueOfReflectiveEntityAdapter(gson, objType, objClass, entryClass);
+				SerDes<T> result = derivedRecordListValueOfReflectiveEntitySerDes(gson, objType, objClass, entryClass);
 				return result;
 			} else if (Entity.class.isAssignableFrom(entryClass)) {
 				throw new IllegalArgumentException("Can't hold non-reflective Entity type in @" + DerivedRecord.class.getSimpleName() + " " + objType);
@@ -566,51 +564,65 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		// Default DerivedRecord handling
-		DerivedRecordFieldModerator moderator = new DerivedRecordFieldModerator(objType);
-		return compiler.compiled(typeToken, bosk, gson, moderator);
+		DerivedRecordFieldModerator moderator = new DerivedRecordFieldModerator(type);
+		return compiler.compiled(type, bosk, moderator);
 	}
 
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private <E extends ReflectiveEntity<E>, L extends ListValue<E>> TypeAdapter derivedRecordListValueOfReflectiveEntityAdapter(Gson gson, Type objType, Class objClass, Class entryClass) {
+	private <E extends ReflectiveEntity<E>, L extends ListValue<E>> SerDes derivedRecordListValueOfReflectiveEntitySerDes(JavaType objType, Class objClass, Class entryClass) {
 		Constructor<L> constructor = (Constructor<L>) theOnlyConstructorFor(objClass);
 		Class<?>[] parameters = constructor.getParameterTypes();
 		if (parameters.length == 1 && parameters[0].getComponentType().equals(entryClass)) {
-			TypeToken<Reference<E>> elementType = (TypeToken)TypeToken.getParameterized(Reference.class, entryClass);
-			TypeAdapter<Reference<E>> elementAdapter = gson.getAdapter(elementType);
-			return new TypeAdapter<L>() {
+			JavaType referenceType = TypeFactory.defaultInstance().constructParametricType(Reference.class, entryClass);
+			return new SerDes<L>() {
 				@Override
-				public void write(JsonWriter out, L value) throws IOException {
-					out.beginArray();
-					try {
-						value.forEach(entry -> {
+				public JsonSerializer<L> serializer(SerializationConfig config) {
+					return new JsonSerializer<L>() {
+						@Override
+						public void serialize(L value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+							JsonSerializer<Object> refSerializer = serializers
+								.findValueSerializer(referenceType);
+							gen.writeStartArray();
 							try {
-								elementAdapter.write(out, entry.reference());
-							} catch (IOException e) {
-								throw new TunneledCheckedException(e);
+								value.forEach(entry -> {
+									try {
+										refSerializer.serialize(entry.reference(), gen, serializers);
+									} catch (IOException e) {
+										throw new TunneledCheckedException(e);
+									}
+								});
+							} catch (TunneledCheckedException e) {
+								throw e.getCause(IOException.class);
 							}
-						});
-					} catch (TunneledCheckedException e) {
-						throw e.getCause(IOException.class);
-					}
-					out.endArray();
+							gen.writeEndArray();
+						}
+					};
 				}
 
 				@Override
-				public L read(JsonReader in) throws IOException {
-					in.beginArray();
-					List<E> entries = new ArrayList<>();
-					while (in.hasNext()) {
-						entries.add(elementAdapter.read(in).value());
-					}
-					in.endArray();
+				public JsonDeserializer<L> deserializer(DeserializationConfig config) {
+					return new JsonDeserializer<L>() {
+						@Override
+						public L deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+							JsonDeserializer<Object> refDeserializer = ctxt
+								.findContextualValueDeserializer(referenceType, null);
 
-					E[] array = (E[])Array.newInstance(entryClass, entries.size());
-					try {
-						return constructor.newInstance(new Object[] { entries.toArray(array) } );
-					} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-						throw new IOException("Error creating " + objClass.getSimpleName() + ": " + e.getMessage(), e);
-					}
+							List<E> entries = new ArrayList<>();
+							expect(START_ARRAY, p);
+							while (p.nextToken() != END_ARRAY) {
+								E entry = (E) refDeserializer.deserialize(p, ctxt);
+								entries.add(entry);
+							}
+
+							E[] array = (E[])Array.newInstance(entryClass, entries.size());
+							try {
+								return constructor.newInstance(new Object[] { entries.toArray(array) } );
+							} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+								throw new IOException("Error creating " + objClass.getSimpleName() + ": " + e.getMessage(), e);
+							}
+						}
+					};
 				}
 			};
 		} else {
