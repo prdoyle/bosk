@@ -294,6 +294,7 @@ public final class JacksonAdapterCompiler {
 			cb.pop();
 
 			// Write the field value using the statically bound serializer
+			cb.pushObject(serializer);
 			cb.pushLocal(fieldValue);
 			cb.pushLocal(jsonGenerator);
 			cb.pushLocal(serializers);
@@ -424,7 +425,7 @@ public final class JacksonAdapterCompiler {
 
 	static {
 		try {
-			CODEC_WRITE_FIELDS = Codec.class.getDeclaredMethod("writeFields", Object.class, JsonGenerator.class);
+			CODEC_WRITE_FIELDS = Codec.class.getDeclaredMethod("writeFields", Object.class, JsonGenerator.class, SerializerProvider.class);
 			CODEC_INSTANTIATE_FROM = Codec.class.getDeclaredMethod("instantiateFrom", List.class);
 			DYNAMIC_WRITE_FIELD = CodecRuntime.class.getDeclaredMethod("dynamicWriteField", Object.class, String.class, JavaType.class, JsonGenerator.class, SerializerProvider.class);
 			LIST_GET = List.class.getDeclaredMethod("get", int.class);

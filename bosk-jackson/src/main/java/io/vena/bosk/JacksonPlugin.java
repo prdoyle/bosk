@@ -1,6 +1,5 @@
 package io.vena.bosk;
 
-import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
@@ -12,7 +11,6 @@ import com.fasterxml.jackson.databind.DeserializationConfig;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.SerializationConfig;
@@ -46,7 +44,6 @@ import static com.fasterxml.jackson.core.JsonToken.END_OBJECT;
 import static com.fasterxml.jackson.core.JsonToken.START_ARRAY;
 import static com.fasterxml.jackson.core.JsonToken.START_OBJECT;
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
-import static io.vena.bosk.ReferenceUtils.parameterType;
 import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static java.lang.Boolean.TRUE;
@@ -120,13 +117,13 @@ public final class JacksonPlugin extends SerializationPlugin {
 	private final class BoskDeserializers extends Deserializers.Base {
 		private final Bosk<?> bosk;
 
-		public <R extends Entity> BoskDeserializers(Bosk<?> bosk) {
+		public BoskDeserializers(Bosk<?> bosk) {
 			this.bosk = bosk;
 		}
 
 		@Override
 		@SuppressWarnings({ "unchecked", "rawtypes" })
-		public JsonDeserializer<?> findBeanDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) throws JsonMappingException {
+		public JsonDeserializer<?> findBeanDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
 			Class theClass = type.getRawClass();
 			if (theClass.isAnnotationPresent(DerivedRecord.class)) {
 				return derivedRecordSerDes(type, beanDesc, bosk).deserializer(config);
@@ -184,7 +181,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return new JsonDeserializer<ListValue<V>>() {
 					@Override
 					@SuppressWarnings({"unchecked"})
-					public ListValue<V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+					public ListValue<V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						Object elementArray = ctxt
 							.findContextualValueDeserializer(arrayType, null)
 							.deserialize(p, ctxt);
@@ -258,7 +255,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			public JsonDeserializer<Reference<?>> deserializer(DeserializationConfig config) {
 				return new JsonDeserializer<Reference<?>>() {
 					@Override
-					public Reference<?> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+					public Reference<?> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						try {
 							return bosk.reference(Object.class, Path.parse(p.nextTextValue()));
 						} catch (InvalidTypeException e) {
@@ -299,7 +296,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return new JsonDeserializer<Listing<E>>() {
 					@Override
 					@SuppressWarnings("unchecked")
-					public Listing<E> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+					public Listing<E> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						Reference<Catalog<E>> domain = null;
 						List<Identifier> ids = null;
 
@@ -324,7 +321,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 										.deserialize(p, ctxt);
 									break;
 								default:
-									throw new JsonParseException(p, "Unrecognized field in Listing: " + key);
+									throw new JsonParseException(p, "Unrecognized field in Listing: " + p.currentName());
 							}
 						}
 
@@ -371,7 +368,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			public JsonDeserializer<SideTable<K, V>> deserializer(DeserializationConfig config) {
 				return new JsonDeserializer<SideTable<K, V>>() {
 					@Override
-					public SideTable<K, V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+					public SideTable<K, V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						Reference<Catalog<K>> domain = null;
 						LinkedHashMap<Identifier, V> valuesById = null;
 
@@ -390,7 +387,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 									break;
 								case "domain":
 									if (domain == null) {
-										domain = (Reference<Catalog<E>>) ctxt
+										domain = (Reference<Catalog<K>>) ctxt
 											.findContextualValueDeserializer(CATALOG_REF_TYPE, null)
 											.deserialize(p, ctxt);
 									} else {
@@ -398,7 +395,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 									}
 									break;
 								default:
-									throw new JsonParseException("Unrecognized field in SideTable: " + fieldName);
+									throw new JsonParseException(p, "Unrecognized field in SideTable: " + p.currentName());
 							}
 						}
 
@@ -468,7 +465,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return new JsonDeserializer<Catalog<E>>() {
 					@Override
 					@SuppressWarnings({"rawtypes", "unchecked"})
-					public Catalog<E> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+					public Catalog<E> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						JsonDeserializer valueDeserializer = ctxt.findContextualValueDeserializer(entryType, null);
 						LinkedHashMap<Identifier, E> entries = readMapEntries(p, valueDeserializer, ctxt);
 						return Catalog.of(entries.values());
@@ -500,7 +497,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			public JsonDeserializer<Identifier> deserializer(DeserializationConfig config) {
 				return new JsonDeserializer<Identifier>() {
 					@Override
-					public Identifier deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+					public Identifier deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						return Identifier.from(p.nextTextValue());
 					}
 				};
@@ -531,7 +528,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			public JsonDeserializer<ListingEntry> deserializer(DeserializationConfig config) {
 				return new JsonDeserializer<ListingEntry>() {
 					@Override
-					public ListingEntry deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+					public ListingEntry deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						Boolean result = p.nextBooleanValue();
 						if (result == TRUE) {
 							return LISTING_ENTRY;
@@ -549,14 +546,14 @@ public final class JacksonPlugin extends SerializationPlugin {
 		return compiler.compiled(type, bosk, moderator);
 	}
 
-	private <T> SerDes<T> derivedRecordSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
+	private <T> SerDes<T> derivedRecordSerDes(JavaType objType, BeanDescription beanDesc, Bosk<?> bosk) {
 		// Check for special cases
-		Class<?> objClass = type.getRawClass();
+		Class<?> objClass = objType.getRawClass();
 		if (ListValue.class.isAssignableFrom(objClass)) { // TODO: MapValue?
-			Class<?> entryClass = rawClass(javaParameterType(type, ListValue.class, 0));
+			Class<?> entryClass = rawClass(javaParameterType(objType, ListValue.class, 0));
 			if (ReflectiveEntity.class.isAssignableFrom(entryClass)) {
 				@SuppressWarnings("unchecked")
-				SerDes<T> result = derivedRecordListValueOfReflectiveEntitySerDes(gson, objType, objClass, entryClass);
+				SerDes<T> result = derivedRecordListValueOfReflectiveEntitySerDes(objType, objClass, entryClass);
 				return result;
 			} else if (Entity.class.isAssignableFrom(entryClass)) {
 				throw new IllegalArgumentException("Can't hold non-reflective Entity type in @" + DerivedRecord.class.getSimpleName() + " " + objType);
@@ -564,8 +561,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		// Default DerivedRecord handling
-		DerivedRecordFieldModerator moderator = new DerivedRecordFieldModerator(type);
-		return compiler.compiled(type, bosk, moderator);
+		DerivedRecordFieldModerator moderator = new DerivedRecordFieldModerator(objType);
+		return compiler.compiled(objType, bosk, moderator);
 	}
 
 
@@ -604,7 +601,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				public JsonDeserializer<L> deserializer(DeserializationConfig config) {
 					return new JsonDeserializer<L>() {
 						@Override
-						public L deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+						public L deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 							JsonDeserializer<Object> refDeserializer = ctxt
 								.findContextualValueDeserializer(referenceType, null);
 
