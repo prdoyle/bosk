@@ -11,12 +11,18 @@ import com.fasterxml.jackson.databind.DeserializationConfig;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.KeyDeserializer;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.deser.Deserializers;
+import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
+import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.ser.Serializers;
+import com.fasterxml.jackson.databind.type.CollectionType;
+import com.fasterxml.jackson.databind.type.MapType;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.codecs.JacksonAdapterCompiler;
@@ -111,6 +117,18 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return null;
 			}
 		}
+
+		// Thanks but no thanks, Jackson. We don't need your help.
+
+		@Override
+		public JsonSerializer<?> findCollectionSerializer(SerializationConfig config, CollectionType type, BeanDescription beanDesc, TypeSerializer elementTypeSerializer, JsonSerializer<Object> elementValueSerializer) {
+			return findSerializer(config, type, beanDesc);
+		}
+
+		@Override
+		public JsonSerializer<?> findMapSerializer(SerializationConfig config, MapType type, BeanDescription beanDesc, JsonSerializer<Object> keySerializer, TypeSerializer elementTypeSerializer, JsonSerializer<Object> elementValueSerializer) {
+			return findSerializer(config, type, beanDesc);
+		}
 	}
 
 	private final class BoskDeserializers extends Deserializers.Base {
@@ -152,6 +170,18 @@ public final class JacksonPlugin extends SerializationPlugin {
 			} else {
 				return null;
 			}
+		}
+
+		// Thanks but no thanks, Jackson. We don't need your help.
+
+		@Override
+		public JsonDeserializer<?> findCollectionDeserializer(CollectionType type, DeserializationConfig config, BeanDescription beanDesc, TypeDeserializer elementTypeDeserializer, JsonDeserializer<?> elementDeserializer) throws JsonMappingException {
+			return findBeanDeserializer(type, config, beanDesc);
+		}
+
+		@Override
+		public JsonDeserializer<?> findMapDeserializer(MapType type, DeserializationConfig config, BeanDescription beanDesc, KeyDeserializer keyDeserializer, TypeDeserializer elementTypeDeserializer, JsonDeserializer<?> elementDeserializer) throws JsonMappingException {
+			return findBeanDeserializer(type, config, beanDesc);
 		}
 	}
 
