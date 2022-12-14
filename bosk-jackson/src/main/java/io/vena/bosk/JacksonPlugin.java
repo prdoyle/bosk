@@ -446,19 +446,33 @@ public final class JacksonPlugin extends SerializationPlugin {
 		return result;
 	}
 
-	private <E extends Entity> TypeAdapter<Catalog<E>> catalogAdapter(Gson gson, TypeToken<Catalog<E>> typeToken) {
-		TypeToken<E> typeParameterToken = catalogEntryTypeToken(typeToken);
-		TypeAdapter<E> elementAdapter = gson.getAdapter(typeParameterToken);
+	private <E extends Entity> SerDes<Catalog<E>> catalogSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
+		JavaType entryType = catalogEntryType(type);
 
-		return new TypeAdapter<Catalog<E>>() {
+		return new SerDes<Catalog<E>>() {
 			@Override
-			public void write(JsonWriter out, Catalog<E> catalog) throws IOException {
-				writeMapEntries(out, catalog.asMap().entrySet(), elementAdapter, serializers);
+			public JsonSerializer<Catalog<E>> serializer(SerializationConfig config) {
+				return new JsonSerializer<Catalog<E>>() {
+					@Override
+					@SuppressWarnings({"rawtypes", "unchecked"})
+					public void serialize(Catalog<E> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+						JsonSerializer valueSerializer = serializers.findContentValueSerializer(entryType, null);
+						writeMapEntries(gen, value.asMap().entrySet(), valueSerializer, serializers);
+					}
+				};
 			}
 
 			@Override
-			public Catalog<E> read(JsonReader in) throws IOException {
-				return Catalog.of(readMapEntries(in, elementAdapter).values());
+			public JsonDeserializer<Catalog<E>> deserializer(DeserializationConfig config) {
+				return new JsonDeserializer<Catalog<E>>() {
+					@Override
+					@SuppressWarnings({"rawtypes", "unchecked"})
+					public Catalog<E> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+						JsonDeserializer valueDeserializer = ctxt.findContextualValueDeserializer(entryType, null);
+						LinkedHashMap<Identifier, E> entries = readMapEntries(p, valueDeserializer, ctxt);
+						return Catalog.of(entries.values());
+					}
+				};
 			}
 		};
 	}
