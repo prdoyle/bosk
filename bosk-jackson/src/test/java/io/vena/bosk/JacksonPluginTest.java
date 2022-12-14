@@ -1,12 +1,12 @@
 package io.vena.bosk;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.type.TypeFactory;
-import com.google.gson.JsonParseException;
-import com.google.gson.reflect.TypeToken;
 import io.vena.bosk.Bosk.ReadContext;
 import io.vena.bosk.SerializationPlugin.DeserializationScope;
 import io.vena.bosk.annotations.DerivedRecord;
@@ -89,9 +89,9 @@ class JacksonPluginTest extends AbstractBoskTest {
 
 		// Build the expected JSON structure
 		List<Map<String, Object>> expected = new ArrayList<>();
-		entities.forEach(e1 -> expected.add(singletonMap(e1.id().toString(), plainObjectFor(e1, e1.getClass()))));
+		entities.forEach(e1 -> expected.add(singletonMap(e1.id().toString(), plainObjectFor(e1, TypeFactory.defaultInstance().constructType(e1.getClass())))));
 
-		assertGsonWorks(expected, catalog, new TypeToken<Catalog<TestEntity>>(){}.getType(), Path.just(TestRoot.Fields.entities));
+		assertJacksonWorks(expected, catalog, new TypeReference<Catalog<TestEntity>>(){}, Path.just(TestRoot.Fields.entities));
 	}
 
 	static Stream<Arguments> catalogArguments() {
@@ -114,7 +114,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		expected.put("ids", strings);
 		expected.put("domain", entitiesRef.pathString());
 
-		assertGsonWorks(expected, listing, new TypeToken<Listing<TestEntity>>(){}.getType(), Path.just("doesn't matter"));
+		assertJacksonWorks(expected, listing, new TypeReference<Listing<TestEntity>>() {}, Path.just("doesn't matter"));
 	}
 
 	static Stream<Arguments> listingArguments() {
@@ -146,10 +146,10 @@ class JacksonPluginTest extends AbstractBoskTest {
 		expected.put("valuesById", expectedList);
 		expected.put("domain", entitiesRef.pathString());
 
-		assertGsonWorks(
+		assertJacksonWorks(
 			expected,
 			sideTable,
-			new TypeToken<SideTable<TestEntity, String>>(){}.getType(),
+			new TypeReference<SideTable<TestEntity, String>>(){},
 			Path.just("doesn't matter")
 		);
 	}
@@ -375,7 +375,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 			.bind("entity2", Identifier.from("456"))
 			.build();
 		try (DeserializationScope scope = jacksonPlugin.overlayScope(env)) {
-			assertGsonWorks(plainObject, boskObject, DeserializationPathContainer.class, Path.empty());
+			assertJacksonWorks(plainObject, boskObject, new TypeReference<DeserializationPathContainer>() {}, Path.empty());
 		}
 	}
 
@@ -402,7 +402,8 @@ class JacksonPluginTest extends AbstractBoskTest {
 				new ImplicitRefs(Identifier.unique("implicitRefs"), implicitRefsRef, entityRef, implicitRefsRef, entityRef));
 	}
 
-	private void assertGsonWorks(Map<String,?> plainObject, Object boskObject, Type boskObjectType, Path path) {
+	private void assertJacksonWorks(Map<String,?> plainObject, Object boskObject, TypeReference<?> boskObjectTypeRef, Path path) {
+		JavaType boskObjectType = TypeFactory.defaultInstance().constructType(boskObjectTypeRef);
 		Map<String, Object> actualPlainObject = plainObjectFor(boskObject, boskObjectType);
 		assertEquals(plainObject, actualPlainObject, "Serialized object should match expected");
 
@@ -414,7 +415,8 @@ class JacksonPluginTest extends AbstractBoskTest {
 
 	}
 
-	private void assertGsonWorks(List<?> plainList, Object boskObject, Type boskObjectType, Path path) {
+	private void assertJacksonWorks(List<?> plainList, Object boskObject, TypeReference<?> boskObjectTypeRef, Path path) {
+		JavaType boskObjectType = TypeFactory.defaultInstance().constructType(boskObjectTypeRef);
 		List<Object> actualPlainList = plainListFor(boskObject, boskObjectType);
 		assertEquals(plainList, actualPlainList, "Serialized object should match expected");
 
@@ -426,7 +428,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 
 	}
 
-	private Map<String, Object> plainObjectFor(Object bsonObject, Type bsonObjectType) {
+	private Map<String, Object> plainObjectFor(Object bsonObject, JavaType bsonObjectType) {
 		try {
 			JavaType bsonJavaType = TypeFactory.defaultInstance().constructType(bsonObjectType);
 			JavaType mapJavaType = TypeFactory.defaultInstance().constructParametricType(Map.class, String.class, Object.class);
@@ -437,7 +439,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		}
 	}
 
-	private List<Object> plainListFor(Object bsonObject, Type bsonObjectType) {
+	private List<Object> plainListFor(Object bsonObject, JavaType bsonObjectType) {
 		try {
 			JavaType bsonJavaType = TypeFactory.defaultInstance().constructType(bsonObjectType);
 			JavaType listJavaType = TypeFactory.defaultInstance().constructParametricType(List.class, Object.class);
@@ -448,7 +450,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		}
 	}
 
-	private Object boskGsonObjectFor(Map<String, ?> plainObject, Type bsonObjectType, Path path) {
+	private Object boskGsonObjectFor(Map<String, ?> plainObject, JavaType bsonObjectType, Path path) {
 		try {
 			JavaType bsonJavaType = TypeFactory.defaultInstance().constructType(bsonObjectType);
 			JavaType mapJavaType = TypeFactory.defaultInstance().constructParametricType(Map.class, String.class, Object.class);
@@ -461,7 +463,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		}
 	}
 
-	private Object boskGsonListFor(List<?> plainList, Type bsonListType, Path path) {
+	private Object boskGsonListFor(List<?> plainList, JavaType bsonListType, Path path) {
 		try {
 			JavaType bsonJavaType = TypeFactory.defaultInstance().constructType(bsonListType);
 			JavaType listJavaType = TypeFactory.defaultInstance().constructParametricType(List.class, Object.class);

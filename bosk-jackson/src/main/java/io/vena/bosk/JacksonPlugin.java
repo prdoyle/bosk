@@ -46,7 +46,6 @@ import static com.fasterxml.jackson.core.JsonToken.START_OBJECT;
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
 import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.ReferenceUtils.theOnlyConstructorFor;
-import static java.lang.Boolean.TRUE;
 import static java.util.Objects.requireNonNull;
 
 public final class JacksonPlugin extends SerializationPlugin {
@@ -257,7 +256,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 					@Override
 					public Reference<?> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						try {
-							return bosk.reference(Object.class, Path.parse(p.nextTextValue()));
+							return bosk.reference(Object.class, Path.parse(p.getText()));
 						} catch (InvalidTypeException e) {
 							throw new UnexpectedPathException(e);
 						}
@@ -498,7 +497,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return new JsonDeserializer<Identifier>() {
 					@Override
 					public Identifier deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-						return Identifier.from(p.nextTextValue());
+						return Identifier.from(p.getText());
 					}
 				};
 			}
@@ -529,11 +528,10 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return new JsonDeserializer<ListingEntry>() {
 					@Override
 					public ListingEntry deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-						Boolean result = p.nextBooleanValue();
-						if (result == TRUE) {
+						if (p.getBooleanValue()) {
 							return LISTING_ENTRY;
 						} else {
-							throw new JsonParseException(p, "Unexpected Listing entry value: " + result);
+							throw new JsonParseException(p, "Unexpected Listing entry value: " + p.getBooleanValue());
 						}
 					}
 				};
@@ -743,7 +741,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 	private Object readField(String name, JsonParser p, DeserializationContext ctxt, JavaType parameterType, FieldModerator moderator) throws IOException {
 		// TODO: Combine with similar method in BsonPlugin
 		JavaType effectiveType = moderator.typeOf(parameterType);
-		Class<?> effectiveClass = rawClass(effectiveType);
+		Class<?> effectiveClass = effectiveType.getRawClass();
 		if (Optional.class.isAssignableFrom(effectiveClass)) {
 			// Optional field is present in JSON; wrap deserialized value in Optional.of
 			JavaType contentsType = javaParameterType(effectiveType, Optional.class, 0);
@@ -778,7 +776,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 	}
 
 	public static void expect(JsonToken expected, JsonParser p) throws IOException {
-		if (p.nextToken() != expected) {
+		if (p.currentToken() != expected) {
 			throw new JsonParseException(p, "Expected " + expected);
 		}
 	}
