@@ -49,6 +49,7 @@ import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
 import static io.vena.bosk.ReferenceUtils.parameterType;
 import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.ReferenceUtils.theOnlyConstructorFor;
+import static java.lang.Boolean.TRUE;
 import static java.util.Objects.requireNonNull;
 
 public final class JacksonPlugin extends SerializationPlugin {
@@ -507,7 +508,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private TypeAdapter<ListingEntry> listingEntryAdapter() {
+	private SerDes<ListingEntry> listingEntrySerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
 		// We serialize ListingEntry as a boolean `true` with the following rationale:
 		// - The only "unit type" in JSON is null
 		// - `null` is not suitable because many systems treat that as being equivalent to an absent field
@@ -515,20 +516,30 @@ public final class JacksonPlugin extends SerializationPlugin {
 		// - `false` gives the wrong impression
 		// Hence, by a process of elimination, `true` it is
 
-		return new TypeAdapter<ListingEntry>() {
+		return new SerDes<ListingEntry>() {
 			@Override
-			public void write(JsonWriter out, ListingEntry entry) throws IOException {
-				out.value(true);
+			public JsonSerializer<ListingEntry> serializer(SerializationConfig config) {
+				return new JsonSerializer<ListingEntry>() {
+					@Override
+					public void serialize(ListingEntry value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+						gen.writeBoolean(true);
+					}
+				};
 			}
 
 			@Override
-			public ListingEntry read(JsonReader in) throws IOException {
-				boolean result = in.nextBoolean();
-				if (result) {
-					return LISTING_ENTRY;
-				} else {
-					throw new JsonParseException("Unexpected Listing entry value: " + result);
-				}
+			public JsonDeserializer<ListingEntry> deserializer(DeserializationConfig config) {
+				return new JsonDeserializer<ListingEntry>() {
+					@Override
+					public ListingEntry deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+						Boolean result = p.nextBooleanValue();
+						if (result == TRUE) {
+							return LISTING_ENTRY;
+						} else {
+							throw new JsonParseException(p, "Unexpected Listing entry value: " + result);
+						}
+					}
+				};
 			}
 		};
 	}
