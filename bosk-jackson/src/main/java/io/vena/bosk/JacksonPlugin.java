@@ -443,14 +443,14 @@ public final class JacksonPlugin extends SerializationPlugin {
 	}
 
 	private <V> void writeMapEntries(JsonGenerator gen, Set<Entry<Identifier,V>> entries, JsonSerializer<V> valueSerializer, SerializerProvider serializers) throws IOException {
-		gen.writeStartObject();
+		gen.writeStartArray();
 		for (Entry<Identifier, V> entry: entries) {
 			gen.writeStartObject();
 			gen.writeFieldName(entry.getKey().toString());
 			valueSerializer.serialize(entry.getValue(), gen, serializers);
 			gen.writeEndObject();
 		}
-		gen.writeEndObject();
+		gen.writeEndArray();
 	}
 
 	private <V> LinkedHashMap<Identifier, V> readMapEntries(JsonParser p, JsonDeserializer<V> valueDeserializer, DeserializationContext ctxt) throws IOException {
@@ -458,12 +458,14 @@ public final class JacksonPlugin extends SerializationPlugin {
 		expect(START_ARRAY, p);
 		while (p.nextToken() != END_ARRAY) {
 			expect(START_OBJECT, p);
-			String fieldName = p.nextFieldName();
+			p.nextValue();
+			String fieldName = p.currentName();
 			V value;
 			try (@SuppressWarnings("unused") DeserializationScope scope = innerDeserializationScope(fieldName)) {
 				value = valueDeserializer.deserialize(p, ctxt);
 			}
 			expect(END_OBJECT, p);
+			p.nextToken();
 
 			V oldValue = result.put(Identifier.from(fieldName), value);
 			if (oldValue != null) {

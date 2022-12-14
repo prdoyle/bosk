@@ -428,48 +428,48 @@ class JacksonPluginTest extends AbstractBoskTest {
 
 	}
 
-	private Map<String, Object> plainObjectFor(Object bsonObject, JavaType bsonObjectType) {
+	private Map<String, Object> plainObjectFor(Object boskObject, JavaType boskObjectType) {
 		try {
-			JavaType bsonJavaType = TypeFactory.defaultInstance().constructType(bsonObjectType);
+			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskObjectType);
 			JavaType mapJavaType = TypeFactory.defaultInstance().constructParametricType(Map.class, String.class, Object.class);
-			String json = boskMapper.writerFor(bsonJavaType).writeValueAsString(bsonObject);
+			String json = boskMapper.writerFor(boskJavaType).writeValueAsString(boskObject);
 			return plainMapper.readerFor(mapJavaType).readValue(json);
 		} catch (JsonProcessingException e) {
 			throw new AssertionError(e);
 		}
 	}
 
-	private List<Object> plainListFor(Object bsonObject, JavaType bsonObjectType) {
+	private List<Object> plainListFor(Object boskObject, JavaType boskObjectType) {
 		try {
-			JavaType bsonJavaType = TypeFactory.defaultInstance().constructType(bsonObjectType);
+			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskObjectType);
 			JavaType listJavaType = TypeFactory.defaultInstance().constructParametricType(List.class, Object.class);
-			String json = boskMapper.writerFor(bsonJavaType).writeValueAsString(bsonObject);
+			String json = boskMapper.writerFor(boskJavaType).writeValueAsString(boskObject);
 			return plainMapper.readerFor(listJavaType).readValue(json);
 		} catch (JsonProcessingException e) {
 			throw new AssertionError(e);
 		}
 	}
 
-	private Object boskGsonObjectFor(Map<String, ?> plainObject, JavaType bsonObjectType, Path path) {
+	private Object boskGsonObjectFor(Map<String, ?> plainObject, JavaType boskObjectType, Path path) {
 		try {
-			JavaType bsonJavaType = TypeFactory.defaultInstance().constructType(bsonObjectType);
+			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskObjectType);
 			JavaType mapJavaType = TypeFactory.defaultInstance().constructParametricType(Map.class, String.class, Object.class);
 			String json = plainMapper.writerFor(mapJavaType).writeValueAsString(plainObject);
 			try (DeserializationScope scope = jacksonPlugin.newDeserializationScope(path)) {
-				return boskMapper.readerFor(bsonJavaType).readValue(json);
+				return boskMapper.readerFor(boskJavaType).readValue(json);
 			}
 		} catch (JsonProcessingException e) {
 			throw new AssertionError(e);
 		}
 	}
 
-	private Object boskGsonListFor(List<?> plainList, JavaType bsonListType, Path path) {
+	private Object boskGsonListFor(List<?> plainList, JavaType boskListType, Path path) {
 		try {
-			JavaType bsonJavaType = TypeFactory.defaultInstance().constructType(bsonListType);
+			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskListType);
 			JavaType listJavaType = TypeFactory.defaultInstance().constructParametricType(List.class, Object.class);
 			String json = plainMapper.writerFor(listJavaType).writeValueAsString(plainList);
 			try (DeserializationScope scope = jacksonPlugin.newDeserializationScope(path)) {
-				return boskMapper.readerFor(bsonJavaType).readValue(json);
+				return boskMapper.readerFor(boskJavaType).readValue(json);
 			}
 		} catch (JsonProcessingException e) {
 			throw new AssertionError(e);

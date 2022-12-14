@@ -81,7 +81,7 @@ public final class JacksonAdapterCompiler {
 			List<Parameter> parameters = asList(constructor.getParameters());
 
 			// Generate the Codec class and instantiate it
-			ClassBuilder<Codec> cb = new ClassBuilder<>("GSON_CODEC_" + nodeClass.getSimpleName(), CodecRuntime.class, nodeClass.getClassLoader(), here());
+			ClassBuilder<Codec> cb = new ClassBuilder<>("BOSK_JACKSON_" + nodeClass.getSimpleName(), CodecRuntime.class, nodeClass.getClassLoader(), here());
 			cb.beginClass();
 
 			generate_writeFields(nodeClass, parameters, cb);
@@ -206,7 +206,7 @@ public final class JacksonAdapterCompiler {
 
 	/**
 	 * This is the building block of compiler's "intermediate form" describing
-	 * how to write a single field to Gson.
+	 * how to write a single field to Jackson.
 	 *
 	 * <p>
 	 * There is a wide variety of ways that fields might need to be written,
