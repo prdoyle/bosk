@@ -19,16 +19,7 @@ import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.deser.Deserializers;
 import com.fasterxml.jackson.databind.ser.Serializers;
-import com.fasterxml.jackson.databind.type.ArrayType;
-import com.fasterxml.jackson.databind.type.TypeBindings;
 import com.fasterxml.jackson.databind.type.TypeFactory;
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
-import com.google.gson.TypeAdapter;
-import com.google.gson.TypeAdapterFactory;
-import com.google.gson.reflect.TypeToken;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
 import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.codecs.JacksonAdapterCompiler;
 import io.vena.bosk.exceptions.InvalidTypeException;
@@ -47,8 +38,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import lombok.Value;
 
+import static com.fasterxml.jackson.core.JsonToken.END_ARRAY;
+import static com.fasterxml.jackson.core.JsonToken.END_OBJECT;
+import static com.fasterxml.jackson.core.JsonToken.START_ARRAY;
 import static com.fasterxml.jackson.core.JsonToken.START_OBJECT;
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
 import static io.vena.bosk.ReferenceUtils.parameterType;
@@ -170,12 +165,11 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 	private static <V> SerDes<ListValue<V>> listValueSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
 		Constructor<?> ctor = theOnlyConstructorFor(type.getRawClass());
-		JavaType elementType = type.getBindings().getBoundType(0);
-		JavaType arrayType = ArrayType.construct(elementType, TypeBindings.emptyBindings());
-		return new SerDes<ListValue<V>>() {
+		JavaType arrayType = listValueEquivalentArrayType(type);
+		return new SerDes<>() {
 			@Override
 			public JsonSerializer<ListValue<V>> serializer(SerializationConfig serializationConfig) {
-				return new JsonSerializer<ListValue<V>>() {
+				return new JsonSerializer<>() {
 					@Override
 					public void serialize(ListValue<V> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 						serializers.findValueSerializer(arrayType, null)
@@ -186,12 +180,13 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 			@Override
 			public JsonDeserializer<ListValue<V>> deserializer(DeserializationConfig deserializationConfig) {
-				return new JsonDeserializer<ListValue<V>>() {
+				return new JsonDeserializer<>() {
 					@Override
 					@SuppressWarnings({"unchecked"})
 					public ListValue<V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
-						JsonDeserializer<Object> foo = ctxt.findContextualValueDeserializer(arrayType, null);
-						Object elementArray = (V[]) foo.deserialize(p, ctxt);
+						Object elementArray = ctxt
+							.findContextualValueDeserializer(arrayType, null)
+							.deserialize(p, ctxt);
 						try {
 							return (ListValue<V>) ctor.newInstance(elementArray);
 						} catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
@@ -204,16 +199,16 @@ public final class JacksonPlugin extends SerializationPlugin {
 	}
 
 	private static <V> SerDes<MapValue<V>> mapValueSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
-		JavaType valueType = type.getBindings().getBoundType(1);
-		return new SerDes<MapValue<V>>() {
+		JavaType valueType = mapValueValueType(type);
+		return new SerDes<>() {
 			@Override
 			public JsonSerializer<MapValue<V>> serializer(SerializationConfig serializationConfig) {
-				return new JsonSerializer<MapValue<V>>() {
+				return new JsonSerializer<>() {
 					@Override
 					public void serialize(MapValue<V> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 						JsonSerializer<Object> valueSerializer = serializers.findValueSerializer(valueType);
 						gen.writeStartObject();
-						for (Entry<String, V> element: value.entrySet()) {
+						for (Entry<String, V> element : value.entrySet()) {
 							gen.writeFieldName(requireNonNull(element.getKey()));
 							valueSerializer.serialize(requireNonNull(element.getValue()), gen, serializers);
 						}
@@ -224,7 +219,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 			@Override
 			public JsonDeserializer<MapValue<V>> deserializer(DeserializationConfig deserializationConfig) {
-				return new JsonDeserializer<MapValue<V>>() {
+				return new JsonDeserializer<>() {
 					@Override
 					public MapValue<V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						LinkedHashMap<String, V> result = new LinkedHashMap<>();
@@ -233,7 +228,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 							p.nextValue();
 							String key = p.currentName();
 							@SuppressWarnings("unchecked")
-							V value = (V)ctxt.findContextualValueDeserializer(valueType, null);
+							V value = (V) ctxt.findContextualValueDeserializer(valueType, null);
 							V old = result.put(key, value);
 							if (old != null) {
 								throw new JsonParseException(p, "MapValue key appears twice: \"" + key + "\"");
@@ -247,10 +242,10 @@ public final class JacksonPlugin extends SerializationPlugin {
 	}
 
 	private SerDes<Reference<?>> referenceSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
-		return new SerDes<Reference<?>>() {
+		return new SerDes<>() {
 			@Override
 			public JsonSerializer<Reference<?>> serializer(SerializationConfig config) {
-				return new JsonSerializer<Reference<?>>() {
+				return new JsonSerializer<>() {
 					@Override
 					public void serialize(Reference<?> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 						gen.writeString(value.path().urlEncoded());
@@ -260,7 +255,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 			@Override
 			public JsonDeserializer<Reference<?>> deserializer(DeserializationConfig config) {
-				return new JsonDeserializer<Reference<?>>() {
+				return new JsonDeserializer<>() {
 					@Override
 					public Reference<?> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
 						try {
@@ -276,7 +271,6 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 	private <E extends Entity> SerDes<Listing<E>> listingSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
 		return new SerDes<Listing<E>>() {
-
 			@Override
 			public JsonSerializer<Listing<E>> serializer(SerializationConfig config) {
 				return new JsonSerializer<Listing<E>>() {
@@ -343,144 +337,112 @@ public final class JacksonPlugin extends SerializationPlugin {
 					}
 				};
 			}
-
-			public Listing<E> read(JsonReader in) throws IOException {
-				Reference<Catalog<E>> domain = null;
-				List<Identifier> ids = null;
-
-				in.beginObject();
-
-				while (in.hasNext()) {
-					String fieldName = in.nextName();
-					switch (fieldName) {
-						case "ids":
-							if (ids == null) {
-								ids = idListAdapter.read(in);
-							} else {
-								throw new JsonParseException("'ids' field appears twice");
-							}
-							break;
-						case "domain":
-							if (domain == null) {
-								domain = referenceAdapter.read(in);
-							} else {
-								throw new JsonParseException("'domain' field appears twice");
-							}
-							break;
-						default:
-							throw new JsonParseException("Unrecognized field in Listing: " + fieldName);
-					}
-				}
-
-				in.endObject();
-
-				if (domain == null) {
-					throw new JsonParseException("Missing 'domain' field");
-				} else if (ids == null) {
-					throw new JsonParseException("Missing 'ids' field");
-				} else {
-					return Listing.of(domain, ids);
-				}
-			}
 		};
 	}
 
-	private static void expect(JsonToken expected, JsonParser p) throws IOException {
-		if (p.nextToken() != expected) {
-			throw new JsonParseException(p, "Expected " + expected);
-		}
-	}
-
-	private <K extends Entity, V> TypeAdapter<SideTable<K,V>> sideTableAdapter(Gson gson, TypeToken<SideTable<K,V>> typeToken) {
-		TypeToken<V> valueToken = sideTableValueTypeToken(typeToken);
-		TypeAdapter<Reference<Catalog<K>>> referenceAdapter = gson.getAdapter(new TypeToken<Reference<Catalog<K>>>() {});
-		TypeAdapter<V> valueAdapter = gson.getAdapter(valueToken);
-		return new TypeAdapter<SideTable<K,V>>() {
+	private <K extends Entity, V> SerDes<SideTable<K,V>> sideTableSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
+		JavaType valueType = sideTableValueType(type);
+		return new SerDes<SideTable<K,V>>() {
 			@Override
-			public void write(JsonWriter out, SideTable<K,V> sideTable) throws IOException {
-				out.beginObject();
+			public JsonSerializer<SideTable<K, V>> serializer(SerializationConfig config) {
+				return new JsonSerializer<SideTable<K, V>>() {
+					@Override
+					public void serialize(SideTable<K, V> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+						gen.writeStartObject();
 
-				out.name("valuesById");
-				writeMapEntries(out, sideTable.idEntrySet(), valueAdapter);
+						gen.writeFieldName("valuesById");
+						@SuppressWarnings("unchecked")
+						JsonSerializer<V> contentValueSerializer = (JsonSerializer<V>) serializers.findContentValueSerializer(valueType, null);
+						writeMapEntries(gen, value.idEntrySet(), contentValueSerializer, serializers);
 
-				out.name("domain");
-				referenceAdapter.write(out, sideTable.domain());
+						gen.writeFieldName("domain");
+						serializers
+							.findContentValueSerializer(Reference.class, null)
+							.serialize(value.domain(), gen, serializers);
 
-				out.endObject();
+						gen.writeEndObject();
+					}
+				};
 			}
 
 			@Override
-			public SideTable<K,V> read(JsonReader in) throws IOException {
-				Reference<Catalog<K>> domain = null;
-				LinkedHashMap<Identifier, V> valuesById = null;
+			@SuppressWarnings("unchecked")
+			public JsonDeserializer<SideTable<K, V>> deserializer(DeserializationConfig config) {
+				return new JsonDeserializer<SideTable<K, V>>() {
+					@Override
+					public SideTable<K, V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+						Reference<Catalog<K>> domain = null;
+						LinkedHashMap<Identifier, V> valuesById = null;
 
-				in.beginObject();
+						JsonDeserializer<V> valueDeserializer = (JsonDeserializer<V>) ctxt.findContextualValueDeserializer(valueType, null);
 
-				while (in.hasNext()) {
-					String fieldName = in.nextName();
-					switch (fieldName) {
-						case "valuesById":
-							if (valuesById == null) {
-								valuesById = readMapEntries(in, valueAdapter);
-							} else {
-								throw new JsonParseException("'valuesById' field appears twice");
+						expect(START_OBJECT, p);
+						while (p.nextToken() != JsonToken.END_OBJECT) {
+							p.nextValue();
+							switch (p.currentName()) {
+								case "valuesById":
+									if (valuesById == null) {
+										valuesById = readMapEntries(p, valueDeserializer, ctxt);
+									} else {
+										throw new JsonParseException(p, "'valuesById' field appears twice");
+									}
+									break;
+								case "domain":
+									if (domain == null) {
+										domain = (Reference<Catalog<E>>) ctxt
+											.findContextualValueDeserializer(CATALOG_REF_TYPE, null)
+											.deserialize(p, ctxt);
+									} else {
+										throw new JsonParseException(p, "'domain' field appears twice");
+									}
+									break;
+								default:
+									throw new JsonParseException("Unrecognized field in SideTable: " + fieldName);
 							}
-							break;
-						case "domain":
-							if (domain == null) {
-								domain = referenceAdapter.read(in);
-							} else {
-								throw new JsonParseException("'domain' field appears twice");
-							}
-							break;
-						default:
-							throw new JsonParseException("Unrecognized field in SideTable: " + fieldName);
+						}
+
+						if (domain == null) {
+							throw new JsonParseException(p, "Missing 'domain' field");
+						} else if (valuesById == null) {
+							throw new JsonParseException(p, "Missing 'valuesById' field");
+						} else {
+							return SideTable.fromOrderedMap(domain, valuesById);
+						}
 					}
-				}
-
-				in.endObject();
-
-				if (domain == null) {
-					throw new JsonParseException("Missing 'domain' field");
-				} else if (valuesById == null) {
-					throw new JsonParseException("Missing 'valuesById' field");
-				} else {
-					return SideTable.fromOrderedMap(domain, valuesById);
-				}
+				};
 			}
 
 		};
 	}
 
-	private <V> void writeMapEntries(JsonWriter out, Iterable<Entry<Identifier, V>> entries, TypeAdapter<V> valueAdapter) throws IOException {
-		out.beginArray();
+	private <V> void writeMapEntries(JsonGenerator gen, Set<Entry<Identifier,V>> entries, JsonSerializer<V> valueSerializer, SerializerProvider serializers) throws IOException {
+		gen.writeStartObject();
 		for (Entry<Identifier, V> entry: entries) {
-			out.beginObject();
-			out.name(entry.getKey().toString());
-			valueAdapter.write(out, entry.getValue());
-			out.endObject();
+			gen.writeStartObject();
+			gen.writeFieldName(entry.getKey().toString());
+			valueSerializer.serialize(entry.getValue(), gen, serializers);
+			gen.writeEndObject();
 		}
-		out.endArray();
+		gen.writeEndObject();
 	}
 
-	private <V> LinkedHashMap<Identifier, V> readMapEntries(JsonReader in, TypeAdapter<V> valueAdapter) throws IOException {
+	private <V> LinkedHashMap<Identifier, V> readMapEntries(JsonParser p, JsonDeserializer<V> valueDeserializer, DeserializationContext ctxt) throws IOException {
 		LinkedHashMap<Identifier, V> result = new LinkedHashMap<>();
-		in.beginArray();
-		while (in.hasNext()) {
-			in.beginObject();
-			String fieldName = in.nextName();
+		expect(START_ARRAY, p);
+		while (p.nextToken() != END_ARRAY) {
+			expect(START_OBJECT, p);
+			String fieldName = p.nextFieldName();
 			V value;
 			try (@SuppressWarnings("unused") DeserializationScope scope = innerDeserializationScope(fieldName)) {
-				value = valueAdapter.read(in);
+				value = valueDeserializer.deserialize(p, ctxt);
 			}
-			in.endObject();
+			expect(END_OBJECT, p);
 
 			V oldValue = result.put(Identifier.from(fieldName), value);
 			if (oldValue != null) {
-				throw new JsonParseException("Duplicate sideTable entry '" + fieldName + "'");
+				throw new JsonParseException(p, "Duplicate sideTable entry '" + fieldName + "'");
 			}
 		}
-		in.endArray();
 		return result;
 	}
 
@@ -491,7 +453,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		return new TypeAdapter<Catalog<E>>() {
 			@Override
 			public void write(JsonWriter out, Catalog<E> catalog) throws IOException {
-				writeMapEntries(out, catalog.asMap().entrySet(), elementAdapter);
+				writeMapEntries(out, catalog.asMap().entrySet(), elementAdapter, serializers);
 			}
 
 			@Override
@@ -748,23 +710,30 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
-	private static <EE extends Entity> TypeToken<EE> catalogEntryTypeToken(TypeToken<Catalog<EE>> typeToken) {
-		return (TypeToken<EE>) TypeToken.get(tokenParameterType(typeToken, Catalog.class, 0));
+	private static JavaType catalogEntryType(JavaType catalogType) {
+		return javaParameterType(catalogType, Catalog.class, 0);
 	}
 
-	@SuppressWarnings("unchecked")
-	private static <K extends Entity, V> TypeToken<V> sideTableValueTypeToken(TypeToken<SideTable<K,V>> typeToken) {
-		return (TypeToken<V>) TypeToken.get(tokenParameterType(typeToken, SideTable.class, 1));
+	private static JavaType sideTableValueType(JavaType sideTableType) {
+		return javaParameterType(sideTableType, SideTable.class, 1);
 	}
 
-	@SuppressWarnings("unchecked")
-	private static <V> TypeToken<V[]> listValueEquivalentArrayTypeToken(TypeToken<ListValue<V>> typeToken) {
-		return (TypeToken<V[]>) TypeToken.getArray(parameterType(typeToken.getType(), ListValue.class, 0));
+	private static JavaType listValueEquivalentArrayType(JavaType listValueType) {
+		return TypeFactory.defaultInstance().constructArrayType(javaParameterType(listValueType, ListValue.class, 0));
 	}
 
-	private static Type tokenParameterType(TypeToken<?> typeToken, Class<?> expectedClass, int index) {
-		return parameterType(typeToken.getType(), expectedClass, index);
+	private static JavaType mapValueValueType(JavaType mapValueType) {
+		return javaParameterType(mapValueType, MapValue.class, 1);
+	}
+
+	private static JavaType javaParameterType(JavaType parameterizedType, Class<?> expectedClass, int index) {
+		return parameterizedType.findTypeParameters(expectedClass)[index];
+	}
+
+	private static void expect(JsonToken expected, JsonParser p) throws IOException {
+		if (p.nextToken() != expected) {
+			throw new JsonParseException(p, "Expected " + expected);
+		}
 	}
 
 }
