@@ -580,7 +580,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		// Check for special cases
 		Class<?> objClass = objType.getRawClass();
 		if (ListValue.class.isAssignableFrom(objClass)) { // TODO: MapValue?
-			Class<?> entryClass = rawClass(javaParameterType(objType, ListValue.class, 0));
+			Class<?> entryClass = javaParameterType(objType, ListValue.class, 0).getRawClass();
 			if (ReflectiveEntity.class.isAssignableFrom(entryClass)) {
 				@SuppressWarnings("unchecked")
 				SerDes<T> result = derivedRecordListValueOfReflectiveEntitySerDes(objType, objClass, entryClass);
@@ -632,14 +632,13 @@ public final class JacksonPlugin extends SerializationPlugin {
 					return new JsonDeserializer<L>() {
 						@Override
 						public L deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-							JsonDeserializer<Object> refDeserializer = ctxt
+							JsonDeserializer<Reference<E>> refDeserializer = (JsonDeserializer<Reference<E>>)(JsonDeserializer) ctxt
 								.findContextualValueDeserializer(referenceType, null);
 
 							List<E> entries = new ArrayList<>();
 							expect(START_ARRAY, p);
 							while (p.nextToken() != END_ARRAY) {
-								E entry = (E) refDeserializer.deserialize(p, ctxt);
-								entries.add(entry);
+								entries.add(refDeserializer.deserialize(p, ctxt).value());
 							}
 
 							E[] array = (E[])Array.newInstance(entryClass, entries.size());

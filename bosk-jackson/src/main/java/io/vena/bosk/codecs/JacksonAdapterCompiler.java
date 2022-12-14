@@ -44,7 +44,6 @@ import org.slf4j.LoggerFactory;
 
 import static io.vena.bosk.JacksonPlugin.javaParameterType;
 import static io.vena.bosk.ReferenceUtils.getterMethod;
-import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static io.vena.bosk.SerializationPlugin.isImplicitParameter;
 import static io.vena.bosk.bytecode.ClassBuilder.here;
@@ -349,7 +348,7 @@ public final class JacksonAdapterCompiler {
 		 */
 		@Override
 		public void generateFieldWrite(String name, ClassBuilder<Codec> cb, LocalVariable jsonGenerator, LocalVariable serializers, SerializerProvider serializerProvider, JavaType type) {
-			Class<?> parameterClass = rawClass(type);
+			Class<?> parameterClass = type.getRawClass();
 			boolean isEntity = Entity.class.isAssignableFrom(parameterClass);
 			if (isEntity) {
 				if (ReflectiveEntity.class.isAssignableFrom(parameterClass)) {
