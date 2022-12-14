@@ -159,7 +159,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 	}
 
-	private interface SerDes<T> {
+	public interface SerDes<T> {
 		JsonSerializer<T> serializer(SerializationConfig config);
 		JsonDeserializer<T> deserializer(DeserializationConfig config);
 	}
@@ -544,9 +544,9 @@ public final class JacksonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private <N extends StateTreeNode> TypeAdapter<N> stateTreeNodeAdapter(Gson gson, TypeToken<N> typeToken, Bosk<?> bosk) {
-		StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(typeToken.getType());
-		return compiler.compiled(typeToken, bosk, gson, moderator);
+	private <N extends StateTreeNode> SerDes<N> stateTreeNodeSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
+		StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
+		return compiler.compiled(type, bosk, moderator);
 	}
 
 	private <T> TypeAdapter<T> derivedRecordAdapter(Gson gson, TypeToken<T> typeToken, Bosk<?> bosk) {
@@ -626,8 +626,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 	 * @author Patrick Doyle
 	 */
 	public interface FieldModerator {
-		Type typeOf(Type parameterType);
-		Object valueFor(Type parameterType, Object deserializedValue);
+		JavaType typeOf(JavaType parameterType);
+		Object valueFor(JavaType parameterType, Object deserializedValue);
 	}
 
 	/**
@@ -640,12 +640,12 @@ public final class JacksonPlugin extends SerializationPlugin {
 		Type nodeType;
 
 		@Override
-		public Type typeOf(Type parameterType) {
+		public JavaType typeOf(JavaType parameterType) {
 			return parameterType;
 		}
 
 		@Override
-		public Object valueFor(Type parameterType, Object deserializedValue) {
+		public Object valueFor(JavaType parameterType, Object deserializedValue) {
 			return deserializedValue;
 		}
 
@@ -663,17 +663,18 @@ public final class JacksonPlugin extends SerializationPlugin {
 		Type nodeType;
 
 		@Override
-		public Type typeOf(Type parameterType) {
+		public JavaType typeOf(JavaType parameterType) {
 			if (reflectiveEntity(parameterType)) {
 				// These are serialized as References
-				return ReferenceUtils.referenceTypeFor(parameterType);
+				return TypeFactory.defaultInstance()
+					.constructParametricType(Reference.class, parameterType);
 			} else {
 				return parameterType;
 			}
 		}
 
 		@Override
-		public Object valueFor(Type parameterType, Object deserializedValue) {
+		public Object valueFor(JavaType parameterType, Object deserializedValue) {
 			if (reflectiveEntity(parameterType)) {
 				// The deserialized value is a Reference; what we want is Reference.value()
 				return ((Reference<?>)deserializedValue).value();
@@ -682,8 +683,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			}
 		}
 
-		private boolean reflectiveEntity(Type parameterType) {
-			Class<?> parameterClass = rawClass(parameterType);
+		private boolean reflectiveEntity(JavaType parameterType) {
+			Class<?> parameterClass = parameterType.getRawClass();
 			if (ReflectiveEntity.class.isAssignableFrom(parameterClass)) {
 				return true;
 			} else if (Entity.class.isAssignableFrom(parameterClass)) {
@@ -705,43 +706,45 @@ public final class JacksonPlugin extends SerializationPlugin {
 	 * Returns the fields present in the JSON, with value objects deserialized
 	 * using type information from <code>parametersByName</code>.
 	 */
-	public Map<String, Object> gatherParameterValuesByName(Class<?> nodeClass, Map<String, Parameter> parametersByName, FieldModerator moderator, JsonReader in, Gson gson) throws IOException {
+	public Map<String, Object> gatherParameterValuesByName(Class<?> nodeClass, Map<String, Parameter> parametersByName, FieldModerator moderator, JsonParser p, DeserializationContext ctxt) throws IOException {
 		Map<String, Object> parameterValuesByName = new HashMap<>();
-		while (in.hasNext()) {
-			String name = in.nextName();
+		expect(START_OBJECT, p);
+		while (p.nextToken() != END_OBJECT) {
+			p.nextValue();
+			String name = p.currentName();
 			Parameter parameter = parametersByName.get(name);
 			if (parameter == null) {
-				throw new JsonParseException("No such parameter in constructor for " + nodeClass.getSimpleName() + ": " + name);
+				throw new JsonParseException(p, "No such parameter in constructor for " + nodeClass.getSimpleName() + ": " + name);
 			} else {
-				Type parameterType = parameter.getParameterizedType();
+				JavaType parameterType = TypeFactory.defaultInstance().constructType(parameter.getParameterizedType());
 				Object deserializedValue;
 				try (@SuppressWarnings("unused") DeserializationScope scope = nodeFieldDeserializationScope(nodeClass, name)) {
-					deserializedValue = readField(name, in, gson, parameterType, moderator);
+					deserializedValue = readField(name, p, ctxt, parameterType, moderator);
 				}
 				Object value = moderator.valueFor(parameterType, deserializedValue);
 				Object prev = parameterValuesByName.put(name, value);
 				if (prev != null) {
-					throw new JsonParseException("Parameter appeared twice: " + name);
+					throw new JsonParseException(p, "Parameter appeared twice: " + name);
 				}
 			}
 		}
 		return parameterValuesByName;
 	}
 
-	private Object readField(String name, JsonReader in, Gson gson, Type parameterType, FieldModerator moderator) throws IOException {
+	private Object readField(String name, JsonParser p, DeserializationContext ctxt, JavaType parameterType, FieldModerator moderator) throws IOException {
 		// TODO: Combine with similar method in BsonPlugin
-		Type effectiveType = moderator.typeOf(parameterType);
+		JavaType effectiveType = moderator.typeOf(parameterType);
 		Class<?> effectiveClass = rawClass(effectiveType);
 		if (Optional.class.isAssignableFrom(effectiveClass)) {
 			// Optional field is present in JSON; wrap deserialized value in Optional.of
-			Type contentsType = parameterType(effectiveType, Optional.class, 0);
-			Object deserializedValue = readField(name, in, gson, contentsType, moderator);
+			JavaType contentsType = javaParameterType(effectiveType, Optional.class, 0);
+			Object deserializedValue = readField(name, p, ctxt, contentsType, moderator);
 			return Optional.of(deserializedValue);
 		} else if (Phantom.class.isAssignableFrom(effectiveClass)) {
-			throw new JsonParseException("Unexpected phantom field \"" + name + "\"");
+			throw new JsonParseException(p, "Unexpected phantom field \"" + name + "\"");
 		} else {
-			TypeAdapter<?> parameterAdapter = gson.getAdapter(TypeToken.get(effectiveType));
-			return parameterAdapter.read(in);
+			JsonDeserializer<Object> parameterDeserializer = ctxt.findContextualValueDeserializer(effectiveType, null);
+			return parameterDeserializer.deserialize(p, ctxt);
 		}
 	}
 
@@ -761,11 +764,11 @@ public final class JacksonPlugin extends SerializationPlugin {
 		return javaParameterType(mapValueType, MapValue.class, 1);
 	}
 
-	private static JavaType javaParameterType(JavaType parameterizedType, Class<?> expectedClass, int index) {
+	public static JavaType javaParameterType(JavaType parameterizedType, Class<?> expectedClass, int index) {
 		return parameterizedType.findTypeParameters(expectedClass)[index];
 	}
 
-	private static void expect(JsonToken expected, JsonParser p) throws IOException {
+	public static void expect(JsonToken expected, JsonParser p) throws IOException {
 		if (p.nextToken() != expected) {
 			throw new JsonParseException(p, "Expected " + expected);
 		}
