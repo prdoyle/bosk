@@ -193,14 +193,17 @@ public final class JacksonPlugin extends SerializationPlugin {
 	private <V> SerDes<ListValue<V>> listValueSerDes(JavaType type, BeanDescription beanDesc, Bosk<?> bosk) {
 		Constructor<?> ctor = theOnlyConstructorFor(type.getRawClass());
 		JavaType arrayType = listValueEquivalentArrayType(type);
+		JavaType listType = listValueEquivalentListType(type);
 		return new SerDes<ListValue<V>>() {
 			@Override
 			public JsonSerializer<ListValue<V>> serializer(SerializationConfig serializationConfig) {
 				return new JsonSerializer<ListValue<V>>() {
 					@Override
 					public void serialize(ListValue<V> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-						serializers.findValueSerializer(arrayType, null)
-							.serialize(value.toArray(), gen, serializers);
+						// Note that a ListValue<String> can actually contain an Object[],
+						// which Jackson won't serialize as a String[], so we can't use arrayType.
+						serializers.findValueSerializer(listType, null)
+							.serialize(value, gen, serializers);
 					}
 				};
 			}
@@ -251,7 +254,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 					public MapValue<V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 						LinkedHashMap<String, V> result = new LinkedHashMap<>();
 						expect(START_OBJECT, p);
-						while (p.nextToken() != JsonToken.END_OBJECT) {
+						while (p.nextToken() != END_OBJECT) {
 							p.nextValue();
 							String key = p.currentName();
 							@SuppressWarnings("unchecked")
@@ -261,6 +264,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 								throw new JsonParseException(p, "MapValue key appears twice: \"" + key + "\"");
 							}
 						}
+						expect(END_OBJECT, p);
 						return MapValue.fromOrderedMap(result);
 					}
 				};
@@ -330,7 +334,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 						List<Identifier> ids = null;
 
 						expect(START_OBJECT, p);
-						while (p.nextToken() != JsonToken.END_OBJECT) {
+						while (p.nextToken() != END_OBJECT) {
 							p.nextValue();
 							switch (p.currentName()) {
 								case "ids":
@@ -404,7 +408,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 						JsonDeserializer<V> valueDeserializer = (JsonDeserializer<V>) ctxt.findContextualValueDeserializer(valueType, null);
 
 						expect(START_OBJECT, p);
-						while (p.nextToken() != JsonToken.END_OBJECT) {
+						while (p.nextToken() != END_OBJECT) {
 							p.nextValue();
 							switch (p.currentName()) {
 								case "valuesById":
@@ -427,6 +431,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 									throw new JsonParseException(p, "Unrecognized field in SideTable: " + p.currentName());
 							}
 						}
+						expect(END_OBJECT, p);
 
 						if (domain == null) {
 							throw new JsonParseException(p, "Missing 'domain' field");
@@ -453,6 +458,9 @@ public final class JacksonPlugin extends SerializationPlugin {
 		gen.writeEndArray();
 	}
 
+	/**
+	 * Leaves the parser sitting on the END_ARRAY token. You could call nextToken() to continue with parsing.
+	 */
 	private <V> LinkedHashMap<Identifier, V> readMapEntries(JsonParser p, JsonDeserializer<V> valueDeserializer, DeserializationContext ctxt) throws IOException {
 		LinkedHashMap<Identifier, V> result = new LinkedHashMap<>();
 		expect(START_ARRAY, p);
@@ -464,8 +472,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			try (@SuppressWarnings("unused") DeserializationScope scope = innerDeserializationScope(fieldName)) {
 				value = valueDeserializer.deserialize(p, ctxt);
 			}
-			expect(END_OBJECT, p);
 			p.nextToken();
+			expect(END_OBJECT, p);
 
 			V oldValue = result.put(Identifier.from(fieldName), value);
 			if (oldValue != null) {
@@ -640,6 +648,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 							while (p.nextToken() != END_ARRAY) {
 								entries.add(refDeserializer.deserialize(p, ctxt).value());
 							}
+							expect(END_ARRAY, p);
 
 							E[] array = (E[])Array.newInstance(entryClass, entries.size());
 							try {
@@ -792,6 +801,10 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 	private static JavaType sideTableValueType(JavaType sideTableType) {
 		return javaParameterType(sideTableType, SideTable.class, 1);
+	}
+
+	private static JavaType listValueEquivalentListType(JavaType listValueType) {
+		return TypeFactory.defaultInstance().constructCollectionType(List.class, javaParameterType(listValueType, ListValue.class, 0));
 	}
 
 	private static JavaType listValueEquivalentArrayType(JavaType listValueType) {
