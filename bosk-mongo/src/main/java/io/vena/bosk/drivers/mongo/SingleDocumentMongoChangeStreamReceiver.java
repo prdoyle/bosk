@@ -47,7 +47,6 @@ import static java.lang.System.identityHashCode;
 import static java.lang.Thread.currentThread;
 import static java.util.Collections.synchronizedSet;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Implementation of {@link MongoReceiver} using a MongoDB change stream cursor.
@@ -194,6 +193,14 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 			while (!ex.isShutdown()) {
 				ChangeStreamDocument<Document> event;
 				try {
+					if (settings.testing().eventDelayMS() > 0) {
+						LOGGER.debug("- Sleeping");
+						try {
+							Thread.sleep(settings.testing().eventDelayMS());
+						} catch (InterruptedException e) {
+							LOGGER.debug("| Interrupted");
+						}
+					}
 					LOGGER.debug("- Awaiting event");
 					event = eventCursor.next();
 				} catch (MongoException e) {
