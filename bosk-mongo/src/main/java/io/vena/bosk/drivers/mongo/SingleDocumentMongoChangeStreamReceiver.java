@@ -331,9 +331,13 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 					downstream.submitReplacement(ref, replacement);
 				} else if (dottedName.equals(updateSeq.name())) {
 					synchronized (updateListeners) {
-						lastProcessedUpdateSeq = entry.getValue().asInt64();
+						BsonInt64 newUpdateSeqValue = entry.getValue().asInt64();
+						LOGGER.debug("| UpdateSeq {}", newUpdateSeqValue);
+						lastProcessedUpdateSeq = newUpdateSeqValue;
 						runUpdateListeners();
 					}
+				} else {
+					LOGGER.debug("| Ignoring updated field \"{}\"", dottedName);
 				}
 			}
 		}
