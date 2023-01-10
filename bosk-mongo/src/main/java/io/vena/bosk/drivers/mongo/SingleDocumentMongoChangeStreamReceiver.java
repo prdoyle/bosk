@@ -80,8 +80,8 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 
 		this.collection = collection;
 		eventCursor = collection.watch().iterator();
-		if (LOGGER.isDebugEnabled()) {
-			LOGGER.debug(
+		if (LOGGER.isTraceEnabled()) {
+			LOGGER.trace(
 				"Initiate event processing loop for mcsr-{}: collection=\"{}\"",
 				identityString,
 				collection.getNamespace().getCollectionName(),
@@ -105,19 +105,23 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 		synchronized (updateListeners) {
 			BsonInt64 actualUpdateSeq = lastProcessedUpdateSeq;
 			if (actualUpdateSeq == null || actualUpdateSeq.compareTo(requiredUpdateSeq) < 0) {
+				LOGGER.debug("| Waiting for {}", requiredUpdateSeq);
 				updateListeners.compute(requiredUpdateSeq, (seq, nextListener) -> () -> {
 					finished.release();
-					if (nextListener != null) {
+					if (nextListener == null) {
+						LOGGER.debug("| Done waiting for {}", requiredUpdateSeq);
+					} else {
 						nextListener.run();
 					}
 				});
 			} else {
-				// No need for a listener: we've already seen the update
+				LOGGER.debug("| Already seen {}", requiredUpdateSeq);
 				finished.release();
 			}
 		}
 
 		if (finished.tryAcquire(settings.flushTimeoutMS(), MILLISECONDS)) {
+			LOGGER.debug("| Downstream flush");
 			downstream.flush();
 		} else {
 			throw new FlushFailureException("Flush time out after " + settings.flushTimeoutMS() + "ms");
