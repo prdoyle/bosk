@@ -302,6 +302,9 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 					replaceUpdatedFields(updateDescription.getUpdatedFields());
 					deleteRemovedFields(updateDescription.getRemovedFields());
 					notifyIfEcho(updateDescription.getUpdatedFields(), event.getResumeToken());
+
+					// Now that we've done everything else, we can report that we've processed the event
+					bumpUpdateSeq(updateDescription.getUpdatedFields());
 				}
 				break;
 			default:
@@ -329,15 +332,6 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 					LOGGER.debug("| Replace {}", ref);
 					Object replacement = formatter.bsonValue2object(entry.getValue(), ref);
 					downstream.submitReplacement(ref, replacement);
-				} else if (dottedName.equals(updateSeq.name())) {
-					synchronized (updateListeners) {
-						BsonInt64 newUpdateSeqValue = entry.getValue().asInt64();
-						LOGGER.debug("| UpdateSeq {}", newUpdateSeqValue);
-						lastProcessedUpdateSeq = newUpdateSeqValue;
-						runUpdateListeners();
-					}
-				} else {
-					LOGGER.debug("| Ignoring updated field \"{}\"", dottedName);
 				}
 			}
 		}
@@ -373,6 +367,22 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 					LOGGER.debug("| Echo {}: {}", echoToken, resumeToken);
 					listener.add(resumeToken);
 				}
+			}
+		}
+	}
+
+	/**
+	 * Update {@link #lastProcessedUpdateSeq}
+	 */
+	private void bumpUpdateSeq(@Nullable BsonDocument updatedFields) {
+		if (updatedFields != null) {
+			BsonInt64 newUpdateSeqValue = updatedFields.getInt64(updateSeq.name(), null);
+			if (newUpdateSeqValue == null) {
+				LOGGER.warn("| No updateSeq field");
+			} else {
+				LOGGER.debug("| UpdateSeq {}", newUpdateSeqValue);
+				lastProcessedUpdateSeq = newUpdateSeqValue;
+				runUpdateListeners();
 			}
 		}
 	}
