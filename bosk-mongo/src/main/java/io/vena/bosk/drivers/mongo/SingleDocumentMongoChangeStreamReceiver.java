@@ -266,7 +266,7 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 				with no discernible	benefit, so let's remove it for now until we
 				can understand it better. This shaves a couple of minutes off our
 				build.
-				*/
+				 */
 //				try {
 //					LOGGER.debug("Awaiting termination of {}", identityString);
 //					boolean success = ex.awaitTermination(10, SECONDS);
