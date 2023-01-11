@@ -177,6 +177,10 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 
 	private void runUpdateListeners() {
 		BsonInt64 lastProcessedRevision = this.lastProcessedRevision;
+		if (lastProcessedRevision == null) {
+			// We haven't seen any revisions yet. There can't be any listeners waiting for nothing.
+			return;
+		}
 
 		// Note: this is why we don't use Collections.synchronizedMap.
 		// We need to be able to iterate over updateListeners without worrying about another
