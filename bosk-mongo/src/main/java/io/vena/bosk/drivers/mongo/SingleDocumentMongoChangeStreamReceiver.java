@@ -29,7 +29,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.Value;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonString;
@@ -403,21 +402,6 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 				lastProcessedRevision = newValue;
 				runUpdateListeners();
 			}
-		}
-	}
-
-	@Value
-	private static class UpdateListener implements Comparable<UpdateListener> {
-		BsonInt64 revision;
-		Runnable action;
-
-		@Override
-		public int compareTo(UpdateListener other) {
-			return revision.compareTo(other.revision);
-		}
-
-		public boolean isReady(BsonInt64 currentRevision) {
-			return revision.compareTo(currentRevision) <= 0;
 		}
 	}
 
