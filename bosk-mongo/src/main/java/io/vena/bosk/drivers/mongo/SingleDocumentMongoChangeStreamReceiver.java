@@ -159,6 +159,22 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 		}
 	}
 
+	/**
+	 * Update {@link #lastProcessedRevision}
+	 */
+	private void bumpLastProcessedRevision(@Nullable BsonDocument updatedFields) {
+		if (updatedFields != null) {
+			BsonInt64 newValue = updatedFields.getInt64(revision.name(), null);
+			if (newValue == null) {
+				LOGGER.warn("| No revision field");
+			} else {
+				LOGGER.debug("| Revision {}", newValue);
+				lastProcessedRevision = newValue;
+				runUpdateListeners();
+			}
+		}
+	}
+
 	private void runUpdateListeners() {
 		BsonInt64 lastProcessedRevision = this.lastProcessedRevision;
 
@@ -383,22 +399,6 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 					LOGGER.debug("| Echo {}: {}", echoToken, resumeToken);
 					listener.add(resumeToken);
 				}
-			}
-		}
-	}
-
-	/**
-	 * Update {@link #lastProcessedRevision}
-	 */
-	private void bumpLastProcessedRevision(@Nullable BsonDocument updatedFields) {
-		if (updatedFields != null) {
-			BsonInt64 newValue = updatedFields.getInt64(revision.name(), null);
-			if (newValue == null) {
-				LOGGER.warn("| No revision field");
-			} else {
-				LOGGER.debug("| Revision {}", newValue);
-				lastProcessedRevision = newValue;
-				runUpdateListeners();
 			}
 		}
 	}
