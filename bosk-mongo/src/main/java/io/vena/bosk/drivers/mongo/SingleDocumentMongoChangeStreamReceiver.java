@@ -16,7 +16,6 @@ import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.io.IOException;
 import java.lang.reflect.Type;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +44,7 @@ import static io.vena.bosk.drivers.mongo.Formatter.referenceTo;
 import static java.lang.String.format;
 import static java.lang.System.identityHashCode;
 import static java.lang.Thread.currentThread;
-import static java.util.Collections.synchronizedSet;
+import static java.util.Collections.newSetFromMap;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
@@ -406,13 +405,13 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 	}
 
 	private void logNonexistentField(String dottedName, InvalidTypeException e) {
-		LOGGER.trace("Nonexistent field \"" + dottedName + "\"", e);
+		LOGGER.trace("Nonexistent field {}",  dottedName, e);
 		if (LOGGER.isWarnEnabled() && ALREADY_WARNED.add(dottedName)) {
-			LOGGER.warn("Ignoring update of nonexistent field \"" + dottedName + "\"");
+			LOGGER.warn("Ignoring updates of nonexistent field {}", dottedName);
 		}
 	}
 
-	private static final Set<String> ALREADY_WARNED = synchronizedSet(new HashSet<>());
+	private static final Set<String> ALREADY_WARNED = newSetFromMap(new ConcurrentHashMap<>());
 	private static final BsonDocument DOCUMENT_FILTER = new BsonDocument("_id", new BsonString("boskDocument"));
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(SingleDocumentMongoChangeStreamReceiver.class);
