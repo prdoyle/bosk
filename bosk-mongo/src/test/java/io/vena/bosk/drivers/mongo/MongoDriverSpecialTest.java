@@ -53,10 +53,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Tests for MongoDB-specific functionality
  */
 class MongoDriverSpecialTest {
-	private static final String TEST_DB = MongoDriverSpecialTest.class.getSimpleName() + "_DB";
-	private static final MongoDriverSettings driverSettings = MongoDriverSettings.builder()
-		.database(TEST_DB)
-		.build();
 
 	private static final Identifier entity123 = Identifier.from("123");
 	private static final Identifier entity124 = Identifier.from("124");
@@ -66,6 +62,7 @@ class MongoDriverSpecialTest {
 	private static MongoService mongoService;
 
 	private DriverFactory<TestEntity> driverFactory;
+	private MongoDriverSettings driverSettings;
 
 	@BeforeAll
 	static void setupMongoConnection() {
@@ -74,6 +71,10 @@ class MongoDriverSpecialTest {
 
 	@BeforeEach
 	void setupDriverFactory() {
+		driverSettings = MongoDriverSettings.builder()
+			.database(MongoDriverSpecialTest.class.getSimpleName() + "_DB")
+			.build();
+
 		driverFactory = createDriverFactory();
 
 		// Start with a clean slate
@@ -418,6 +419,8 @@ class MongoDriverSpecialTest {
 
 		// Simply connecting a new bosk repairs certain fields.
 		// To test those, delete them again.
+		// This may cause the receiver to throw an exception for deleting this field unexpectedly,
+		// but it recovers, so that's ok.
 		deleteFields(collection, revision);
 
 		// Verify that the fields are indeed gone
