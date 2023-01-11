@@ -13,7 +13,7 @@ public class MongoDriverSettings {
 	String database;
 
 	@Default long flushTimeoutMS = 30_000;
-	@Default FlushMode flushMode = FlushMode.REVISION_FIELD;
+	@Default FlushMode flushMode = FlushMode.ECHO;
 	@Default Testing testing = Testing.builder().build();
 
 	@Value
