@@ -105,7 +105,6 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 		// to block until it arrives.
 		Semaphore finished = new Semaphore(0);
 		if (actualRevision == null || actualRevision.compareTo(requiredRevision) < 0) {
-			// Race: lastProcessedRevision could get bumped here
 			LOGGER.debug("| Waiting for {}", requiredRevision);
 			synchronized (updateListeners) {
 				LOGGER.debug("| Waiting for {}", requiredRevision);
