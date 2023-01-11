@@ -29,6 +29,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Value;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonString;
@@ -100,13 +101,15 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 	@Override
 	public void awaitLatestRevision() throws InterruptedException, IOException {
 		BsonInt64 requiredRevision = readRevisionNumber();
+		BsonInt64 actualRevision = lastProcessedRevision;
 
 		// If we haven't already seen requiredRevision, set up a Semaphore
 		// to block until it arrives.
 		Semaphore finished = new Semaphore(0);
-		synchronized (updateListeners) {
-			BsonInt64 actualRevision = lastProcessedRevision;
-			if (actualRevision == null || actualRevision.compareTo(requiredRevision) < 0) {
+		if (actualRevision == null || actualRevision.compareTo(requiredRevision) < 0) {
+			// Race: lastProcessedRevision could get bumped here
+			LOGGER.debug("| Waiting for {}", requiredRevision);
+			synchronized (updateListeners) {
 				LOGGER.debug("| Waiting for {}", requiredRevision);
 				updateListeners.compute(requiredRevision, (seq, nextListener) -> () -> {
 					finished.release();
@@ -116,14 +119,21 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 						nextListener.run();
 					}
 				});
-			} else {
-				LOGGER.debug("| Already seen {}", requiredRevision);
-				finished.release();
 			}
+		} else {
+			LOGGER.debug("| Already seen {}", requiredRevision);
+			return;
 		}
 
+		// Race: now that we've got our listener registered, re-check lastProcessedRevision
+		// in case it got bumped while we were registering.
+		// - If the revision arrives before this check, we'll see it now and run the listener
+		// - If the revision arrives after this check, the event loop will do the same
+		runUpdateListeners();
+
 		if (!finished.tryAcquire(settings.flushTimeoutMS(), MILLISECONDS)) {
-			throw new FlushFailureException("Flush time out after " + settings.flushTimeoutMS() + "ms");
+			LOGGER.debug("| Flush timeout on mcsr-{} awaiting revision {}", identityString, requiredRevision);
+			throw new FlushFailureException("Flush timeout on after " + settings.flushTimeoutMS() + "ms on receiver " + identityString + " awaiting revision " + requiredRevision);
 		}
 	}
 
@@ -154,12 +164,14 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 
 	private void runUpdateListeners() {
 		BsonInt64 lastProcessedRevision = this.lastProcessedRevision;
-		Iterator<Map.Entry<BsonInt64, Runnable>> iter = updateListeners.entrySet().iterator();
-		while (iter.hasNext()) {
-			Map.Entry<BsonInt64, Runnable> entry = iter.next();
-			if (entry.getKey().compareTo(lastProcessedRevision) <= 0) {
-				entry.getValue().run();
-				iter.remove();
+		synchronized (updateListeners) {
+			Iterator<Map.Entry<BsonInt64, Runnable>> iter = updateListeners.entrySet().iterator();
+			while (iter.hasNext()) {
+				Map.Entry<BsonInt64, Runnable> entry = iter.next();
+				if (entry.getKey().compareTo(lastProcessedRevision) <= 0) {
+					entry.getValue().run();
+					iter.remove();
+				}
 			}
 		}
 	}
@@ -388,6 +400,21 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 		}
 	}
 
+	@Value
+	private static class UpdateListener implements Comparable<UpdateListener> {
+		BsonInt64 revision;
+		Runnable action;
+
+		@Override
+		public int compareTo(UpdateListener other) {
+			return revision.compareTo(other.revision);
+		}
+
+		public boolean isReady(BsonInt64 currentRevision) {
+			return revision.compareTo(currentRevision) <= 0;
+		}
+	}
+
 	private void logNonexistentField(String dottedName, InvalidTypeException e) {
 		LOGGER.trace("Nonexistent field \"" + dottedName + "\"", e);
 		if (LOGGER.isWarnEnabled() && ALREADY_WARNED.add(dottedName)) {
@@ -399,4 +426,5 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 	private static final BsonDocument DOCUMENT_FILTER = new BsonDocument("_id", new BsonString("boskDocument"));
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(SingleDocumentMongoChangeStreamReceiver.class);
+
 }
