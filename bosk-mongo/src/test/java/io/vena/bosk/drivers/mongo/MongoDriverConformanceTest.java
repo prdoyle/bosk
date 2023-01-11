@@ -15,6 +15,16 @@ import static io.vena.bosk.drivers.mongo.SingleDocumentMongoDriver.COLLECTION_NA
 class MongoDriverConformanceTest extends DriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
 	private static MongoService mongoService;
+	private final MongoDriverSettings driverSettings;
+
+	public MongoDriverConformanceTest() {
+		driverSettings = MongoDriverSettings.builder()
+			.database(MongoDriverConformanceTest.class.getSimpleName() + "_DB")
+			.testing(MongoDriverSettings.Testing.builder()
+				.eventDelayMS(20)
+				.build())
+			.build();
+	}
 
 	@BeforeAll
 	static void setupMongoConnection() {
@@ -32,12 +42,6 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 	}
 
 	private <E extends Entity> DriverFactory<E> createDriverFactory() {
-		MongoDriverSettings driverSettings = MongoDriverSettings.builder()
-			.database(MongoDriverConformanceTest.class.getSimpleName() + "_DB")
-			.testing(MongoDriverSettings.Testing.builder()
-				.eventDelayMS(20)
-				.build())
-			.build();
 		return (bosk, downstream) -> {
 			MongoDriver<E> driver = MongoDriver.<E>factory(
 				mongoService.clientSettings(), driverSettings, new BsonPlugin()
