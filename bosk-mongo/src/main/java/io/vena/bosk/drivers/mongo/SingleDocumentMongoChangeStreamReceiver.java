@@ -164,6 +164,12 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 
 	private void runUpdateListeners() {
 		BsonInt64 lastProcessedRevision = this.lastProcessedRevision;
+
+		// Note: this is why we don't use Collections.synchronizedMap.
+		// We need to be able to iterate over updateListeners without worrying about another
+		// thread adding new entries while we're doing it, causing ConcurrentModificationException.
+		// synchronizedMap doesn't use the map itself as the locked object, so we have no way
+		// to get mutual exclusion for this operation.
 		synchronized (updateListeners) {
 			Iterator<Map.Entry<BsonInt64, Runnable>> iter = updateListeners.entrySet().iterator();
 			while (iter.hasNext()) {
