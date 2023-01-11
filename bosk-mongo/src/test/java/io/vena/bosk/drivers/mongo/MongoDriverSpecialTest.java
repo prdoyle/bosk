@@ -88,12 +88,6 @@ class MongoDriverSpecialTest {
 		tearDownActions.forEach(Runnable::run);
 	}
 
-	//@AfterAll
-	static void deleteDatabase() {
-		mongoService.client().getDatabase(TEST_DB).drop();
-		mongoService.close();
-	}
-
 	@Test
 	@UsesMongoService
 	void warmStart_stateMatches() throws InvalidTypeException, InterruptedException, IOException {
