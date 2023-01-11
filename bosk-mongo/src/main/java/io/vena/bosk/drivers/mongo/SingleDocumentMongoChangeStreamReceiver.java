@@ -27,6 +27,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Value;
@@ -62,7 +63,7 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 
 	private final ExecutorService ex = Executors.newFixedThreadPool(1);
 	private final ConcurrentHashMap<String, BlockingQueue<BsonDocument>> echoListeners = new ConcurrentHashMap<>();
-	private final Map<BsonInt64, Runnable> updateListeners = new TreeMap<>();
+	private final BlockingQueue<UpdateListener> updateListeners = new PriorityBlockingQueue<>();
 	private final MongoCollection<Document> collection;
 
 	private final String identityString = format("%08x", identityHashCode(this));
@@ -109,17 +110,9 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 		if (actualRevision == null || actualRevision.compareTo(requiredRevision) < 0) {
 			// Race: lastProcessedRevision could get bumped here
 			LOGGER.debug("| Waiting for {}", requiredRevision);
-			synchronized (updateListeners) {
-				LOGGER.debug("| Waiting for {}", requiredRevision);
-				updateListeners.compute(requiredRevision, (seq, nextListener) -> () -> {
-					finished.release();
-					if (nextListener == null) {
-						LOGGER.debug("| Done waiting for {}", requiredRevision);
-					} else {
-						nextListener.run();
-					}
-				});
-			}
+			updateListeners.add(new UpdateListener(
+				requiredRevision,
+				finished::release));
 		} else {
 			LOGGER.debug("| Already seen {}", requiredRevision);
 			return;
@@ -164,14 +157,19 @@ final class SingleDocumentMongoChangeStreamReceiver<R extends Entity> implements
 
 	private void runUpdateListeners() {
 		BsonInt64 lastProcessedRevision = this.lastProcessedRevision;
-		synchronized (updateListeners) {
-			Iterator<Map.Entry<BsonInt64, Runnable>> iter = updateListeners.entrySet().iterator();
-			while (iter.hasNext()) {
-				Map.Entry<BsonInt64, Runnable> entry = iter.next();
-				if (entry.getKey().compareTo(lastProcessedRevision) <= 0) {
-					entry.getValue().run();
-					iter.remove();
-				}
+		UpdateListener listener;
+		while (null != (listener = updateListeners.drainTo().remo.removeIf(x -> x.isReady(lastProcessedRevision)))) {
+			if (listener.revision.compareTo(lastProcessedRevision) <= 0) {
+				listener.action.run();
+			} else {
+			}
+		}
+		Iterator<Map.Entry<BsonInt64, Runnable>> iter = updateListeners.entrySet().iterator();
+		while (iter.hasNext()) {
+			Map.Entry<BsonInt64, Runnable> entry = iter.next();
+			if (entry.getKey().compareTo(lastProcessedRevision) <= 0) {
+				entry.getValue().run();
+				iter.remove();
 			}
 		}
 	}
