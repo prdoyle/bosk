@@ -1,10 +1,11 @@
 -------------------------------- MODULE mongo1 --------------------------------
 EXTENDS Sequences, Integers
-CONSTANTS servers
+CONSTANTS instances \* a set of distinct integer IDs corresponding to Bosk.instanceID
 VARIABLES bosks, mongo
 
 \*======== Types ========
 
+\* The state tree (aka the "configuration")
 Config_t == [field1: STRING, field2: STRING]
 Config(f1,f2) == [field1 |-> f1, field2 |-> f2]
 
@@ -12,13 +13,16 @@ Config(f1,f2) == [field1 |-> f1, field2 |-> f2]
 Update_t == Config_t
 Update(f1,f2) == Config(f1,f2)
 
-Bosk_t == [config: Config_t, qin: Seq(Update_t)]
+Bosk_t == [
+	config: Config_t,  \* The state tree
+	qin: Seq(Update_t) \* Change stream events that have not yet been applied
+]
 Bosk(c,q) == [config |-> c, qin |-> q]
 
 Mongo_t == Bosk_t \* For now, Mongo looks like just another Bosk
 
 TypeOK ==
-	/\ bosks \in [servers -> Bosk_t]
+	/\ bosks \in [instances -> Bosk_t]
 	/\ mongo \in Mongo_t
 
 \*======== State evolution ========
@@ -36,11 +40,11 @@ Submit(u) ==
 	/\ mongo' = SubmittedBosk(mongo, u)
 
 Broadcast(u) ==
-	/\ u /= mongo.config
-	/\ bosks' = [s \in servers |-> SubmittedBosk(bosks[s], u)]
+	/\ u /= mongo.config \* only broadcast if config has changed
+	/\ bosks' = [i \in instances |-> SubmittedBosk(bosks[i], u)]
 
 NoBroadcast(u) ==
-	/\ u = mongo.config
+	/\ u = mongo.config \* only skip broadcast if config has not changed
 	/\ UNCHANGED bosks
 
 \* Broadcast an update to all bosks, unless it's a no-op
@@ -48,20 +52,20 @@ BroadcastIfNeeded(u) ==
 	\/ Broadcast(u)
 	\/ NoBroadcast(u)
 
-\* Atomically apply the oldest queued update and also broadcast to all servers
+\* Atomically apply the oldest queued update and also broadcast to all instances
 UpdateMongo ==
 	/\ Len(mongo.qin) >= 1
 	/\ mongo' = UpdatedBosk(mongo)
 	/\ BroadcastIfNeeded(Head(mongo.qin))
 
-\* Apply the oldest queued update to the given server's bosk
-UpdateServer(s) ==
-	/\ Len(bosks[s].qin) >= 1
-	/\ bosks' = [bosks EXCEPT ![s] = UpdatedBosk(@)]
+\* Apply the oldest queued update to the given bosk instance
+UpdateInstance(i) ==
+	/\ Len(bosks[i].qin) >= 1
+	/\ bosks' = [bosks EXCEPT ![i] = UpdatedBosk(@)]
 	/\ UNCHANGED mongo
 
-UpdateSomeServer ==
-	\E s \in servers: UpdateServer(s)
+UpdateSomeInstance ==
+	\E i \in instances: UpdateInstance(i)
 
 SubmitSomeUpdate ==
 	\/ Submit(Update("a", "a"))
@@ -70,13 +74,13 @@ SubmitSomeUpdate ==
 NextOptions ==
 	\/ (SubmitSomeUpdate /\ UNCHANGED bosks)
 	\/ UpdateMongo
-	\/ UpdateSomeServer
+	\/ UpdateSomeInstance
 
 QLimit == 4
 
 SearchBoundaries == \* Limit our exploration of the state space 
 	/\ Len(mongo'.qin) <= QLimit
-	/\ \A s \in servers: Len(bosks'[s].qin) <= QLimit
+	/\ \A i \in instances: Len(bosks'[i].qin) <= QLimit
 
 Next ==
 	/\ NextOptions
@@ -88,13 +92,13 @@ InitialBosk ==
 	Bosk(Config("init", "init"), <<>>)
 
 Init ==
-	/\ bosks = [s \in servers |-> InitialBosk]
+	/\ bosks = [i \in instances |-> InitialBosk]
 	/\ mongo = InitialBosk
 
 \* Invariants
 
 BosksConverge == \* Whenever the queue is empty, the bosk's state equals Mongo's 
-	\A s \in servers: (Len(bosks[s].qin) = 0) => (bosks[s].config = mongo.config)
+	\A i \in instances: (Len(bosks[i].qin) = 0) => (bosks[i].config = mongo.config)
 
 Invariant ==
 	/\ BosksConverge
