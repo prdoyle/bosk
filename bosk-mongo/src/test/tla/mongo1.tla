@@ -19,7 +19,10 @@ Bosk_t == [
 ]
 Bosk(c,q) == [config |-> c, qin |-> q]
 
-Mongo_t == Bosk_t \* For now, Mongo looks like just another Bosk
+Mongo_t == [
+    state: Bosk_t
+]
+Mongo(s) == [state |-> s]
 
 TypeOK ==
 	/\ bosks \in [instances -> Bosk_t]
@@ -37,14 +40,14 @@ UpdatedBosk(b) ==
 
 \* Submit an update to Mongo
 Submit(u) ==
-	/\ mongo' = SubmittedBosk(mongo, u)
+	/\ mongo' = Mongo(SubmittedBosk(mongo.state, u))
 
 Broadcast(u) ==
-	/\ u /= mongo.config \* only broadcast if config has changed
+	/\ u /= mongo.state.config \* only broadcast if config has changed
 	/\ bosks' = [i \in instances |-> SubmittedBosk(bosks[i], u)]
 
 NoBroadcast(u) ==
-	/\ u = mongo.config \* only skip broadcast if config has not changed
+	/\ u = mongo.state.config \* only skip broadcast if config has not changed
 	/\ UNCHANGED bosks
 
 \* Broadcast an update to all bosks, unless it's a no-op
@@ -54,9 +57,9 @@ BroadcastIfNeeded(u) ==
 
 \* Atomically apply the oldest queued update and also broadcast to all instances
 UpdateMongo ==
-	/\ Len(mongo.qin) >= 1
-	/\ mongo' = UpdatedBosk(mongo)
-	/\ BroadcastIfNeeded(Head(mongo.qin))
+	/\ Len(mongo.state.qin) >= 1
+	/\ mongo' = Mongo(UpdatedBosk(mongo.state))
+	/\ BroadcastIfNeeded(Head(mongo.state.qin))
 
 \* Apply the oldest queued update to the given bosk instance
 UpdateInstance(i) ==
@@ -79,7 +82,7 @@ NextOptions ==
 QLimit == 4
 
 SearchBoundaries == \* Limit our exploration of the state space 
-	/\ Len(mongo'.qin) <= QLimit
+	/\ Len(mongo'.state.qin) <= QLimit
 	/\ \A i \in instances: Len(bosks'[i].qin) <= QLimit
 
 Next ==
@@ -93,7 +96,7 @@ InitialBosk ==
 
 Init ==
 	/\ bosks = [i \in instances |-> InitialBosk]
-	/\ mongo = InitialBosk
+	/\ mongo = Mongo(InitialBosk)
 
 \* Invariants
 
