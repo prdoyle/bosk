@@ -1,4 +1,4 @@
--------------------------------- MODULE try2 --------------------------------
+-------------------------------- MODULE mongo1 --------------------------------
 EXTENDS Sequences, Integers
 CONSTANTS servers
 VARIABLES bosks, mongo
