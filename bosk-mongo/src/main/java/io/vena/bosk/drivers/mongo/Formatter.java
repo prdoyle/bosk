@@ -62,6 +62,9 @@ final class Formatter {
 	 */
 	static final BsonInt64 REVISION_ZERO = new BsonInt64(0);
 
+	/**
+	 * The revision number used when the bosk document is first created.
+	 */
 	static final BsonInt64 REVISION_ONE = new BsonInt64(1);
 
 	/**
