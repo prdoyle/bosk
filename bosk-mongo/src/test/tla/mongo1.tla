@@ -20,9 +20,10 @@ Bosk_t == [
 Bosk(c,q) == [config |-> c, qin |-> q]
 
 Mongo_t == [
-    state: Bosk_t
+    state: Bosk_t,
+    revision: Nat
 ]
-Mongo(s) == [state |-> s]
+Mongo(s,rev) == [state |-> s, revision |-> rev]
 
 TypeOK ==
 	/\ bosks \in [instances -> Bosk_t]
@@ -40,7 +41,7 @@ UpdatedBosk(b) ==
 
 \* Submit an update to Mongo
 Submit(u) ==
-	/\ mongo' = Mongo(SubmittedBosk(mongo.state, u))
+	/\ mongo' = Mongo(SubmittedBosk(mongo.state, u), mongo.revision)
 
 Broadcast(u) ==
 	/\ u /= mongo.state.config \* only broadcast if config has changed
@@ -58,7 +59,7 @@ BroadcastIfNeeded(u) ==
 \* Atomically apply the oldest queued update and also broadcast to all instances
 UpdateMongo ==
 	/\ Len(mongo.state.qin) >= 1
-	/\ mongo' = Mongo(UpdatedBosk(mongo.state))
+	/\ mongo' = Mongo(UpdatedBosk(mongo.state), 1 + mongo.revision)
 	/\ BroadcastIfNeeded(Head(mongo.state.qin))
 
 \* Apply the oldest queued update to the given bosk instance
@@ -80,10 +81,18 @@ NextOptions ==
 	\/ UpdateSomeInstance
 
 QLimit == 4
+RevLimit == 20
 
-SearchBoundaries == \* Limit our exploration of the state space 
+QueueBoundaries ==
 	/\ Len(mongo'.state.qin) <= QLimit
 	/\ \A i \in instances: Len(bosks'[i].qin) <= QLimit
+
+RevisionBoundaries ==
+	/\ mongo'.revision <= RevLimit
+
+SearchBoundaries == \* Limit our exploration of the state space
+    /\ QueueBoundaries
+    /\ RevisionBoundaries
 
 Next ==
 	/\ NextOptions
@@ -96,7 +105,7 @@ InitialBosk ==
 
 Init ==
 	/\ bosks = [i \in instances |-> InitialBosk]
-	/\ mongo = Mongo(InitialBosk)
+	/\ mongo = Mongo(InitialBosk, 1)
 
 \* Invariants
 
