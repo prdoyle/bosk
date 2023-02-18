@@ -1,11 +1,17 @@
-package io.vena.bosk;
+package io.vena.bosk.gson;
 
 import com.google.gson.Gson;
 import com.google.gson.TypeAdapter;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
-import io.vena.bosk.GsonPlugin.FieldModerator;
+import io.vena.bosk.Bosk;
+import io.vena.bosk.Catalog;
+import io.vena.bosk.Entity;
+import io.vena.bosk.Phantom;
+import io.vena.bosk.Reference;
+import io.vena.bosk.ReflectiveEntity;
+import io.vena.bosk.gson.GsonPlugin.FieldModerator;
 import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.bytecode.ClassBuilder;
 import io.vena.bosk.bytecode.LocalVariable;

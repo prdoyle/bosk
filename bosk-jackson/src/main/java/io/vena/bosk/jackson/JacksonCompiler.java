@@ -1,4 +1,4 @@
-package io.vena.bosk;
+package io.vena.bosk.jackson;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
@@ -11,8 +11,14 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.type.TypeFactory;
-import io.vena.bosk.JacksonPlugin.FieldModerator;
-import io.vena.bosk.JacksonPlugin.SerDes;
+import io.vena.bosk.Bosk;
+import io.vena.bosk.Catalog;
+import io.vena.bosk.Entity;
+import io.vena.bosk.Phantom;
+import io.vena.bosk.Reference;
+import io.vena.bosk.ReflectiveEntity;
+import io.vena.bosk.jackson.JacksonPlugin.FieldModerator;
+import io.vena.bosk.jackson.JacksonPlugin.SerDes;
 import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.bytecode.ClassBuilder;
 import io.vena.bosk.bytecode.LocalVariable;
@@ -35,7 +41,7 @@ import lombok.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.vena.bosk.JacksonPlugin.javaParameterType;
+import static io.vena.bosk.jackson.JacksonPlugin.javaParameterType;
 import static io.vena.bosk.ReferenceUtils.getterMethod;
 import static io.vena.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static io.vena.bosk.SerializationPlugin.isImplicitParameter;
