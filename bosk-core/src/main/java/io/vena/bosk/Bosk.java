@@ -967,7 +967,7 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		} else if (!requestedClass.isAssignableFrom(targetClass)) {
 			throw new InvalidTypeException("Path from " + rawClass(rootType).getSimpleName()
 				+ " returns " + targetClass.getSimpleName()
-				+ "; requested " + requestedClass.getSimpleName()
+				+ ", not " + requestedClass.getSimpleName()
 				+ ": " + path);
 		} else if (Reference.class.isAssignableFrom(requestedClass)) {
 			// TODO: Disallow references to implicit references {Self and Enclosing}
