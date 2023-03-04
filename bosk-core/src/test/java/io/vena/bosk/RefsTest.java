@@ -27,6 +27,31 @@ public class RefsTest extends AbstractBoskTest {
 		assertEquals(teb.entityRef(parentID), refs.entity(parentID));
 		assertEquals(teb.childrenRef(parentID).then(childID), refs.child(parentID, childID));
 		assertEquals(teb.childrenRef(parentID), refs.children(parentID));
+		assertEquals(teb.entityRef(parentID).thenListing(TestChild.class, "oddChildren"), refs.oddChildren(parentID));
+		assertEquals(teb.entityRef(parentID).thenSideTable(TestChild.class, String.class, "stringSideTable"), refs.stringSideTable(parentID));
+	}
+
+	public interface Refs {
+		@ReferencePath("/")
+		Reference<TestRoot> root();
+
+		@ReferencePath("/entities/-entity-")
+		Reference<TestEntity> anyEntity();
+
+		@ReferencePath("/entities/-entity-")
+		Reference<TestEntity> entity(Identifier... ids);
+
+		@ReferencePath("/entities/-entity-/children/-child-")
+		Reference<TestChild> child(Identifier entity, Identifier child);
+
+		@ReferencePath("/entities/-entity-/children")
+		CatalogReference<TestChild> children(Identifier entity);
+
+		@ReferencePath("/entities/-entity-/oddChildren")
+		ListingReference<TestChild> oddChildren(Identifier entity);
+
+		@ReferencePath("/entities/-entity-/stringSideTable")
+		SideTableReference<TestChild,String> stringSideTable(Identifier parentID);
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -43,7 +68,7 @@ public class RefsTest extends AbstractBoskTest {
 		for (Method method: refsClass.getDeclaredMethods()) {
 			ReferencePath referencePath = method.getAnnotation(ReferencePath.class);
 			if (referencePath == null) {
-				continue;
+				throw new InvalidTypeException("Missing " + ReferencePath.class.getSimpleName() + " annotation on " + methodName(method));
 			}
 			Type returnType = method.getGenericReturnType();
 			Class<?> returnClass = rawClass(returnType);
@@ -91,23 +116,6 @@ public class RefsTest extends AbstractBoskTest {
 	@NotNull
 	private static String methodName(Method method) {
 		return method.getDeclaringClass().getSimpleName() + "." + method.getName();
-	}
-
-	public interface Refs {
-		@ReferencePath("/")
-		Reference<TestRoot> root();
-
-		@ReferencePath("/entities/-entity-")
-		Reference<TestEntity> anyEntity();
-
-		@ReferencePath("/entities/-entity-")
-		Reference<TestEntity> entity(Identifier... ids);
-
-		@ReferencePath("/entities/-entity-/children/-child-")
-		Reference<TestChild> child(Identifier entity, Identifier child);
-
-		@ReferencePath("/entities/-entity-/children")
-		CatalogReference<TestChild> children(Identifier entity);
 	}
 
 	public static final class Runtime {
