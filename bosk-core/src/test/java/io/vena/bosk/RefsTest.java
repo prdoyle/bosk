@@ -3,10 +3,12 @@ package io.vena.bosk;
 import io.vena.bosk.bytecode.ClassBuilder;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
+import static io.vena.bosk.ReferenceUtils.parameterType;
 import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.bytecode.ClassBuilder.here;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,14 +18,18 @@ public class RefsTest extends AbstractBoskTest {
 	@Test
 	void test() throws InvalidTypeException {
 		Identifier parentID = Identifier.from("parent");
+		Identifier childID = Identifier.from("child");
 		Bosk<TestRoot> bosk = setUpBosk(Bosk::simpleDriver);
 		TestEntityBuilder teb = new TestEntityBuilder(bosk);
 		Refs refs = generateRefs(Refs.class, bosk);
 		assertEquals(bosk.rootReference(), refs.root());
 		assertEquals(teb.entityRef(parentID), refs.anyEntity().boundTo(parentID));
 		assertEquals(teb.entityRef(parentID), refs.entity(parentID));
+		assertEquals(teb.childrenRef(parentID).then(childID), refs.child(parentID, childID));
+		assertEquals(teb.childrenRef(parentID), refs.children(parentID));
 	}
 
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	private static <T> T generateRefs(Class<T> refsClass, Bosk<TestRoot> bosk) throws InvalidTypeException {
 		ClassBuilder<T> cb = new ClassBuilder<>(
 			"REFS_" + refsClass.getSimpleName(),
@@ -35,34 +41,47 @@ public class RefsTest extends AbstractBoskTest {
 		cb.beginClass();
 
 		for (Method method: refsClass.getDeclaredMethods()) {
-			ReferencePath path = method.getAnnotation(ReferencePath.class);
-			if (path == null) {
+			ReferencePath referencePath = method.getAnnotation(ReferencePath.class);
+			if (referencePath == null) {
 				continue;
 			}
 			Type returnType = method.getGenericReturnType();
-			Type targetType = ReferenceUtils.parameterType(returnType, Reference.class, 0);
+			Class<?> returnClass = rawClass(returnType);
+			Type targetType = parameterType(returnType, Reference.class, 0);
 			cb.beginMethod(method);
 			Reference<?> result;
 			try {
-				result = bosk.reference(rawClass(targetType), Path.parseParameterized(path.value()));
+				Path path = Path.parseParameterized(referencePath.value());
+				if (returnClass.equals(CatalogReference.class)) {
+					Type entryType = parameterType(returnType, CatalogReference.class, 0);
+					result = bosk.catalogReference((Class) rawClass(entryType), path);
+				} else if (returnClass.equals(ListingReference.class)) {
+					Type entryType = parameterType(returnType, ListingReference.class, 0);
+					result = bosk.listingReference((Class) rawClass(entryType), path);
+				} else if (returnClass.equals(SideTableReference.class)) {
+					Type keyType = parameterType(returnType, SideTableReference.class, 0);
+					Type valueType = parameterType(returnType, SideTableReference.class, 1);
+					result = bosk.sideTableReference((Class) rawClass(keyType), (Class) rawClass(valueType), path);
+				} else {
+					result = bosk.reference(rawClass(targetType), path);
+				}
 			} catch (InvalidTypeException e) {
 				// Add some troubleshooting info for the user
 				throw new InvalidTypeException("Reference type mismatch on " + methodName(method) + ": " + e.getMessage(), e);
 			}
 			cb.pushObject(result);
-			switch (method.getParameterCount()) {
-				case 0:
-					// All is well
-					break;
-				case 1:
-					if (!Identifier[].class.isAssignableFrom(method.getParameterTypes()[0])) {
-						throw new InvalidTypeException("Parameter type must be Identifier[] or Identifier... on " + methodName(method));
-					}
-					cb.pushLocal(cb.parameter(1));
-					cb.invoke(REFERENCE_BOUND_TO);
-					break;
-				default:
-					throw new InvalidTypeException("Invalid number of parameters on " + methodName(method));
+			int parameterIndex = 0;
+			for (Parameter p: method.getParameters()) {
+				++parameterIndex;
+				if (Identifier.class.isAssignableFrom(p.getType())) {
+					cb.pushLocal(cb.parameter(parameterIndex));
+					cb.invoke(REFERENCE_BOUND_TO_ID);
+				} else if (Identifier[].class.isAssignableFrom(p.getType())) {
+					cb.pushLocal(cb.parameter(parameterIndex));
+					cb.invoke(REFERENCE_BOUND_TO_ARRAY);
+				} else {
+					throw new InvalidTypeException("Unexpected parameter type " + p.getType().getSimpleName() + " on " + methodName(method));
+				}
 			}
 			cb.finishMethod();
 		}
@@ -83,13 +102,27 @@ public class RefsTest extends AbstractBoskTest {
 
 		@ReferencePath("/entities/-entity-")
 		Reference<TestEntity> entity(Identifier... ids);
+
+		@ReferencePath("/entities/-entity-/children/-child-")
+		Reference<TestChild> child(Identifier entity, Identifier child);
+
+		@ReferencePath("/entities/-entity-/children")
+		CatalogReference<TestChild> children(Identifier entity);
 	}
 
-	private static final Method REFERENCE_BOUND_TO;
+	public static final class Runtime {
+		public static Reference<?> boundTo(Reference<?> ref, Identifier id) {
+			return ref.boundTo(id);
+		}
+	}
+
+	private static final Method REFERENCE_BOUND_TO_ARRAY;
+	private static final Method REFERENCE_BOUND_TO_ID;
 
 	static {
 		try {
-			REFERENCE_BOUND_TO = Reference.class.getDeclaredMethod("boundTo", Identifier[].class);
+			REFERENCE_BOUND_TO_ARRAY = Reference.class.getDeclaredMethod("boundTo", Identifier[].class);
+			REFERENCE_BOUND_TO_ID = Runtime.class.getDeclaredMethod("boundTo", Reference.class, Identifier.class);
 		} catch (NoSuchMethodException e) {
 			throw new AssertionError(e);
 		}
