@@ -980,7 +980,8 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 	 * as specified by methods annotated with {@link io.vena.bosk.annotations.ReferencePath}.
 	 *
 	 * <p>
-	 * This method is slow and expensive, but the returned object is efficient.
+	 * This method is slow and expensive (possibly tens of milliseconds)
+	 * but the returned object is efficient.
 	 * This is intended to be called during initialization, in order to (for example)
 	 * initialize singletons for dependency injection.
 	 *
