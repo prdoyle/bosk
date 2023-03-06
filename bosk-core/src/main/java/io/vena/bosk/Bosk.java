@@ -975,6 +975,19 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		return newReference(path, targetType);
 	}
 
+	/**
+	 * Dynamically generates an object that can return {@link Reference}s to this bosk,
+	 * as specified by methods annotated with {@link io.vena.bosk.annotations.ReferencePath}.
+	 *
+	 * <p>
+	 * This method is slow and expensive, but the returned object is efficient.
+	 * This is intended to be called during initialization, in order to (for example)
+	 * initialize singletons for dependency injection.
+	 *
+	 * @param refsClass an interface class whose methods are annotated with {@link io.vena.bosk.annotations.ReferencePath}.
+	 * @return an object implementing <code>refsClass</code> with methods that return the desired references.
+	 * @throws InvalidTypeException if any of the requested references are not valid
+	 */
 	public final <T> T buildReferences(Class<T> refsClass) throws InvalidTypeException {
 		return ReferenceBuilder.buildReferences(refsClass, this);
 	}

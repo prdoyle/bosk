@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class RefsTest extends AbstractBoskTest {
+public class BuildReferencesTest extends AbstractBoskTest {
 	static Bosk<TestRoot> bosk;
 	static TestEntityBuilder teb;
 	static Refs refs;
