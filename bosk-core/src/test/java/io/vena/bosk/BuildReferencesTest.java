@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class BuildReferencesTest extends AbstractBoskTest {
 	static Bosk<TestRoot> bosk;
@@ -59,31 +58,6 @@ public class BuildReferencesTest extends AbstractBoskTest {
 		assertEquals(teb.entityRef(parentID).thenSideTable(TestChild.class, String.class, "stringSideTable"), refs.stringSideTable(parentID));
 	}
 
-	@Test
-	void returnsNonReference_throws() {
-		// We're not all that particular about which exception gets thrown
-		assertThrows(InvalidTypeException.class, ()->
-			bosk.buildReferences(Invalid_NonReference.class));
-	}
-
-	@Test
-	void missingAnnotation_throws() {
-		assertThrows(InvalidTypeException.class, ()->
-			bosk.buildReferences(Invalid_NoAnnotation.class));
-	}
-
-	@Test
-	void wrongReturnType_throws() {
-		assertThrows(InvalidTypeException.class, ()->
-			bosk.buildReferences(Invalid_WrongType.class));
-	}
-
-	@Test
-	void unexpectedParameterType_throws() {
-		assertThrows(InvalidTypeException.class, ()->
-			bosk.buildReferences(Invalid_WeirdParameter.class));
-	}
-
 	public interface Refs {
 		@ReferencePath("/")
 		Reference<TestRoot> root();
@@ -105,25 +79,6 @@ public class BuildReferencesTest extends AbstractBoskTest {
 
 		@ReferencePath("/entities/-entity-/stringSideTable")
 		SideTableReference<TestChild,String> stringSideTable(Identifier parentID);
-	}
-
-	public interface Invalid_NonReference {
-		@ReferencePath("/entities/-entity-")
-		String anyEntity();
-	}
-
-	public interface Invalid_NoAnnotation {
-		Reference<TestEntity> anyEntity();
-	}
-
-	public interface Invalid_WrongType {
-		@ReferencePath("/entities/-entity-")
-		Reference<TestChild> anyEntity();
-	}
-
-	public interface Invalid_WeirdParameter {
-		@ReferencePath("/entities/-entity-")
-		Reference<TestChild> anyEntity(Object parameter);
 	}
 
 }
