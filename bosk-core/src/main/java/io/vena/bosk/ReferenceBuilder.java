@@ -31,6 +31,9 @@ class ReferenceBuilder {
 			}
 			Type returnType = method.getGenericReturnType();
 			Class<?> returnClass = rawClass(returnType);
+			if (!Reference.class.isAssignableFrom(returnClass)) {
+				throw new InvalidTypeException("Expected " + methodName(method) + " to return a Reference");
+			}
 			Type targetType = parameterType(returnType, Reference.class, 0);
 			cb.beginMethod(method);
 			Reference<?> result;
