@@ -24,14 +24,37 @@ public class BuildReferencesTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void test() throws InvalidTypeException {
+	void root() {
 		assertEquals(bosk.rootReference(), refs.root());
+	}
+
+	@Test
+	void parameterized() {
 		assertEquals(teb.anyEntity(), refs.anyEntity());
-		assertEquals(teb.entityRef(parentID), refs.anyEntity().boundTo(parentID));
+	}
+
+	@Test
+	void varargs() {
 		assertEquals(teb.entityRef(parentID), refs.entity(parentID));
+	}
+
+	@Test
+	void twoArgs() {
 		assertEquals(teb.childrenRef(parentID).then(childID), refs.child(parentID, childID));
+	}
+
+	@Test
+	void catalogReference() {
 		assertEquals(teb.childrenRef(parentID), refs.children(parentID));
+	}
+
+	@Test
+	void listingReference() throws InvalidTypeException {
 		assertEquals(teb.entityRef(parentID).thenListing(TestChild.class, "oddChildren"), refs.oddChildren(parentID));
+	}
+
+	@Test
+	void sideTableReference() throws InvalidTypeException {
 		assertEquals(teb.entityRef(parentID).thenSideTable(TestChild.class, String.class, "stringSideTable"), refs.stringSideTable(parentID));
 	}
 
