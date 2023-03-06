@@ -1,4 +1,4 @@
-package io.vena.bosk;
+package io.vena.bosk.annotations;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;

@@ -975,6 +975,10 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		return newReference(path, targetType);
 	}
 
+	public final <T> T buildReferences(Class<T> refsClass) throws InvalidTypeException {
+		return ReferenceBuilder.buildReferences(refsClass, this);
+	}
+
 	@SuppressWarnings("unchecked")
 	public final Reference<R> rootReference() {
 		try {
