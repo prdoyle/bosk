@@ -106,7 +106,7 @@ final class SingleDocumentMongoDriver<R extends Entity> implements MongoDriver<R
 
 		bumpRevision();
 
-		try (MongoCursor<Document> cursor = collection.find(documentFilter()).limit(1).cursor()) {
+		try (MongoCursor<Document> cursor = collection.find(documentFilter()).limit(1).batchSize(1).cursor()) {
 			Document newDocument = cursor.next();
 			Document newState = newDocument.get(state.name(), Document.class);
 			if (newState == null) {

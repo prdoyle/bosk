@@ -1004,19 +1004,31 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		}
 	}
 
+	/**
+	 * @deprecated Use {@link CatalogRef#of}
+	 */
+	@Deprecated
 	public final <T extends Entity> CatalogReference<T> catalogReference(Class<T> entryClass, Path path) throws InvalidTypeException {
 		Reference<Catalog<T>> ref = reference(Classes.catalog(entryClass), path);
-		return new CatalogRef<>(ref, entryClass);
+		return CatalogRef.of(ref, entryClass);
 	}
 
+	/**
+	 * @deprecated Use {@link ListingRef#of}
+	 */
+	@Deprecated
 	public final <T extends Entity> ListingReference<T> listingReference(Class<T> entryClass, Path path) throws InvalidTypeException {
 		Reference<Listing<T>> ref = reference(Classes.listing(entryClass), path);
-		return new ListingRef<>(ref);
+		return ListingRef.of(ref);
 	}
 
+	/**
+	 * @deprecated Use {@link SideTableRef#of}
+	 */
+	@Deprecated
 	public final <K extends Entity,V> SideTableReference<K,V> sideTableReference(Class<K> keyClass, Class<V> valueClass, Path path) throws InvalidTypeException {
 		Reference<SideTable<K,V>> ref = reference(Classes.sideTable(keyClass, valueClass), path);
-		return new SideTableRef<>(ref, keyClass, valueClass);
+		return SideTableRef.of(ref, keyClass, valueClass);
 	}
 
 	public final <TT> Reference<Reference<TT>> referenceReference(Class<TT> targetClass, Path path) throws InvalidTypeException {

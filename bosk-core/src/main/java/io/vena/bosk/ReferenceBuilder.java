@@ -1,5 +1,8 @@
 package io.vena.bosk;
 
+import io.vena.bosk.ReferenceUtils.CatalogRef;
+import io.vena.bosk.ReferenceUtils.ListingRef;
+import io.vena.bosk.ReferenceUtils.SideTableRef;
 import io.vena.bosk.annotations.ReferencePath;
 import io.vena.bosk.bytecode.ClassBuilder;
 import io.vena.bosk.exceptions.InvalidTypeException;
@@ -11,6 +14,9 @@ import org.jetbrains.annotations.NotNull;
 import static io.vena.bosk.ReferenceUtils.parameterType;
 import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.bytecode.ClassBuilder.here;
+import static io.vena.bosk.util.Classes.catalog;
+import static io.vena.bosk.util.Classes.listing;
+import static io.vena.bosk.util.Classes.sideTable;
 
 class ReferenceBuilder {
 	@SuppressWarnings({"unchecked","rawtypes"})
@@ -40,15 +46,15 @@ class ReferenceBuilder {
 			try {
 				Path path = Path.parseParameterized(referencePath.value());
 				if (returnClass.equals(CatalogReference.class)) {
-					Type entryType = parameterType(returnType, CatalogReference.class, 0);
-					result = bosk.catalogReference((Class) rawClass(entryType), path);
+					Class entryClass = rawClass(parameterType(returnType, CatalogReference.class, 0));
+					result = CatalogRef.of(bosk.reference(catalog(entryClass), path), entryClass);
 				} else if (returnClass.equals(ListingReference.class)) {
-					Type entryType = parameterType(returnType, ListingReference.class, 0);
-					result = bosk.listingReference((Class) rawClass(entryType), path);
+					Class entryClass = rawClass(parameterType(returnType, ListingReference.class, 0));
+					result = ListingRef.of(bosk.reference(listing(entryClass), path));
 				} else if (returnClass.equals(SideTableReference.class)) {
-					Type keyType = parameterType(returnType, SideTableReference.class, 0);
-					Type valueType = parameterType(returnType, SideTableReference.class, 1);
-					result = bosk.sideTableReference((Class) rawClass(keyType), (Class) rawClass(valueType), path);
+					Class keyClass = rawClass(parameterType(returnType, SideTableReference.class, 0));
+					Class valueClass = rawClass(parameterType(returnType, SideTableReference.class, 1));
+					result = SideTableRef.of(bosk.reference(sideTable(keyClass, valueClass), path), keyClass, valueClass);
 				} else {
 					result = bosk.reference(rawClass(targetType), path);
 				}

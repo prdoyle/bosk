@@ -18,13 +18,12 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Value;
 
 import static io.vena.bosk.util.ReflectionHelpers.setAccessible;
 import static java.lang.String.format;
-import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static lombok.AccessLevel.PACKAGE;
 
 /**
  * Collection of utilities for implementing {@link Reference}s.
@@ -34,11 +33,15 @@ import static java.util.stream.Collectors.toList;
  */
 public final class ReferenceUtils {
 
-	@RequiredArgsConstructor
-	@Value
+	@Value(staticConstructor = "of")
 	static class CatalogRef<E extends Entity> implements CatalogReference<E> {
-		Reference<Catalog<E>> ref;
+		@Getter(PACKAGE) Reference<Catalog<E>> ref;
 		Class<E> entryClass;
+
+		// IntelliJ has some trouble with Lombok staticConstructor. Let's help it out
+		public static <E extends Entity> CatalogRef<E> of(Reference<Catalog<E>> ref, Class<E> entryClass) {
+			return new CatalogRef<>(ref, entryClass);
+		}
 
 		@Override
 		public CatalogReference<E> boundBy(BindingEnvironment bindings) {
@@ -66,12 +69,28 @@ public final class ReferenceUtils {
 		@Override public <TT> Reference<Reference<TT>> thenReference(Class<TT> targetClass, String... segments) throws InvalidTypeException { return ref.thenReference(targetClass, segments); }
 		@Override public <TT> Reference<TT> enclosingReference(Class<TT> targetClass) throws InvalidTypeException { return ref.enclosingReference(targetClass); }
 
+		@Override public boolean equals(Object obj) {
+			if (obj == this) {
+				return true;
+			} else if (obj instanceof Reference) {
+				return obj.equals(ref);
+			} else {
+				return false;
+			}
+		}
+
+		@Override public int hashCode() { return ref.hashCode(); }
 		@Override public String toString() { return ref.toString(); }
 	}
 
-	@Value
+	@Value(staticConstructor = "of")
 	static class ListingRef<E extends Entity> implements ListingReference<E> {
-		Reference<Listing<E>> ref;
+		@Getter(PACKAGE) Reference<Listing<E>> ref;
+
+		// IntelliJ has some trouble with Lombok staticConstructor. Let's help it out
+		public static <E extends Entity> ListingRef<E> of(Reference<Listing<E>> ref) {
+			return new ListingRef<>(ref);
+		}
 
 		@Override
 		public ListingReference<E> boundBy(BindingEnvironment bindings) {
@@ -99,14 +118,30 @@ public final class ReferenceUtils {
 		@Override public <TT> Reference<Reference<TT>> thenReference(Class<TT> targetClass, String... segments) throws InvalidTypeException { return ref.thenReference(targetClass, segments); }
 		@Override public <TT> Reference<TT> enclosingReference(Class<TT> targetClass) throws InvalidTypeException { return ref.enclosingReference(targetClass); }
 
+		@Override public boolean equals(Object obj) {
+			if (obj == this) {
+				return true;
+			} else if (obj instanceof Reference) {
+				return obj.equals(ref);
+			} else {
+				return false;
+			}
+		}
+
+		@Override public int hashCode() { return ref.hashCode(); }
 		@Override public String toString() { return ref.toString(); }
 	}
 
-	@RequiredArgsConstructor
-	static final class SideTableRef<K extends Entity,V> implements SideTableReference<K,V> {
-		private final Reference<SideTable<K,V>> ref;
-		private final @Getter Class<K> keyClass;
-		private final @Getter Class<V> valueClass;
+	@Value(staticConstructor = "of")
+	static class SideTableRef<K extends Entity,V> implements SideTableReference<K,V> {
+		@Getter(PACKAGE) Reference<SideTable<K,V>> ref;
+		Class<K> keyClass;
+		Class<V> valueClass;
+
+		// IntelliJ has some trouble with Lombok staticConstructor. Let's help it out
+		public static <K extends Entity, V> SideTableRef<K, V> of(Reference<SideTable<K, V>> ref, Class<K> keyClass, Class<V> valueClass) {
+			return new SideTableRef<>(ref, keyClass, valueClass);
+		}
 
 		@Override
 		public Reference<V> then(Identifier id) {
@@ -265,9 +300,6 @@ C&lt;String> someField;
 			}
 		}
 
-		public TypedHandle(Type returnType, MethodHandle handle, Type...argTypes) {
-			this(returnType, handle, asList(argTypes));
-		}
 	}
 
 	public static Class<?> rawClass(Type sourceType) {
