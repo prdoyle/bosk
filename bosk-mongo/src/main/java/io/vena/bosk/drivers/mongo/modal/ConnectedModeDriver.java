@@ -11,50 +11,50 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class ConnectedModeDriver<R extends Entity> implements MongoDriver<R> {
-	private final MongoDriver<R> impl;
+	private final MongoDriver<R> downstream;
 
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
-		return impl.initialRoot(rootType);
+		return downstream.initialRoot(rootType);
 	}
 
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		impl.submitReplacement(target, newValue);
+		downstream.submitReplacement(target, newValue);
 	}
 
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		impl.submitConditionalReplacement(target, newValue, precondition, requiredValue);
+		downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue);
 	}
 
 	@Override
 	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		impl.submitInitialization(target, newValue);
+		downstream.submitInitialization(target, newValue);
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
-		impl.submitDeletion(target);
+		downstream.submitDeletion(target);
 	}
 
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		impl.submitConditionalDeletion(target, precondition, requiredValue);
+		downstream.submitConditionalDeletion(target, precondition, requiredValue);
 	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-		impl.flush();
+		downstream.flush();
 	}
 
 	@Override
 	public void refurbish() {
-		impl.refurbish();
+		downstream.refurbish();
 	}
 
 	@Override
 	public void close() {
-		impl.close();
+		downstream.close();
 	}
 }

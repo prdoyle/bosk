@@ -4,8 +4,12 @@ import com.mongodb.MongoClientSettings;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.DriverFactory;
+import io.vena.bosk.DriverStack;
 import io.vena.bosk.Entity;
 import io.vena.bosk.drivers.mongo.modal.ModalDriverFacade;
+import io.vena.bosk.drivers.mongo.modal.ReconnectingModeDriver;
+
+import static io.vena.bosk.drivers.mongo.ReconnectionUtils.reconnectDriver;
 
 public interface MongoDriver<R extends Entity> extends BoskDriver<R> {
 	/**
@@ -40,17 +44,13 @@ public interface MongoDriver<R extends Entity> extends BoskDriver<R> {
 		MongoDriverSettings driverSettings,
 		BsonPlugin bsonPlugin
 	) {
-		return (b, d) -> ModalDriverFacade.factory(() -> {
-			// Pretend to check the DB manifest and select the right implementation
-			// TODO: Actually do this ^
-			return new SingleDocumentMongoDriver<>(
-				b,
-				clientSettings,
-				driverSettings,
-				bsonPlugin,
-				d);
-			}
-		).build(b,d);
+		return DriverStack.<RR>of(
+			ModalDriverFacade.factory(),
+			(b,d) -> new ReconnectingModeDriver<RR>(() -> {
+				SingleDocumentMongoDriver<RR> result = (SingleDocumentMongoDriver<RR>) reconnectDriver(clientSettings, driverSettings, bsonPlugin, b, d);
+				return result;
+			})
+		);
 	}
 
 	interface MongoDriverFactory<RR extends Entity> extends DriverFactory<RR> {

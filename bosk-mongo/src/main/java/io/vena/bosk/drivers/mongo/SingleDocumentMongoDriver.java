@@ -81,7 +81,7 @@ final class SingleDocumentMongoDriver<R extends Entity> implements MongoDriver<R
 		this.rootRef = bosk.rootReference();
 	}
 
-	private void validateMongoClientSettings(MongoClientSettings clientSettings) {
+	static void validateMongoClientSettings(MongoClientSettings clientSettings) {
 		// We require ReadConcern and WriteConcern to be MAJORITY to ensure the Causal Consistency
 		// guarantees needed to meet the requirements of the BoskDriver interface.
 		// https://www.mongodb.com/docs/manual/core/causal-consistency-read-write-concerns/

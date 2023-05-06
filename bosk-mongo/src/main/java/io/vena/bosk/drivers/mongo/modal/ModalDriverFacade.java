@@ -17,25 +17,19 @@ import org.slf4j.LoggerFactory;
 public final class ModalDriverFacade<R extends Entity> implements MongoDriver<R> {
 	private final AtomicReference<MongoDriver<R>> currentImplementation;
 
-	ModalDriverFacade(FutureMongoDriver<R> reconnectionAction) {
+	public ModalDriverFacade(MongoDriver<R> initialDownstream) {
 		// FIXME: This isn't right. ReconnectingDriver should just be waiting for the reconnection,
 		// not initiating it. There can (briefly) be more than one ReconnectingDriver object in some
 		// concurrent use cases, so the single ModalDriverFacade should initiate the reconnect
 		// and the ReconnectingDriver should just wait.
-		currentImplementation = new AtomicReference<>(new ReconnectingModeDriver<>(reconnectionAction));
+		currentImplementation = new AtomicReference<>(initialDownstream);
 	}
 
 	/**
-	 *
-	 * @param reconnectionAction to execute in order to reconnect
-	 * @return a factory object that can be passed to the {@link Bosk} constructor
-	 * @param <RR> type of the state tree's root node
 	 * @throws ClassCastException if the downstream driver is not a {@link MongoDriver}.
 	 */
-	public static <RR extends Entity> Factory<RR> factory(
-		FutureMongoDriver<RR> reconnectionAction
-	) {
-		return (b,d) -> new ModalDriverFacade<>(reconnectionAction);
+	public static <RR extends Entity> Factory<RR> factory() {
+		return (b,d) -> new ModalDriverFacade<>((MongoDriver<RR>) d);
 	}
 
 	public interface Factory<R extends Entity> extends DriverFactory<R> {

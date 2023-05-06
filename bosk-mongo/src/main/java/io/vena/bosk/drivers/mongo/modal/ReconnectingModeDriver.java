@@ -1,5 +1,6 @@
 package io.vena.bosk.drivers.mongo.modal;
 
+import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
@@ -12,8 +13,13 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * In Reconnecting mode, an attempt is underway to get the driver into the Connected state.
+ * {@link BoskDriver} methods wait for that attempt to succeed (yielding a {@link ConnectedModeDriver}
+ * or fail (yielding a {@link DisconnectedModeDriver}, at which point the request is forwarded.
+ */
 @RequiredArgsConstructor
-class ReconnectingModeDriver<R extends Entity> implements MongoDriver<R> {
+public class ReconnectingModeDriver<R extends Entity> implements MongoDriver<R> {
 	private final FutureMongoDriver<R> future;
 
 	@Override

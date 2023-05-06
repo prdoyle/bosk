@@ -12,6 +12,7 @@ import java.lang.reflect.Type;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
+public
 class DisconnectedModeDriver<R extends Entity> implements MongoDriver<R> {
 	final BoskDriver<R> downstream;
 
