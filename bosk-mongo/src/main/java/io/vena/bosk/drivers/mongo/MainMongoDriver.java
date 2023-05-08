@@ -6,11 +6,11 @@ import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
-import io.vena.bosk.drivers.mongo.modal.ChangeStreamListener;
+import io.vena.bosk.drivers.mongo.modal.DisconnectedEventCursor;
 import io.vena.bosk.drivers.mongo.modal.DisconnectedModeDriver;
-import io.vena.bosk.drivers.mongo.modal.FutureMongoDriver;
+import io.vena.bosk.drivers.mongo.modal.DisconnectedReceiver;
 import io.vena.bosk.drivers.mongo.modal.ModalDriverFacade;
-import io.vena.bosk.drivers.mongo.modal.ReconnectingModeDriver;
+import io.vena.bosk.drivers.mongo.modal.ResilientListener;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.io.IOException;
@@ -21,24 +21,26 @@ import static io.vena.bosk.drivers.mongo.SingleDocumentMongoDriver.validateMongo
 public class MainMongoDriver<R extends Entity> implements MongoDriver<R> {
 	private final BoskDriver<R> downstream;
 	private final ModalDriverFacade<R> facade;
-	private final ChangeStreamListener listener;
+	private final ResilientListener listener;
 
-	private final ReconnectingModeDriver<R> reconnectingModeDriver;
 	private final DisconnectedModeDriver<R> disconnectedModeDriver;
+
+	private final DisconnectedEventCursor disconnectedEventCursor = new DisconnectedEventCursor();
+	private final DisconnectedReceiver disconnectedReceiver = new DisconnectedReceiver();
 
 	public MainMongoDriver(Bosk<R> bosk, MongoClientSettings clientSettings, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin, BoskDriver<R> downstream) {
 		validateMongoClientSettings(clientSettings);
-		FutureMongoDriver<R> future;
 		this.downstream = downstream;
-		this.reconnectingModeDriver = new ReconnectingModeDriver<>();
 		this.disconnectedModeDriver = new DisconnectedModeDriver<>(downstream);
-		this.facade = new ModalDriverFacade<>(reconnectingModeDriver);
-		this.listener = new ChangeStreamListener(this::reconnect);
+		this.facade = new ModalDriverFacade<>(disconnectedModeDriver);
+		this.listener = new ResilientListener(disconnectedEventCursor, disconnectedReceiver);
+		reconnect();
 	}
 
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
-		// TODO: This is only appropriate as long as we are initially reconnecting
+		// TODO: This is only appropriate as long as we are initially reconnecting,
+		// or if we're initializing the database state.
 		return downstream.initialRoot(rootType);
 	}
 

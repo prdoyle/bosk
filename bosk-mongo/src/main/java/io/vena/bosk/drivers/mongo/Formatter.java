@@ -39,7 +39,7 @@ import static java.lang.String.format;
  *
  * @author pdoyle
  */
-final class Formatter {
+public final class Formatter {
 	private final CodecRegistry simpleCodecs;
 	private final Function<Type, Codec<?>> preferredBoskCodecs;
 	private final Function<Reference<?>, SerializationPlugin.DeserializationScope> deserializationScopeFunction;
@@ -79,7 +79,7 @@ final class Formatter {
 	 * <p>
 	 * No field name should be a prefix of any other.
 	 */
-	enum DocumentFields {
+	public enum DocumentFields {
 		path,
 		state,
 		echo,
@@ -136,7 +136,7 @@ final class Formatter {
 	 * @see #object2bsonValue(Object, Type)
 	 */
 	@SuppressWarnings("unchecked")
-	<T> T bsonValue2object(BsonValue bson, Reference<T> target) {
+	public <T> T bsonValue2object(BsonValue bson, Reference<T> target) {
 		Codec<T> objectCodec = (Codec<T>) codecFor(target.targetType());
 		BsonDocument document = new BsonDocument();
 		document.append("value", bson);
@@ -193,7 +193,7 @@ final class Formatter {
 	 * @see #dottedFieldNameOf(Reference, Reference)
 	 */
 	@SuppressWarnings("unchecked")
-	static <T> Reference<T> referenceTo(String dottedName, Reference<?> startingReference) throws InvalidTypeException {
+	public static <T> Reference<T> referenceTo(String dottedName, Reference<?> startingReference) throws InvalidTypeException {
 		Reference<?> ref = startingReference;
 		Iterator<String> iter = Arrays.asList(dottedName.split(Pattern.quote("."))).iterator();
 		skipField(ref, iter, DocumentFields.state.name()); // The entire Bosk state is in this field
