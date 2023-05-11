@@ -6,6 +6,9 @@ import io.vena.bosk.drivers.mongo.MongoDriver;
  * Thrown from {@link MongoDriver} methods when the database is unreachable.
  */
 public class DisconnectedException extends RuntimeException {
+	public DisconnectedException() {
+	}
+
 	public DisconnectedException(String message) {
 		super(message);
 	}

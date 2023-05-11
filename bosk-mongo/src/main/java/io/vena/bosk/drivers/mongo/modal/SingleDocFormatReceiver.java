@@ -27,6 +27,7 @@ import static java.util.Collections.newSetFromMap;
 
 @RequiredArgsConstructor
 public class SingleDocFormatReceiver<R extends Entity> implements EventReceiver {
+	private final long resumeAfterRevision;
 	private final Reference<R> rootRef;
 	private final Formatter formatter;
 	private final Runnable reconnectAction;
@@ -36,12 +37,40 @@ public class SingleDocFormatReceiver<R extends Entity> implements EventReceiver 
 	@Override
 	public void onUpdate(ChangeStreamDocument<Document> event) {
 		UpdateDescription updateDescription = event.getUpdateDescription();
-		if (updateDescription != null) {
-			replaceUpdatedFields(updateDescription.getUpdatedFields());
-			deleteRemovedFields(updateDescription.getRemovedFields());
+		BsonInt64 newRevision = checkRevision(updateDescription);
+		if (newRevision == null) {
+			return;
+		}
+		assert updateDescription != null;
+		replaceUpdatedFields(updateDescription.getUpdatedFields());
+		deleteRemovedFields(updateDescription.getRemovedFields());
 
-			// Now that we've done everything else, we can report that we've processed the event
-			reportRevision(updateDescription.getUpdatedFields());
+		// Now that we've done everything else, we can report that we've processed the event
+		// TODO: Maybe we don't _need_ to do this at the end if any errors encountered will cause a reconnection anyway?
+		reportRevision(newRevision);
+	}
+
+	/**
+	 * @return the revision number in the given update, or null if there's no update to process;
+	 *   if the revision number is required but missing, calls {@link #reconnectAction}.
+	 */
+	private BsonInt64 checkRevision(UpdateDescription updateDescription) {
+		BsonInt64 newValue;
+		if (updateDescription == null || updateDescription.getUpdatedFields() == null) {
+			LOGGER.trace("Not an update");
+			return null;
+		} else {
+			newValue = updateDescription.getUpdatedFields().getInt64(revision.name(), null);
+			if (newValue == null) {
+				LOGGER.error("No revision field; reconnecting");
+				reconnectAction.run();
+				return null;
+			} else if (newValue.longValue() <= resumeAfterRevision) {
+				LOGGER.debug("Skipping revision {} <= {}", newValue.longValue(), resumeAfterRevision);
+				return null;
+			} else {
+				return newValue;
+			}
 		}
 	}
 
@@ -101,17 +130,9 @@ public class SingleDocFormatReceiver<R extends Entity> implements EventReceiver 
 	/**
 	 * Report the new revision to {@link #revisionListener}
 	 */
-	private void reportRevision(@Nullable BsonDocument updatedFields) {
-		if (updatedFields != null) {
-			BsonInt64 newValue = updatedFields.getInt64(revision.name(), null);
-			if (newValue == null) {
-				LOGGER.error("No revision field");
-				reconnectAction.run();
-			} else {
-				LOGGER.debug("Revision {}", newValue);
-				revisionListener.accept(newValue.longValue());
-			}
-		}
+	private void reportRevision(BsonInt64 newValue) {
+		LOGGER.debug("Revision {}", newValue);
+		revisionListener.accept(newValue.longValue());
 	}
 
 	@Override

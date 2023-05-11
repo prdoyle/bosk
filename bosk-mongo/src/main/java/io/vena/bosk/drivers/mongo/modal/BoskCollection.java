@@ -11,6 +11,7 @@ import org.bson.conversions.Bson;
  * suitable for storing bosk state.
  */
 public interface BoskCollection {
+	// TODO: Method to create database if it doesn't exist
 	FindIterable<Document> find(Bson filter);
 	UpdateResult updateOne(Bson filter, Bson update, UpdateOptions updateOptions);
 	UpdateResult replaceOne(Bson filter, Document replacement);

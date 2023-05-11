@@ -36,12 +36,12 @@ public final class ModalDriverFacade<R extends Entity> implements MongoDriver<R>
 		@Override ModalDriverFacade<R> build(Bosk<R> bosk, BoskDriver<R> downstream);
 	}
 
-	MongoDriver<R> currentImplementation() { return currentImplementation.get(); }
+	public MongoDriver<R> currentImplementation() { return currentImplementation.get(); }
 
 	/**
 	 * @return true if successful; false if <code>from</code> doesn't match
 	 */
-	boolean changeImplementation(MongoDriver<R> from, MongoDriver<R> to) {
+	public boolean changeImplementation(MongoDriver<R> from, MongoDriver<R> to) {
 		boolean success = this.currentImplementation.compareAndSet(from, to);
 		if (success) {
 			LOGGER.trace("Changed implementation from {} to {}", from, to);

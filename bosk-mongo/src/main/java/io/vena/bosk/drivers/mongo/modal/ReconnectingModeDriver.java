@@ -9,6 +9,7 @@ import io.vena.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +21,7 @@ import org.slf4j.LoggerFactory;
  */
 @RequiredArgsConstructor
 public class ReconnectingModeDriver<R extends Entity> implements MongoDriver<R> {
-	private final FutureMongoDriver<R> future;
+	private final Future<MongoDriver<R>> future;
 
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
