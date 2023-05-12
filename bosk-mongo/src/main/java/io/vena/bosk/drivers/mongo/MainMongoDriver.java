@@ -8,6 +8,8 @@ import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
+import io.vena.bosk.drivers.mongo.modal.BoskCollection;
+import io.vena.bosk.drivers.mongo.modal.CollectionImpl;
 import io.vena.bosk.drivers.mongo.modal.ConnectedModeDriver;
 import io.vena.bosk.drivers.mongo.modal.DisconnectedEventCursor;
 import io.vena.bosk.drivers.mongo.modal.DisconnectedException;
@@ -15,7 +17,6 @@ import io.vena.bosk.drivers.mongo.modal.DisconnectedModeDriver;
 import io.vena.bosk.drivers.mongo.modal.DisconnectedReceiver;
 import io.vena.bosk.drivers.mongo.modal.ModalDriverFacade;
 import io.vena.bosk.drivers.mongo.modal.ReconnectingModeDriver;
-import io.vena.bosk.drivers.mongo.modal.ResilientCollection;
 import io.vena.bosk.drivers.mongo.modal.ResilientListener;
 import io.vena.bosk.drivers.mongo.modal.SingleDocFormatDriver;
 import io.vena.bosk.exceptions.InvalidTypeException;
@@ -40,7 +41,7 @@ public class MainMongoDriver<R extends Entity> implements MongoDriver<R> {
 	private final BoskDriver<R> downstream;
 	private final ModalDriverFacade<R> facade;
 	private final MongoClient mongoClient;
-	private final ResilientCollection collection;
+	private final BoskCollection collection;
 	private final ResilientListener listener;
 
 	private final DisconnectedModeDriver<R> disconnectedModeDriver;
@@ -57,7 +58,7 @@ public class MainMongoDriver<R extends Entity> implements MongoDriver<R> {
 		this.downstream = downstream;
 		this.disconnectedModeDriver = new DisconnectedModeDriver<>(downstream);
 		this.facade = new ModalDriverFacade<>(disconnectedModeDriver);
-		this.collection = new ResilientCollection();
+		this.collection = new CollectionImpl();
 		this.listener = new ResilientListener(new DisconnectedEventCursor(), new DisconnectedReceiver());
 		reconnect();
 	}
