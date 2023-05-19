@@ -33,6 +33,7 @@ public class ChangeStreamExperiments {
 		) {
 			ChangeStreamDocument<Document> next = changeStream.tryNext();
 			assertNull(next, "No events in the change stream yet");
+//			changeStream.hasNext();
 			System.out.println("Token 1: " + changeStream.getResumeToken());
 			assertNotNull(changeStream.getResumeToken(), "tryNext established a resume token");
 			collection1.insertOne(new Document().append("_id", "doc2"));
