@@ -1,9 +1,6 @@
 package io.vena.bosk.drivers.mongo.v2;
 
-import com.mongodb.client.ChangeStreamIterable;
-import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
@@ -11,36 +8,35 @@ import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
 import io.vena.bosk.drivers.mongo.MongoDriver;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import lombok.RequiredArgsConstructor;
-import org.bson.BsonDocument;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static java.lang.Thread.State.NEW;
-import static lombok.AccessLevel.PACKAGE;
-
-@RequiredArgsConstructor(access = PACKAGE)
 public class MainDriver<R extends Entity> implements MongoDriver<R> {
-	private final MongoCollection<Document> collection;
-	private final MongoClient client;
-	private final ChangeEventReceiver receiver;
 	private final Lock lock = new ReentrantLock();
 	private final BoskDriver<R> downstream;
 	private final Reference<R> rootRef;
+	private final ChangeEventReceiver receiver;
 
 	private volatile FormatDriver<R> formatDriver;
-	private volatile BsonDocument lastProcessedResumeToken;
-	private volatile Thread eventProcessingThread;
+
+	MainDriver(MongoClient client, BoskDriver<R> downstream, Reference<R> rootRef) {
+		this.downstream = downstream;
+		this.rootRef = rootRef;
+
+		this.receiver = new ChangeEventReceiver(
+			client.getDatabase("foo").getCollection("bar"));
+	}
 
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
-		R result = resynchronizeEventThread();
-		if (eventProcessingThread.getState() == NEW) {
-			eventProcessingThread.start();
-		}
+		R result = initializeReplication();
+		receiver.start();
 		if (result == null) {
 			return downstream.initialRoot(rootType);
 		} else {
@@ -48,119 +44,109 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		}
 	}
 
-	private void panic() throws InterruptedException {
-		R result = resynchronizeEventThread();
+	private void recoverFrom(Exception e) {
+		LOGGER.error("Unexpected exception; reinitializing", e);
+		R result = initializeReplication();
 		if (result != null) {
 			downstream.submitReplacement(rootRef, result);
 		}
-		if (eventProcessingThread.getState() == NEW) {
-			eventProcessingThread.start();
-		}
+		receiver.start();
 	}
 
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
-
+		formatDriver.submitReplacement(target, newValue);
 	}
 
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-
+		formatDriver.submitConditionalReplacement(target, newValue, precondition, requiredValue);
 	}
 
 	@Override
 	public <T> void submitInitialization(Reference<T> target, T newValue) {
-
+		formatDriver.submitInitialization(target, newValue);
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
-
+		formatDriver.submitDeletion(target);
 	}
 
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-
+		formatDriver.submitConditionalDeletion(target, precondition, requiredValue);
 	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-
+		formatDriver.flush();
 	}
 
 	@Override
 	public void refurbish() {
-
+		throw new NotYetImplementedException();
 	}
 
 	@Override
 	public void close() {
-
+		receiver.close();
+		formatDriver.close();
 	}
 
-	private R resynchronizeEventThread() throws InterruptedException {
-		receiver.initialize(null); // TODO
-		if (lock.tryLock()) {
-			// Shut down existing event thread
-			eventProcessingThread.interrupt();
-			eventProcessingThread.join(10_000);  // TODO: config
-
-			// Open cursor and orient if necessary
-			MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor;
-			ChangeStreamDocument<Document> event;
-			if (lastProcessedResumeToken == null) {
-				ChangeStreamIterable<Document> iterable = collection.watch();
-				cursor = iterable.cursor();
-				event = cursor.tryNext();
-				if (event == null) {
-					// In this case, tryNext() has caused the cursor to point to
-					// a token in the past, so we can reliably use that.
-					lastProcessedResumeToken = cursor.getResumeToken();
-				}
+	/**
+	 * Reinitializes {@link #receiver}, detects the database format, instantiates
+	 * the appropriate {@link FormatDriver}, and uses it to load the initial bosk state.
+	 * <p>
+	 * Caller is responsible for calling {@link #receiver}{@link ChangeEventReceiver#start() .start()}
+	 * to kick off event processing. We don't do it here because some callers need to do other things
+	 * after initialization but before any events arrive.
+	 *
+	 * @return The new root object to use, if any
+	 */
+	private R initializeReplication() {
+		try {
+			lock.lock();
+			formatDriver = new DisconnectedDriver<>(); // In case initialization fails
+			if (receiver.initialize(new Listener())) {
+				DummyFormatDriver<R> newDriver = new DummyFormatDriver<>(); // TODO: Determine the right one
+				StateResult<R> result = newDriver.loadAllState();
+				newDriver.onRevisionToSkip(result.revision);
+				formatDriver = newDriver;
+				return result.state;
 			} else {
-				ChangeStreamIterable<Document> iterable = collection.watch().resumeAfter(lastProcessedResumeToken);
-				cursor = iterable.cursor();
-				event = null;
+				LOGGER.warn("Unable to fetch resume token");
+				return null;
 			}
-
-			// Determine format and instantiate format driver
-			FormatDriver<R> formatDriver = null; // TODO
-			StateResult<R> result = formatDriver.loadAllState();
-
-			// Kick off new event processing thread; caller will run it
-			eventProcessingThread = new Thread(()->{/* TODO */}, "MongoDriver event processor");
-
-			return result.state;
-		} else {
-			// Another thread is already reinitializing. Nothing to do.
+		} catch (ReceiverInitializationException e) {
+			LOGGER.warn("Failed to initialize replication", e);
 			return null;
+		} finally {
+			assert formatDriver != null;
+			lock.unlock();
 		}
-		/*
-		State distinctions:
-		- "Oriented" vs "Disoriented" based on whether we've ever seen a resume token
-		- "Initialized" vs "Uninitialized" based on whether the bosk _has_ a state
-			- We should call downstream.initialState() at most once
-
-		1. Open change stream cursor
-			- If disoriented, call tryNext and get the resume token; also save the returned event for step 4
-		2. Determine format and instantiate format driver
-		3. Use it to load initial state and revision
-			- At this point, we're Initialized
-		4. Initiate event-processing thread using cursor, revision, and possibly one event
-			- But paused, so it's not sending anything downstream yet!
-		5. Return the initial state
-
-		Caller is expected to:
-		- Do the right thing with the returned state (return from initialState or submit downstream)
-		  - On successful downstream submission, change to the "initialized" state
-		- Resume the event-processing thread
-
-		Special cases:
-		- During 1, if the collection doesn't exist, create it and initialize from downstream.initialState()
-		- If any MongoException occurs:
-		 	- If we're uninitialized, then call downstream.initialState() and return that
-		 	- Else return null, indicating that the existing bosk state should be retained
-		*/
-		return null;
 	}
+
+	private final class Listener implements ChangeEventListener {
+		/**
+		 * Raise your hand if you want to think about the case where a listener keeps on processing
+		 * events after an exception. Nobody? Ok, that's what I thought.
+		 */
+		volatile boolean isListening = true; // (volatile is probably overkill because all calls are on the same thread anyway)
+
+		@Override
+		public void onEvent(ChangeStreamDocument<Document> event) {
+			if (isListening) {
+				formatDriver.onEvent(event);
+			}
+		}
+
+		@Override
+		public void onException(Exception e) {
+			isListening = false;
+			recoverFrom(e);
+		}
+	}
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(MainDriver.class);
 }

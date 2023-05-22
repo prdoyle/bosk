@@ -5,6 +5,7 @@ import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import io.vena.bosk.exceptions.NotYetImplementedException;
+import java.io.Closeable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -20,15 +21,30 @@ import org.slf4j.LoggerFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
+/**
+ * Has three jobs:
+ *
+ * <ol><li>
+ *     does inversion of control on the change stream cursor,
+ *     calling {@link ChangeEventListener} callback methods on a background thread,
+ * </li><li>
+ *     catches event-processing exceptions and reports them to {@link ChangeEventListener#onException}
+ *     so the listener can initiate a clean reinitialization and recovery sequence, and
+ * </li><li>
+ *     acts as a long-lived container for the various transient objects ({@link MongoChangeStreamCursor},
+ *     {@link ChangeEventListener}) that get replaced during reinitialization.
+ * </li></ol>
+ *
+ */
 @RequiredArgsConstructor
-class ChangeEventReceiver {
+class ChangeEventReceiver implements Closeable {
 	private final MongoCollection<Document> collection;
 	private final ExecutorService ex = Executors.newFixedThreadPool(1);
 
 	private final Lock lock = new ReentrantLock();
 	private volatile State current;
 	private volatile BsonDocument lastProcessedResumeToken;
-	private volatile Future<Void> eventProcessingTask;
+	private volatile Future<?> eventProcessingTask;
 
 	@RequiredArgsConstructor
 	private static final class State {
@@ -39,14 +55,25 @@ class ChangeEventReceiver {
 
 	/**
 	 * Sets up an event processing loop so that it will start feeding events to
-	 * <code>newListener</code> when {@link #start()} is called.
-	 * Shuts down the existing event processing loop, if any.
+	 * <code>listener</code> when {@link #start()} is called.
+	 * No events will be sent to <code>listener</code> before {@link #start()} has been called.
+	 *
+	 * <p>
+	 * Shuts down the existing event processing loop, if any:
+	 * this method has been specifically designed to be called more than once,
+	 * in case you're wondering why we wouldn't just do this in the constructor.
+	 * This method is also designed to support being called on the event-processing
+	 * thread itself, since a re-initialization could be triggered by an event or exception.
+	 * For example, a {@link ChangeEventListener#onException} implementation can call this.
+	 *
+	 * @return true if we obtained a resume token.
 	 */
-	public void initialize(ChangeEventListener newListener) throws ReceiverInitializationException {
+	public boolean initialize(ChangeEventListener listener) throws ReceiverInitializationException {
 		try {
 			lock.lock();
 			stop();
-			setupNewState(newListener);
+			setupNewState(listener);
+			return lastProcessedResumeToken != null;
 		} catch (RuntimeException | InterruptedException | TimeoutException e) {
 			throw new ReceiverInitializationException(e);
 		} finally {
@@ -60,7 +87,11 @@ class ChangeEventReceiver {
 			if (current == null) {
 				throw new IllegalStateException("Receiver is not initialized");
 			}
-			ex.submit(()->eventProcessingLoop(current));
+			if (eventProcessingTask == null) {
+				eventProcessingTask = ex.submit(() -> eventProcessingLoop(current));
+			} else {
+				LOGGER.debug("Already running");
+			}
 		} finally {
 			lock.unlock();
 		}
@@ -69,7 +100,7 @@ class ChangeEventReceiver {
 	public void stop() throws InterruptedException, TimeoutException {
 		try {
 			lock.lock();
-			Future<Void> task = this.eventProcessingTask;
+			Future<?> task = this.eventProcessingTask;
 			if (task != null) {
 				task.cancel(true);
 				task.get(10, SECONDS); // TODO: Config
@@ -82,7 +113,18 @@ class ChangeEventReceiver {
 		}
 	}
 
-	private void setupNewState(ChangeEventListener newListener) throws ReceiverInitializationException {
+	@Override
+	public void close() {
+		try {
+			stop();
+		} catch (TimeoutException | InterruptedException e) {
+			LOGGER.info("Ignoring exception while closing ChangeEventReceiver", e);
+		}
+		ex.shutdown();
+	}
+
+	private void setupNewState(ChangeEventListener newListener) {
+		assert this.eventProcessingTask == null;
 		this.current = null; // In case any exceptions happen during this method
 
 		MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor;
@@ -90,9 +132,6 @@ class ChangeEventReceiver {
 		if (lastProcessedResumeToken == null) {
 			cursor = collection.watch().cursor();
 			initialEvent = cursor.tryNext();
-			if (cursor.getResumeToken() == null) {
-				throw new ReceiverInitializationException("Unable to get resume token");
-			}
 			if (initialEvent == null) {
 				// In this case, tryNext() has caused the cursor to point to
 				// a token in the past, so we can reliably use that.
@@ -101,9 +140,6 @@ class ChangeEventReceiver {
 		} else {
 			cursor = collection.watch().resumeAfter(lastProcessedResumeToken).cursor();
 			initialEvent = null;
-		}
-		if (lastProcessedResumeToken == null) {
-			throw new NotYetImplementedException("No resume token - coordinate with state reload");
 		}
 		current = new State(cursor, initialEvent, newListener);
 	}
