@@ -47,6 +47,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	private final Lock initializationLock = new ReentrantLock();
 	private volatile FormatDriver<R> formatDriver = new DisconnectedDriver<>();
+	private volatile boolean isClosed = false;
 
 	public MainDriver(
 		Bosk<R> bosk,
@@ -106,7 +107,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	}
 
 	private void recoverFrom(Exception exception) {
-		LOGGER.error("Unexpected exception; reinitializing", exception);
+		LOGGER.error("Unexpected exception; reinitializing", new Exception(exception));
 		R result;
 		try {
 			result = initializeReplication();
@@ -184,6 +185,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	@Override
 	public void close() {
+		isClosed = true;
 		receiver.close();
 		formatDriver.close();
 	}
@@ -200,6 +202,9 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	 * @throws UninitializedCollectionException if the database or collection doesn't exist
 	 */
 	private R initializeReplication() throws UninitializedCollectionException {
+		if (isClosed) {
+			return null;
+		}
 		try {
 			initializationLock.lock();
 			formatDriver = new DisconnectedDriver<>(); // Fallback in case initialization fails
@@ -232,7 +237,11 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		@Override
 		public void onEvent(ChangeStreamDocument<Document> event) {
 			if (isListening) {
-				formatDriver.onEvent(event);
+				try {
+					formatDriver.onEvent(event);
+				} catch (RuntimeException e) {
+					onException(e);
+				}
 			}
 		}
 
@@ -249,7 +258,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			if (cursor.hasNext()) {
 				return newSingleDocFormatDriver();
 			} else {
-				throw new UninitializedCollectionException();
+				throw new UninitializedCollectionException("Document doesn't exist");
 			}
 		}
 	}

@@ -7,6 +7,8 @@ import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import org.bson.BsonInt64;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -17,7 +19,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 class FlushLock {
 	private final MongoDriverSettings settings;
 	private final PriorityBlockingQueue<Waiter> queue = new PriorityBlockingQueue<>();
-	private volatile long alreadySeen = -1;
+	private volatile long alreadySeen = 0; // Corresponds to REVISION_ZERO, which is always "in the past"
 
 	@Value
 	private static class Waiter implements Comparable<Waiter> {
@@ -31,27 +33,41 @@ class FlushLock {
 	}
 
 	void awaitRevision(BsonInt64 revision) throws InterruptedException, FlushFailureException {
-		if (revision.longValue() <= alreadySeen) {
-			// Don't wait for revisions in the past
+		long revisionValue = revision.longValue();
+		if (revisionValue <= alreadySeen) {
+			LOGGER.debug("Revision {} is in the past", revisionValue);
 			return;
 		}
+		LOGGER.debug("Awaiting revision {}", revisionValue);
 		Semaphore semaphore = new Semaphore(0);
-		queue.add(new Waiter(revision.longValue(), semaphore));
+		queue.add(new Waiter(revisionValue, semaphore));
 		if (!semaphore.tryAcquire(settings.flushTimeoutMS(), MILLISECONDS)) {
-			throw new FlushFailureException("Timed out waiting for revision " + revision);
+			throw new FlushFailureException("Timed out waiting for revision " + revisionValue);
 		}
+		LOGGER.trace("Done awaiting revision {}", revisionValue);
 	}
 
 	/**
 	 * @param revision can be null
 	 */
-	void notifyRevision(BsonInt64 revision) {
+	public void startedRevision(BsonInt64 revision) {
 		if (revision == null) {
 			return;
 		}
 		long revisionValue = revision.longValue();
 		assert alreadySeen <= revisionValue;
 		alreadySeen = revisionValue;
+		LOGGER.debug("Seen {}", revisionValue);
+	}
+
+	/**
+	 * @param revision can be null
+	 */
+	void finishedRevision(BsonInt64 revision) {
+		if (revision == null) {
+			return;
+		}
+		long revisionValue = revision.longValue();
 		do {
 			Waiter w = queue.peek();
 			if (w == null || w.revision > revisionValue) {
@@ -63,4 +79,6 @@ class FlushLock {
 			}
 		} while (true);
 	}
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(FlushLock.class);
 }

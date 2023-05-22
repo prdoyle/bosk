@@ -116,6 +116,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	public void flush() throws IOException, InterruptedException {
 		LOGGER.debug("+ flush()");
 		flushLock.awaitRevision(readRevisionNumber());
+		LOGGER.debug("| Flush downstream");
 		downstream.flush();
 	}
 
@@ -162,32 +163,48 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	public void onEvent(ChangeStreamDocument<Document> event) {
 		LOGGER.debug("# EVENT: {}", event);
 		switch (event.getOperationType()) {
-			case INSERT: case REPLACE:// Both of these represent replacing the whole document
-				// getFullDocument is reliable for INSERT and REPLACE operations:
-				//   https://docs.mongodb.com/v4.0/reference/change-events/#change-stream-output
-				LOGGER.debug("| Replace document - IGNORE");
-				//driver.submitReplacement(rootRef, document2object(event.getFullDocument().get(DocumentFields.root), rootRef));
-				// TODO
-				break;
-			case UPDATE:
+			case INSERT: case REPLACE: {
+				BsonInt64 revision = getRevisionFromFullDocumentEvent(event.getFullDocument());
+				flushLock.startedRevision(revision);
+				Document state = event.getFullDocument().get(DocumentFields.state.name(), Document.class);
+				if (state == null) {
+					throw new NotYetImplementedException("No state??");
+				}
+				R newRoot = formatter.document2object(state, rootRef);
+				downstream.submitReplacement(rootRef, newRoot);
+				flushLock.finishedRevision(revision);
+			} break;
+			case UPDATE: {
 				UpdateDescription updateDescription = event.getUpdateDescription();
 				if (updateDescription != null) {
-					BsonInt64 revision = getRevisionFromEvent(event);
+					BsonInt64 revision = getRevisionFromUpdateEvent(event);
+					flushLock.startedRevision(revision);
 					if (shouldNotSkip(revision)) {
 						replaceUpdatedFields(updateDescription.getUpdatedFields());
 						deleteRemovedFields(updateDescription.getRemovedFields());
 					}
-
-					// Now that we've done everything else, we can record that we've processed the event
-					flushLock.notifyRevision(revision);
+					flushLock.finishedRevision(revision);
 				}
-				break;
-			default:
+			} break;
+			default: {
 				throw new NotYetImplementedException("Unknown change stream event: " + event);
+			}
 		}
 	}
 
-	private static BsonInt64 getRevisionFromEvent(ChangeStreamDocument<Document> event) {
+	private BsonInt64 getRevisionFromFullDocumentEvent(Document fullDocument) {
+		if (fullDocument == null) {
+			return null;
+		}
+		Long revision = fullDocument.getLong(DocumentFields.revision.name());
+		if (revision == null) {
+			return null;
+		} else {
+			return new BsonInt64(revision);
+		}
+	}
+
+	private static BsonInt64 getRevisionFromUpdateEvent(ChangeStreamDocument<Document> event) {
 		if (event == null) {
 			return null;
 		}
