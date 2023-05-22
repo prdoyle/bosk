@@ -56,7 +56,6 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	private volatile BsonInt64 revisionToSkip = null;
 
 	static final BsonString DOCUMENT_ID = new BsonString("boskDocument");
-	static final String COLLECTION_NAME = "boskCollection";
 
 	SingleDocFormatDriver(Bosk<R> bosk, MongoCollection<Document> collection, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin, BoskDriver<R> downstream) {
 		this.description = SingleDocFormatDriver.class.getSimpleName() + ": " + driverSettings;
@@ -123,12 +122,25 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	@Override
 	public void close() {
 		LOGGER.debug("+ close()");
-		throw new NotYetImplementedException();
 	}
 
 	@Override
-	public StateAndMetadata<R> loadAllState() {
-		throw new NotYetImplementedException();
+	public StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException {
+		try (MongoCursor<Document> cursor = collection.find(documentFilter()).limit(1).cursor()) {
+			Document document = cursor.next();
+			Document state = document.get(DocumentFields.state.name(), Document.class);
+			Long revision = document.getLong(DocumentFields.revision.name());
+			if (state == null) {
+				throw new IOException("No existing state in document");
+			} else {
+				R root = formatter.document2object(state, rootRef);
+				BsonInt64 rev = new BsonInt64((revision==null)? 0L : revision); // Nonexistent revision == 0
+				return new StateAndMetadata<>(root, rev);
+			}
+		} catch (NoSuchElementException e) {
+			throw new UninitializedCollectionException("No existing document", e);
+		}
+
 	}
 
 	@Override

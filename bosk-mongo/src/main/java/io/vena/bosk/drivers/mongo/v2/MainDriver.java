@@ -6,9 +6,12 @@ import com.mongodb.ReadConcern;
 import com.mongodb.TransactionOptions;
 import com.mongodb.WriteConcern;
 import com.mongodb.client.ClientSession;
+import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDriver;
@@ -28,22 +31,24 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.vena.bosk.drivers.mongo.v2.Formatter.REVISION_ONE;
+
 public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	private final Bosk<R> bosk;
-	private final MongoClientSettings clientSettings;
 	private final MongoDriverSettings driverSettings;
 	private final BsonPlugin bsonPlugin;
 	private final BoskDriver<R> downstream;
 
 	private final Reference<R> rootRef;
 	private final MongoClient mongoClient;
+	private final MongoDatabase database;
 	private final MongoCollection<Document> collection;
 	private final ChangeEventReceiver receiver;
 
 	private final Lock initializationLock = new ReentrantLock();
 	private volatile FormatDriver<R> formatDriver = new DisconnectedDriver<>();
 
-	MainDriver(
+	public MainDriver(
 		Bosk<R> bosk,
 		MongoClientSettings clientSettings,
 		MongoDriverSettings driverSettings,
@@ -53,16 +58,16 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		validateMongoClientSettings(clientSettings);
 
 		this.bosk = bosk;
-		this.clientSettings = clientSettings;
 		this.driverSettings = driverSettings;
 		this.bsonPlugin = bsonPlugin;
 		this.downstream = downstream;
 
 		this.rootRef = bosk.rootReference();
 		this.mongoClient = MongoClients.create(clientSettings);
-		this.collection = mongoClient
-			.getDatabase(driverSettings.database())
-			.getCollection("boskCollection");
+		this.database = mongoClient
+			.getDatabase(driverSettings.database());
+		this.collection = database
+			.getCollection(COLLECTION_NAME);
 		this.receiver = new ChangeEventReceiver(collection);
 	}
 
@@ -82,7 +87,16 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		// TODO: How to initialize the database and collection if they don't exist?
-		R result = initializeReplication();
+		R result;
+		try {
+			result = initializeReplication();
+		} catch (UninitializedCollectionException e) {
+			LOGGER.debug("Initializing collection", e);
+			FormatDriver<R> newDriver = newSingleDocFormatDriver(); // TODO: Pick based on config?
+			result = downstream.initialRoot(rootType);
+			newDriver.initializeCollection(new StateAndMetadata<>(result, REVISION_ONE));
+			formatDriver = newDriver;
+		}
 		receiver.start();
 		if (result == null) {
 			return downstream.initialRoot(rootType);
@@ -91,9 +105,15 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		}
 	}
 
-	private void recoverFrom(Exception e) {
-		LOGGER.error("Unexpected exception; reinitializing", e);
-		R result = initializeReplication();
+	private void recoverFrom(Exception exception) {
+		LOGGER.error("Unexpected exception; reinitializing", exception);
+		R result;
+		try {
+			result = initializeReplication();
+		} catch (UninitializedCollectionException e) {
+			LOGGER.warn("Collection is uninitialized; driver is disconnected", e);
+			return;
+		}
 		if (result != null) {
 			// Because we haven't called receiver.start() yet, this won't race with other events
 			downstream.submitReplacement(rootRef, result);
@@ -132,7 +152,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	}
 
 	@Override
-	public void refurbish() {
+	public void refurbish() throws IOException {
 		ClientSessionOptions sessionOptions = ClientSessionOptions.builder()
 			.causallyConsistent(true)
 			.defaultTransactionOptions(TransactionOptions.builder()
@@ -147,12 +167,13 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 				// That system needs to cope with a refurbish operations without any help.
 				session.startTransaction();
 				StateAndMetadata<R> result = formatDriver.loadAllState();
-				FormatDriver<R> newFormatDriver = new SingleDocFormatDriver<>( // TODO: Detect format
-					bosk, collection, driverSettings, bsonPlugin, downstream);
+				FormatDriver<R> newFormatDriver = detectFormat();
 				collection.deleteMany(new BsonDocument());
 				newFormatDriver.initializeCollection(result);
 				session.commitTransaction();
 				formatDriver = newFormatDriver;
+			} catch (UninitializedCollectionException e) {
+				throw new IOException("Unable to refurbish uninitialized database collection", e);
 			} finally {
 				if (session.hasActiveTransaction()) {
 					session.abortTransaction();
@@ -176,13 +197,14 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	 * after initialization but before any events arrive.
 	 *
 	 * @return The new root object to use, if any
+	 * @throws UninitializedCollectionException if the database or collection doesn't exist
 	 */
-	private R initializeReplication() {
+	private R initializeReplication() throws UninitializedCollectionException {
 		try {
 			initializationLock.lock();
-			formatDriver = new DisconnectedDriver<>(); // In case initialization fails
+			formatDriver = new DisconnectedDriver<>(); // Fallback in case initialization fails
 			if (receiver.initialize(new Listener())) {
-				DummyFormatDriver<R> newDriver = new DummyFormatDriver<>(); // TODO: Determine the right one
+				FormatDriver<R> newDriver = detectFormat();
 				StateAndMetadata<R> result = newDriver.loadAllState();
 				newDriver.onRevisionToSkip(result.revision);
 				formatDriver = newDriver;
@@ -191,7 +213,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 				LOGGER.warn("Unable to fetch resume token");
 				return null;
 			}
-		} catch (ReceiverInitializationException e) {
+		} catch (ReceiverInitializationException | IOException e) {
 			LOGGER.warn("Failed to initialize replication", e);
 			return null;
 		} finally {
@@ -221,5 +243,22 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		}
 	}
 
+	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException {
+		FindIterable<Document> result = collection.find(new BsonDocument("_id", SingleDocFormatDriver.DOCUMENT_ID));
+		try (MongoCursor<Document> cursor = result.cursor()) {
+			if (cursor.hasNext()) {
+				return newSingleDocFormatDriver();
+			} else {
+				throw new UninitializedCollectionException();
+			}
+		}
+	}
+
+	private SingleDocFormatDriver<R> newSingleDocFormatDriver() {
+		return new SingleDocFormatDriver<>(
+			bosk, collection, driverSettings, bsonPlugin, downstream);
+	}
+
+	public static final String COLLECTION_NAME = "boskCollection";
 	private static final Logger LOGGER = LoggerFactory.getLogger(MainDriver.class);
 }

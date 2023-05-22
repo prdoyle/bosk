@@ -5,6 +5,8 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import io.vena.bosk.Entity;
 import io.vena.bosk.drivers.mongo.MongoDriver;
+import io.vena.bosk.exceptions.InitializationFailureException;
+import java.io.IOException;
 import java.lang.reflect.Type;
 import org.bson.BsonInt64;
 import org.bson.Document;
@@ -42,13 +44,13 @@ public interface FormatDriver<R extends Entity> extends MongoDriver<R> {
 	 */
 	void onRevisionToSkip(BsonInt64 revision);
 
-	StateAndMetadata<R> loadAllState();
+	StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException;
 
 	/**
 	 * Can assume that the collection is empty or nonexistent.
 	 * Can assume it's called in a transaction.
 	 */
-	void initializeCollection(StateAndMetadata<R> contents);
+	void initializeCollection(StateAndMetadata<R> contents) throws InitializationFailureException;
 
 	@Override
 	default R initialRoot(Type rootType) {

@@ -6,6 +6,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.io.Closeable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -103,7 +104,12 @@ class ChangeEventReceiver implements Closeable {
 			Future<?> task = this.eventProcessingTask;
 			if (task != null) {
 				task.cancel(true);
-				task.get(10, SECONDS); // TODO: Config
+				try {
+					task.get(10, SECONDS); // TODO: Config
+					LOGGER.warn("Normal completion of event processing task was not expected");
+				} catch (CancellationException e) {
+					LOGGER.debug("Cancellation succeeded", e);
+				}
 				this.eventProcessingTask = null;
 			}
 		} catch (ExecutionException e) {
