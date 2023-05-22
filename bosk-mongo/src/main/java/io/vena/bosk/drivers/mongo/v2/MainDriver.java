@@ -1,40 +1,87 @@
 package io.vena.bosk.drivers.mongo.v2;
 
+import com.mongodb.ClientSessionOptions;
+import com.mongodb.MongoClientSettings;
+import com.mongodb.ReadConcern;
+import com.mongodb.TransactionOptions;
+import com.mongodb.WriteConcern;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
+import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.drivers.mongo.MongoDriver;
+import io.vena.bosk.drivers.mongo.MongoDriverSettings;
 import io.vena.bosk.exceptions.InvalidTypeException;
-import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import org.bson.BsonDocument;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MainDriver<R extends Entity> implements MongoDriver<R> {
-	private final Lock lock = new ReentrantLock();
+	private final Bosk<R> bosk;
+	private final MongoClientSettings clientSettings;
+	private final MongoDriverSettings driverSettings;
+	private final BsonPlugin bsonPlugin;
 	private final BoskDriver<R> downstream;
+
 	private final Reference<R> rootRef;
+	private final MongoClient mongoClient;
+	private final MongoCollection<Document> collection;
 	private final ChangeEventReceiver receiver;
 
-	private volatile FormatDriver<R> formatDriver;
+	private final Lock initializationLock = new ReentrantLock();
+	private volatile FormatDriver<R> formatDriver = new DisconnectedDriver<>();
 
-	MainDriver(MongoClient client, BoskDriver<R> downstream, Reference<R> rootRef) {
+	MainDriver(
+		Bosk<R> bosk,
+		MongoClientSettings clientSettings,
+		MongoDriverSettings driverSettings,
+		BsonPlugin bsonPlugin,
+		BoskDriver<R> downstream
+		) {
+		validateMongoClientSettings(clientSettings);
+
+		this.bosk = bosk;
+		this.clientSettings = clientSettings;
+		this.driverSettings = driverSettings;
+		this.bsonPlugin = bsonPlugin;
 		this.downstream = downstream;
-		this.rootRef = rootRef;
 
-		this.receiver = new ChangeEventReceiver(
-			client.getDatabase("foo").getCollection("bar"));
+		this.rootRef = bosk.rootReference();
+		this.mongoClient = MongoClients.create(clientSettings);
+		this.collection = mongoClient
+			.getDatabase(driverSettings.database())
+			.getCollection("boskCollection");
+		this.receiver = new ChangeEventReceiver(collection);
+	}
+
+	private void validateMongoClientSettings(MongoClientSettings clientSettings) {
+		// We require ReadConcern and WriteConcern to be MAJORITY to ensure the Causal Consistency
+		// guarantees needed to meet the requirements of the BoskDriver interface.
+		// https://www.mongodb.com/docs/manual/core/causal-consistency-read-write-concerns/
+
+		if (clientSettings.getReadConcern() != ReadConcern.MAJORITY) {
+			throw new IllegalArgumentException("MongoDriver requires MongoClientSettings to specify ReadConcern.MAJORITY");
+		}
+		if (clientSettings.getWriteConcern() != WriteConcern.MAJORITY) {
+			throw new IllegalArgumentException("MongoDriver requires MongoClientSettings to specify WriteConcern.MAJORITY");
+		}
 	}
 
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+		// TODO: How to initialize the database and collection if they don't exist?
 		R result = initializeReplication();
 		receiver.start();
 		if (result == null) {
@@ -48,6 +95,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		LOGGER.error("Unexpected exception; reinitializing", e);
 		R result = initializeReplication();
 		if (result != null) {
+			// Because we haven't called receiver.start() yet, this won't race with other events
 			downstream.submitReplacement(rootRef, result);
 		}
 		receiver.start();
@@ -85,7 +133,32 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	@Override
 	public void refurbish() {
-		throw new NotYetImplementedException();
+		ClientSessionOptions sessionOptions = ClientSessionOptions.builder()
+			.causallyConsistent(true)
+			.defaultTransactionOptions(TransactionOptions.builder()
+				.writeConcern(WriteConcern.MAJORITY)
+				.readConcern(ReadConcern.MAJORITY)
+				.build())
+			.build();
+		try (ClientSession session = mongoClient.startSession(sessionOptions)) {
+			try {
+				// Design note: this operation shouldn't do any special coordination with
+				// the receiver/listener system, because other replicas won't.
+				// That system needs to cope with a refurbish operations without any help.
+				session.startTransaction();
+				StateAndMetadata<R> result = formatDriver.loadAllState();
+				FormatDriver<R> newFormatDriver = new SingleDocFormatDriver<>( // TODO: Detect format
+					bosk, collection, driverSettings, bsonPlugin, downstream);
+				collection.deleteMany(new BsonDocument());
+				newFormatDriver.initializeCollection(result);
+				session.commitTransaction();
+				formatDriver = newFormatDriver;
+			} finally {
+				if (session.hasActiveTransaction()) {
+					session.abortTransaction();
+				}
+			}
+		}
 	}
 
 	@Override
@@ -106,11 +179,11 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	 */
 	private R initializeReplication() {
 		try {
-			lock.lock();
+			initializationLock.lock();
 			formatDriver = new DisconnectedDriver<>(); // In case initialization fails
 			if (receiver.initialize(new Listener())) {
 				DummyFormatDriver<R> newDriver = new DummyFormatDriver<>(); // TODO: Determine the right one
-				StateResult<R> result = newDriver.loadAllState();
+				StateAndMetadata<R> result = newDriver.loadAllState();
 				newDriver.onRevisionToSkip(result.revision);
 				formatDriver = newDriver;
 				return result.state;
@@ -123,7 +196,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			return null;
 		} finally {
 			assert formatDriver != null;
-			lock.unlock();
+			initializationLock.unlock();
 		}
 	}
 

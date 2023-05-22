@@ -61,7 +61,7 @@ class DisconnectedDriver<R extends Entity> implements FormatDriver<R> {
 	public void close() { }
 
 	@Override
-	public StateResult<R> loadAllState() {
+	public StateAndMetadata<R> loadAllState() {
 		throw disconnected();
 	}
 

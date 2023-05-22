@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.bson.BsonInt64;
 
 @RequiredArgsConstructor
-class StateResult<R extends Entity> {
+class StateAndMetadata<R extends Entity> {
 	final R state;
 	final BsonInt64 revision;
 }

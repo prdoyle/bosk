@@ -56,7 +56,7 @@ class DummyFormatDriver<R extends Entity> implements FormatDriver<R> {
 	}
 
 	@Override
-	public StateResult<R> loadAllState() {
+	public StateAndMetadata<R> loadAllState() {
 		return null;
 	}
 
