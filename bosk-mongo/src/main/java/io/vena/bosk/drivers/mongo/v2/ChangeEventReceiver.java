@@ -4,6 +4,7 @@ import com.mongodb.MongoInterruptedException;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.io.Closeable;
 import java.util.concurrent.CancellationException;
@@ -20,6 +21,7 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
@@ -136,8 +138,8 @@ class ChangeEventReceiver implements Closeable {
 		MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor;
 		ChangeStreamDocument<Document> initialEvent;
 		if (lastProcessedResumeToken == null) {
-			cursor = collection.watch().cursor();
-			initialEvent = cursor.tryNext();
+			cursor = collection.watch().maxAwaitTime(0, MILLISECONDS).cursor();
+			initialEvent = doTryNext(cursor);
 			if (initialEvent == null) {
 				// In this case, tryNext() has caused the cursor to point to
 				// a token in the past, so we can reliably use that.
@@ -148,6 +150,11 @@ class ChangeEventReceiver implements Closeable {
 			initialEvent = null;
 		}
 		current = new State(cursor, initialEvent, newListener);
+	}
+
+	@WithSpan
+	private static ChangeStreamDocument<Document> doTryNext(MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor) {
+		return cursor.tryNext();
 	}
 
 	/**

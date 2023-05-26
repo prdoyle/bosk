@@ -1,5 +1,6 @@
 package io.vena.bosk.drivers;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.vena.bosk.Catalog;
 import io.vena.bosk.CatalogReference;
 import io.vena.bosk.DriverFactory;
@@ -32,12 +33,14 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	protected DriverFactory<TestEntity> driverFactory;
 
 	@ParametersByName
+	@WithSpan
 	void testInitialState(Path enclosingCatalogPath) {
 		initializeBoskWithCatalog(enclosingCatalogPath);
 		assertCorrectBoskContents();
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testReplaceIdentical(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitReplacement(ref.then(childID), newEntity(childID, ref));
@@ -45,6 +48,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testReplaceDifferent(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitReplacement(ref.then(childID), newEntity(childID, ref)
@@ -53,6 +57,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testReplaceWholeThenParts(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> catalogRef = initializeBoskWithCatalog(enclosingCatalogPath);
 		Identifier awkwardID = Identifier.from(AWKWARD_ID);
@@ -88,6 +93,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testDelete(Path enclosingCatalogPath, Identifier childID) {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitDeletion(ref.then(childID));
@@ -95,6 +101,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testReplaceCatalog(Path enclosingCatalogPath) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		Identifier unique = Identifier.unique("child");
@@ -107,6 +114,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testReplaceCatalogEmpty(Path enclosingCatalogPath) {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitReplacement(ref, Catalog.empty());
@@ -114,6 +122,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testConditionalReplaceFirst(Path enclosingCatalogPath) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		Reference<Identifier> child1IDRef = ref.then(child1ID).then(Identifier.class, TestEntity.Fields.id);
@@ -150,6 +159,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testDeleteForward(Path enclosingCatalogPath) {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitDeletion(ref.then(child1ID));
@@ -159,6 +169,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testDeleteBackward(Path enclosingCatalogPath) {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitDeletion(ref.then(child2ID));
@@ -168,6 +179,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testConditionalDelete(Path enclosingCatalogPath) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		Reference<Identifier> child1IDRef = ref.then(child1ID).then(Identifier.class, TestEntity.Fields.id);
@@ -204,6 +216,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testDeleteNonexistent(Path enclosingCatalogPath) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitDeletion(ref.then(Identifier.from("nonexistent")));
@@ -213,6 +226,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testDeleteCatalog_fails(Path enclosingCatalogPath) {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		assertThrows(IllegalArgumentException.class, ()->
@@ -221,6 +235,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testDeleteFields_fails(Path enclosingCatalogPath) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		// Use loops instead of parameters to avoid unnecessarily creating and initializing
@@ -236,6 +251,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testOptional() throws InvalidTypeException {
 		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		assertCorrectBoskContents();
@@ -252,6 +268,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testString() throws InvalidTypeException {
 		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		Reference<String> stringRef = ref.then(String.class, TestValues.Fields.string);
@@ -265,6 +282,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testEnum() throws InvalidTypeException {
 		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		Reference<ChronoUnit> enumRef = ref.then(ChronoUnit.class, TestValues.Fields.chronoUnit);
@@ -278,6 +296,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testListValue() throws InvalidTypeException {
 		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		Reference<ListValue<String>> listRef = ref.then(listValue(String.class), TestValues.Fields.list);
@@ -293,6 +312,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testMapValue() throws InvalidTypeException {
 		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		Reference<MapValue<String>> mapRef = ref.then(mapValue(String.class), TestValues.Fields.map);
@@ -326,6 +346,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void testFlushNothing() throws IOException, InterruptedException {
 		setupBosksAndReferences(driverFactory);
 		// Flush before any writes should work

@@ -13,6 +13,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
@@ -86,6 +87,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	}
 
 	@Override
+	@WithSpan
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		// TODO: How to initialize the database and collection if they don't exist?
 		R result;

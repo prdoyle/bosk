@@ -13,4 +13,5 @@ dependencies {
 	api 'org.mongodb:mongodb-driver-sync:4.1.2'
 	testImplementation project(":bosk-testing")
 	testImplementation project(":lib-testing")
+	implementation 'io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:1.26.0'
 }
