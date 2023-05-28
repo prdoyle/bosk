@@ -34,15 +34,16 @@ class FlushLock {
 
 	void awaitRevision(BsonInt64 revision) throws InterruptedException, FlushFailureException {
 		long revisionValue = revision.longValue();
-		if (revisionValue <= alreadySeen) {
-			LOGGER.debug("Revision {} is in the past", revisionValue);
-			return;
-		}
-		LOGGER.debug("Awaiting revision {}", revisionValue);
 		Semaphore semaphore = new Semaphore(0);
 		queue.add(new Waiter(revisionValue, semaphore));
-		if (!semaphore.tryAcquire(settings.flushTimeoutMS(), MILLISECONDS)) {
-			throw new FlushFailureException("Timed out waiting for revision " + revisionValue);
+		if (revisionValue <= alreadySeen) {
+			LOGGER.debug("Revision {} is in the past; don't wait", revisionValue);
+			return;
+		} else {
+			LOGGER.debug("Awaiting revision {}", revisionValue);
+			if (!semaphore.tryAcquire(settings.flushTimeoutMS(), MILLISECONDS)) {
+				throw new FlushFailureException("Timed out waiting for revision " + revisionValue);
+			}
 		}
 		LOGGER.trace("Done awaiting revision {}", revisionValue);
 	}
