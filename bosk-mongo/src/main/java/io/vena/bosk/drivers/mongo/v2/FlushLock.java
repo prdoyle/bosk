@@ -69,6 +69,7 @@ class FlushLock {
 			return;
 		}
 		long revisionValue = revision.longValue();
+		boolean foundWaiter = false;
 		do {
 			Waiter w = queue.peek();
 			if (w == null || w.revision > revisionValue) {
@@ -76,6 +77,10 @@ class FlushLock {
 			} else {
 				Waiter removed = queue.remove();
 				assert w == removed;
+				if (!foundWaiter) {
+					foundWaiter = true;
+					LOGGER.debug("Notified thread waiting for {}", revisionValue);
+				}
 				w.semaphore.release();
 			}
 		} while (true);

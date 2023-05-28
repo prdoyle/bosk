@@ -114,6 +114,10 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	}
 
 	private void recoverFrom(Exception exception) {
+		if (isClosed) {
+			LOGGER.debug("Closed driver ignoring exception", exception);
+			return;
+		}
 		LOGGER.error("Recovering from unexpected exception; reinitializing", exception);
 		R result;
 		try {
