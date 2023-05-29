@@ -21,6 +21,7 @@ import io.vena.bosk.Reference;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.drivers.mongo.MongoDriver;
 import io.vena.bosk.drivers.mongo.MongoDriverSettings;
+import io.vena.bosk.exceptions.InitializationFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.io.IOException;
@@ -90,7 +91,6 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		logDriverOperation("initialRoot");
-		// TODO: How to initialize the database and collection if they don't exist?
 		R result;
 		try {
 			result = initializeReplication();
@@ -124,6 +124,9 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			result = initializeReplication();
 		} catch (UninitializedCollectionException e) {
 			LOGGER.warn("Collection is uninitialized; driver is disconnected", e);
+			return;
+		} catch (InitializationFailureException e) {
+			LOGGER.warn("Unable to initialize; driver is disconnected", e);
 			return;
 		}
 		if (result != null) {
@@ -246,7 +249,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	 * @return The new root object to use, if any
 	 * @throws UninitializedCollectionException if the database or collection doesn't exist
 	 */
-	private R initializeReplication() throws UninitializedCollectionException {
+	private R initializeReplication() throws UninitializedCollectionException, InitializationFailureException {
 		if (isClosed) {
 			LOGGER.debug("Don't initialize replication on closed driver");
 			return null;
@@ -270,8 +273,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 					return null;
 				}
 			} catch (ReceiverInitializationException | IOException e) {
-				LOGGER.warn("Failed to initialize replication", e);
-				return null;
+				throw new InitializationFailureException(e);
 			} finally {
 				// Clearing the map entry here allows the next initialization task to be created
 				// now that this one has completed
@@ -291,8 +293,11 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		} catch (InterruptedException e) {
 			throw new NotYetImplementedException(e);
 		} catch (ExecutionException e) {
+			// Well this is a pain. Unwrapping the thrown exception kinda sucks
 			if (e.getCause() instanceof UninitializedCollectionException) {
 				throw (UninitializedCollectionException) e.getCause();
+			} else if (e.getCause() instanceof InitializationFailureException) {
+				throw (InitializationFailureException) e.getCause();
 			} else {
 				throw new NotYetImplementedException(e);
 			}
