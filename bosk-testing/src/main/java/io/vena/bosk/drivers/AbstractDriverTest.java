@@ -72,21 +72,27 @@ public class AbstractDriverTest {
 
 	void assertCorrectBoskContents() {
 		try {
-			driver.flush();
-		} catch (InterruptedException e) {
-			currentThread().interrupt();
-			throw new AssertionError("Unexpected interruption", e);
-		} catch (IOException e) {
-			throw new AssertionError("Unexpected exception", e);
+			try {
+				driver.flush();
+			} catch (InterruptedException e) {
+				currentThread().interrupt();
+				throw new AssertionError("Unexpected interruption", e);
+			} catch (IOException e) {
+				throw new AssertionError("Unexpected exception", e);
+			}
+			TestEntity expected, actual;
+			try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadContext context = canonicalBosk.readContext()) {
+				expected = canonicalBosk.rootReference().value();
+			}
+			try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadContext context = bosk.readContext()) {
+				actual = bosk.rootReference().value();
+			}
+			assertEquals(expected, actual);
+		} catch (AssertionError e) {
+			System.out.println("Caught exception");
+			e.printStackTrace(System.out);
+			throw e;
 		}
-		TestEntity expected, actual;
-		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadContext context = canonicalBosk.readContext()) {
-			expected = canonicalBosk.rootReference().value();
-		}
-		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadContext context = bosk.readContext()) {
-			actual = bosk.rootReference().value();
-		}
-		assertEquals(expected, actual);
 	}
 
 }

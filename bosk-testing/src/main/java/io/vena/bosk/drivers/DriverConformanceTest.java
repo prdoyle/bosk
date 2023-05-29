@@ -200,7 +200,6 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 			child1IDRef, child1ID
 		);
 		assertCorrectBoskContents();
-
 	}
 
 	@ParametersByName
