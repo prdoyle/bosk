@@ -21,6 +21,7 @@ import io.vena.bosk.Reference;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.drivers.mongo.MongoDriver;
 import io.vena.bosk.drivers.mongo.MongoDriverSettings;
+import io.vena.bosk.drivers.mongo.v2.Formatter.DocumentFields;
 import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
@@ -35,7 +36,6 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.vena.bosk.drivers.mongo.v2.Formatter.DocumentFields.*;
 import static io.vena.bosk.drivers.mongo.v2.Formatter.REVISION_ONE;
 
 public class MainDriver<R extends Entity> implements MongoDriver<R> {
@@ -354,8 +354,10 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		FindIterable<Document> result = collection.find(new BsonDocument("_id", SingleDocFormatDriver.DOCUMENT_ID));
 		try (MongoCursor<Document> cursor = result.cursor()) {
 			if (cursor.hasNext()) {
-				Document doc = cursor.next();
-				return newSingleDocFormatDriver(doc.getLong(revision.name()));
+				Long revision = cursor
+					.next()
+					.get(DocumentFields.revision.name(), 0L);
+				return newSingleDocFormatDriver(revision);
 			} else {
 				throw new UninitializedCollectionException("Document doesn't exist");
 			}
