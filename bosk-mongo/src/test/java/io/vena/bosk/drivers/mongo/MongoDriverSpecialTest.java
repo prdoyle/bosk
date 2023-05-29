@@ -262,6 +262,7 @@ class MongoDriverSpecialTest implements TestParameters {
 
 	@ParametersByName
 	@DisruptsMongoService
+//	@Disabled("SingleDocumentMongoDriver does not support outages at startup")
 	void initialOutage_boskRecovers() throws InvalidTypeException, InterruptedException, IOException {
 		// Set up the database contents to be different from initialRoot
 		Bosk<TestEntity> prepBosk = new Bosk<TestEntity>(
