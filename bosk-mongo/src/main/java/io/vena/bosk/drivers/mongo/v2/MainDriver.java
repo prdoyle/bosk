@@ -231,7 +231,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	@Override
 	public void close() {
-		beginDriverOperation("close");
+		logDriverOperation("close");
 		isClosed = true;
 		receiver.close();
 		formatDriver.close();
@@ -378,6 +378,10 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		if (isClosed) {
 			throw new IllegalStateException("Driver is closed");
 		}
+		logDriverOperation(description, args);
+	}
+
+	private void logDriverOperation(String description, Object... args) {
 		if (LOGGER.isDebugEnabled()) {
 			String formatString = "+[" + bosk.name() + "] " + description;
 			LOGGER.debug(formatString, args);
