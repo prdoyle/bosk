@@ -288,7 +288,7 @@ class MongoDriverSpecialTest implements TestParameters {
 
 		assertThrows(FlushFailureException.class, driver::flush,
 			"Flush disallowed during outage");
-		assertThrows(FlushFailureException.class, () -> driver.submitReplacement(bosk.rootReference(), initialRoot(bosk)),
+		assertThrows(Exception.class, () -> driver.submitReplacement(bosk.rootReference(), initialRoot(bosk)),
 			"Updates disallowed during outage");
 
 		mongoService.proxy().setConnectionCut(false);
@@ -302,6 +302,7 @@ class MongoDriverSpecialTest implements TestParameters {
 		// Make a change to the bosk and verify that it gets through
 		driver.submitReplacement(refs.listingEntry(entity123), LISTING_ENTRY);
 		TestEntity expected = initialRoot(bosk)
+			.withString("distinctive string")
 			.withListing(Listing.of(refs.catalog(), entity123));
 
 

@@ -91,6 +91,10 @@ class ChangeEventReceiver implements Closeable {
 		}
 	}
 
+	public boolean isReady() {
+		return currentSession != null;
+	}
+
 	public void start() {
 		try {
 			lock.lock();

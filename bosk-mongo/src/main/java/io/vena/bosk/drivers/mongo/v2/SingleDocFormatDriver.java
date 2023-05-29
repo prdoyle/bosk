@@ -58,7 +58,14 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 
 	static final BsonString DOCUMENT_ID = new BsonString("boskDocument");
 
-	SingleDocFormatDriver(Bosk<R> bosk, MongoCollection<Document> collection, MongoDriverSettings driverSettings, BsonPlugin bsonPlugin, BoskDriver<R> downstream) {
+	SingleDocFormatDriver(
+		Bosk<R> bosk,
+		MongoCollection<Document> collection,
+		MongoDriverSettings driverSettings,
+		BsonPlugin bsonPlugin,
+		FlushLock flushLock,
+		BoskDriver<R> downstream
+	) {
 		this.description = SingleDocFormatDriver.class.getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;
 		this.formatter = new Formatter(bosk, bsonPlugin);
@@ -66,7 +73,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 		this.echoPrefix = bosk.instanceID().toString();
 		this.rootRef = bosk.rootReference();
 		this.downstream = downstream;
-		this.flushLock = new FlushLock(settings);
+		this.flushLock = flushLock;
 	}
 
 	@Override

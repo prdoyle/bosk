@@ -21,8 +21,10 @@ import io.vena.bosk.Reference;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.drivers.mongo.MongoDriver;
 import io.vena.bosk.drivers.mongo.MongoDriverSettings;
+import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
+import io.vena.bosk.exceptions.TunneledCheckedException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.ExecutionException;
@@ -33,6 +35,7 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.vena.bosk.drivers.mongo.v2.Formatter.DocumentFields.*;
 import static io.vena.bosk.drivers.mongo.v2.Formatter.REVISION_ONE;
 
 public class MainDriver<R extends Entity> implements MongoDriver<R> {
@@ -89,8 +92,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
-		logDriverOperation("initialRoot");
-		// TODO: How to initialize the database and collection if they don't exist?
+		beginDriverOperation("initialRoot");
 		R result;
 		try {
 			result = initializeReplication();
@@ -100,12 +102,19 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			} else {
 				LOGGER.info("Creating collection");
 			}
-			FormatDriver<R> newDriver = newSingleDocFormatDriver(); // TODO: Pick based on config?
+			FormatDriver<R> newDriver = newSingleDocFormatDriver(REVISION_ONE.longValue()); // TODO: Pick based on config?
 			result = downstream.initialRoot(rootType);
 			newDriver.initializeCollection(new StateAndMetadata<>(result, REVISION_ONE));
 			formatDriver = newDriver;
+		} catch (ReceiverInitializationException e) {
+			LOGGER.debug("Unable to initialize replication", e);
+			result = null;
 		}
-		receiver.start();
+		if (receiver.isReady()) {
+			receiver.start();
+		} else {
+			LOGGER.debug("Receiver not started");
+		}
 		if (result == null) {
 			return downstream.initialRoot(rootType);
 		} else {
@@ -125,6 +134,9 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		} catch (UninitializedCollectionException e) {
 			LOGGER.warn("Collection is uninitialized; driver is disconnected", e);
 			return;
+		} catch (ReceiverInitializationException e) {
+			LOGGER.warn("Unable to initialize receiver", e);
+			return;
 		}
 		if (result != null) {
 			// Because we haven't called receiver.start() yet, this won't race with other events
@@ -137,49 +149,53 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		logDriverOperation("submitReplacement({})", target);
+		beginDriverOperation("submitReplacement({})", target);
 		retryIfDisconnected(() ->
 			formatDriver.submitReplacement(target, newValue));
 	}
 
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		logDriverOperation("submitConditionalReplacement({}, {} = {})", target, precondition, requiredValue);
+		beginDriverOperation("submitConditionalReplacement({}, {} = {})", target, precondition, requiredValue);
 		retryIfDisconnected(() ->
 			formatDriver.submitConditionalReplacement(target, newValue, precondition, requiredValue));
 	}
 
 	@Override
 	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		logDriverOperation("submitInitialization({})", target);
+		beginDriverOperation("submitInitialization({})", target);
 		retryIfDisconnected(() ->
 			formatDriver.submitInitialization(target, newValue));
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
-		logDriverOperation("submitDeletion({}, {})", target);
+		beginDriverOperation("submitDeletion({}, {})", target);
 		retryIfDisconnected(() ->
 			formatDriver.submitDeletion(target));
 	}
 
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		logDriverOperation("submitConditionalDeletion({}, {} = {})", target, precondition, requiredValue);
+		beginDriverOperation("submitConditionalDeletion({}, {} = {})", target, precondition, requiredValue);
 		retryIfDisconnected(() ->
 			formatDriver.submitConditionalDeletion(target, precondition, requiredValue));
 	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-		logDriverOperation("flush");
-		this.<IOException,InterruptedException> retryIfDisconnected(() ->
-			formatDriver.flush());
+		beginDriverOperation("flush");
+		try {
+			this.<IOException, InterruptedException>retryIfDisconnected(() ->
+				formatDriver.flush());
+		} catch (DisconnectedException e) {
+			throw new FlushFailureException("Unable to connect to database", e);
+		}
 	}
 
 	@Override
 	public void refurbish() throws IOException {
-		logDriverOperation("refurbish");
+		beginDriverOperation("refurbish");
 		retryIfDisconnected(this::doRefurbish);
 	}
 
@@ -215,7 +231,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	@Override
 	public void close() {
-		logDriverOperation("close");
+		beginDriverOperation("close");
 		isClosed = true;
 		receiver.close();
 		formatDriver.close();
@@ -246,7 +262,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	 * @return The new root object to use, if any
 	 * @throws UninitializedCollectionException if the database or collection doesn't exist
 	 */
-	private R initializeReplication() throws UninitializedCollectionException {
+	private R initializeReplication() throws UninitializedCollectionException, ReceiverInitializationException {
 		if (isClosed) {
 			LOGGER.debug("Don't initialize replication on closed driver");
 			return null;
@@ -271,7 +287,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 				}
 			} catch (ReceiverInitializationException | IOException e) {
 				LOGGER.warn("Failed to initialize replication", e);
-				return null;
+				throw new TunneledCheckedException(e);
 			} finally {
 				// Clearing the map entry here allows the next initialization task to be created
 				// now that this one has completed
@@ -291,8 +307,18 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		} catch (InterruptedException e) {
 			throw new NotYetImplementedException(e);
 		} catch (ExecutionException e) {
+			// Unpacking the exception is super annoying
 			if (e.getCause() instanceof UninitializedCollectionException) {
 				throw (UninitializedCollectionException) e.getCause();
+			} else if (e.getCause() instanceof TunneledCheckedException) {
+				Exception cause = ((TunneledCheckedException) e.getCause()).getCause();
+				if (cause instanceof UninitializedCollectionException) {
+					throw (UninitializedCollectionException) cause;
+				} else if (cause instanceof ReceiverInitializationException) {
+					throw (ReceiverInitializationException)cause;
+				} else {
+					throw new NotYetImplementedException(cause);
+				}
 			} else {
 				throw new NotYetImplementedException(e);
 			}
@@ -328,19 +354,28 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		FindIterable<Document> result = collection.find(new BsonDocument("_id", SingleDocFormatDriver.DOCUMENT_ID));
 		try (MongoCursor<Document> cursor = result.cursor()) {
 			if (cursor.hasNext()) {
-				return newSingleDocFormatDriver();
+				Document doc = cursor.next();
+				return newSingleDocFormatDriver(doc.getLong(revision.name()));
 			} else {
 				throw new UninitializedCollectionException("Document doesn't exist");
 			}
 		}
 	}
 
-	private SingleDocFormatDriver<R> newSingleDocFormatDriver() {
+	private SingleDocFormatDriver<R> newSingleDocFormatDriver(long revisionAlreadySeen) {
 		return new SingleDocFormatDriver<>(
-			bosk, collection, driverSettings, bsonPlugin, downstream);
+			bosk,
+			collection,
+			driverSettings,
+			bsonPlugin,
+			new FlushLock(driverSettings, revisionAlreadySeen),
+			downstream);
 	}
 
-	private void logDriverOperation(String description, Object... args) {
+	private void beginDriverOperation(String description, Object... args) {
+		if (isClosed) {
+			throw new IllegalStateException("Driver is closed");
+		}
 		if (LOGGER.isDebugEnabled()) {
 			String formatString = "+[" + bosk.name() + "] " + description;
 			LOGGER.debug(formatString, args);

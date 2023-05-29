@@ -4,7 +4,6 @@ import io.vena.bosk.drivers.mongo.MongoDriverSettings;
 import io.vena.bosk.exceptions.FlushFailureException;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
-import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import org.bson.BsonInt64;
 import org.slf4j.Logger;
@@ -15,11 +14,20 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 /**
  * Implements waiting mechanism for revision numbers
  */
-@RequiredArgsConstructor
 class FlushLock {
 	private final MongoDriverSettings settings;
 	private final PriorityBlockingQueue<Waiter> queue = new PriorityBlockingQueue<>();
-	private volatile long alreadySeen = 0; // Corresponds to REVISION_ZERO, which is always "in the past"
+	private volatile long alreadySeen;
+
+	/**
+	 * @param revisionAlreadySeen needs to be the exact revision from the database:
+	 * too old, and we'll wait forever for intervening revisions that have already happened;
+	 * too new, and we'll proceed immediately without waiting for revisions that haven't happened yet.
+	 */
+	public FlushLock(MongoDriverSettings settings, long revisionAlreadySeen) {
+		this.settings = settings;
+		this.alreadySeen = revisionAlreadySeen;
+	}
 
 	@Value
 	private static class Waiter implements Comparable<Waiter> {
@@ -36,14 +44,15 @@ class FlushLock {
 		long revisionValue = revision.longValue();
 		Semaphore semaphore = new Semaphore(0);
 		queue.add(new Waiter(revisionValue, semaphore));
-		if (revisionValue <= alreadySeen) {
-			LOGGER.debug("Revision {} is in the past; don't wait", revisionValue);
-			return;
-		} else {
-			LOGGER.debug("Awaiting revision {}", revisionValue);
+		long past = alreadySeen;
+		if (revisionValue > past) {
+			LOGGER.debug("Awaiting revision {} > {}", revisionValue, past);
 			if (!semaphore.tryAcquire(settings.flushTimeoutMS(), MILLISECONDS)) {
 				throw new FlushFailureException("Timed out waiting for revision " + revisionValue);
 			}
+		} else {
+			LOGGER.debug("Revision {} is in the past; don't wait", revisionValue);
+			return;
 		}
 		LOGGER.trace("Done awaiting revision {}", revisionValue);
 	}
