@@ -2,6 +2,7 @@ package io.vena.bosk.drivers.mongo.v2;
 
 import io.vena.bosk.drivers.mongo.MongoDriverSettings;
 import io.vena.bosk.exceptions.FlushFailureException;
+import io.vena.bosk.exceptions.NotYetImplementedException;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
@@ -75,6 +76,9 @@ class FlushLock {
 			return;
 		}
 		long revisionValue = revision.longValue();
+		if (revisionValue <= alreadySeen) {
+			throw new NotYetImplementedException("Revision went backward: " + revisionValue + " + " + alreadySeen);
+		}
 
 		try {
 			queueLock.lock();
@@ -89,7 +93,6 @@ class FlushLock {
 				}
 			} while (true);
 
-			assert alreadySeen <= revisionValue;
 			alreadySeen = revisionValue;
 			LOGGER.debug("Finished {}", revisionValue);
 		} finally {
