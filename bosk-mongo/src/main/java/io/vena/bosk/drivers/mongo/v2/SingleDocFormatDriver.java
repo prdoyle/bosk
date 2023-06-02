@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
-import static io.vena.bosk.drivers.mongo.v2.Formatter.REVISION_ZERO;
 import static io.vena.bosk.drivers.mongo.v2.Formatter.dottedFieldNameOf;
 import static io.vena.bosk.drivers.mongo.v2.Formatter.enclosingReference;
 import static io.vena.bosk.drivers.mongo.v2.Formatter.referenceTo;
@@ -134,9 +133,11 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 			Long revision = document.getLong(DocumentFields.revision.name());
 			if (state == null) {
 				throw new IOException("No existing state in document");
+			} else if (revision == null) {
+				throw new IOException("No revision field in document");
 			} else {
 				R root = formatter.document2object(state, rootRef);
-				BsonInt64 rev = new BsonInt64((revision==null)? 0L : revision); // Nonexistent revision == 0
+				BsonInt64 rev = new BsonInt64(revision);
 				return new StateAndMetadata<>(root, rev);
 			}
 		} catch (NoSuchElementException e) {
@@ -249,17 +250,15 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 					// In that case, newer servers (including this one) will create the
 					// the field upon initialization, and we're ok to wait for any old
 					// revision number at all.
-					LOGGER.debug("No revision field; using zero");
-					return REVISION_ZERO;
+					throw new FlushFailureException("No revision field");
 				} else {
 					LOGGER.debug("Read revision {}", result);
 					return new BsonInt64(result);
 				}
 			}
 		} catch (NoSuchElementException e) {
-			// Document doesn't exist at all yet. We're ok to wait for any update at all.
-			LOGGER.debug("No document; using zero");
-			return REVISION_ZERO;
+			LOGGER.debug("Document is missing", e);
+			throw new FlushFailureException(e);
 		} catch (RuntimeException e) {
 			LOGGER.debug("readRevisionNumber failed", e);
 			throw new FlushFailureException(e);
@@ -387,6 +386,8 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 					}
 					LOGGER.debug("| Delete {}", ref);
 					downstream.submitDeletion(ref);
+				} else {
+					throw new NotYetImplementedException("Deletion of metadata field " + dottedName);
 				}
 			}
 		}
