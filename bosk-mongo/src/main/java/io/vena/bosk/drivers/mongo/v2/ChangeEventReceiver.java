@@ -202,15 +202,11 @@ class ChangeEventReceiver implements Closeable {
 			while (true) {
 				if (settings.testing().eventDelayMS() > 0) {
 					LOGGER.debug("- Sleeping");
-					try {
-						Thread.sleep(settings.testing().eventDelayMS());
-					} catch (InterruptedException e) {
-						LOGGER.debug("| Interrupted");
-					}
+					Thread.sleep(settings.testing().eventDelayMS());
 				}
 				processEvent(session, session.cursor.next());
 			}
-		} catch (MongoInterruptedException e) {
+		} catch (InterruptedException | MongoInterruptedException e) {
 			// This happens when stop() cancels the task; this is part of normal operation
 			LOGGER.debug("Event loop interrupted", e);
 			session.listener.onException(e);
