@@ -10,6 +10,7 @@ import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.junit.ParametersByName;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import lombok.var;
 import org.bson.BsonDocument;
@@ -50,7 +51,7 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 	@DisruptsMongoService
 	void initialOutage_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		// Set up the database contents to be different from initialRoot
-		TestEntity initialState = initializeDatabase("distinctive string", false);
+		TestEntity initialState = initializeDatabase("distinctive string");
 
 		mongoService.proxy().setConnectionCut(true);
 
@@ -93,43 +94,44 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 	@ParametersByName
 	@UsesMongoService
 	void databaseDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
-		testRecoveryAfterDeletion(false, () -> {
+		testRecovery(() -> {
 			LOGGER.debug("Drop database");
 			mongoService.client()
 				.getDatabase(driverSettings.database())
 				.drop();
-		});
+		}, (b) -> initializeDatabase("after deletion"));
 	}
 
 	@ParametersByName
 	@UsesMongoService
 	void collectionDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
-		testRecoveryAfterDeletion(false, () -> {
+		testRecovery(() -> {
 			LOGGER.debug("Drop collection");
 			mongoService.client()
 				.getDatabase(driverSettings.database())
 				.getCollection(COLLECTION_NAME)
 				.drop();
-		});
+		}, (b) -> initializeDatabase("after deletion"));
 	}
 
 	@ParametersByName
 	@UsesMongoService
 	@Disabled("Document deletion currently does not initiate recovery, because deletion also happens in refurbish; but this means it also can't cope with the revision field decreasing")
 	void documentDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
-		testRecoveryAfterDeletion(false, () -> {
+		testRecovery(() -> {
 			LOGGER.debug("Delete document");
 			mongoService.client()
 				.getDatabase(driverSettings.database())
 				.getCollection(COLLECTION_NAME)
 				.deleteMany(new BsonDocument());
-		});
+		}, (b) -> initializeDatabase("after deletion"));
 	}
 
 	@ParametersByName
 	@UsesMongoService
+	@Disabled("Currently, this hangs waiting for revision 1000")
 	void revisionDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
-		testRecoveryAfterDeletion(true, () -> {
+		testRecovery(() -> {
 			LOGGER.debug("Delete revision");
 			mongoService.client()
 				.getDatabase(driverSettings.database())
@@ -138,49 +140,62 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 					new BsonDocument(),
 					new BsonDocument("$unset", new BsonDocument(DocumentFields.revision.name(), new BsonNull())) // Value is ignored
 				);
-		});
+		}, (b) -> { setRevision(1000L); return b; });
 	}
 
 	@ParametersByName
 	@UsesMongoService
-	@Disabled("Situations where the revision number goes backward currently don't work")
 	void revisionDecreased_recovers() throws InvalidTypeException, InterruptedException, IOException {
-		LOGGER.debug("Decrease revision");
+		testRecovery(() -> {
+			LOGGER.debug("Decrease revision");
+			mongoService.client()
+				.getDatabase(driverSettings.database())
+				.getCollection(COLLECTION_NAME)
+				.updateOne(
+					new BsonDocument(),
+					new BsonDocument("$inc", new BsonDocument(DocumentFields.revision.name(), new BsonInt64(-1)))
+				);
+		}, (b) -> { setRevision(1000L); return b; });
+	}
+
+	private void setRevision(long revisionNumber) {
 		mongoService.client()
 			.getDatabase(driverSettings.database())
 			.getCollection(COLLECTION_NAME)
 			.updateOne(
 				new BsonDocument(),
-				new BsonDocument("$dec", new BsonDocument(DocumentFields.revision.name(), new BsonInt64(1)))
+				new BsonDocument("$set", new BsonDocument(DocumentFields.revision.name(), new BsonInt64(revisionNumber))) // Value is ignored
 			);
 	}
 
-	private TestEntity initializeDatabase(String distinctiveString, boolean doRefurbish) throws IOException, InterruptedException, InvalidTypeException {
-		Bosk<TestEntity> prepBosk = new Bosk<TestEntity>(
-			"Prep bosk " + prepBoskCounter.incrementAndGet(),
-			TestEntity.class,
-			bosk -> initialRoot(bosk).withString(distinctiveString),
-			driverFactory);
-		MongoDriver<TestEntity> driver = (MongoDriver<TestEntity>) prepBosk.driver();
-		if (doRefurbish) {
-			driver.refurbish();
-		}
-		driver.flush();
-		driver.close();
+	private TestEntity initializeDatabase(String distinctiveString) {
+		try {
+			Bosk<TestEntity> prepBosk = new Bosk<TestEntity>(
+				"Prep bosk " + prepBoskCounter.incrementAndGet(),
+				TestEntity.class,
+				bosk -> initialRoot(bosk).withString(distinctiveString),
+				driverFactory);
+			MongoDriver<TestEntity> driver = (MongoDriver<TestEntity>) prepBosk.driver();
+			driver.flush();
+			driver.close();
 
-		return initialRoot(prepBosk).withString(distinctiveString);
+			return initialRoot(prepBosk).withString(distinctiveString);
+		} catch (Exception e) {
+			throw new AssertionError(e);
+		}
 	}
 
-	private void testRecoveryAfterDeletion(boolean doRefurbish, Runnable action) throws IOException, InterruptedException, InvalidTypeException {
+	private void testRecovery(Runnable disruptiveAction, Function<TestEntity, TestEntity> recoveryAction) throws IOException, InterruptedException, InvalidTypeException {
 		LOGGER.debug("Setup database to beforeState");
-		TestEntity beforeState = initializeDatabase("before deletion", false);
+		TestEntity beforeState = initializeDatabase("before deletion");
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test bosk", TestEntity.class, this::initialRoot, driverFactory);
 		try (var __ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
 
-		action.run();
+		LOGGER.debug("Run disruptive action");
+		disruptiveAction.run();
 
 		LOGGER.debug("Ensure flush throws");
 		assertThrows(FlushFailureException.class, () -> bosk.driver().flush());
@@ -188,8 +203,8 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
 
-		LOGGER.debug("Setup database to afterState");
-		TestEntity afterState = initializeDatabase("after deletion", doRefurbish);
+		LOGGER.debug("Run recovery action");
+		TestEntity afterState = recoveryAction.apply(beforeState);
 
 		LOGGER.debug("Ensure flush works");
 		bosk.driver().flush();
