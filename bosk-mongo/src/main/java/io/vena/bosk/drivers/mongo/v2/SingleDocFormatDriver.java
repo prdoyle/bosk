@@ -123,6 +123,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	@Override
 	public void close() {
 		LOGGER.debug("+ close()");
+		flushLock.close();
 	}
 
 	@Override
