@@ -251,6 +251,8 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 					// the field upon initialization, and we're ok to wait for any old
 					// revision number at all.
 					throw new FlushFailureException("No revision field");
+//					LOGGER.debug("No revision field; using one");
+//					return REVISION_ONE;
 				} else {
 					LOGGER.debug("Read revision {}", result);
 					return new BsonInt64(result);
