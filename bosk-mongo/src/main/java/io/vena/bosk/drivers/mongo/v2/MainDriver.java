@@ -106,7 +106,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			result = downstream.initialRoot(rootType);
 			newDriver.initializeCollection(new StateAndMetadata<>(result, REVISION_ONE));
 			formatDriver = newDriver;
-		} catch (ReceiverInitializationException e) {
+		} catch (IOException | ReceiverInitializationException e) {
 			LOGGER.debug("Unable to initialize replication", e);
 			result = null;
 		}
@@ -134,7 +134,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		} catch (UninitializedCollectionException e) {
 			LOGGER.warn("Collection is uninitialized; driver is disconnected", e);
 			return;
-		} catch (ReceiverInitializationException e) {
+		} catch (IOException | ReceiverInitializationException e) {
 			LOGGER.warn("Unable to initialize receiver", e);
 			return;
 		}
@@ -262,7 +262,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	 * @return The new root object to use, if any
 	 * @throws UninitializedCollectionException if the database or collection doesn't exist
 	 */
-	private R initializeReplication() throws UninitializedCollectionException, ReceiverInitializationException {
+	private R initializeReplication() throws UninitializedCollectionException, ReceiverInitializationException, IOException {
 		if (isClosed) {
 			LOGGER.debug("Don't initialize replication on closed driver");
 			return null;
@@ -274,6 +274,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		FutureTask<R> initTask = new FutureTask<>(() -> {
 			LOGGER.debug("Initializing replication");
 			try {
+				formatDriver.close();
 				formatDriver = new DisconnectedDriver<>(); // Fallback in case initialization fails
 				if (receiver.initialize(new Listener())) {
 					FormatDriver<R> newDriver = detectFormat();
@@ -316,6 +317,8 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 					throw (UninitializedCollectionException) cause;
 				} else if (cause instanceof ReceiverInitializationException) {
 					throw (ReceiverInitializationException)cause;
+				} else if (cause instanceof IOException) {
+					throw (IOException)cause;
 				} else {
 					throw new NotYetImplementedException(cause);
 				}
