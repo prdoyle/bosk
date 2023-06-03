@@ -131,7 +131,6 @@ class ChangeEventReceiver implements Closeable {
 		} catch (ExecutionException e) {
 			throw new NotYetImplementedException("Event processing loop isn't supposed to throw!", e);
 		} finally {
-			Thread.interrupted();
 			lock.unlock();
 		}
 	}
