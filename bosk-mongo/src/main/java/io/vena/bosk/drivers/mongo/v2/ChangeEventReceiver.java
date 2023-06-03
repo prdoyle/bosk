@@ -166,7 +166,7 @@ class ChangeEventReceiver implements Closeable {
 		for (int attempt = 1; attempt <= 2; attempt++) {
 			LOGGER.debug("Attempt #{}", attempt);
 			ChangeStreamDocument<Document> initialEvent;
-			BsonDocument resumePoint = lastProcessedResumeToken;
+			BsonDocument resumePoint = null; //lastProcessedResumeToken;
 			if (resumePoint == null) {
 				LOGGER.debug("Acquire initial resume token");
 				// TODO: Config
