@@ -127,7 +127,11 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			LOGGER.debug("Closed driver ignoring exception", exception);
 			return;
 		}
-		LOGGER.error("Recovering from unexpected exception; reinitializing", exception);
+		if (exception instanceof DisconnectedException) {
+			LOGGER.debug("Recovering from exception; reinitializing", exception);
+		} else {
+			LOGGER.error("Recovering from unexpected exception; reinitializing", exception);
+		}
 		boolean wasInterrupted = Thread.interrupted();
 		LOGGER.debug("-> wasInterrupted: {}", wasInterrupted);
 		R result;
@@ -295,9 +299,9 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 					formatDriver = new DisconnectedDriver<>("Unable to fetch resume token");
 					return null;
 				}
-			} catch (ReceiverInitializationException | IOException e) {
+			} catch (ReceiverInitializationException | IOException | RuntimeException e) {
 				LOGGER.warn("Failed to initialize replication", e);
-				formatDriver = new DisconnectedDriver<>(e.getMessage());
+				formatDriver = new DisconnectedDriver<>(e.toString());
 				throw new TunneledCheckedException(e);
 			} finally {
 				// Clearing the map entry here allows the next initialization task to be created
@@ -329,6 +333,8 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 					throw (ReceiverInitializationException)cause;
 				} else if (cause instanceof IOException) {
 					throw (IOException)cause;
+				} else if (cause instanceof RuntimeException) {
+					throw (RuntimeException)cause;
 				} else {
 					throw new NotYetImplementedException(cause);
 				}
