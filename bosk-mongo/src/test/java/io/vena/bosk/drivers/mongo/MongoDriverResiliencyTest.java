@@ -31,7 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * A set of tests that only work with {@link io.vena.bosk.drivers.mongo.MongoDriverSettings.ImplementationKind#RESILIENT}
  */
-@DisruptsMongoService
 public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 	@ParametersByName
 	public MongoDriverResiliencyTest(MongoDriverSettings.MongoDriverSettingsBuilder driverSettings) {
@@ -162,20 +161,39 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 	@ParametersByName
 	@UsesMongoService
 	void revisionDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
-		testRecovery(() -> {
-			LOGGER.debug("Delete revision");
-			mongoService.client()
-				.getDatabase(driverSettings.database())
-				.getCollection(COLLECTION_NAME)
-				.updateOne(
-					new BsonDocument(),
-					new BsonDocument("$unset", new BsonDocument(DocumentFields.revision.name(), new BsonNull())) // Value is ignored
-				);
-		}, (b) -> {
-			LOGGER.debug("Repair by setting revision in the far future");
-			setRevision(1000L);
-			return b;
-		});
+		// TODO: need a more complete test here. Deleting the revision
+		// field should be the same as setting it to zero, and both should work.
+		LOGGER.debug("Setup database to beforeState");
+		TestEntity beforeState = initializeDatabase("before deletion");
+
+		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test bosk " + boskCounter.incrementAndGet(), TestEntity.class, this::initialRoot, driverFactory);
+		try (var __ = bosk.readContext()) {
+			assertEquals(beforeState, bosk.rootReference().value());
+		}
+
+		LOGGER.debug("Delete revision field");
+		mongoService.client()
+			.getDatabase(driverSettings.database())
+			.getCollection(COLLECTION_NAME)
+			.updateOne(
+				new BsonDocument(),
+				new BsonDocument("$unset", new BsonDocument(DocumentFields.revision.name(), new BsonNull())) // Value is ignored
+			);
+
+		LOGGER.debug("Ensure flush works");
+		bosk.driver().flush();
+		try (var __ = bosk.readContext()) {
+			assertEquals(beforeState, bosk.rootReference().value());
+		}
+
+		LOGGER.debug("Repair by setting revision in the far future");
+		setRevision(1000L);
+
+		LOGGER.debug("Ensure flush works again");
+		bosk.driver().flush();
+		try (var __ = bosk.readContext()) {
+			assertEquals(beforeState, bosk.rootReference().value());
+		}
 	}
 
 	private void setRevision(long revisionNumber) {
@@ -207,7 +225,7 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 
 	private void testRecovery(Runnable disruptiveAction, Function<TestEntity, TestEntity> recoveryAction) throws IOException, InterruptedException, InvalidTypeException {
 		LOGGER.debug("Setup database to beforeState");
-		TestEntity beforeState = initializeDatabase("before deletion");
+		TestEntity beforeState = initializeDatabase("before disruption");
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test bosk " + boskCounter.incrementAndGet(), TestEntity.class, this::initialRoot, driverFactory);
 		try (var __ = bosk.readContext()) {

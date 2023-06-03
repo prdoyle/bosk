@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
+import static io.vena.bosk.drivers.mongo.v2.Formatter.REVISION_ZERO;
 import static io.vena.bosk.drivers.mongo.v2.Formatter.dottedFieldNameOf;
 import static io.vena.bosk.drivers.mongo.v2.Formatter.enclosingReference;
 import static io.vena.bosk.drivers.mongo.v2.Formatter.referenceTo;
@@ -131,11 +132,9 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 		try (MongoCursor<Document> cursor = collection.find(documentFilter()).limit(1).cursor()) {
 			Document document = cursor.next();
 			Document state = document.get(DocumentFields.state.name(), Document.class);
-			Long revision = document.getLong(DocumentFields.revision.name());
+			Long revision = document.get(DocumentFields.revision.name(), 0L);
 			if (state == null) {
 				throw new IOException("No existing state in document");
-			} else if (revision == null) {
-				throw new IOException("No revision field in document");
 			} else {
 				R root = formatter.document2object(state, rootRef);
 				BsonInt64 rev = new BsonInt64(revision);
@@ -251,7 +250,9 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 					// In that case, newer servers (including this one) will create the
 					// the field upon initialization, and we're ok to wait for any old
 					// revision number at all.
-					throw new FlushFailureException("No revision field");
+//					throw new FlushFailureException("No revision field");
+					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
+					return REVISION_ZERO;
 				} else {
 					LOGGER.debug("Read revision {}", result);
 					return new BsonInt64(result);

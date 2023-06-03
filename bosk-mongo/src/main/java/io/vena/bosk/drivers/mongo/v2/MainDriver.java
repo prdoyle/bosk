@@ -51,7 +51,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	private final ChangeEventReceiver receiver;
 
 	private final AtomicReference<FutureTask<R>> initializationInProgress = new AtomicReference<>();
-	private volatile FormatDriver<R> formatDriver = new DisconnectedDriver<>();
+	private volatile FormatDriver<R> formatDriver = new DisconnectedDriver<>("Driver not yet initialized");
 	private volatile boolean isClosed = false;
 
 	public MainDriver(
@@ -201,7 +201,8 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			try {
 				formatDriver.flush();
 			} catch (DisconnectedException e2) { // Other RuntimeExceptions are unexpected
-				throw new FlushFailureException("Unable to connect to database", e2);
+				// The message from DisconnectionException is suitable as-is
+				throw new FlushFailureException(e2.getMessage(), e2);
 			}
 		}
 	}
@@ -282,7 +283,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			LOGGER.debug("Initializing replication");
 			try {
 				formatDriver.close();
-				formatDriver = new DisconnectedDriver<>(); // Fallback in case initialization fails
+				formatDriver = new DisconnectedDriver<>("Driver initialization failed"); // Fallback in case initialization fails
 				if (receiver.initialize(new Listener())) {
 					FormatDriver<R> newDriver = detectFormat();
 					StateAndMetadata<R> result = newDriver.loadAllState();
@@ -291,10 +292,12 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 					return result.state;
 				} else {
 					LOGGER.warn("Unable to fetch resume token; disconnected");
+					formatDriver = new DisconnectedDriver<>("Unable to fetch resume token");
 					return null;
 				}
 			} catch (ReceiverInitializationException | IOException e) {
 				LOGGER.warn("Failed to initialize replication", e);
+				formatDriver = new DisconnectedDriver<>(e.getMessage());
 				throw new TunneledCheckedException(e);
 			} finally {
 				// Clearing the map entry here allows the next initialization task to be created

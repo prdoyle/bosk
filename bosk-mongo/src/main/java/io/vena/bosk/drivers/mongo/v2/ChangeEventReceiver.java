@@ -1,6 +1,7 @@
 package io.vena.bosk.drivers.mongo.v2;
 
 import com.mongodb.MongoCommandException;
+import com.mongodb.MongoException;
 import com.mongodb.MongoInterruptedException;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoCollection;
@@ -61,6 +62,7 @@ class ChangeEventReceiver implements Closeable {
 		final MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor;
 		final ChangeEventListener listener;
 		ChangeStreamDocument<Document> initialEvent;
+		volatile boolean isClosed;
 	}
 
 	/**
@@ -118,6 +120,7 @@ class ChangeEventReceiver implements Closeable {
 			lock.lock();
 			Session session = currentSession;
 			if (session != null) {
+				session.isClosed = true;
 				session.cursor.close();
 			}
 			Future<?> task = this.eventProcessingTask;
@@ -187,7 +190,7 @@ class ChangeEventReceiver implements Closeable {
 			try {
 				MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor
 					= collection.watch().resumeAfter(resumePoint).cursor();
-				currentSession = new Session(cursor, newListener, initialEvent);
+				currentSession = new Session(cursor, newListener, initialEvent, false);
 				return;
 			} catch (MongoCommandException e) {
 				LOGGER.error("Change stream cursor command failed; discarding resume token", e);
@@ -216,12 +219,18 @@ class ChangeEventReceiver implements Closeable {
 				processEvent(session, session.cursor.next());
 			}
 		} catch (InterruptedException | MongoInterruptedException e) {
-			// This happens when stop() cancels the task; this is part of normal operation
-			LOGGER.debug("Event loop interrupted", e);
+			// This can happen if stop() cancels the task with an interrupt; it's part of normal operation
+			LOGGER.info("Event loop interrupted", e);
 			Thread.interrupted();
-			session.listener.onException(e);
+		} catch (MongoException e) {
+			if (session.isClosed) {
+				// This happens when stop() cancels the task; this is part of normal operation
+				LOGGER.info("Session is closed; exiting event loop", e);
+			} else {
+				LOGGER.warn("Unexpected MongoException while processing events; event loop aborted", e);
+				session.listener.onException(e);
+			}
 		} catch (RuntimeException e) {
-			// TODO: Not necessarily unexpected. This can probably happen when stop() closes the cursor.
 			LOGGER.warn("Unexpected exception while processing events; event loop aborted", e);
 			session.listener.onException(e);
 		} finally {
