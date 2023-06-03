@@ -134,7 +134,8 @@ class ChangeEventReceiver implements Closeable {
 				);
 				try {
 					task.get(10, SECONDS); // TODO: Config
-					LOGGER.warn("Normal completion of event processing task was not expected");
+					LOGGER.debug("Cancellation succeeded; event loop exited normally");
+					this.eventProcessingTask = null;
 				} catch (CancellationException e) {
 					LOGGER.debug("Cancellation succeeded; event loop interrupted");
 					this.eventProcessingTask = null;
