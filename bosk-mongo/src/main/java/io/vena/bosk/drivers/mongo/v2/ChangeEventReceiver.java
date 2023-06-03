@@ -116,12 +116,17 @@ class ChangeEventReceiver implements Closeable {
 	public void stop() throws InterruptedException, TimeoutException {
 		try {
 			lock.lock();
+			Session session = currentSession;
+			if (session != null) {
+				session.cursor.close();
+			}
 			Future<?> task = this.eventProcessingTask;
 			if (task != null) {
 				LOGGER.debug("Canceling event processing task");
 				task.cancel(
 					// You'd think this should be true, but the Mongo client does not seem
-					// to deal with being interrupted very well
+					// to deal with being interrupted very well. Closing the cursor seems
+					// to have the right effect though.
 					false
 				);
 				try {
@@ -216,6 +221,7 @@ class ChangeEventReceiver implements Closeable {
 			Thread.interrupted();
 			session.listener.onException(e);
 		} catch (RuntimeException e) {
+			// TODO: Not necessarily unexpected. This can probably happen when stop() closes the cursor.
 			LOGGER.warn("Unexpected exception while processing events; event loop aborted", e);
 			session.listener.onException(e);
 		} finally {
