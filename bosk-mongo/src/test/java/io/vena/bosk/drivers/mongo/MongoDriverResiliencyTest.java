@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * A set of tests that only work with {@link io.vena.bosk.drivers.mongo.MongoDriverSettings.ImplementationKind#RESILIENT}
  */
+@DisruptsMongoService
 public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 	@ParametersByName
 	public MongoDriverResiliencyTest(MongoDriverSettings.MongoDriverSettingsBuilder driverSettings) {
