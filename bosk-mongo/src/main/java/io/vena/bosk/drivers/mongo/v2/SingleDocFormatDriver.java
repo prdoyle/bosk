@@ -162,7 +162,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	}
 
 	@Override
-	public void onEvent(ChangeStreamDocument<Document> event) {
+	public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
 		LOGGER.debug("# EVENT: {}", event);
 		switch (event.getOperationType()) {
 			case INSERT: case REPLACE: {
@@ -190,7 +190,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 				LOGGER.info("Delete event ignored (id={}). Assuming the document will be created again...", event.getDocumentKey());
 			} break;
 			default: {
-				throw new NotYetImplementedException("Unknown change stream event: " + event);
+				throw new UnprocessableEventException("Cannot process event: " + event);
 			}
 		}
 	}

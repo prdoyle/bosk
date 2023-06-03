@@ -35,7 +35,7 @@ import org.bson.Document;
  * </li></ol>
  */
 interface FormatDriver<R extends Entity> extends MongoDriver<R> {
-	void onEvent(ChangeStreamDocument<Document> event);
+	void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException;
 
 	/**
 	 * Implementations should ignore subsequent calls to {@link #onEvent}

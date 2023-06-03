@@ -219,6 +219,10 @@ class ChangeEventReceiver implements Closeable {
 				}
 				processEvent(session, session.cursor.next());
 			}
+		} catch (UnprocessableEventException e) {
+			LOGGER.warn("Unprocessable event; discarding resume token", e);
+			lastProcessedResumeToken = null;
+			session.listener.onException(e);
 		} catch (InterruptedException | MongoInterruptedException e) {
 			// This can happen if stop() cancels the task with an interrupt; it's part of normal operation
 			LOGGER.info("Event loop interrupted", e);
@@ -239,7 +243,7 @@ class ChangeEventReceiver implements Closeable {
 		}
 	}
 
-	private void processEvent(Session session, ChangeStreamDocument<Document> event) {
+	private void processEvent(Session session, ChangeStreamDocument<Document> event) throws UnprocessableEventException {
 		session.listener.onEvent(event);
 		lastProcessedResumeToken = event.getResumeToken();
 	}

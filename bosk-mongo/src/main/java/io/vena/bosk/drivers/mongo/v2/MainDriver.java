@@ -352,7 +352,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		volatile boolean isListening = true; // (volatile is probably overkill because all calls are on the same thread anyway)
 
 		@Override
-		public void onEvent(ChangeStreamDocument<Document> event) {
+		public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
 			if (isListening) {
 				try {
 					formatDriver.onEvent(event);
