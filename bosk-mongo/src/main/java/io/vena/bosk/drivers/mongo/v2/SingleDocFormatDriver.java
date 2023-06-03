@@ -375,7 +375,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	 * Call <code>downstream.{@link BoskDriver#submitDeletion submitDeletion}</code>
 	 * for each removed field.
 	 */
-	private void deleteRemovedFields(@Nullable List<String> removedFields) {
+	private void deleteRemovedFields(@Nullable List<String> removedFields) throws UnprocessableEventException {
 		if (removedFields != null) {
 			for (String dottedName : removedFields) {
 				if (dottedName.startsWith(DocumentFields.state.name())) {
@@ -389,7 +389,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 					LOGGER.debug("| Delete {}", ref);
 					downstream.submitDeletion(ref);
 				} else {
-					throw new NotYetImplementedException("Deletion of metadata field " + dottedName);
+					throw new UnprocessableEventException("Deletion of metadata field " + dottedName);
 				}
 			}
 		}
