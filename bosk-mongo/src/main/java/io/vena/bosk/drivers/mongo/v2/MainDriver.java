@@ -152,36 +152,42 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		beginDriverOperation("submitReplacement({})", target);
-		retryIfDisconnected(() ->
+		runWithRetry(() ->
 			formatDriver.submitReplacement(target, newValue));
 	}
 
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
 		beginDriverOperation("submitConditionalReplacement({}, {} = {})", target, precondition, requiredValue);
-		retryIfDisconnected(() ->
+		runWithRetry(() ->
 			formatDriver.submitConditionalReplacement(target, newValue, precondition, requiredValue));
 	}
 
 	@Override
 	public <T> void submitInitialization(Reference<T> target, T newValue) {
 		beginDriverOperation("submitInitialization({})", target);
-		retryIfDisconnected(() ->
+		runWithRetry(() ->
 			formatDriver.submitInitialization(target, newValue));
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
 		beginDriverOperation("submitDeletion({}, {})", target);
-		retryIfDisconnected(() ->
+		runWithRetry(() ->
 			formatDriver.submitDeletion(target));
 	}
 
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
 		beginDriverOperation("submitConditionalDeletion({}, {} = {})", target, precondition, requiredValue);
-		retryIfDisconnected(() ->
+		runWithRetry(() ->
 			formatDriver.submitConditionalDeletion(target, precondition, requiredValue));
+	}
+
+	@Override
+	public void refurbish() throws IOException {
+		beginDriverOperation("refurbish");
+		runWithRetry(this::doRefurbish);
 	}
 
 	@Override
@@ -189,20 +195,25 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		beginDriverOperation("flush");
 		try {
 			formatDriver.flush();
-		} catch (FlushAbortedException | DisconnectedException e1) {
+		} catch (FlushFailureException | RuntimeException e1) {
 			recoverFrom(e1);
+			LOGGER.debug("Retrying flush");
 			try {
 				formatDriver.flush();
-			} catch (DisconnectedException e2) {
+			} catch (DisconnectedException e2) { // Other RuntimeExceptions are unexpected
 				throw new FlushFailureException("Unable to connect to database", e2);
 			}
 		}
 	}
 
-	@Override
-	public void refurbish() throws IOException {
-		beginDriverOperation("refurbish");
-		retryIfDisconnected(this::doRefurbish);
+	private <X extends Exception, Y extends Exception> void runWithRetry(Action<X, Y> action) throws X, Y {
+		try {
+			action.run();
+		} catch (RuntimeException e) {
+			recoverFrom(e);
+			LOGGER.debug("Retrying");
+			action.run();
+		}
 	}
 
 	private void doRefurbish() throws IOException {
@@ -241,16 +252,6 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		isClosed = true;
 		receiver.close();
 		formatDriver.close();
-	}
-
-	private <X extends Exception, Y extends Exception> void retryIfDisconnected(Action<X, Y> action) throws X, Y {
-		try {
-			action.run();
-		} catch (DisconnectedException e) {
-			recoverFrom(e);
-			LOGGER.debug("Retrying");
-			action.run();
-		}
 	}
 
 	private interface Action<X extends Exception, Y extends Exception> {
