@@ -81,13 +81,17 @@ class FlushLock implements Closeable {
 		if (revision == null) {
 			return;
 		}
-		long revisionValue = revision.longValue();
-		if (revisionValue <= alreadySeen) {
-			throw new NotYetImplementedException("Revision went backward: " + revisionValue + " + " + alreadySeen);
-		}
 
 		try {
 			queueLock.lock();
+			long revisionValue = revision.longValue();
+			if (isClosed) {
+				LOGGER.debug("Closed FlushLock ignoring revision {}", revisionValue);
+				return;
+			} else if (revisionValue <= alreadySeen) {
+				throw new NotYetImplementedException("Revision did not advance: " + revisionValue + " <= " + alreadySeen);
+			}
+			
 			do {
 				Waiter w = queue.peek();
 				if (w == null || w.revision > revisionValue) {
