@@ -128,6 +128,8 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 			return;
 		}
 		LOGGER.error("Recovering from unexpected exception; reinitializing", exception);
+		boolean wasInterrupted = Thread.interrupted();
+		LOGGER.debug("-> wasInterrupted: {}", wasInterrupted);
 		R result;
 		try {
 			result = initializeReplication();
@@ -186,10 +188,14 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	public void flush() throws IOException, InterruptedException {
 		beginDriverOperation("flush");
 		try {
-			this.<IOException, InterruptedException>retryIfDisconnected(() ->
-				formatDriver.flush());
-		} catch (DisconnectedException e) {
-			throw new FlushFailureException("Unable to connect to database", e);
+			formatDriver.flush();
+		} catch (FlushAbortedException | DisconnectedException e1) {
+			recoverFrom(e1);
+			try {
+				formatDriver.flush();
+			} catch (DisconnectedException e2) {
+				throw new FlushFailureException("Unable to connect to database", e2);
+			}
 		}
 	}
 

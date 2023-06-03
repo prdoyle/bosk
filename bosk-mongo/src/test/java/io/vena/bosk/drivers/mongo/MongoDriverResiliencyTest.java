@@ -1,5 +1,6 @@
 package io.vena.bosk.drivers.mongo;
 
+import com.mongodb.client.MongoCollection;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Listing;
@@ -10,13 +11,14 @@ import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.junit.ParametersByName;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import lombok.var;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonNull;
-import org.junit.jupiter.api.Disabled;
+import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,7 +118,6 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 
 	@ParametersByName
 	@UsesMongoService
-	@Disabled("Document deletion currently does not initiate recovery, because deletion also happens in refurbish; but this means it also can't cope with the revision field decreasing")
 	void documentDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		testRecovery(() -> {
 			LOGGER.debug("Delete document");
@@ -129,7 +130,27 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 
 	@ParametersByName
 	@UsesMongoService
-	@Disabled("Currently, this hangs waiting for revision 1000")
+	void documentReappears_recovers() throws InvalidTypeException, InterruptedException, IOException {
+		MongoCollection<Document> collection = mongoService.client()
+			.getDatabase(driverSettings.database())
+			.getCollection(COLLECTION_NAME);
+		AtomicReference<Document> originalDocument = new AtomicReference<>();
+		testRecovery(() -> {
+			LOGGER.debug("Save original document");
+			try (var cursor = collection.find().cursor()) {
+				originalDocument.set(cursor.next());
+			}
+			LOGGER.debug("Delete document");
+			collection.deleteMany(new BsonDocument());
+		}, (b) -> {
+			LOGGER.debug("Restore original document");
+			collection.insertOne(originalDocument.get());
+			return b;
+		});
+	}
+
+	@ParametersByName
+	@UsesMongoService
 	void revisionDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		testRecovery(() -> {
 			LOGGER.debug("Delete revision");
@@ -140,22 +161,11 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 					new BsonDocument(),
 					new BsonDocument("$unset", new BsonDocument(DocumentFields.revision.name(), new BsonNull())) // Value is ignored
 				);
-		}, (b) -> { setRevision(1000L); return b; });
-	}
-
-	@ParametersByName
-	@UsesMongoService
-	void revisionDecreased_recovers() throws InvalidTypeException, InterruptedException, IOException {
-		testRecovery(() -> {
-			LOGGER.debug("Decrease revision");
-			mongoService.client()
-				.getDatabase(driverSettings.database())
-				.getCollection(COLLECTION_NAME)
-				.updateOne(
-					new BsonDocument(),
-					new BsonDocument("$inc", new BsonDocument(DocumentFields.revision.name(), new BsonInt64(-1)))
-				);
-		}, (b) -> { setRevision(1000L); return b; });
+		}, (b) -> {
+			LOGGER.debug("Repair by setting revision in the far future");
+			setRevision(1000L);
+			return b;
+		});
 	}
 
 	private void setRevision(long revisionNumber) {

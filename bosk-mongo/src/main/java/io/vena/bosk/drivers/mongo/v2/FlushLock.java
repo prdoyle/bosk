@@ -31,7 +31,7 @@ class FlushLock implements Closeable {
 	 * too new, and we'll proceed immediately without waiting for revisions that haven't happened yet.
 	 */
 	public FlushLock(MongoDriverSettings settings, long revisionAlreadySeen) {
-		LOGGER.debug("New flush lock from {}", revisionAlreadySeen);
+		LOGGER.debug("New flush lock at revision {}", revisionAlreadySeen);
 		this.settings = settings;
 		this.alreadySeen = revisionAlreadySeen;
 	}
@@ -47,7 +47,7 @@ class FlushLock implements Closeable {
 		}
 	}
 
-	void awaitRevision(BsonInt64 revision) throws InterruptedException, FlushFailureException {
+	void awaitRevision(BsonInt64 revision) throws InterruptedException, FlushFailureException, FlushAbortedException {
 		long revisionValue = revision.longValue();
 		Semaphore semaphore = new Semaphore(0);
 		long past;
@@ -64,7 +64,7 @@ class FlushLock implements Closeable {
 				throw new FlushFailureException("Timed out waiting for revision " + revisionValue + " > " + alreadySeen);
 			}
 			if (isClosed) {
-				throw new FlushFailureException("Wait aborted");
+				throw new FlushAbortedException("Wait aborted");
 			}
 		} else {
 			LOGGER.debug("Revision {} <= {} is in the past; don't wait", revisionValue, past);
@@ -110,6 +110,7 @@ class FlushLock implements Closeable {
 	public void close() {
 		try {
 			queueLock.lock();
+			LOGGER.debug("Closing");
 			isClosed = true;
 			Waiter w;
 			while ((w = queue.poll()) != null) {

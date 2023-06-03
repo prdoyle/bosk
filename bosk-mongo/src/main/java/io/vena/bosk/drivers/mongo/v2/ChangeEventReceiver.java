@@ -131,6 +131,7 @@ class ChangeEventReceiver implements Closeable {
 		} catch (ExecutionException e) {
 			throw new NotYetImplementedException("Event processing loop isn't supposed to throw!", e);
 		} finally {
+			Thread.interrupted();
 			lock.unlock();
 		}
 	}
@@ -210,6 +211,7 @@ class ChangeEventReceiver implements Closeable {
 			// This happens when stop() cancels the task; this is part of normal operation
 			LOGGER.debug("Event loop interrupted", e);
 			session.listener.onException(e);
+			Thread.interrupted();
 		} catch (RuntimeException e) {
 			LOGGER.warn("Unexpected exception while processing events; event loop aborted", e);
 			session.listener.onException(e);
