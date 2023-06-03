@@ -209,8 +209,8 @@ class ChangeEventReceiver implements Closeable {
 		} catch (InterruptedException | MongoInterruptedException e) {
 			// This happens when stop() cancels the task; this is part of normal operation
 			LOGGER.debug("Event loop interrupted", e);
-			session.listener.onException(e);
 			Thread.interrupted();
+			session.listener.onException(e);
 		} catch (RuntimeException e) {
 			LOGGER.warn("Unexpected exception while processing events; event loop aborted", e);
 			session.listener.onException(e);
