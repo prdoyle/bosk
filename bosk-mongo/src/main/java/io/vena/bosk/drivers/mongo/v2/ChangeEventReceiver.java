@@ -119,7 +119,11 @@ class ChangeEventReceiver implements Closeable {
 			Future<?> task = this.eventProcessingTask;
 			if (task != null) {
 				LOGGER.debug("Canceling event processing task");
-				task.cancel(true);
+				task.cancel(
+					// You'd think this should be true, but the Mongo client does not seem
+					// to deal with being interrupted very well
+					false
+				);
 				try {
 					task.get(10, SECONDS); // TODO: Config
 					LOGGER.warn("Normal completion of event processing task was not expected");
