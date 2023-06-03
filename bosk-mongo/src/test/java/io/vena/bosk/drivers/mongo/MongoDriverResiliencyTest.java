@@ -44,7 +44,7 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 				.database("boskResiliencyTestDB_" + dbCounter.incrementAndGet())
 				.implementationKind(RESILIENT)
 				.testing(MongoDriverSettings.Testing.builder()
-					.eventDelayMS(100)
+					.eventDelayMS(200)
 					.build())
 		);
 	}
@@ -181,7 +181,7 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 	private TestEntity initializeDatabase(String distinctiveString) {
 		try {
 			Bosk<TestEntity> prepBosk = new Bosk<TestEntity>(
-				"Prep bosk " + prepBoskCounter.incrementAndGet(),
+				"Prep bosk " + boskCounter.incrementAndGet(),
 				TestEntity.class,
 				bosk -> initialRoot(bosk).withString(distinctiveString),
 				driverFactory);
@@ -199,7 +199,7 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 		LOGGER.debug("Setup database to beforeState");
 		TestEntity beforeState = initializeDatabase("before deletion");
 
-		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test bosk", TestEntity.class, this::initialRoot, driverFactory);
+		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test bosk " + boskCounter.incrementAndGet(), TestEntity.class, this::initialRoot, driverFactory);
 		try (var __ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
@@ -224,7 +224,7 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 	}
 
 	private static final AtomicInteger dbCounter = new AtomicInteger(0);
-	private static final AtomicInteger prepBoskCounter = new AtomicInteger(0);
+	private static final AtomicInteger boskCounter = new AtomicInteger(0);
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(MongoDriverResiliencyTest.class);
 }
