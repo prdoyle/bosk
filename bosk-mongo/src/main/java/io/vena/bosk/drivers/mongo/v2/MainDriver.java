@@ -312,16 +312,28 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 		// Use initializationInProgress to check for an existing task, and if there isn't
 		// one, use the new one we just created.
-		FutureTask<R> init = initializationInProgress.updateAndGet(x -> x == null? initTask : x);
+		FutureTask<R> init = initializationInProgress.updateAndGet(x -> {
+			if (x == null) {
+				LOGGER.debug("Will initiate initialization");
+				return initTask;
+			} else {
+				LOGGER.debug("Will wait for initialization already underway");
+				return x;
+			}
+		});
 
 		// This either runs the task (if it's the new one we just created) or waits for the run in progress to finish.
 		init.run();
 
 		try {
-			return init.get();
+			R result = init.get();
+			LOGGER.debug("Initialization returned {}", (result==null)? "null" : "new root");
+			return result;
 		} catch (InterruptedException e) {
+			LOGGER.debug("Initialization interrupted", e);
 			throw new NotYetImplementedException(e);
 		} catch (ExecutionException e) {
+			LOGGER.debug("Initialization threw", e.getCause());
 			// Unpacking the exception is super annoying
 			if (e.getCause() instanceof UninitializedCollectionException) {
 				throw (UninitializedCollectionException) e.getCause();
