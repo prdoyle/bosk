@@ -79,7 +79,8 @@ class ChangeEventReceiver implements Closeable {
 	 * thread itself, since a re-initialization could be triggered by an event or exception.
 	 * For example, a {@link ChangeEventListener#onException} implementation can call this.
 	 *
-	 * @return true if we obtained a resume token.
+	 * @return true if we succeeded in establishing a new session;
+	 * false if we should enter the disconnected state
 	 * @see #start()
 	 */
 	public boolean initialize(ChangeEventListener listener) throws ReceiverInitializationException {
@@ -87,8 +88,7 @@ class ChangeEventReceiver implements Closeable {
 		try {
 			lock.lock();
 			stop();
-			setupNewSession(listener);
-			return lastProcessedResumeToken != null;
+			return setupNewSession(listener);
 		} catch (RuntimeException | InterruptedException | TimeoutException e) {
 			throw new ReceiverInitializationException(e);
 		} finally {
@@ -159,7 +159,11 @@ class ChangeEventReceiver implements Closeable {
 		ex.shutdown();
 	}
 
-	private void setupNewSession(ChangeEventListener newListener) {
+	/**
+	 * @return true if we succeeded in establishing a new session;
+	 * false if we should enter the disconnected state
+	 */
+	private boolean setupNewSession(ChangeEventListener newListener) {
 		assert this.eventProcessingTask == null;
 		LOGGER.debug("Setup new session");
 		this.currentSession = null; // In case any exceptions happen during this method
@@ -202,13 +206,14 @@ class ChangeEventReceiver implements Closeable {
 				MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor
 					= collection.watch().resumeAfter(resumePoint).cursor();
 				currentSession = new Session(cursor, newListener, initialEvent, false);
-				return;
+				return true;
 			} catch (MongoCommandException e) {
 				LOGGER.error("Change stream cursor command failed; discarding resume token", e);
 				lastProcessedResumeToken = null;
 				// If we haven't already retried, we'll continue around the loop
 			}
 		}
+		return false;
 	}
 
 	/**
