@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.lang.Thread.currentThread;
+import static java.lang.Thread.sleep;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -168,6 +169,15 @@ class ChangeEventReceiver implements Closeable {
 			ChangeStreamDocument<Document> initialEvent;
 			BsonDocument resumePoint = null; //lastProcessedResumeToken;
 			if (resumePoint == null) {
+				if (settings.testing().eventDelayMS() < 0) {
+					LOGGER.debug("- Sleeping");
+					try {
+						sleep(-settings.testing().eventDelayMS());
+					} catch (InterruptedException e) {
+						LOGGER.debug("Sleep aborted; continuing", e);
+						Thread.interrupted();
+					}
+				}
 				LOGGER.debug("Acquire initial resume token");
 				// TODO: Config
 				// Note: on a quiescent collection, tryNext() will wait for the Await Time to elapse, so keep it short
