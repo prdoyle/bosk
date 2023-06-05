@@ -295,7 +295,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 					formatDriver = newDriver;
 					return result.state;
 				} else {
-					LOGGER.warn("Unable to fetch resume token; disconnected");
+					LOGGER.warn("Unable to fetch resume token; disconnecting");
 					formatDriver = new DisconnectedDriver<>("Unable to fetch resume token");
 					return null;
 				}

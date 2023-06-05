@@ -168,7 +168,8 @@ class ChangeEventReceiver implements Closeable {
 		LOGGER.debug("Setup new session");
 		this.currentSession = null; // In case any exceptions happen during this method
 
-		for (int attempt = 1; attempt <= 2; attempt++) {
+		int attempt;
+		for (attempt = 1; attempt <= 2; attempt++) {
 			LOGGER.debug("Attempt #{}", attempt);
 			ChangeStreamDocument<Document> initialEvent;
 			BsonDocument resumePoint = null; //lastProcessedResumeToken;
@@ -213,6 +214,7 @@ class ChangeEventReceiver implements Closeable {
 				// If we haven't already retried, we'll continue around the loop
 			}
 		}
+		LOGGER.debug("Giving up initializing session after attempt #{}", attempt-1);
 		return false;
 	}
 
