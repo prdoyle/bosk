@@ -258,7 +258,6 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 					// In that case, newer servers (including this one) will create the
 					// the field upon initialization, and we're ok to wait for any old
 					// revision number at all.
-//					throw new FlushFailureException("No revision field");
 					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
 					return REVISION_ZERO;
 				} else {
