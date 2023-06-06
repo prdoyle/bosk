@@ -164,10 +164,18 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	@Override
 	public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
 		LOGGER.debug("# EVENT: {}", event);
+		if (!DOCUMENT_FILTER.equals(event.getDocumentKey())) {
+			LOGGER.debug("Ignoring event for unrecognized document key: {}", event.getDocumentKey());
+			return;
+		}
 		switch (event.getOperationType()) {
 			case INSERT: case REPLACE: {
-				BsonInt64 revision = getRevisionFromFullDocumentEvent(event.getFullDocument());
-				Document state = event.getFullDocument().get(DocumentFields.state.name(), Document.class);
+				Document fullDocument = event.getFullDocument();
+				if (fullDocument == null) {
+					throw new NotYetImplementedException("No document??");
+				}
+				BsonInt64 revision = getRevisionFromFullDocumentEvent(fullDocument);
+				Document state = fullDocument.get(DocumentFields.state.name(), Document.class);
 				if (state == null) {
 					throw new NotYetImplementedException("No state??");
 				}
