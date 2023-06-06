@@ -93,7 +93,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
-		if (target.path().isEmpty()) {
+		if (target.path().isEmpty()) { // TODO: this seems out of place. MainDriver ought to do error checking like this
 			throw new IllegalArgumentException("Can't delete the root of the bosk");
 		} else {
 			doUpdate(deletionDoc(target), standardPreconditions(target));

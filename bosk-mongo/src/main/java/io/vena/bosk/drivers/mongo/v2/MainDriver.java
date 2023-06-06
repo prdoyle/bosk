@@ -267,6 +267,8 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 	 * Caller is responsible for calling {@link #receiver}{@link ChangeEventReceiver#start() .start()}
 	 * to kick off event processing. We don't do it here because some callers need to do other things
 	 * after initialization but before any events arrive.
+	 * <p>
+	 * Does some intelligent debouncing if multiple calls happen in parallel.
 	 *
 	 * @return The new root object to use, if any
 	 * @throws UninitializedCollectionException if the database or collection doesn't exist
@@ -311,7 +313,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		// one, use the new one we just created.
 		FutureTask<R> init = initializationInProgress.updateAndGet(x -> {
 			if (x == null) {
-				LOGGER.debug("Will initiate initialization");
+				LOGGER.debug("Will perform initialization");
 				return initTask;
 			} else {
 				LOGGER.debug("Will wait for initialization already underway");
