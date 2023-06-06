@@ -16,11 +16,6 @@ class DisconnectedDriver<R extends Entity> implements FormatDriver<R> {
 	final String reason;
 
 	@Override
-	public boolean isDisconnected() {
-		return true;
-	}
-
-	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		throw disconnected("submitReplacement");
 	}
