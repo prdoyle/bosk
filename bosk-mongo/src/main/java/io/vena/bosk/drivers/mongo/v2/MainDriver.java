@@ -11,7 +11,6 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDriver;
@@ -46,7 +45,6 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	private final Reference<R> rootRef;
 	private final MongoClient mongoClient;
-	private final MongoDatabase database;
 	private final MongoCollection<Document> collection;
 	private final ChangeEventReceiver receiver;
 
@@ -60,7 +58,7 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 		MongoDriverSettings driverSettings,
 		BsonPlugin bsonPlugin,
 		BoskDriver<R> downstream
-		) {
+	) {
 		validateMongoClientSettings(clientSettings);
 
 		this.bosk = bosk;
@@ -70,9 +68,8 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 		this.rootRef = bosk.rootReference();
 		this.mongoClient = MongoClients.create(clientSettings);
-		this.database = mongoClient
-			.getDatabase(driverSettings.database());
-		this.collection = database
+		this.collection = mongoClient
+			.getDatabase(driverSettings.database())
 			.getCollection(COLLECTION_NAME);
 		this.receiver = new ChangeEventReceiver(bosk.name(), driverSettings, collection);
 	}
