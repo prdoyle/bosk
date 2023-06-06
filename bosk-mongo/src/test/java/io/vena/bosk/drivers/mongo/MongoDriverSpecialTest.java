@@ -321,6 +321,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest implements TestPara
 	@ParametersByName
 	@UsesMongoService
 	void unrelatedDatabase_ignored() throws InvalidTypeException, IOException, InterruptedException {
+		tearDownActions.add(mongoService.client().getDatabase("unrelated")::drop);
 		doUnrelatedChangeTest("unrelated", COLLECTION_NAME, "boskDocument");
 	}
 
