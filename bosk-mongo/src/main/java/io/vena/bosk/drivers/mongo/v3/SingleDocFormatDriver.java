@@ -14,9 +14,7 @@ import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.drivers.mongo.MongoDriverSettings;
-import io.vena.bosk.drivers.mongo.v3.Formatter;
 import io.vena.bosk.drivers.mongo.v3.Formatter.DocumentFields;
-import io.vena.bosk.drivers.mongo.v3.UnprocessableEventException;
 import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
@@ -129,7 +127,7 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 	}
 
 	@Override
-	public io.vena.bosk.drivers.mongo.v3.StateAndMetadata<R> loadAllState() throws IOException, io.vena.bosk.drivers.mongo.v3.UninitializedCollectionException {
+	public StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException {
 		try (MongoCursor<Document> cursor = collection.find(documentFilter()).limit(1).cursor()) {
 			Document document = cursor.next();
 			Document state = document.get(DocumentFields.state.name(), Document.class);
@@ -139,16 +137,16 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 			} else {
 				R root = formatter.document2object(state, rootRef);
 				BsonInt64 rev = new BsonInt64(revision);
-				return new io.vena.bosk.drivers.mongo.v3.StateAndMetadata<>(root, rev);
+				return new StateAndMetadata<>(root, rev);
 			}
 		} catch (NoSuchElementException e) {
-			throw new io.vena.bosk.drivers.mongo.v3.UninitializedCollectionException("No existing document", e);
+			throw new UninitializedCollectionException("No existing document", e);
 		}
 
 	}
 
 	@Override
-	public void initializeCollection(io.vena.bosk.drivers.mongo.v3.StateAndMetadata<R> priorContents) {
+	public void initializeCollection(StateAndMetadata<R> priorContents) {
 		BsonValue initialState = formatter.object2bsonValue(priorContents.state, rootRef.targetType());
 		BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision.longValue());
 		BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision));
@@ -204,6 +202,11 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 		}
 	}
 
+	@Override
+	public void onRevisionToSkip(BsonInt64 revision) {
+		revisionToSkip = revision;
+	}
+
 	private BsonInt64 getRevisionFromFullDocumentEvent(Document fullDocument) {
 		if (fullDocument == null) {
 			return null;
@@ -229,11 +232,6 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 			return null;
 		}
 		return updatedFields.getInt64(DocumentFields.revision.name(), null);
-	}
-
-	@Override
-	public void onRevisionToSkip(BsonInt64 revision) {
-		revisionToSkip = revision;
 	}
 
 	//

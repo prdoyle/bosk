@@ -6,9 +6,8 @@ import io.vena.bosk.BoskDriver;
 import io.vena.bosk.DriverFactory;
 import io.vena.bosk.Entity;
 import io.vena.bosk.drivers.mongo.v2.MainDriver;
+import io.vena.bosk.drivers.mongo.v3.SupervisingDriver;
 import java.io.IOException;
-
-import static io.vena.bosk.drivers.mongo.MongoDriverSettings.ImplementationKind.RESILIENT;
 
 public interface MongoDriver<R extends Entity> extends BoskDriver<R> {
 	/**
@@ -51,10 +50,13 @@ public interface MongoDriver<R extends Entity> extends BoskDriver<R> {
 		MongoDriverSettings driverSettings,
 		BsonPlugin bsonPlugin
 	) {
-		if (driverSettings.experimental().implementationKind() == RESILIENT) {
-			return (b, d) -> new MainDriver<>(b, clientSettings, driverSettings, bsonPlugin, d);
-		} else {
-			return (b, d) -> new SingleDocumentMongoDriver<>(b, clientSettings, driverSettings, bsonPlugin, d);
+		switch (driverSettings.experimental().implementationKind()) {
+			case RESILIENT:
+				return (b, d) -> new MainDriver<>(b, clientSettings, driverSettings, bsonPlugin, d);
+			case RESILIENT3:
+				return (b, d) -> new SupervisingDriver<>(b, clientSettings, driverSettings, bsonPlugin, d);
+			default:
+				return (b, d) -> new SingleDocumentMongoDriver<>(b, clientSettings, driverSettings, bsonPlugin, d);
 		}
 	}
 

@@ -8,6 +8,7 @@ import io.vena.bosk.drivers.mongo.MongoDriver;
 import io.vena.bosk.exceptions.InitializationFailureException;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import org.bson.BsonInt64;
 import org.bson.Document;
 
 /**
@@ -33,6 +34,15 @@ import org.bson.Document;
  */
 interface FormatDriver<R extends Entity> extends MongoDriver<R> {
 	void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException;
+
+	/**
+	 * Implementations should ignore subsequent calls to {@link #onEvent}
+	 * associated with revisions less than or equal to <code>revision</code>.
+	 * <p>
+	 * TODO: This feels pretty lame. Need a better way to get FormatDriver to cope with its own revision numbers
+	 * @param revision the last revision to skip
+	 */
+	void onRevisionToSkip(BsonInt64 revision);
 
 	/**
 	 * @throws UninitializedCollectionException if it looks like the database has not yet
