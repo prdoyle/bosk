@@ -1,10 +1,11 @@
 package io.vena.bosk.drivers.mongo.v3;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import io.vena.bosk.drivers.mongo.v2.UnprocessableEventException;
+import java.io.IOException;
 import org.bson.Document;
 
-interface ChangeEventListener {
+interface ChangeListener {
+	void onConnect() throws UnrecognizedFormatException, UninitializedCollectionException, InterruptedException, IOException;
 	void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException;
-	void onException(Exception e);
+	void onDisconnect(Exception e);
 }

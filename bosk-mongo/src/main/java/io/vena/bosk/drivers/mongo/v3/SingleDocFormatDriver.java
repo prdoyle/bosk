@@ -14,7 +14,9 @@ import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.drivers.mongo.MongoDriverSettings;
-import io.vena.bosk.drivers.mongo.v2.Formatter.DocumentFields;
+import io.vena.bosk.drivers.mongo.v3.Formatter;
+import io.vena.bosk.drivers.mongo.v3.Formatter.DocumentFields;
+import io.vena.bosk.drivers.mongo.v3.UnprocessableEventException;
 import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
@@ -35,18 +37,18 @@ import org.slf4j.LoggerFactory;
 
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
-import static io.vena.bosk.drivers.mongo.v2.Formatter.REVISION_ZERO;
-import static io.vena.bosk.drivers.mongo.v2.Formatter.dottedFieldNameOf;
-import static io.vena.bosk.drivers.mongo.v2.Formatter.enclosingReference;
-import static io.vena.bosk.drivers.mongo.v2.Formatter.referenceTo;
+import static io.vena.bosk.drivers.mongo.v3.Formatter.REVISION_ZERO;
+import static io.vena.bosk.drivers.mongo.v3.Formatter.dottedFieldNameOf;
+import static io.vena.bosk.drivers.mongo.v3.Formatter.enclosingReference;
+import static io.vena.bosk.drivers.mongo.v3.Formatter.referenceTo;
 import static java.lang.String.format;
 import static java.util.Collections.newSetFromMap;
 import static org.bson.BsonBoolean.FALSE;
 
 /**
- * A {@link FormatDriver} that stores the entire bosk state in a single document.
+ * A {@link io.vena.bosk.drivers.mongo.v3.FormatDriver} that stores the entire bosk state in a single document.
  */
-final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
+final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.drivers.mongo.v3.FormatDriver<R> {
 	private final String description;
 	private final MongoDriverSettings settings;
 	private final Formatter formatter;
@@ -54,7 +56,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	private final Reference<R> rootRef;
 	private final String echoPrefix;
 	private final BoskDriver<R> downstream;
-	private final FlushLock flushLock;
+	private final io.vena.bosk.drivers.mongo.v3.FlushLock flushLock;
 
 	private volatile BsonInt64 revisionToSkip = null;
 
@@ -65,7 +67,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 		MongoCollection<Document> collection,
 		MongoDriverSettings driverSettings,
 		BsonPlugin bsonPlugin,
-		FlushLock flushLock,
+		io.vena.bosk.drivers.mongo.v3.FlushLock flushLock,
 		BoskDriver<R> downstream
 	) {
 		this.description = SingleDocFormatDriver.class.getSimpleName() + ": " + driverSettings;
@@ -127,7 +129,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	}
 
 	@Override
-	public StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException {
+	public io.vena.bosk.drivers.mongo.v3.StateAndMetadata<R> loadAllState() throws IOException, io.vena.bosk.drivers.mongo.v3.UninitializedCollectionException {
 		try (MongoCursor<Document> cursor = collection.find(documentFilter()).limit(1).cursor()) {
 			Document document = cursor.next();
 			Document state = document.get(DocumentFields.state.name(), Document.class);
@@ -137,16 +139,16 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 			} else {
 				R root = formatter.document2object(state, rootRef);
 				BsonInt64 rev = new BsonInt64(revision);
-				return new StateAndMetadata<>(root, rev);
+				return new io.vena.bosk.drivers.mongo.v3.StateAndMetadata<>(root, rev);
 			}
 		} catch (NoSuchElementException e) {
-			throw new UninitializedCollectionException("No existing document", e);
+			throw new io.vena.bosk.drivers.mongo.v3.UninitializedCollectionException("No existing document", e);
 		}
 
 	}
 
 	@Override
-	public void initializeCollection(StateAndMetadata<R> priorContents) {
+	public void initializeCollection(io.vena.bosk.drivers.mongo.v3.StateAndMetadata<R> priorContents) {
 		BsonValue initialState = formatter.object2bsonValue(priorContents.state, rootRef.targetType());
 		BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision.longValue());
 		BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision));
@@ -161,7 +163,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	}
 
 	@Override
-	public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
+	public void onEvent(ChangeStreamDocument<Document> event) throws io.vena.bosk.drivers.mongo.v3.UnprocessableEventException {
 		if (!DOCUMENT_FILTER.equals(event.getDocumentKey())) {
 			LOGGER.debug("Ignoring event for unrecognized document key: {}", event.getDocumentKey());
 			return;
@@ -197,7 +199,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 				LOGGER.info("Delete event ignored (id={}). Assuming the document will be created again...", event.getDocumentKey());
 			} break;
 			default: {
-				throw new UnprocessableEventException("Cannot process event: " + event);
+				throw new io.vena.bosk.drivers.mongo.v3.UnprocessableEventException("Cannot process event: " + event);
 			}
 		}
 	}
@@ -381,7 +383,7 @@ final class SingleDocFormatDriver<R extends Entity> implements FormatDriver<R> {
 	 * Call <code>downstream.{@link BoskDriver#submitDeletion submitDeletion}</code>
 	 * for each removed field.
 	 */
-	private void deleteRemovedFields(@Nullable List<String> removedFields) throws UnprocessableEventException {
+	private void deleteRemovedFields(@Nullable List<String> removedFields) throws io.vena.bosk.drivers.mongo.v3.UnprocessableEventException {
 		if (removedFields != null) {
 			for (String dottedName : removedFields) {
 				if (dottedName.startsWith(DocumentFields.state.name())) {

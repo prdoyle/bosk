@@ -1,8 +1,6 @@
 package io.vena.bosk.drivers.mongo.v3;
 
-import java.io.IOException;
-
-class UnrecognizedFormatException extends IOException {
+class UnrecognizedFormatException extends Exception {
 	public UnrecognizedFormatException(String message) {
 		super(message);
 	}

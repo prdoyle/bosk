@@ -8,7 +8,6 @@ import io.vena.bosk.drivers.mongo.MongoDriver;
 import io.vena.bosk.exceptions.InitializationFailureException;
 import java.io.IOException;
 import java.lang.reflect.Type;
-import org.bson.BsonInt64;
 import org.bson.Document;
 
 /**
@@ -19,8 +18,6 @@ import org.bson.Document;
  *     Serializing and deserializing the database contents
  * </li><li>
  *     Processing change stream events via {@link #onEvent}
- * </li><li>
- *     Managing revision numbers (eg. {@link #onRevisionToSkip})
  * </li><li>
  *     Implementing {@link #flush()} (consider using {@link FlushLock})
  * </li></ol>
@@ -38,16 +35,9 @@ interface FormatDriver<R extends Entity> extends MongoDriver<R> {
 	void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException;
 
 	/**
-	 * Implementations should ignore subsequent calls to {@link #onEvent}
-	 * associated with revisions less than or equal to <code>revision</code>.
-	 * @param revision the last revision to skip
-	 */
-	void onRevisionToSkip(BsonInt64 revision);
-
-	/**
 	 * @throws UninitializedCollectionException if it looks like the database has not yet
 	 * been created (as opposed to being in a damaged or unrecognizable state).
-	 * This signals to {@link MainDriver} that it may, if appropriate,
+	 * This signals to {@link SupervisingDriver} that it may, if appropriate,
 	 * automatically initialize the collection.
 	 */
 	StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException;
