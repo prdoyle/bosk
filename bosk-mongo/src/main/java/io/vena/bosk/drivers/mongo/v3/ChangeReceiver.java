@@ -1,5 +1,6 @@
 package io.vena.bosk.drivers.mongo.v3;
 
+import com.mongodb.MongoInterruptedException;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
@@ -7,6 +8,7 @@ import io.vena.bosk.drivers.mongo.MongoDriverSettings;
 import io.vena.bosk.drivers.mongo.v3.MappedDiagnosticContext.MDCScope;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeoutException;
@@ -47,7 +49,7 @@ class ChangeReceiver implements Closeable {
 	@Override
 	public void close() {
 		isClosed = true;
-		ex.shutdown();
+		ex.shutdownNow();
 	}
 
 	/**
@@ -60,6 +62,7 @@ class ChangeReceiver implements Closeable {
 		String oldThreadName = currentThread().getName();
 		currentThread().setName(getClass().getSimpleName() + " [" + boskName + "]");
 		try (MDCScope __ = setupMDC(boskName)) {
+			LOGGER.debug("Starting connectionLoop task");
 			try {
 				while (!isClosed) {
 					// Design notes:
@@ -87,22 +90,19 @@ class ChangeReceiver implements Closeable {
 					// emitted many times for a single user action (again, not recommended at the `debug` level),
 					// though this must be done cautiously, since even disabled log statements still have nonzero overhead.
 					//
+					LOGGER.debug("Opening cursor");
 					try (MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor = openCursor()) {
 						listener.onConnect();
 
 						// Note that eventLoop does not throw RuntimeException; therefore,
 						// any RuntimeException must have occurred before this point.
 						eventLoop(cursor);
-					} catch (RuntimeException e) {
-						LOGGER.warn("Unable to connect to database; will wait and retry", e);
-						listener.onDisconnect(e);
-						return;
 					} catch (UnprocessableEventException|UnexpectedEventProcessingException e) {
-						LOGGER.warn("Unable to process change event; reconnecting", e);
+						LOGGER.warn("Unable to process change event; reconnecting: {}", e.toString(), e);
 						listener.onDisconnect(e);
 						// Reconnection will skip this event, so it's safe to try it right away
 						continue;
-					} catch (InterruptedException e) {
+					} catch (InterruptedException | MongoInterruptedException e) {
 						LOGGER.warn("Interrupted while processing change events; reconnecting", e);
 						listener.onDisconnect(e);
 						continue;
@@ -126,32 +126,61 @@ class ChangeReceiver implements Closeable {
 						LOGGER.warn("Timed out waiting for bosk state to initialize; will wait and retry", e);
 						listener.onDisconnect(e);
 						return;
+					} catch (RuntimeException e) {
+						LOGGER.warn("Unable to connect to database; will wait and retry", e);
+						listener.onDisconnect(e);
+						return;
 					}
 					LOGGER.trace("Change event processing returned normally");
 				}
 			} finally {
+				LOGGER.debug("Ending connectionLoop task; isClosed={}", isClosed);
 				currentThread().setName(oldThreadName);
 			}
+		} catch (RuntimeException e) {
+			LOGGER.warn("connectionLoop task ended with unexpected {}; discarding", e.getClass().getSimpleName(), e);
 		}
 	}
 
 	private MongoChangeStreamCursor<ChangeStreamDocument<Document>> openCursor() {
-		return collection
-			.watch()
-			.maxAwaitTime(settings.recoveryPollingMS(), MILLISECONDS)
-			.cursor();
+		try {
+			return collection
+				.watch()
+				.maxAwaitTime(settings.recoveryPollingMS(), MILLISECONDS)
+				.cursor();
+		} finally {
+			LOGGER.debug("Cursor is open");
+		}
 	}
 
 	/**
 	 * Should not throw RuntimeException, or else {@link #connectionLoop()} is likely to overreact.
 	 */
 	private void eventLoop(MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor) throws UnprocessableEventException, UnexpectedEventProcessingException {
+		if (isClosed) {
+			LOGGER.debug("Receiver is closed");
+			return;
+		}
 		try {
+			LOGGER.debug("Starting event loop");
 			while (!isClosed) {
-				processEvent(cursor.next());
+				ChangeStreamDocument<Document> event;
+				try {
+					event = cursor.next();
+				} catch (NoSuchElementException e) {
+					LOGGER.debug("Cursor is finished");
+					break;
+				} catch (MongoInterruptedException e) {
+					LOGGER.debug("Interrupted while waiting for change event: {}", e.toString());
+					break;
+				}
+				processEvent(event);
 			}
 		} catch (RuntimeException e) {
+			LOGGER.debug("Unexpected exception while processing events", e);
 			throw new UnexpectedEventProcessingException(e);
+		} finally {
+			LOGGER.debug("Exited event loop");
 		}
 	}
 

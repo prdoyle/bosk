@@ -20,8 +20,10 @@ import io.vena.bosk.Reference;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.drivers.mongo.MongoDriver;
 import io.vena.bosk.drivers.mongo.MongoDriverSettings;
+import io.vena.bosk.drivers.mongo.v2.DisconnectedException;
 import io.vena.bosk.drivers.mongo.v3.Formatter.DocumentFields;
 import io.vena.bosk.drivers.mongo.v3.MappedDiagnosticContext.MDCScope;
+import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InitializationFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
@@ -31,6 +33,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import org.bson.BsonDocument;
 import org.bson.Document;
 import org.slf4j.Logger;
@@ -57,6 +61,9 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 	private final MongoClient mongoClient;
 	private final MongoCollection<Document> collection;
 	private final Listener listener;
+
+	private final ReentrantLock formatDriverLock = new ReentrantLock();
+	private final Condition formatDriverChanged = formatDriverLock.newCondition();
 
 	private volatile FormatDriver<R> formatDriver = new DisconnectedDriver<>("Driver not yet initialized");
 	private volatile boolean isClosed = false;
@@ -134,33 +141,34 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 	 */
 	private R doInitialRoot(Type rootType) {
 		R root;
-		formatDriver = new DisconnectedDriver<>("Failure to compute initial root"); // Pessimism
+		quietlySetFormatDriver(new DisconnectedDriver<>("Failure to compute initial root")); // Pessimistic fallback
 		try {
 			FormatDriver<R> detectedDriver = detectFormat();
 			StateAndMetadata<R> loadedState = detectedDriver.loadAllState();
 			root = loadedState.state;
 			detectedDriver.onRevisionToSkip(loadedState.revision);
-			formatDriver = detectedDriver;
+			publishFormatDriver(detectedDriver);
 		} catch (UninitializedCollectionException e) {
-			LOGGER.debug("Database collection is uninitialized; will initialize using downstream.initialRoot", e);
+			LOGGER.debug("Database collection is uninitialized; will initialize using downstream.initialRoot");
 			root = callDownstreamInitialRoot(rootType);
 			try {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
 				initializeCollectionTransaction(root, preferredDriver);
 				preferredDriver.onRevisionToSkip(REVISION_ONE); // initialRoot handles REVISION_ONE; downstream only needs to know about changes after that
-				formatDriver = preferredDriver;
+				publishFormatDriver(preferredDriver);
 			} catch (RuntimeException | IOException e2) {
 				LOGGER.debug("Failed to initialize database; disconnecting", e);
-				formatDriver = new DisconnectedDriver<>(e2.toString());
+				publishFormatDriver(new DisconnectedDriver<>(e2.toString()));
 			}
 		} catch (RuntimeException | UnrecognizedFormatException | IOException e) {
 			LOGGER.debug("Unable to load initial root from database; will proceed with downstream.initialRoot", e);
-			formatDriver = new DisconnectedDriver<>(e.toString());
+			publishFormatDriver(new DisconnectedDriver<>(e.toString()));
 			root = callDownstreamInitialRoot(rootType);
 		} finally {
 			// For better or worse, we're done initialRoot. Clear taskRef so that Listener
 			// enters its normal steady-state mode where onConnect events cause the state
 			// to be loaded from the database and submitted downstream.
+			LOGGER.debug("Done initialRoot");
 			listener.taskRef.set(null);
 		}
 		return root;
@@ -218,7 +226,7 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 				collection.deleteMany(new BsonDocument());
 				newFormatDriver.initializeCollection(result);
 				session.commitTransaction();
-				formatDriver = newFormatDriver;
+				publishFormatDriver(newFormatDriver);
 			} catch (UninitializedCollectionException e) {
 				throw new IOException("Unable to refurbish uninitialized database collection", e);
 			} finally {
@@ -230,58 +238,65 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 	}
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		try (MDCScope __ = beginDriverOperation("submitReplacement({})", target)) {
+		doRetryableDriverOperation(()->{
 			formatDriver.submitReplacement(target, newValue);
-		}
+		}, "submitReplacement({})", target);
 	}
 
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		try (MDCScope __ = beginDriverOperation("submitConditionalReplacement({}, {}={})", target, precondition, requiredValue)) {
+		doRetryableDriverOperation(()->{
 			formatDriver.submitConditionalReplacement(target, newValue, precondition, requiredValue);
-		}
+		}, "submitConditionalReplcament({}, {}={})", target, precondition, requiredValue);
 	}
 
 	@Override
 	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		try (MDCScope __ = beginDriverOperation("submitInitialization({})", target)) {
+		doRetryableDriverOperation(()->{
 			formatDriver.submitInitialization(target, newValue);
-		}
+		}, "submitInitialization({})", target);
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
-		try (MDCScope __ = beginDriverOperation("submitDeletion({})", target)) {
+		doRetryableDriverOperation(()->{
 			formatDriver.submitDeletion(target);
-		}
+		}, "submitDeletion({})", target);
 	}
 
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		try (MDCScope __ = beginDriverOperation("submitConditionalDeletion({}, {}={})", target, precondition, requiredValue)) {
+		doRetryableDriverOperation(() -> {
 			formatDriver.submitConditionalDeletion(target, precondition, requiredValue);
-		}
+		}, "submitConditionalDeletion({}, {}={})", target, precondition, requiredValue);
 	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-		try (MDCScope __ = beginDriverOperation("flush")) {
-			formatDriver.flush();
+		try {
+			this.<IOException, InterruptedException>
+				doRetryableDriverOperation(() -> {
+				formatDriver.flush();
+			}, "flush");
+		} catch (DisconnectedException e) {
+			throw new FlushFailureException(e);
 		}
 	}
 
 	@Override
 	public void refurbish() throws IOException {
-		try (MDCScope __ = beginDriverOperation("refurbish")) {
+		doRetryableDriverOperation(() -> {
 			refurbishTransaction();
-		}
+		}, "refurbish");
 	}
 
 	@Override
 	public void close() {
 		isClosed = true;
 		receiver.close();
-		throw new NotYetImplementedException();
+		formatDriver.close();
+		// JFC, if mongoClient is already closed, this throws
+		// mongoClient.close();
 	}
 
 	/**
@@ -304,6 +319,7 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 			InitialRootException,
 			TimeoutException
 		{
+			LOGGER.debug("onConnect");
 			FutureTask<R> initialRootAction = this.taskRef.get();
 			if (initialRootAction != null) {
 				LOGGER.debug("Waiting for initialRoot action");
@@ -319,18 +335,22 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 				FormatDriver<R> newDriver = detectFormat();
 				StateAndMetadata<R> loadedState = newDriver.loadAllState();
 				downstream.submitReplacement(bosk.rootReference(), loadedState.state);
-				formatDriver = newDriver;
+				newDriver.onRevisionToSkip(loadedState.revision);
+				publishFormatDriver(newDriver);
 			}
 		}
 
 		@Override
 		public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
+			LOGGER.debug("onEvent({})", event.getOperationType());
 			formatDriver.onEvent(event);
 		}
 
 		@Override
 		public void onDisconnect(Exception e) {
-			formatDriver = new DisconnectedDriver<>(e.toString());
+			LOGGER.debug("onDisconnect({})", e.toString());
+			formatDriver.close();
+			publishFormatDriver(new DisconnectedDriver<>(e.toString()));
 		}
 	}
 
@@ -374,6 +394,68 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 		MDCScope ex = setupMDC(bosk.name());
 		LOGGER.debug(description, args);
 		return ex;
+	}
+
+	private <X extends Exception, Y extends Exception> void doRetryableDriverOperation(RetryableOperation<X,Y> operation, String description, Object... args) throws X,Y {
+		if (isClosed) {
+			throw new IllegalStateException("Driver is closed");
+		}
+		try (MDCScope __ = setupMDC(bosk.name())) {
+			LOGGER.debug(description, args);
+			try {
+				operation.run();
+			} catch (DisconnectedException e) {
+				LOGGER.debug("Driver is disconnected ({}); will wait and retry operation", e.getMessage());
+				try {
+					formatDriverLock.lock();
+					boolean success = formatDriverChanged.await(5*driverSettings.recoveryPollingMS(), MILLISECONDS);
+					if (!success) {
+						LOGGER.debug("Timed out waiting for new FormatDriver; will retry anyway");
+					}
+				} catch (InterruptedException exception) {
+					throw new NotYetImplementedException(exception);
+				} finally {
+					formatDriverLock.unlock();
+				}
+				LOGGER.debug("Retrying " + description, args);
+				operation.run();
+			}
+		}
+	}
+
+	/**
+	 * Sets {@link #formatDriver} but does not signal threads waiting to retry,
+	 * because there's very likely a better driver on its way.
+	 */
+	void quietlySetFormatDriver(FormatDriver<R> newFormatDriver) {
+		LOGGER.debug("quietlySetFormatDriver({})", formatDriver.getClass().getSimpleName());
+		try {
+			formatDriverLock.lock();
+			formatDriver.close();
+			formatDriver = newFormatDriver;
+		} finally {
+			formatDriverLock.unlock();
+		}
+	}
+
+	/**
+	 * Sets {@link #formatDriver} and also signals any threads waiting to retry.
+	 */
+	void publishFormatDriver(FormatDriver<R> newFormatDriver) {
+		LOGGER.debug("publishFormatDriver({})", formatDriver.getClass().getSimpleName());
+		try {
+			formatDriverLock.lock();
+			formatDriver.close();
+			formatDriver = newFormatDriver;
+			LOGGER.debug("Signaling");
+			formatDriverChanged.signalAll();
+		} finally {
+			formatDriverLock.unlock();
+		}
+	}
+
+	private interface RetryableOperation<X extends Exception, Y extends Exception> {
+		void run() throws X,Y;
 	}
 
 	public static final String COLLECTION_NAME = "boskCollection";

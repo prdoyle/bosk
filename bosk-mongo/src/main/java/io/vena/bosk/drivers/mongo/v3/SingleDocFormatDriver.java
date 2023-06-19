@@ -4,6 +4,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import com.mongodb.client.model.changestream.OperationType;
 import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.UpdateResult;
 import com.mongodb.lang.Nullable;
@@ -161,7 +162,7 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 	}
 
 	@Override
-	public void onEvent(ChangeStreamDocument<Document> event) throws io.vena.bosk.drivers.mongo.v3.UnprocessableEventException {
+	public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
 		if (!DOCUMENT_FILTER.equals(event.getDocumentKey())) {
 			LOGGER.debug("Ignoring event for unrecognized document key: {}", event.getDocumentKey());
 			return;
@@ -188,7 +189,7 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 					BsonInt64 revision = getRevisionFromUpdateEvent(event);
 					if (shouldNotSkip(revision)) {
 						replaceUpdatedFields(updateDescription.getUpdatedFields());
-						deleteRemovedFields(updateDescription.getRemovedFields());
+						deleteRemovedFields(updateDescription.getRemovedFields(), event.getOperationType());
 					}
 					flushLock.finishedRevision(revision);
 				}
@@ -197,7 +198,7 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 				LOGGER.info("Delete event ignored (id={}). Assuming the document will be created again...", event.getDocumentKey());
 			} break;
 			default: {
-				throw new io.vena.bosk.drivers.mongo.v3.UnprocessableEventException("Cannot process event: " + event);
+				throw new UnprocessableEventException("Cannot process event", event.getOperationType());
 			}
 		}
 	}
@@ -381,7 +382,7 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 	 * Call <code>downstream.{@link BoskDriver#submitDeletion submitDeletion}</code>
 	 * for each removed field.
 	 */
-	private void deleteRemovedFields(@Nullable List<String> removedFields) throws io.vena.bosk.drivers.mongo.v3.UnprocessableEventException {
+	private void deleteRemovedFields(@Nullable List<String> removedFields, OperationType operationType) throws UnprocessableEventException {
 		if (removedFields != null) {
 			for (String dottedName : removedFields) {
 				if (dottedName.startsWith(DocumentFields.state.name())) {
@@ -395,7 +396,7 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 					LOGGER.debug("| Delete {}", ref);
 					downstream.submitDeletion(ref);
 				} else {
-					throw new UnprocessableEventException("Deletion of metadata field " + dottedName);
+					throw new UnprocessableEventException("Deletion of metadata field " + dottedName, operationType);
 				}
 			}
 		}

@@ -1,6 +1,6 @@
 package io.vena.bosk.drivers.mongo.v3;
 
-import io.vena.bosk.drivers.mongo.v3.FormatDriver;
+import com.mongodb.client.model.changestream.OperationType;
 
 /**
  * Indicate that no {@link FormatDriver} could cope with a particular
@@ -11,15 +11,20 @@ import io.vena.bosk.drivers.mongo.v3.FormatDriver;
  * @see UnexpectedEventProcessingException
  */
 public class UnprocessableEventException extends Exception {
-	public UnprocessableEventException(String message) {
-		super(message);
+	public final OperationType operationType;
+
+	public UnprocessableEventException(String message, OperationType operationType) {
+		super(message + " (" + operationType + ")");
+		this.operationType = operationType;
 	}
 
-	public UnprocessableEventException(String message, Throwable cause) {
+	public UnprocessableEventException(String message, Throwable cause, OperationType operationType) {
 		super(message, cause);
+		this.operationType = operationType;
 	}
 
-	public UnprocessableEventException(Throwable cause) {
+	public UnprocessableEventException(Throwable cause, OperationType operationType) {
 		super(cause);
+		this.operationType = operationType;
 	}
 }

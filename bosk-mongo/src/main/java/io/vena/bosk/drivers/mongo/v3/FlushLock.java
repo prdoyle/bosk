@@ -12,6 +12,7 @@ import org.bson.BsonInt64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static java.lang.System.identityHashCode;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
@@ -30,7 +31,7 @@ class FlushLock implements Closeable {
 	 * too new, and we'll proceed immediately without waiting for revisions that haven't happened yet.
 	 */
 	public FlushLock(MongoDriverSettings settings, long revisionAlreadySeen) {
-		LOGGER.debug("New flush lock at revision {}", revisionAlreadySeen);
+		LOGGER.debug("New flush lock at revision {} [{}]", revisionAlreadySeen, identityHashCode(this));
 		this.settings = settings;
 		this.alreadySeen = revisionAlreadySeen;
 	}
@@ -58,16 +59,16 @@ class FlushLock implements Closeable {
 			queueLock.unlock();
 		}
 		if (revisionValue > past) {
-			LOGGER.debug("Awaiting revision {} > {}", revisionValue, past);
+			LOGGER.debug("Awaiting revision {} > {} [{}]", revisionValue, past, identityHashCode(this));
 			if (!semaphore.tryAcquire(settings.flushTimeoutMS(), MILLISECONDS)) {
 				throw new FlushFailureException("Timed out waiting for revision " + revisionValue + " > " + alreadySeen);
 			}
 			if (isClosed) {
 				throw new FlushFailureException("Wait aborted");
 			}
-			LOGGER.debug("Done awaiting revision {}", revisionValue);
+			LOGGER.debug("Done awaiting revision {} [{}]", revisionValue, identityHashCode(this));
 		} else {
-			LOGGER.debug("Revision {} <= {} is in the past; don't wait", revisionValue, past);
+			LOGGER.debug("Revision {} <= {} is in the past; don't wait [{}]", revisionValue, past, identityHashCode(this));
 		}
 	}
 
@@ -84,11 +85,11 @@ class FlushLock implements Closeable {
 			queueLock.lock();
 			long revisionValue = revision.longValue();
 			if (isClosed) {
-				LOGGER.debug("Closed FlushLock ignoring revision {}", revisionValue);
+				LOGGER.debug("Closed FlushLock ignoring revision {} [{}]", revisionValue, identityHashCode(this));
 				return;
 			}
 			if (revisionValue <= alreadySeen) {
-				LOGGER.debug("Revision did not advance: {} <= {}", revisionValue, alreadySeen);
+				LOGGER.debug("Revision did not advance: {} <= {} [{}]", revisionValue, alreadySeen, identityHashCode(this));
 			}
 
 			do {
@@ -103,7 +104,7 @@ class FlushLock implements Closeable {
 			} while (true);
 
 			alreadySeen = revisionValue;
-			LOGGER.debug("Finished {}", revisionValue);
+			LOGGER.debug("Finished {} [{}]", revisionValue, identityHashCode(this));
 		} finally {
 			queueLock.unlock();
 		}
@@ -113,7 +114,7 @@ class FlushLock implements Closeable {
 	public void close() {
 		try {
 			queueLock.lock();
-			LOGGER.debug("Closing");
+			LOGGER.debug("Closing [{}]", identityHashCode(this));
 			isClosed = true;
 			Waiter w;
 			while ((w = queue.poll()) != null) {
