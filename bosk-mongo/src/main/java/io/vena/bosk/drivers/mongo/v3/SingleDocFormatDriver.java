@@ -34,6 +34,7 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
 import static io.vena.bosk.drivers.mongo.v3.Formatter.REVISION_ZERO;
@@ -129,7 +130,11 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 
 	@Override
 	public StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException {
-		try (MongoCursor<Document> cursor = collection.find(documentFilter()).limit(1).cursor()) {
+		try (MongoCursor<Document> cursor = collection
+			.withReadConcern(LOCAL) // The revision field needs to be the latest
+			.find(documentFilter())
+			.limit(1)
+			.cursor()) {
 			Document document = cursor.next();
 			Document state = document.get(DocumentFields.state.name(), Document.class);
 			Long revision = document.get(DocumentFields.revision.name(), 0L);
@@ -247,7 +252,9 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 		LOGGER.debug("readRevisionNumber");
 		try {
 			try (MongoCursor<Document> cursor = collection
-				.find(DOCUMENT_FILTER).limit(1)
+				.withReadConcern(LOCAL) // The revision field needs to be the latest
+				.find(DOCUMENT_FILTER)
+				.limit(1)
 				.projection(fields(include(DocumentFields.revision.name())))
 				.cursor()
 			) {

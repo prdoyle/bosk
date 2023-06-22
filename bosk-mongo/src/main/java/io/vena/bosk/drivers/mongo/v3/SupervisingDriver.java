@@ -76,13 +76,17 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 		BoskDriver<R> downstream
 	) {
 		try (MDCScope __ = setupMDC(bosk.name())) {
-			validateMongoClientSettings(clientSettings);
 			this.bosk = bosk;
 			this.driverSettings = driverSettings;
 			this.bsonPlugin = bsonPlugin;
 			this.downstream = downstream;
 
-			this.mongoClient = MongoClients.create(clientSettings);
+			this.mongoClient = MongoClients.create(
+				MongoClientSettings.builder(clientSettings)
+					// By default, let's deal only with durable data that won't get rolled back
+					.readConcern(ReadConcern.MAJORITY)
+					.writeConcern(WriteConcern.MAJORITY)
+					.build());
 			this.collection = mongoClient
 				.getDatabase(driverSettings.database())
 				.getCollection(COLLECTION_NAME);
@@ -93,20 +97,6 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 			this.receiver = new ChangeReceiver(bosk.name(), listener, driverSettings, collection);
 		}
 	}
-
-	private static void validateMongoClientSettings(MongoClientSettings clientSettings) {
-		// We require ReadConcern and WriteConcern to be MAJORITY to ensure the Causal Consistency
-		// guarantees needed to meet the requirements of the BoskDriver interface.
-		// https://www.mongodb.com/docs/manual/core/causal-consistency-read-write-concerns/
-
-		if (clientSettings.getReadConcern() != ReadConcern.MAJORITY) {
-			throw new IllegalArgumentException("MongoDriver requires MongoClientSettings to specify ReadConcern.MAJORITY");
-		}
-		if (clientSettings.getWriteConcern() != WriteConcern.MAJORITY) {
-			throw new IllegalArgumentException("MongoDriver requires MongoClientSettings to specify WriteConcern.MAJORITY");
-		}
-	}
-
 
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException {
