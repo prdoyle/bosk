@@ -106,7 +106,6 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 				throw new IllegalStateException("initialRoot has already run");
 			}
 			try {
-				task.run();
 				return task.get();
 			} catch (InterruptedException e) {
 				throw new IllegalStateException("Interrupted during initialization", e);
@@ -156,7 +155,7 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 			root = callDownstreamInitialRoot(rootType);
 		} finally {
 			// For better or worse, we're done initialRoot. Clear taskRef so that Listener
-			// enters its normal steady-state mode where onConnect events cause the state
+			// enters its normal steady-state mode where onConnectionSucceeded events cause the state
 			// to be loaded from the database and submitted downstream.
 			LOGGER.debug("Done initialRoot");
 			listener.taskRef.set(null);
@@ -301,7 +300,7 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 		}
 
 		@Override
-		public void onConnect() throws
+		public void onConnectionSucceeded() throws
 			UnrecognizedFormatException,
 			UninitializedCollectionException,
 			InterruptedException,
@@ -309,24 +308,29 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 			InitialRootException,
 			TimeoutException
 		{
-			LOGGER.debug("onConnect");
+			LOGGER.debug("onConnectionSucceeded");
 			FutureTask<R> initialRootAction = this.taskRef.get();
-			if (initialRootAction != null) {
-				LOGGER.debug("Waiting for initialRoot action");
-				try {
-					initialRootAction.get(5 * driverSettings.recoveryPollingMS(), MILLISECONDS);
-					LOGGER.debug("initialRoot action completed successfully");
-				} catch (ExecutionException e) {
-					LOGGER.debug("initialRoot action failed", e);
-					throw new InitialRootException(e.getCause());
-				}
-			} else {
+			if (initialRootAction == null) {
 				LOGGER.debug("Loading database state to submit to downstream driver");
 				FormatDriver<R> newDriver = detectFormat();
 				StateAndMetadata<R> loadedState = newDriver.loadAllState();
 				downstream.submitReplacement(bosk.rootReference(), loadedState.state);
 				newDriver.onRevisionToSkip(loadedState.revision);
 				publishFormatDriver(newDriver);
+			} else {
+				LOGGER.debug("Running initialRoot action");
+				runInitialRootAction(initialRootAction);
+			}
+		}
+
+		private void runInitialRootAction(FutureTask<R> initialRootAction) throws InterruptedException, TimeoutException, InitialRootException {
+			initialRootAction.run();
+			try {
+				initialRootAction.get(5 * driverSettings.recoveryPollingMS(), MILLISECONDS);
+				LOGGER.debug("initialRoot action completed successfully");
+			} catch (ExecutionException e) {
+				LOGGER.debug("initialRoot action failed", e);
+				throw new InitialRootException(e.getCause());
 			}
 		}
 
@@ -334,6 +338,19 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 		public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
 			LOGGER.debug("onEvent({})", event.getOperationType());
 			formatDriver.onEvent(event);
+		}
+
+		@Override
+		public void onConnectionFailed(Exception e) throws InterruptedException, InitialRootException, TimeoutException {
+			LOGGER.debug("onConnectionFailed");
+			FutureTask<R> initialRootAction = this.taskRef.get();
+			if (initialRootAction == null) {
+				LOGGER.debug("Nothing to do");
+			} else {
+				LOGGER.debug("Running initialRoot action");
+				runInitialRootAction(initialRootAction);
+			}
+
 		}
 
 		@Override

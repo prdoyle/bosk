@@ -6,7 +6,7 @@ import java.util.concurrent.TimeoutException;
 import org.bson.Document;
 
 interface ChangeListener {
-	void onConnect() throws
+	void onConnectionSucceeded() throws
 		UnrecognizedFormatException,
 		UninitializedCollectionException,
 		InterruptedException,
@@ -16,5 +16,6 @@ interface ChangeListener {
 
 	void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException;
 
+	void onConnectionFailed(Exception e) throws InterruptedException, InitialRootException, TimeoutException;
 	void onDisconnect(Exception e);
 }

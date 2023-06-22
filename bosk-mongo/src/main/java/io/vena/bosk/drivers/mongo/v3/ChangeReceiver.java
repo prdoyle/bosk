@@ -92,43 +92,54 @@ class ChangeReceiver implements Closeable {
 					//
 					LOGGER.debug("Opening cursor");
 					try (MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor = openCursor()) {
-						listener.onConnect();
+						try {
+							listener.onConnectionSucceeded();
 
-						// Note that eventLoop does not throw RuntimeException; therefore,
-						// any RuntimeException must have occurred before this point.
-						eventLoop(cursor);
-					} catch (UnprocessableEventException|UnexpectedEventProcessingException e) {
-						LOGGER.warn("Unable to process change event; reconnecting: {}", e.toString(), e);
-						listener.onDisconnect(e);
-						// Reconnection will skip this event, so it's safe to try it right away
-						continue;
-					} catch (InterruptedException | MongoInterruptedException e) {
-						LOGGER.warn("Interrupted while processing change events; reconnecting", e);
-						listener.onDisconnect(e);
-						continue;
-					} catch (IOException e) {
-						LOGGER.warn("Unexpected exception during change event processing; will wait and retry", e);
-						listener.onDisconnect(e);
-						return;
-					} catch (UnrecognizedFormatException e) {
-						LOGGER.warn("Unrecognized database format; will wait and retry", e);
-						listener.onDisconnect(e);
-						return;
-					} catch (UninitializedCollectionException e) {
-						LOGGER.warn("Database collection is not initialized; will wait and retry", e);
-						listener.onDisconnect(e);
-						return;
-					} catch (InitialRootException e) {
-						LOGGER.warn("Unable to initialize bosk state; will wait and retry", e);
-						listener.onDisconnect(e);
-						return;
-					} catch (TimeoutException e) {
-						LOGGER.warn("Timed out waiting for bosk state to initialize; will wait and retry", e);
-						listener.onDisconnect(e);
-						return;
+							// Note that eventLoop does not throw RuntimeException; therefore,
+							// any RuntimeException must have occurred before this point.
+							// TODO: Two try blocks?
+							eventLoop(cursor);
+						} catch (UnprocessableEventException|UnexpectedEventProcessingException e) {
+							LOGGER.warn("Unable to process change event; reconnecting: {}", e.toString(), e);
+							listener.onDisconnect(e);
+							// Reconnection will skip this event, so it's safe to try it right away
+							continue;
+						} catch (InterruptedException e) {
+							LOGGER.warn("Interrupted while processing change events; reconnecting", e);
+							listener.onDisconnect(e);
+							continue;
+						} catch (IOException e) {
+							LOGGER.warn("Unexpected exception during change event processing; will wait and retry", e);
+							listener.onDisconnect(e);
+							return;
+						} catch (UnrecognizedFormatException e) {
+							LOGGER.warn("Unrecognized database format; will wait and retry", e);
+							listener.onDisconnect(e);
+							return;
+						} catch (UninitializedCollectionException e) {
+							LOGGER.warn("Database collection is not initialized; will wait and retry", e);
+							listener.onDisconnect(e);
+							return;
+						} catch (InitialRootException e) {
+							LOGGER.warn("Unable to initialize bosk state; will wait and retry", e);
+							listener.onDisconnect(e);
+							return;
+						} catch (TimeoutException e) {
+							LOGGER.warn("Timed out waiting for bosk state to initialize; will wait and retry", e);
+							listener.onDisconnect(e);
+							return;
+						} catch (RuntimeException e) {
+							LOGGER.warn("Unexpected exception from onConnectionSucceeded; will wait and retry", e);
+							listener.onDisconnect(e);
+							return;
+						}
 					} catch (RuntimeException e) {
 						LOGGER.warn("Unable to connect to database; will wait and retry", e);
-						listener.onDisconnect(e);
+						try {
+							listener.onConnectionFailed(e);
+						} catch (InterruptedException | InitialRootException | TimeoutException e2) {
+							LOGGER.error("Error while running connection failure handler; will wait and reconnect", e2);
+						}
 						return;
 					}
 					LOGGER.trace("Change event processing returned normally");
