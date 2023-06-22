@@ -147,11 +147,11 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 				publishFormatDriver(preferredDriver);
 			} catch (RuntimeException | IOException e2) {
 				LOGGER.debug("Failed to initialize database; disconnecting", e);
-				publishFormatDriver(new DisconnectedDriver<>(e2.toString()));
+				quietlySetFormatDriver(new DisconnectedDriver<>(e2.toString()));
 			}
 		} catch (RuntimeException | UnrecognizedFormatException | IOException e) {
 			LOGGER.debug("Unable to load initial root from database; will proceed with downstream.initialRoot", e);
-			publishFormatDriver(new DisconnectedDriver<>(e.toString()));
+			quietlySetFormatDriver(new DisconnectedDriver<>(e.toString()));
 			root = callDownstreamInitialRoot(rootType);
 		} finally {
 			// For better or worse, we're done initialRoot. Clear taskRef so that Listener
@@ -357,7 +357,7 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 		public void onDisconnect(Exception e) {
 			LOGGER.debug("onDisconnect({})", e.toString());
 			formatDriver.close();
-			publishFormatDriver(new DisconnectedDriver<>(e.toString()));
+			quietlySetFormatDriver(new DisconnectedDriver<>(e.toString()));
 		}
 	}
 
@@ -435,7 +435,7 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 	 * because there's very likely a better driver on its way.
 	 */
 	void quietlySetFormatDriver(FormatDriver<R> newFormatDriver) {
-		LOGGER.debug("quietlySetFormatDriver({})", formatDriver.getClass().getSimpleName());
+		LOGGER.debug("quietlySetFormatDriver({}) (was {})", newFormatDriver.getClass().getSimpleName(), formatDriver.getClass().getSimpleName());
 		try {
 			formatDriverLock.lock();
 			formatDriver.close();
@@ -449,7 +449,7 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 	 * Sets {@link #formatDriver} and also signals any threads waiting to retry.
 	 */
 	void publishFormatDriver(FormatDriver<R> newFormatDriver) {
-		LOGGER.debug("publishFormatDriver({})", formatDriver.getClass().getSimpleName());
+		LOGGER.debug("publishFormatDriver({}) (was {})", newFormatDriver.getClass().getSimpleName(), formatDriver.getClass().getSimpleName());
 		try {
 			formatDriverLock.lock();
 			formatDriver.close();
