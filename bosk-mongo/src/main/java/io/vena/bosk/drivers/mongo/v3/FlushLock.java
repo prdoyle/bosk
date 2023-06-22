@@ -1,6 +1,7 @@
 package io.vena.bosk.drivers.mongo.v3;
 
 import io.vena.bosk.drivers.mongo.MongoDriverSettings;
+import io.vena.bosk.drivers.mongo.v2.DisconnectedException;
 import io.vena.bosk.exceptions.FlushFailureException;
 import java.io.Closeable;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -64,7 +65,7 @@ class FlushLock implements Closeable {
 				throw new FlushFailureException("Timed out waiting for revision " + revisionValue + " > " + alreadySeen);
 			}
 			if (isClosed) {
-				throw new FlushFailureException("Wait aborted");
+				throw new DisconnectedException("FlushLock closed while waiting");
 			}
 			LOGGER.debug("Done awaiting revision {} [{}]", revisionValue, identityHashCode(this));
 		} else {
