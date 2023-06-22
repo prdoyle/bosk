@@ -54,6 +54,9 @@ class FlushLock implements Closeable {
 		long past;
 		try {
 			queueLock.lock();
+			if (isClosed) {
+				throw new DisconnectedException("FlushLock is closed");
+			}
 			queue.add(new Waiter(revisionValue, semaphore));
 			past = alreadySeen;
 		} finally {
@@ -65,7 +68,8 @@ class FlushLock implements Closeable {
 				throw new FlushFailureException("Timed out waiting for revision " + revisionValue + " > " + alreadySeen);
 			}
 			if (isClosed) {
-				throw new DisconnectedException("FlushLock closed while waiting");
+				// Can't simply return and pretend this worked
+				throw new DisconnectedException("FlushLock was closed while waiting");
 			}
 			LOGGER.debug("Done awaiting revision {} [{}]", revisionValue, identityHashCode(this));
 		} else {
