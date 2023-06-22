@@ -5,7 +5,7 @@
 		</encoder>
 		<immediateFlush>true</immediateFlush>
 	</appender>
-	<root level="WARN">
+	<root level="INFO">
 		<appender-ref ref="CONSOLE" />
 	</root>
 
