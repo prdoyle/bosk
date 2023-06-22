@@ -211,6 +211,7 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 	@Override
 	public void onRevisionToSkip(BsonInt64 revision) {
 		revisionToSkip = revision;
+		flushLock.finishedRevision(revision);
 	}
 
 	private BsonInt64 getRevisionFromFullDocumentEvent(Document fullDocument) {
