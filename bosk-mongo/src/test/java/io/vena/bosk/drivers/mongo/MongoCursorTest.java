@@ -13,15 +13,19 @@ import org.bson.BsonInt64;
 import org.bson.Document;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.mongodb.ReadConcern.LOCAL;
+import static com.mongodb.ReadPreference.primary;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-//@UsesMongoService
+@UsesMongoService
+@Disabled("Used to explore basic MongoDB functionality; not an actual bosk unit test")
 public class MongoCursorTest {
 	final MongoService mongoService = new MongoService();
 	MongoDatabase database = mongoService.client().getDatabase(DATABASE);
@@ -52,24 +56,14 @@ public class MongoCursorTest {
 					LOGGER.info("Exiting");
 					return;
 				}
-//				LOGGER.info("Opening initial cursor");
-				ChangeStreamDocument<Document> initialEvent = null;
-//				BsonDocument resumeToken;
-//				try (MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor = collection
-//					.watch()
-//					.maxAwaitTime(20, MILLISECONDS)
-//					.cursor()
-//				) {
-//					initialEvent = cursor.tryNext();
-//					resumeToken = cursor.getResumeToken();
-//				}
 				LOGGER.info("Opening cursor");
 				try (MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor = collection
 					.watch()
-//					.startAfter(resumeToken)
 					.maxAwaitTime(500, MILLISECONDS)
 					.cursor()
 				) {
+//					ChangeStreamDocument<Document> initialEvent = cursor.tryNext();
+					ChangeStreamDocument<Document> initialEvent = null;
 					long startingValue = readField();
 					if (startingValue == 1) {
 						LOGGER.info("Observed {} already; will start over", startingValue);
@@ -92,13 +86,13 @@ public class MongoCursorTest {
 
 		Thread.currentThread().setName("Setter");
 		try {
-			long stopTime = 30_000 + System.currentTimeMillis();
+			long stopTime = 300_000 + System.currentTimeMillis();
 			while (System.currentTimeMillis() < stopTime) {
 				try {
 					barrier.await();
 					// This makes it pass
-//					LOGGER.info("Sleeping");
-//					Thread.sleep(100);
+					LOGGER.info("Sleeping");
+					Thread.sleep(1, 900_000);
 					LOGGER.info("--- Starting Setter");
 				} catch (InterruptedException | BrokenBarrierException e) {
 					return;
@@ -115,13 +109,20 @@ public class MongoCursorTest {
 				assertTrue(success);
 			}
 		} finally {
+			LOGGER.info("Finished");
 			cursorOpener.interrupt();
 			cursorOpener.join();
 		}
 	}
 
 	private long readField() {
-		try (MongoCursor<Document> cursor = collection.find(new BsonDocument()).cursor()) {
+		try (
+			MongoCursor<Document> cursor = collection
+				.withReadConcern(LOCAL)
+				.withReadPreference(primary())
+				.find(new BsonDocument())
+				.cursor()
+		) {
 			return cursor.next().getLong("field");
 		}
 	}
