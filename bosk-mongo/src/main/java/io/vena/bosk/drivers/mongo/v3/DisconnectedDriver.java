@@ -10,6 +10,8 @@ import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.bson.BsonInt64;
 import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RequiredArgsConstructor
 public class DisconnectedDriver<R extends Entity> implements FormatDriver<R> {
@@ -50,8 +52,8 @@ public class DisconnectedDriver<R extends Entity> implements FormatDriver<R> {
 	}
 
 	@Override
-	public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
-		throw disconnected();
+	public void onEvent(ChangeStreamDocument<Document> event) {
+		LOGGER.debug("Already disconnected; ignoring event ({})", event.getOperationType().getValue());
 	}
 
 	@Override
@@ -73,4 +75,5 @@ public class DisconnectedDriver<R extends Entity> implements FormatDriver<R> {
 		return new DisconnectedException(reason);
 	}
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(DisconnectedDriver.class);
 }
