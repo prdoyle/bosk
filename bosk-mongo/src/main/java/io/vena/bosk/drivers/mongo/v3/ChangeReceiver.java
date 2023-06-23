@@ -196,7 +196,20 @@ class ChangeReceiver implements Closeable {
 	}
 
 	private void processEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
-		listener.onEvent(event);
+		switch (event.getOperationType()) {
+			case INSERT:
+			case UPDATE:
+			case REPLACE:
+			case DELETE:
+			case RENAME:
+				listener.onEvent(event);
+				break;
+			case DROP:
+			case DROP_DATABASE:
+			case INVALIDATE:
+			case OTHER:
+				throw new UnprocessableEventException("Disruptive event received", event.getOperationType());
+		}
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ChangeReceiver.class);
