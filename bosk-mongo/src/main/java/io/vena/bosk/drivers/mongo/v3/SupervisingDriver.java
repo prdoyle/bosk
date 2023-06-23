@@ -336,7 +336,7 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 
 		@Override
 		public void onEvent(ChangeStreamDocument<Document> event) throws UnprocessableEventException {
-			LOGGER.debug("onEvent({})", event.getOperationType());
+			LOGGER.debug("onEvent({})", event.getOperationType().getValue());
 			formatDriver.onEvent(event);
 		}
 

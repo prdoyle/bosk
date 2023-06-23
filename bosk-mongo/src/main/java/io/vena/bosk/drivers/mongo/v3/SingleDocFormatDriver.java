@@ -200,7 +200,8 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 				}
 			} break;
 			case DELETE: {
-				LOGGER.info("Delete event ignored (id={}). Assuming the document will be created again...", event.getDocumentKey());
+				LOGGER.debug("Document containing revision field has been deleted; assuming revision=0");
+				flushLock.finishedRevision(REVISION_ZERO);
 			} break;
 			default: {
 				throw new UnprocessableEventException("Cannot process event", event.getOperationType());

@@ -94,7 +94,7 @@ class FlushLock implements Closeable {
 				return;
 			}
 			if (revisionValue <= alreadySeen) {
-				LOGGER.debug("Revision did not advance: {} <= {} [{}]", revisionValue, alreadySeen, identityHashCode(this));
+				LOGGER.debug("Note: revision did not advance: {} <= {} [{}]", revisionValue, alreadySeen, identityHashCode(this));
 			}
 
 			do {
