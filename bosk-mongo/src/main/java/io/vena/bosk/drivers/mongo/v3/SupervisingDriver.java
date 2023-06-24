@@ -404,30 +404,30 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 	}
 
 	private <X extends Exception, Y extends Exception> void doRetryableDriverOperation(RetryableOperation<X,Y> operation, String description, Object... args) throws X,Y {
-		if (isClosed) {
-			throw new IllegalStateException("Driver is closed");
-		}
-		try (MDCScope __ = setupMDC(bosk.name())) {
-			LOGGER.debug(description, args);
+		try (MDCScope __ = beginDriverOperation(description, args)) {
 			try {
 				operation.run();
 			} catch (DisconnectedException e) {
 				LOGGER.debug("Driver is disconnected ({}); will wait and retry operation", e.getMessage());
-				try {
-					formatDriverLock.lock();
-					boolean success = formatDriverChanged.await(5*driverSettings.recoveryPollingMS(), MILLISECONDS);
-					if (!success) {
-						LOGGER.debug("Timed out waiting for new FormatDriver; will retry anyway");
-					}
-				} catch (InterruptedException exception) {
-					throw new NotYetImplementedException(exception);
-				} finally {
-					formatDriverLock.unlock();
-				}
-				LOGGER.debug("Retrying " + description, args);
-				operation.run();
+				waitAndRetry(operation, description, args);
 			}
 		}
+	}
+
+	private <X extends Exception, Y extends Exception> void waitAndRetry(RetryableOperation<X, Y> operation, String description, Object... args) throws X, Y {
+		try {
+			formatDriverLock.lock();
+			boolean success = formatDriverChanged.await(5*driverSettings.recoveryPollingMS(), MILLISECONDS);
+			if (!success) {
+				LOGGER.debug("Timed out waiting for new FormatDriver; will retry anyway");
+			}
+		} catch (InterruptedException exception) {
+			throw new NotYetImplementedException(exception);
+		} finally {
+			formatDriverLock.unlock();
+		}
+		LOGGER.debug("Retrying " + description, args);
+		operation.run();
 	}
 
 	/**
