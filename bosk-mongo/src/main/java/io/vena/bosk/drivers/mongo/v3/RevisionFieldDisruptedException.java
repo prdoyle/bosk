@@ -12,7 +12,8 @@ import io.vena.bosk.exceptions.FlushFailureException;
  * This is the only time a driver method detects this sort of problem,
  * because {@link BoskDriver#flush} is the only driver method that does
  * a database read. Otherwise, these kinds of problems are always
- * detected by {@link ChangeReceiver} itself.
+ * detected by {@link ChangeReceiver} itself. This is somewhat analogous
+ * to an {@link UnprocessableEventException} but without an "event".
  */
 public class RevisionFieldDisruptedException extends FlushFailureException {
 	public RevisionFieldDisruptedException(String message) {

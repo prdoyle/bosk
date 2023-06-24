@@ -192,8 +192,15 @@ public class MongoDriverResiliencyTest extends AbstractMongoDriverTest {
 	@ParametersByName
 	@UsesMongoService
 	void revisionDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
-		// TODO: need a more complete test here. Deleting the revision
-		// field should be the same as setting it to zero, and both should work.
+		// It's not clear that this is a valid test. If this test is a burden to support,
+		// we can consider removing it.
+		//
+		// In general, changing the revision field to a lower number is not fair to bosk
+		// unless you also revert to the corresponding state. (And deleting the revision
+		// field is conceptually equivalent to setting it to zero.) Deleting the revision field
+		// is a special case because no ordinary bosk operations delete the revision field, or
+		// set it to zero, so it's not unreasonable to expect bosk to handle this; but it's
+		// also not reasonable to be surprised if it didn't.
 		LOGGER.debug("Setup database to beforeState");
 		TestEntity beforeState = initializeDatabase("before deletion");
 

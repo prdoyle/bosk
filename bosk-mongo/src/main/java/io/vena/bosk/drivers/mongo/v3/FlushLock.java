@@ -18,6 +18,38 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * Implements waiting mechanism for revision numbers
+ *
+ * <h3>Evolution note</h3>
+ * There is an important scenario that we ought to support:
+ * <ol><li>
+ *     Document/collection/database gets deleted
+ * </li><li>
+ *     A new bosk gets created (say, by restarting a server)
+ * </li><li>
+ *     The new bosk reinitializes the database
+ * </li></ol>
+ *
+ * This situation is covered in <code>MongoDriverResiliencyTest</code>,
+ * but actually we don't handle this perfectly because flush logic looks
+ * at the revision number only. In the case where the database
+ * is reinitialized with a different bosk state but the same revision number,
+ * checking the revision number only is insufficient to determine that the
+ * in-memory state is out of date. The test presently passes, presumably
+ * because it's rescued by the change stream event describing the disruption,
+ * but if that event were sufficiently delayed, the flush could incorrectly
+ * conclude that it does not need to wait.
+ *
+ * <p>
+ * One reasonable solution would be to include a UUID <code>epoch</code>
+ * field alongside the revision number, and to have the flush logic check
+ * both. It would conclude that there's no need to wait only if both the
+ * <code>epoch</code> and <code>revision</code> fields match expectations.
+ *
+ * <p>
+ * We have not yet implemented this logic because, at the time of writing,
+ * the revision logic seems quite widespread, and we're hoping to encapsulate
+ * it within the {@link FormatDriver}. Once that happens, we can easily evolve
+ * that logic to include an epoch concept without touching other components.
  */
 class FlushLock implements Closeable {
 	private final MongoDriverSettings settings;
