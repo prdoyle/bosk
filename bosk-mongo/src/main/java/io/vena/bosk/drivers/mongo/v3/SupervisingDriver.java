@@ -263,16 +263,13 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 	@Override
 	public void flush() throws IOException, InterruptedException {
 		try {
-			RetryableOperation<IOException, InterruptedException> operation = () -> {
-			formatDriver.flush();
-		};
-			Object[] args = new Object[]{};
-			try (MDCScope __ = beginDriverOperation("flush", args)) {
+			RetryableOperation<IOException, InterruptedException> op = () -> formatDriver.flush();
+			try (MDCScope __ = beginDriverOperation("flush")) {
 				try {
-					operation.run();
+					op.run();
 				} catch (DisconnectedException e) {
 					LOGGER.debug("Driver is disconnected ({}); will wait and retry operation", e.getMessage());
-					waitAndRetry(operation, "flush", args);
+					waitAndRetry(op, "flush");
 				}
 			}
 		} catch (DisconnectedException e) {
