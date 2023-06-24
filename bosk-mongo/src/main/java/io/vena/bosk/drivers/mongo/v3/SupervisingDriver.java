@@ -270,9 +270,9 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 				} catch (DisconnectedException e) {
 					LOGGER.debug("Driver is disconnected ({}); will wait and retry operation", e.getMessage());
 					waitAndRetry(op, "flush");
-				} catch (FlushFailureException e) {
+				} catch (RevisionFieldDisruptedException e) {
 					// TODO: Really, at the moment the damage is noticed, we should probably make the receiver reboot; but we currently have no way to do so!
-					LOGGER.debug("First flush attempt failed; wait for receiver to notice something is wrong");
+					LOGGER.debug("Revision field has been disrupted; wait for receiver to notice something is wrong", e);
 					waitAndRetry(op, "flush");
 				}
 			}

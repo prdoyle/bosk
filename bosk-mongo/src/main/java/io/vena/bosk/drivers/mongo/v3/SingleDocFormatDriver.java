@@ -276,7 +276,7 @@ final class SingleDocFormatDriver<R extends Entity> implements io.vena.bosk.driv
 			}
 		} catch (NoSuchElementException e) {
 			LOGGER.debug("Document is missing", e);
-			throw new FlushFailureException(e);
+			throw new RevisionFieldDisruptedException(e);
 		} catch (RuntimeException e) {
 			LOGGER.debug("readRevisionNumber failed", e);
 			throw new FlushFailureException(e);
