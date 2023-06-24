@@ -101,6 +101,12 @@ public class MainDriver<R extends Entity> implements MongoDriver<R> {
 
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, InterruptedException, IOException {
+		// This implementation is complicated by the fact that loading
+		// the initial root is inherently coupled with change stream initialization,
+		// and we want all change stream operations handled by the ChangeReceiver background thread.
+		// Therefore, instead of actually running the initialRoot logic, we wait for
+		// the ChangeReceiver to do it for us, and we merely check what the outcome was
+		// and respond accordingly.
 		try (MDCScope __ = beginDriverOperation("initialRoot({})", rootType)) {
 			FutureTask<R> task = listener.taskRef.get();
 			if (task == null) {
