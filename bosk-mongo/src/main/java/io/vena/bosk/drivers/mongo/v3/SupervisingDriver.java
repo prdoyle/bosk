@@ -263,17 +263,17 @@ public class SupervisingDriver<R extends Entity> implements MongoDriver<R> {
 	@Override
 	public void flush() throws IOException, InterruptedException {
 		try {
-			RetryableOperation<IOException, InterruptedException> op = () -> formatDriver.flush();
+			RetryableOperation<IOException, InterruptedException> flushOperation = () -> formatDriver.flush();
 			try (MDCScope __ = beginDriverOperation("flush")) {
 				try {
-					op.run();
+					flushOperation.run();
 				} catch (DisconnectedException e) {
 					LOGGER.debug("Driver is disconnected ({}); will wait and retry operation", e.getMessage());
-					waitAndRetry(op, "flush");
+					waitAndRetry(flushOperation, "flush");
 				} catch (RevisionFieldDisruptedException e) {
 					// TODO: Really, at the moment the damage is noticed, we should probably make the receiver reboot; but we currently have no way to do so!
 					LOGGER.debug("Revision field has been disrupted; wait for receiver to notice something is wrong", e);
-					waitAndRetry(op, "flush");
+					waitAndRetry(flushOperation, "flush");
 				}
 			}
 		} catch (DisconnectedException e) {
