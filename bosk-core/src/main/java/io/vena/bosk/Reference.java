@@ -149,9 +149,6 @@ public interface Reference<T> {
 	<U> Reference<U> then(Class<U> targetClass, String...segments) throws InvalidTypeException;
 
 	<E extends Entity> CatalogReference<E> thenCatalog(Class<E> entryClass, String... segments) throws InvalidTypeException;
-	<E extends Entity> ListingReference<E> thenListing(Class<E> entryClass, String... segments) throws InvalidTypeException;
-	<K extends Entity,V> SideTableReference<K,V> thenSideTable(Class<K> keyClass, Class<V> valueClass, String... segments) throws InvalidTypeException;
-	<TT> Reference<Reference<TT>> thenReference(Class<TT> targetClass, String... segments) throws InvalidTypeException;
 
 	/**
 	 * @param targetClass Type constraint on the reference; the returned

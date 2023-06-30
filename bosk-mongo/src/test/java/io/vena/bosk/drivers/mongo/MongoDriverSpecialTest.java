@@ -5,12 +5,10 @@ import com.mongodb.client.MongoCursor;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Catalog;
-import io.vena.bosk.CatalogReference;
 import io.vena.bosk.Entity;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Listing;
 import io.vena.bosk.ListingEntry;
-import io.vena.bosk.ListingReference;
 import io.vena.bosk.Reference;
 import io.vena.bosk.SideTable;
 import io.vena.bosk.drivers.BufferingDriver;
@@ -93,13 +91,9 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest implements TestPara
 				}
 			}));
 
-		CatalogReference<TestEntity> catalogRef = bosk.rootReference().thenCatalog(TestEntity.class,
-			TestEntity.Fields.catalog);
-		ListingReference<TestEntity> listingRef = bosk.rootReference().thenListing(TestEntity.class,
-			TestEntity.Fields.listing);
-
 		// Make a change
-		Reference<ListingEntry> ref = listingRef.then(entity123);
+		Refs refs = bosk.buildReferences(Refs.class);
+		Reference<ListingEntry> ref = refs.listing().then(entity123);
 		bosk.driver().submitReplacement(ref, LISTING_ENTRY);
 
 		// Give the driver a bit of time to make a mistake, if it's going to
@@ -126,7 +120,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest implements TestPara
 		bosk.driver().flush();
 
 		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadContext context = bosk.readContext()) {
-			TestEntity expected = initialRoot(bosk).withListing(Listing.of(catalogRef, entity123));
+			TestEntity expected = initialRoot(bosk).withListing(Listing.of(refs.catalog(), entity123));
 			TestEntity actual = bosk.rootReference().value();
 			assertEquals(expected, actual, "MongoDriver.flush() should reliably update the bosk");
 		}
@@ -137,36 +131,33 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest implements TestPara
 	@UsesMongoService
 	void listing_stateMatches() throws InvalidTypeException, InterruptedException, IOException {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test", TestEntity.class, this::initialRoot, driverFactory);
+		Refs refs = bosk.buildReferences(Refs.class);
 		BoskDriver<TestEntity> driver = bosk.driver();
-		CatalogReference<TestEntity> catalogRef = bosk.rootReference().thenCatalog(TestEntity.class,
-			TestEntity.Fields.catalog);
-		ListingReference<TestEntity> listingRef = bosk.rootReference().thenListing(TestEntity.class,
-			TestEntity.Fields.listing);
 
 		// Clear the listing
-		driver.submitReplacement(listingRef, Listing.empty(catalogRef));
+		driver.submitReplacement(refs.listing(), Listing.empty(refs.catalog()));
 
 		// Add to the listing
-		driver.submitReplacement(listingRef.then(entity124), LISTING_ENTRY);
-		driver.submitReplacement(listingRef.then(entity123), LISTING_ENTRY);
-		driver.submitReplacement(listingRef.then(entity124), LISTING_ENTRY);
+		driver.submitReplacement(refs.listing().then(entity124), LISTING_ENTRY);
+		driver.submitReplacement(refs.listing().then(entity123), LISTING_ENTRY);
+		driver.submitReplacement(refs.listing().then(entity124), LISTING_ENTRY);
 
 		// Check the contents
 		driver.flush();
 		try (@SuppressWarnings("unused") Bosk<?>.ReadContext readContext = bosk.readContext()) {
-			Listing<TestEntity> actual = listingRef.value();
-			Listing<TestEntity> expected = Listing.of(catalogRef, entity124, entity123);
+			Listing<TestEntity> actual = refs.listing().value();
+			Listing<TestEntity> expected = Listing.of(refs.catalog(), entity124, entity123);
 			assertEquals(expected, actual);
 		}
 
 		// Remove an entry
-		driver.submitDeletion(listingRef.then(entity123));
+		driver.submitDeletion(refs.listing().then(entity123));
 
 		// Check the contents
 		driver.flush();
 		try (@SuppressWarnings("unused") Bosk<?>.ReadContext readContext = bosk.readContext()) {
-			Listing<TestEntity> actual = listingRef.value();
-			Listing<TestEntity> expected = Listing.of(catalogRef, entity124);
+			Listing<TestEntity> actual = refs.listing().value();
+			Listing<TestEntity> expected = Listing.of(refs.catalog(), entity124);
 			assertEquals(expected, actual);
 		}
 	}
@@ -276,10 +267,10 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest implements TestPara
 			(b) -> { throw new AssertionError("prevBosk should use the state from MongoDB"); },
 			createDriverFactory());
 
-		ListingReference<TestEntity> listingRef = bosk.rootReference().thenListing(TestEntity.class, TestEntity.Fields.listing);
+		Refs refs = bosk.buildReferences(Refs.class);
 
 		TestEntity initialRoot = initialRoot(bosk);
-		bosk.driver().submitReplacement(listingRef,
+		bosk.driver().submitReplacement(refs.listing(),
 			Listing.of(initialRoot.listing().domain(), Identifier.from("newEntry")));
 
 		prevBosk.driver().flush();
@@ -304,9 +295,9 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest implements TestPara
 			(b) -> { throw new AssertionError("prevBosk should use the state from MongoDB"); },
 			createDriverFactory());
 
-		ListingReference<TestEntity> listingRef = bosk.rootReference().thenListing(TestEntity.class, TestEntity.Fields.listing);
+		Refs refs = bosk.buildReferences(Refs.class);
 
-		bosk.driver().submitDeletion(listingRef.then(entity123));
+		bosk.driver().submitDeletion(refs.listing().then(entity123));
 
 		prevBosk.driver().flush();
 

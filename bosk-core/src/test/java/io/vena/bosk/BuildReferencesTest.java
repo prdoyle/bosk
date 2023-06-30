@@ -29,33 +29,39 @@ public class BuildReferencesTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void parameterized() {
-		assertEquals(teb.anyEntity(), refs.anyEntity());
+	void parameterized() throws InvalidTypeException {
+		assertEquals(bosk.reference(TestEntity.class, Path.parseParameterized("/entities/-entity-")),
+			refs.anyEntity());
 	}
 
 	@Test
-	void varargs() {
-		assertEquals(teb.entityRef(parentID), refs.entity(parentID));
+	void varargs() throws InvalidTypeException {
+		assertEquals(bosk.reference(TestEntity.class, Path.parseParameterized("/entities/-entity-")).boundTo(parentID),
+			refs.entity(parentID));
 	}
 
 	@Test
-	void twoArgs() {
-		assertEquals(teb.childrenRef(parentID).then(childID), refs.child(parentID, childID));
+	void twoArgs() throws InvalidTypeException {
+		assertEquals(bosk.reference(TestChild.class, Path.parseParameterized("/entities/-entity-/children/-child-")).boundTo(parentID, childID),
+			refs.child(parentID, childID));
 	}
 
 	@Test
-	void catalogReference() {
-		assertEquals(teb.childrenRef(parentID), refs.children(parentID));
+	void catalogReference() throws InvalidTypeException {
+		assertEquals(bosk.catalogReference(TestChild.class, Path.parseParameterized("/entities/-entity-/children")).boundTo(parentID),
+			refs.children(parentID));
 	}
 
 	@Test
 	void listingReference() throws InvalidTypeException {
-		assertEquals(teb.entityRef(parentID).thenListing(TestChild.class, "oddChildren"), refs.oddChildren(parentID));
+		assertEquals(bosk.listingReference(TestEntity.class, Path.parseParameterized("/entities/-entity-/oddChildren")).boundTo(parentID),
+			refs.oddChildren(parentID));
 	}
 
 	@Test
 	void sideTableReference() throws InvalidTypeException {
-		assertEquals(teb.entityRef(parentID).thenSideTable(TestChild.class, String.class, "stringSideTable"), refs.stringSideTable(parentID));
+		assertEquals(bosk.sideTableReference(TestChild.class, String.class, Path.parseParameterized("/entities/-entity-/stringSideTable")).boundTo(parentID),
+			refs.stringSideTable(parentID));
 	}
 
 	public interface Refs {

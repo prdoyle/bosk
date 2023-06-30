@@ -59,8 +59,8 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		Reference<TestEntity> wholeEntityRef = catalogRef.then(awkwardID);
 		CatalogReference<TestEntity> innerCatalogRef = wholeEntityRef.thenCatalog(TestEntity.class, "catalog");
 		Reference<TestEntity> part1EntityRef = innerCatalogRef.then(childID);
-		Reference<TestEntity> part2EntityRef = wholeEntityRef.thenSideTable(TestEntity.class, TestEntity.class, "sideTable").then(childID);
-		Reference<ListingEntry> listingEntryRef = wholeEntityRef.thenListing(TestEntity.class, "listing").then(childID);
+		Reference<TestEntity> part2EntityRef = wholeEntityRef.then(TestEntity.class, "sideTable", childID.toString());
+		Reference<ListingEntry> listingEntryRef = wholeEntityRef.then(ListingEntry.class, "listing", childID.toString());
 
 		driver.submitReplacement(wholeEntityRef,
 			newEntity(awkwardID, catalogRef)

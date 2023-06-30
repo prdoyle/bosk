@@ -1,5 +1,6 @@
 package io.vena.bosk;
 
+import io.vena.bosk.annotations.ReferencePath;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NonexistentReferenceException;
 import io.vena.bosk.util.Classes;
@@ -54,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 class BoskLocalReferenceTest {
 	Bosk<Root> bosk;
+	Refs refs;
 	Root root;
 	CatalogReference<TestEntity> entitiesRef;
 
@@ -61,6 +63,7 @@ class BoskLocalReferenceTest {
 	void initializeBosk() throws InvalidTypeException {
 		Root initialRoot = new Root(Identifier.from("root"), 1, Catalog.empty());
 		bosk = new Bosk<>(BOSK_NAME, Root.class, initialRoot, Bosk::simpleDriver);
+		refs = bosk.buildReferences(Refs.class);
 		entitiesRef = bosk.rootReference().thenCatalog(TestEntity.class, Root.Fields.entities);
 		Identifier ernieID = Identifier.from("ernie");
 		Identifier bertID = Identifier.from("bert");
@@ -115,11 +118,11 @@ class BoskLocalReferenceTest {
 		@SuppressWarnings({ "rawtypes", "unchecked" })
 		Class<Catalog<TestEntity>> catalogClass = (Class<Catalog<TestEntity>>)(Class)Catalog.class;
 		Path entitiesPath = Path.just(Root.Fields.entities);
-		List<Reference<Catalog<TestEntity>>> refs = asList(
+		List<Reference<Catalog<TestEntity>>> refList = asList(
 				bosk.reference(catalogClass, entitiesPath),
 				bosk.catalogReference(TestEntity.class, entitiesPath),
 				bosk.rootReference().thenCatalog(TestEntity.class, Root.Fields.entities));
-		for (Reference<Catalog<TestEntity>> catalogRef: refs) {
+		for (Reference<Catalog<TestEntity>> catalogRef: refList) {
 			checkReferenceProperties(catalogRef, entitiesPath, root.entities());
 			for (Identifier id: root.entities.ids()) {
 				Reference<TestEntity> entityRef = catalogRef.then(TestEntity.class, id.toString());
@@ -137,12 +140,10 @@ class BoskLocalReferenceTest {
 	void testListingReference() throws Exception {
 		for (Identifier id: root.entities.ids()) {
 			Path listingPath = Path.of(Root.Fields.entities, id.toString(), TestEntity.Fields.listing);
-			List<ListingReference<TestEntity>> refs = asList(
+			List<ListingReference<TestEntity>> refList = asList(
 					bosk.listingReference(TestEntity.class, listingPath),
-					bosk.rootReference().thenListing(TestEntity.class, Root.Fields.entities, id.toString(), TestEntity.Fields.listing),
-					bosk.rootReference().thenListing(TestEntity.class, Root.Fields.entities, "-entity-", TestEntity.Fields.listing).boundTo(id)
-					);
-			for (ListingReference<TestEntity> listingRef: refs) {
+					refs.anyListing().boundTo(id));
+			for (ListingReference<TestEntity> listingRef: refList) {
 				// Check the Listing reference itself
 				try {
 					checkReferenceProperties(listingRef, listingPath, root.entities().get(id).listing());
@@ -185,12 +186,10 @@ class BoskLocalReferenceTest {
 	void testSideTableReference() throws InvalidTypeException {
 		for (Identifier id: root.entities.ids()) {
 			Path sideTablePath = Path.of(Root.Fields.entities, id.toString(), TestEntity.Fields.sideTable);
-			List<SideTableReference<TestEntity,String>> refs = asList(
+			List<SideTableReference<TestEntity,String>> refList = asList(
 					bosk.sideTableReference(TestEntity.class, String.class, sideTablePath),
-					bosk.rootReference().thenSideTable(TestEntity.class, String.class, Root.Fields.entities, id.toString(), TestEntity.Fields.sideTable),
-					bosk.rootReference().thenSideTable(TestEntity.class, String.class, Root.Fields.entities, "-entity-", TestEntity.Fields.sideTable).boundTo(id)
-					);
-			for (SideTableReference<TestEntity,String> sideTableRef: refs) {
+					refs.anySideTable().boundTo(id));
+			for (SideTableReference<TestEntity,String> sideTableRef: refList) {
 				SideTable<TestEntity, String> sideTable = root.entities().get(id).sideTable();
 				try {
 					checkReferenceProperties(sideTableRef, sideTablePath, sideTable);
@@ -219,12 +218,10 @@ class BoskLocalReferenceTest {
 	void testReferenceReference() throws Exception {
 		for (Identifier id: root.entities.ids()) {
 			Path refPath = Path.of(Root.Fields.entities, id.toString(), TestEntity.Fields.refField);
-			List<Reference<Reference<TestEntity>>> refs = asList(
+			List<Reference<Reference<TestEntity>>> refList = asList(
 					bosk.referenceReference(TestEntity.class, refPath),
-					bosk.rootReference().thenReference(TestEntity.class, Root.Fields.entities, id.toString(), TestEntity.Fields.refField),
-					bosk.rootReference().thenReference(TestEntity.class, Root.Fields.entities, "-entity-", TestEntity.Fields.refField).boundTo(id)
-			);
-			for (Reference<Reference<TestEntity>> ref: refs) {
+					refs.anyReference().boundTo(id));
+			for (Reference<Reference<TestEntity>> ref: refList) {
 				Reference<TestEntity> refField = root.entities().get(id).refField();
 				try {
 					checkReferenceProperties(ref, refPath, refField);
@@ -318,9 +315,6 @@ class BoskLocalReferenceTest {
 		// All kinds of "then" variants
 
 		assertEquals(expectedPath.then(TestEntity.Fields.catalog), ref.thenCatalog(TestEntity.class, TestEntity.Fields.catalog).path());
-		assertEquals(expectedPath.then(TestEntity.Fields.listing), ref.thenListing(TestEntity.class, TestEntity.Fields.listing).path());
-		assertEquals(expectedPath.then(TestEntity.Fields.sideTable), ref.thenSideTable(TestEntity.class, String.class, TestEntity.Fields.sideTable).path());
-
 		assertEquals(expectedPath.then(TestEntity.Fields.catalog), ref.then(Catalog.class, TestEntity.Fields.catalog).path());
 		assertEquals(expectedPath.then(TestEntity.Fields.listing), ref.then(Listing.class, TestEntity.Fields.listing).path());
 		assertEquals(expectedPath.then(TestEntity.Fields.sideTable), ref.then(SideTable.class, TestEntity.Fields.sideTable).path());
@@ -411,6 +405,17 @@ class BoskLocalReferenceTest {
 			}
 		}
 		bosk.driver().submitReplacement(bosk.rootReference(), originalRoot);
+	}
+
+	public interface Refs {
+		@ReferencePath("/entities/-entity-/listing")
+		ListingReference<TestEntity> anyListing();
+
+		@ReferencePath("/entities/-entity-/sideTable")
+		SideTableReference<TestEntity, String> anySideTable();
+
+		@ReferencePath("/entities/-entity-/refField")
+		Reference<Reference<TestEntity>> anyReference();
 	}
 
 	private static final UnaryOperator<Root>       ROOT_UPDATER   = r -> r.withVersion(1 + r.version());

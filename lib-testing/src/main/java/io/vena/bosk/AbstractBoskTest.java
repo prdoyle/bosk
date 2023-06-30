@@ -136,9 +136,6 @@ public abstract class AbstractBoskTest {
 
 		@Override public <U> Reference<U> then(Class<U> targetClass, String... segments) { return null; }
 		@Override public <E extends Entity> CatalogReference<E> thenCatalog(Class<E> entryClass, String... segments) { return null; }
-		@Override public <E extends Entity> ListingReference<E> thenListing(Class<E> entryClass, String... segments) { return null; }
-		@Override public <K extends Entity, V> SideTableReference<K, V> thenSideTable(Class<K> keyClass, Class<V> valueClass, String... segments) { return null; }
-		@Override public <TT> Reference<Reference<TT>> thenReference(Class<TT> targetClass, String... segments) { return null; }
 		@Override public <TT> Reference<TT> enclosingReference(Class<TT> targetClass) { return null; }
 		@Override public Reference<T> boundBy(BindingEnvironment bindings) { return null; }
 
