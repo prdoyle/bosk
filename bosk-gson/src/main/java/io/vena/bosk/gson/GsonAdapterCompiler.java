@@ -6,16 +6,10 @@ import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import io.vena.bosk.Bosk;
-import io.vena.bosk.Catalog;
-import io.vena.bosk.Entity;
 import io.vena.bosk.Phantom;
-import io.vena.bosk.Reference;
-import io.vena.bosk.ReflectiveEntity;
-import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.bytecode.ClassBuilder;
 import io.vena.bosk.bytecode.LocalVariable;
 import io.vena.bosk.exceptions.InvalidTypeException;
-import io.vena.bosk.gson.GsonPlugin.FieldModerator;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -35,11 +29,9 @@ import org.slf4j.LoggerFactory;
 
 import static io.vena.bosk.ReferenceUtils.getterMethod;
 import static io.vena.bosk.ReferenceUtils.parameterType;
-import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static io.vena.bosk.SerializationPlugin.isImplicitParameter;
 import static io.vena.bosk.bytecode.ClassBuilder.here;
-import static io.vena.bosk.util.Types.parameterizedType;
 import static java.util.Arrays.asList;
 
 @RequiredArgsConstructor
@@ -61,7 +53,7 @@ final class GsonAdapterCompiler {
 	 *
 	 * @return a newly compiled {@link TypeAdapter} for values of the given <code>nodeType</code>.
 	 */
-	public <T> TypeAdapter<T> compiled(TypeToken<T> nodeTypeToken, Bosk<?> bosk, Gson gson, FieldModerator moderator) {
+	public <T> TypeAdapter<T> compiled(TypeToken<T> nodeTypeToken, Bosk<?> bosk, Gson gson) {
 		try {
 			// Record that we're compiling this one to avoid infinite recursion
 			compilationsInProgress.get().addLast(nodeTypeToken.getType());
@@ -84,7 +76,7 @@ final class GsonAdapterCompiler {
 			// Return a CodecWrapper for the codec
 			LinkedHashMap<String, Parameter> parametersByName = new LinkedHashMap<>();
 			parameters.forEach(p -> parametersByName.put(p.getName(), p));
-			return new CodecWrapper<>(codec, gson, bosk, nodeClass, parametersByName, moderator);
+			return new CodecWrapper<>(codec, gson, bosk, nodeClass, parametersByName);
 		} finally {
 			Type removed = compilationsInProgress.get().removeLast();
 			assert removed.equals(nodeTypeToken.getType());
@@ -140,9 +132,6 @@ final class GsonAdapterCompiler {
 				plan = new OrdinaryFieldWritePlan();
 			} else {
 				plan = new StaticallyBoundFieldWritePlan();
-			}
-			if (nodeClass.isAnnotationPresent(DerivedRecord.class)) {
-				plan = new ReferencingFieldWritePlan(plan, nodeClass.getSimpleName());
 			}
 			if (Optional.class.isAssignableFrom(parameter.getType())) {
 				plan = new OptionalFieldWritePlan(plan);
@@ -201,11 +190,9 @@ final class GsonAdapterCompiler {
 	 * and of combinations of "modifiers" (like {@link OptionalFieldWritePlan}).
 	 * It is hard to reason about these in a way that ensures we get all the combinations right.
 	 * Expressing modifiers in the form of "planning" objects helps us to tame
-	 * the multitude of combinations of cases. For example, how should we deal
-	 * with a {@link DerivedRecord} that has an {@link Optional} field that
-	 * is a recursive type? We build the appropriate stack of {@link FieldWritePlan}
-	 * objects, each of whose {@link #generateFieldWrite} method handles one specific
-	 * concern; and the composition of these objects will generate the appropriate code.
+	 * the multitude of combinations of cases. We build the appropriate stack of
+	 * {@link FieldWritePlan} objects, each of whose {@link #generateFieldWrite} method
+	 * handles one specific concern; and the composition of these objects will generate the appropriate code.
 	 */
 	private interface FieldWritePlan {
 		/**
@@ -310,40 +297,6 @@ final class GsonAdapterCompiler {
 	}
 
 	/**
-	 * A stackable wrapper to implement {@link DerivedRecord} semantics: writes {@link Entity}
-	 * fields as {@link Reference References}, and all other fields are written using the
-	 * supplied {@link #nonEntityWriter}.
-	 */
-	@Value
-	private static class ReferencingFieldWritePlan implements FieldWritePlan {
-		FieldWritePlan nonEntityWriter;
-		String nodeClassName; // Just for error messages
-
-		/**
-		 * {@inheritDoc}
-		 */
-		@Override
-		public void generateFieldWrite(String name, ClassBuilder<Codec> cb, Gson gson, LocalVariable jsonWriter, Type type) {
-			Class<?> parameterClass = rawClass(type);
-			boolean isEntity = Entity.class.isAssignableFrom(parameterClass);
-			if (isEntity) {
-				if (ReflectiveEntity.class.isAssignableFrom(parameterClass)) {
-					cb.castTo(ReflectiveEntity.class);
-					cb.invoke(REFLECTIVE_ENTITY_REFERENCE);
-					// Recurse to write the Reference
-					generateFieldWrite(name, cb, gson, jsonWriter, parameterizedType(Reference.class, type));
-				} else {
-					throw new IllegalArgumentException(String.format("%s %s cannot contain Entity that is not a ReflectiveEntity: \"%s\"", DerivedRecord.class.getSimpleName(), nodeClassName, name));
-				}
-			} else if (Catalog.class.isAssignableFrom(parameterClass)) {
-				throw new IllegalArgumentException(String.format("%s %s cannot contain Catalog \"%s\" (try Listing?)", DerivedRecord.class.getSimpleName(), nodeClassName, name));
-			} else {
-				nonEntityWriter.generateFieldWrite(name, cb, gson, jsonWriter, type);
-			}
-		}
-	}
-
-	/**
 	 * Implements the Gson {@link TypeAdapter} interface using a {@link Codec} object.
 	 * Putting boilerplate code in this wrapper is much easier than generating it
 	 * in the compiler, and allows us to keep the {@link Codec} interface focused
@@ -357,7 +310,6 @@ final class GsonAdapterCompiler {
 		Bosk<?> bosk;
 		Class<T> nodeClass;
 		LinkedHashMap<String, Parameter> parametersByName;
-		FieldModerator moderator;
 
 		@Override
 		public void write(JsonWriter out, T value) throws IOException {
@@ -373,7 +325,7 @@ final class GsonAdapterCompiler {
 			// Note: the reading side can't be as efficient as the writing side
 			// because we need to tolerate the fields arriving in arbitrary order.
 			in.beginObject();
-			Map<String, Object> valueMap = gsonPlugin.gatherParameterValuesByName(nodeClass, parametersByName, moderator, in, gson);
+			Map<String, Object> valueMap = gsonPlugin.gatherParameterValuesByName(nodeClass, parametersByName, in, gson);
 			in.endObject();
 
 			List<Object> parameterValues = gsonPlugin.parameterValueList(nodeClass, valueMap, parametersByName, bosk);
@@ -388,7 +340,6 @@ final class GsonAdapterCompiler {
 	private static final Method DYNAMIC_WRITE_FIELD;
 	private static final Method LIST_GET;
 	private static final Method OPTIONAL_IS_PRESENT, OPTIONAL_GET;
-	private static final Method REFLECTIVE_ENTITY_REFERENCE;
 	private static final Method JSON_WRITER_NAME, TYPE_ADAPTER_WRITE;
 
 	static {
@@ -399,7 +350,6 @@ final class GsonAdapterCompiler {
 			LIST_GET = List.class.getDeclaredMethod("get", int.class);
 			OPTIONAL_IS_PRESENT = Optional.class.getDeclaredMethod("isPresent");
 			OPTIONAL_GET = Optional.class.getDeclaredMethod("get");
-			REFLECTIVE_ENTITY_REFERENCE = ReflectiveEntity.class.getDeclaredMethod("reference");
 			JSON_WRITER_NAME = JsonWriter.class.getDeclaredMethod("name", String.class);
 			TYPE_ADAPTER_WRITE = TypeAdapter.class.getDeclaredMethod("write", JsonWriter.class, Object.class);
 		} catch (NoSuchMethodException e) {

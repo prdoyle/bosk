@@ -1,6 +1,5 @@
 package io.vena.bosk;
 
-import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.annotations.DeserializationPath;
 import io.vena.bosk.annotations.Enclosing;
 import io.vena.bosk.annotations.Self;
@@ -53,8 +52,6 @@ public final class TypeValidation {
 			} else if (isSimpleClass(theClass)) {
 				// All allowed
 				return;
-			} else if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-				throw new InvalidTypeException(DerivedRecord.class.getSimpleName() + " types are not allowed in a Bosk");
 			} else if (Reference.class.isAssignableFrom(theClass)) {
 				validateFieldsAreFinal(theClass);
 				Type targetType = parameterType(theType, Reference.class, 0);

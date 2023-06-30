@@ -1,7 +1,6 @@
 package io.vena.bosk;
 
 import io.vena.bosk.AbstractBoskTest.AbstractReference;
-import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.annotations.DeserializationPath;
 import io.vena.bosk.annotations.Enclosing;
 import io.vena.bosk.annotations.Self;
@@ -48,8 +47,6 @@ class TypeValidationTest {
 			//MissingConstructorArgument.class, // TODO: Currently doesn't work because Bosk is constructor-driven. Figure out what's the system of record here
 			ArrayField.class,
 			CatalogOfInvalidType.class,
-			DerivedRecordField.class,
-			DerivedRecordType.class,
 			EnclosingNonReference.class,
 			EnclosingReferenceToCatalog.class,
 			EnclosingReferenceToOptional.class,
@@ -715,29 +712,6 @@ class TypeValidationTest {
 			assertThat(e.getMessage(), containsString("ListValueSubclassWithWrongConstructor.badField"));
 			assertThat(e.getMessage(), containsStringIgnoringCase("constructor"));
 			assertThat(e.getMessage(), not(containsStringIgnoringCase("ambiguous")));
-		}
-	}
-
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	@DerivedRecord
-	public static final class DerivedRecordType implements Entity {
-		Identifier id;
-
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString(DerivedRecord.class.getSimpleName()));
-		}
-	}
-
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class DerivedRecordField implements Entity {
-		Identifier id;
-		DerivedRecordType badField;
-
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString(DerivedRecord.class.getSimpleName()));
-			assertThat(e.getMessage(), containsString("DerivedRecordField.badField"));
 		}
 	}
 

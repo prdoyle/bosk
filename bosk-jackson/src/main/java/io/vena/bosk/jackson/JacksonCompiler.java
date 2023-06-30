@@ -12,17 +12,12 @@ import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import io.vena.bosk.Bosk;
-import io.vena.bosk.Catalog;
-import io.vena.bosk.Entity;
 import io.vena.bosk.Phantom;
-import io.vena.bosk.Reference;
 import io.vena.bosk.ReflectiveEntity;
-import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.bytecode.ClassBuilder;
 import io.vena.bosk.bytecode.LocalVariable;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NotYetImplementedException;
-import io.vena.bosk.jackson.JacksonPlugin.FieldModerator;
 import io.vena.bosk.jackson.JacksonPlugin.SerDes;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -67,7 +62,7 @@ final class JacksonCompiler {
 	 *
 	 * @return a newly compiled {@link SerDes} for values of the given <code>nodeType</code>.
 	 */
-	public <T> SerDes<T> compiled(JavaType nodeType, Bosk<?> bosk, FieldModerator moderator) {
+	public <T> SerDes<T> compiled(JavaType nodeType, Bosk<?> bosk) {
 		try {
 			// Record that we're compiling this one to avoid infinite recursion
 			compilationsInProgress.get().addLast(nodeType);
@@ -90,7 +85,7 @@ final class JacksonCompiler {
 			// Return a CodecWrapper for the codec
 			LinkedHashMap<String, Parameter> parametersByName = new LinkedHashMap<>();
 			parameters.forEach(p -> parametersByName.put(p.getName(), p));
-			return new CodecWrapper<>(codec, bosk, nodeClass, parametersByName, moderator);
+			return new CodecWrapper<>(codec, bosk, nodeClass, parametersByName);
 		} finally {
 			Type removed = compilationsInProgress.get().removeLast();
 			assert removed.equals(nodeType);
@@ -150,9 +145,6 @@ final class JacksonCompiler {
 //				plan = new StaticallyBoundFieldWritePlan();
 //			}
 			plan = new OrdinaryFieldWritePlan();
-			if (nodeClass.isAnnotationPresent(DerivedRecord.class)) {
-				plan = new ReferencingFieldWritePlan(plan, nodeClass.getSimpleName());
-			}
 			if (Optional.class.isAssignableFrom(parameter.getType())) {
 				plan = new OptionalFieldWritePlan(plan);
 			}
@@ -211,11 +203,9 @@ final class JacksonCompiler {
 	 * and of combinations of "modifiers" (like {@link OptionalFieldWritePlan}).
 	 * It is hard to reason about these in a way that ensures we get all the combinations right.
 	 * Expressing modifiers in the form of "planning" objects helps us to tame
-	 * the multitude of combinations of cases. For example, how should we deal
-	 * with a {@link DerivedRecord} that has an {@link Optional} field that
-	 * is a recursive type? We build the appropriate stack of {@link FieldWritePlan}
-	 * objects, each of whose {@link #generateFieldWrite} method handles one specific
-	 * concern; and the composition of these objects will generate the appropriate code.
+	 * the multitude of combinations of cases. We build the appropriate stack of
+	 * {@link FieldWritePlan} objects, each of whose {@link #generateFieldWrite} method
+	 * handles one specific concern; and the composition of these objects will generate the appropriate code.
 	 */
 	private interface FieldWritePlan {
 		/**
@@ -333,41 +323,6 @@ final class JacksonCompiler {
 	}
 
 	/**
-	 * A stackable wrapper to implement {@link DerivedRecord} semantics: writes {@link Entity}
-	 * fields as {@link Reference References}, and all other fields are written using the
-	 * supplied {@link #nonEntityWriter}.
-	 */
-	@Value
-	private static class ReferencingFieldWritePlan implements FieldWritePlan {
-		FieldWritePlan nonEntityWriter;
-		String nodeClassName; // Just for error messages
-
-		/**
-		 * {@inheritDoc}
-		 */
-		@Override
-		public void generateFieldWrite(String name, ClassBuilder<Codec> cb, LocalVariable jsonGenerator, LocalVariable serializers, SerializerProvider serializerProvider, JavaType type) {
-			Class<?> parameterClass = type.getRawClass();
-			boolean isEntity = Entity.class.isAssignableFrom(parameterClass);
-			if (isEntity) {
-				if (ReflectiveEntity.class.isAssignableFrom(parameterClass)) {
-					cb.castTo(ReflectiveEntity.class);
-					cb.invoke(REFLECTIVE_ENTITY_REFERENCE);
-					// Recurse to write the Reference
-					JavaType referenceType = TypeFactory.defaultInstance().constructParametricType(Reference.class, type);
-					generateFieldWrite(name, cb, jsonGenerator, serializers, serializerProvider, referenceType);
-				} else {
-					throw new IllegalArgumentException(String.format("%s %s cannot contain Entity that is not a ReflectiveEntity: \"%s\"", DerivedRecord.class.getSimpleName(), nodeClassName, name));
-				}
-			} else if (Catalog.class.isAssignableFrom(parameterClass)) {
-				throw new IllegalArgumentException(String.format("%s %s cannot contain Catalog \"%s\" (try Listing?)", DerivedRecord.class.getSimpleName(), nodeClassName, name));
-			} else {
-				nonEntityWriter.generateFieldWrite(name, cb, jsonGenerator, serializers, serializerProvider, type);
-			}
-		}
-	}
-
-	/**
 	 * Implements the {@link SerDes} interface using a {@link Codec} object.
 	 * Putting boilerplate code in this wrapper is much easier than generating it
 	 * in the compiler, and allows us to keep the {@link Codec} interface focused
@@ -380,7 +335,6 @@ final class JacksonCompiler {
 		Bosk<?> bosk;
 		Class<T> nodeClass;
 		LinkedHashMap<String, Parameter> parametersByName;
-		FieldModerator moderator;
 
 		@Override
 		public JsonSerializer<T> serializer(SerializationConfig config) {
@@ -402,7 +356,7 @@ final class JacksonCompiler {
 					// Performance-critical. Pre-compute as much as possible outside this method.
 					// Note: the reading side can't be as efficient as the writing side
 					// because we need to tolerate the fields arriving in arbitrary order.
-					Map<String, Object> valueMap = jacksonPlugin.gatherParameterValuesByName(nodeClass, parametersByName, moderator, p, ctxt);
+					Map<String, Object> valueMap = jacksonPlugin.gatherParameterValuesByName(nodeClass, parametersByName, p, ctxt);
 
 					List<Object> parameterValues = jacksonPlugin.parameterValueList(nodeClass, valueMap, parametersByName, bosk);
 
