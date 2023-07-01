@@ -32,6 +32,8 @@ dependencies {
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
 	testAnnotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
 
+	implementation 'io.vena:bosk-mongo:0.0.90'
+
 	compileJava {
 		options.compilerArgs << '-parameters'
 		options.compilerArgs << '--enable-preview'
