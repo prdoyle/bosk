@@ -2,6 +2,8 @@ package io.vena.chronicle.events;
 
 import io.vena.chronicle.dto.EventDTO;
 import io.vena.chronicle.dto.IngestRequestDTO;
+import io.vena.chronicle.dto.SenderDTO;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,9 +22,12 @@ public class EventEndpoints {
 
 	@PostMapping("ingest")
 	public void ingest(
-		@RequestBody IngestRequestDTO req
+		HttpServletRequest req,
+		@RequestBody IngestRequestDTO body
 	) {
-		eventService.ingest(req.items());
+		eventService.ingest(
+			new SenderDTO(req.getRemoteAddr()),
+			body.items());
 	}
 
 	@GetMapping("list")

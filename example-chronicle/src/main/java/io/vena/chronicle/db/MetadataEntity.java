@@ -5,5 +5,6 @@ package io.vena.chronicle.db;
  * Ignored for ingested events.
  */
 public record MetadataEntity (
-	Long ingestedTime
+	Long ingestedTime,
+	SenderEntity sender
 ) { }
