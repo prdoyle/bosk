@@ -7,9 +7,7 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import io.vena.bosk.AbstractBoskTest;
-import io.vena.bosk.BindingEnvironment;
 import io.vena.bosk.Bosk;
-import io.vena.bosk.Bosk.ReadContext;
 import io.vena.bosk.Catalog;
 import io.vena.bosk.CatalogReference;
 import io.vena.bosk.Identifier;
@@ -19,16 +17,11 @@ import io.vena.bosk.ListingEntry;
 import io.vena.bosk.MapValue;
 import io.vena.bosk.Path;
 import io.vena.bosk.Reference;
-import io.vena.bosk.ReflectiveEntity;
 import io.vena.bosk.SerializationPlugin.DeserializationScope;
 import io.vena.bosk.SideTable;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.TestEntityBuilder;
-import io.vena.bosk.annotations.DerivedRecord;
-import io.vena.bosk.annotations.DeserializationPath;
 import io.vena.bosk.exceptions.InvalidTypeException;
-import io.vena.bosk.exceptions.MalformedPathException;
-import io.vena.bosk.exceptions.ParameterUnboundException;
 import io.vena.bosk.exceptions.UnexpectedPathException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -39,10 +32,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Value;
-import lombok.experimental.FieldNameConstants;
 import lombok.var;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,7 +61,6 @@ class JacksonPluginTest extends AbstractBoskTest {
 	private JacksonPlugin jacksonPlugin;
 	private ObjectMapper boskMapper;
 	private CatalogReference<TestEntity> entitiesRef;
-	private Reference<TestEntity> parentRef;
 
 	/**
 	 * Not configured by JacksonPlugin. Only for checking the properties of the generated JSON.
@@ -83,7 +72,6 @@ class JacksonPluginTest extends AbstractBoskTest {
 		bosk = setUpBosk(Bosk::simpleDriver);
 		teb = new TestEntityBuilder(bosk);
 		entitiesRef = bosk.catalogReference(TestEntity.class, Path.just(TestRoot.Fields.entities));
-		parentRef = entitiesRef.then(Identifier.from("parent"));
 
 		plainMapper = new ObjectMapper()
 			.enable(INDENT_OUTPUT);
@@ -333,150 +321,14 @@ class JacksonPluginTest extends AbstractBoskTest {
 		return singletonMap(key, value);
 	}
 
-	@Test
-	void implicitRefs_omitted() throws InvalidTypeException, JsonProcessingException {
-		TestEntity entity = makeEntityWithOptionalString(Optional.empty());
-		String json = boskMapper.writeValueAsString(entity);
-		assertThat(json, not(containsString(ImplicitRefs.Fields.reference)));
-		assertThat(json, not(containsString(ImplicitRefs.Fields.enclosingRef)));
-	}
-
-	@Test
-	void derivedRecord_basic_works() throws InvalidTypeException, JsonProcessingException {
-		Reference<ImplicitRefs> iref = parentRef.then(ImplicitRefs.class, TestEntity.Fields.implicitRefs);
-		ImplicitRefs reflectiveEntity;
-		try (ReadContext context = bosk.readContext()) {
-			reflectiveEntity = iref.value();
-		}
-
-		String expectedJSON = boskMapper.writeValueAsString(new ExpectedBasic(
-			iref,
-			"stringValue",
-			iref,
-			"stringValue"
-		));
-		String actualJSON = boskMapper.writeValueAsString(new ActualBasic(
-			reflectiveEntity,
-			"stringValue",
-			Optional.of(reflectiveEntity),
-			Optional.of("stringValue"),
-			Optional.empty(),
-			Optional.empty()
-		));
-
-		assertEquals(expectedJSON, actualJSON);
-
-		ActualBasic deserialized;
-		try (ReadContext context = bosk.readContext()) {
-			deserialized = boskMapper.readerFor(ActualBasic.class).readValue(expectedJSON);
-		}
-
-		assertEquals(reflectiveEntity, deserialized.entity);
-	}
-
-	/**
-	 * Should be serialized the same as {@link ActualBasic}.
-	 */
-	@RequiredArgsConstructor @Getter
-	public static class ExpectedBasic implements StateTreeNode {
-		final Reference<ImplicitRefs> entity;
-		final String nonEntity;
-		final Reference<ImplicitRefs> optionalEntity;
-		final String optionalNonEntity;
-	}
-
-	@RequiredArgsConstructor @Getter
-	@DerivedRecord
-	public static class ActualBasic {
-		final ImplicitRefs entity;
-		final String nonEntity;
-		final Optional<ImplicitRefs> optionalEntity;
-		final Optional<String> optionalNonEntity;
-		final Optional<ImplicitRefs> emptyEntity;
-		final Optional<String> emptyNonEntity;
-	}
-
-	@Test
-	void derivedRecord_list_works() throws InvalidTypeException, JsonProcessingException {
-		Reference<ImplicitRefs> iref = parentRef.then(ImplicitRefs.class, TestEntity.Fields.implicitRefs);
-		ImplicitRefs reflectiveEntity;
-		try (ReadContext context = bosk.readContext()) {
-			reflectiveEntity = iref.value();
-		}
-
-		String expectedJSON = boskMapper.writeValueAsString(singletonList(iref.path().urlEncoded()));
-		String actualJSON = boskMapper.writeValueAsString(new ActualList(reflectiveEntity));
-
-		assertEquals(expectedJSON, actualJSON);
-
-		ActualList deserialized;
-		try (ReadContext context = bosk.readContext()) {
-			deserialized = boskMapper.readerFor(ActualList.class).readValue(expectedJSON);
-		}
-
-		ListValue<ReflectiveEntity<?>> expected = ListValue.of(reflectiveEntity);
-		assertEquals(expected, deserialized);
-	}
-
-	@Getter
-	@DerivedRecord
-	private static class ActualList extends ListValue<ReflectiveEntity<?>> {
-		protected ActualList(ReflectiveEntity<?>... entries) {
-			super(entries);
-		}
-	}
-
-	@Test
-	void deserializationPath_works() throws InvalidTypeException {
-		Reference<ImplicitRefs> anyImplicitRefs = bosk.reference(ImplicitRefs.class, Path.of(TestRoot.Fields.entities, "-entity-", TestEntity.Fields.implicitRefs));
-		Reference<ImplicitRefs> ref1 = anyImplicitRefs.boundTo(Identifier.from("123"));
-		ImplicitRefs firstObject = new ImplicitRefs(
-			Identifier.from("firstObject"),
-			ref1, ref1.enclosingReference(TestEntity.class),
-			ref1, ref1.enclosingReference(TestEntity.class)
-			);
-		Reference<ImplicitRefs> ref2 = anyImplicitRefs.boundTo(Identifier.from("456"));
-		ImplicitRefs secondObject = new ImplicitRefs(
-			Identifier.from("secondObject"),
-			ref2, ref2.enclosingReference(TestEntity.class),
-			ref2, ref2.enclosingReference(TestEntity.class)
-		);
-
-		DeserializationPathContainer boskObject = new DeserializationPathContainer(firstObject, secondObject);
-
-		Map<String, Object> plainObject = new LinkedHashMap<>();
-		plainObject.put(DeserializationPathContainer.Fields.firstField, singletonMap("id", firstObject.id().toString()));
-		plainObject.put(DeserializationPathContainer.Fields.secondField, singletonMap("id", secondObject.id().toString()));
-
-		BindingEnvironment env = BindingEnvironment.empty().builder()
-			.bind("entity1", Identifier.from("123"))
-			.bind("entity2", Identifier.from("456"))
-			.build();
-		try (DeserializationScope scope = jacksonPlugin.overlayScope(env)) {
-			assertJacksonWorks(plainObject, boskObject, new TypeReference<DeserializationPathContainer>() {}, Path.empty());
-		}
-	}
-
-	@Value
-	@FieldNameConstants
-	public static class DeserializationPathContainer implements StateTreeNode {
-		@DeserializationPath("/entities/-entity1-/implicitRefs")
-		ImplicitRefs firstField;
-
-		@DeserializationPath("/entities/-entity2-/implicitRefs")
-		ImplicitRefs secondField;
-	}
-
 	private TestEntity makeEntityWithOptionalString(Optional<String> optionalString) throws InvalidTypeException {
 		CatalogReference<TestEntity> catalogRef = entitiesRef;
 		Identifier entityID = Identifier.unique("testOptional");
 		Reference<TestEntity> entityRef = catalogRef.then(entityID);
 		CatalogReference<TestChild> childrenRef = entityRef.thenCatalog(TestChild.class, TestEntity.Fields.children);
-		Reference<ImplicitRefs> implicitRefsRef = entityRef.then(ImplicitRefs.class, "implicitRefs");
 		return new TestEntity(entityID, entityID.toString(), OK, Catalog.empty(), Listing.empty(childrenRef), SideTable.empty(childrenRef),
 				Phantoms.empty(Identifier.unique("phantoms")),
-				new Optionals(Identifier.unique("optionals"), optionalString, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()),
-				new ImplicitRefs(Identifier.unique("implicitRefs"), implicitRefsRef, entityRef, implicitRefsRef, entityRef));
+				new Optionals(Identifier.unique("optionals"), optionalString, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()));
 	}
 
 	private void assertJacksonWorks(Map<String,?> plainObject, Object boskObject, TypeReference<?> boskObjectTypeRef, Path path) {
@@ -635,55 +487,4 @@ class JacksonPluginTest extends AbstractBoskTest {
 		assertThrows(JsonParseException.class, () -> boskMapper.readerFor(parametricType).readValue(json));
 	}
 
-	@Test
-	void deserializationPath_wrongType_throws() {
-		assertThrows(UnexpectedPathException.class, () -> {
-			boskMapper.readerFor(WrongType.class).readValue("{ \"notAString\": { \"id\": \"123\" } }");
-		});
-	}
-
-	@Value
-	public static class WrongType implements StateTreeNode {
-		@DeserializationPath("/entities/123/string")
-		ImplicitRefs notAString;
-	}
-
-	@Test
-	void deserializationPath_parameterUnbound_throws() {
-		assertThrows(ParameterUnboundException.class, () -> {
-			boskMapper.readerFor(EntityParameter.class).readValue("{ \"field\": { \"id\": \"123\" } }");
-		});
-	}
-
-	@Value
-	public static class EntityParameter implements StateTreeNode {
-		@DeserializationPath("/entities/-entity-")
-		ImplicitRefs field;
-	}
-
-	@Test
-	void deserializationPath_malformedPath() {
-		assertThrows(MalformedPathException.class, () -> {
-			boskMapper.readerFor(MalformedPath.class).readValue("{ \"field\": { \"id\": \"123\" } }");
-		});
-	}
-
-	@Value
-	public static class MalformedPath implements StateTreeNode {
-		@DeserializationPath("/malformed////path")
-		ImplicitRefs field;
-	}
-
-	@Test
-	void deserializationPath_nonexistentPath_throws() {
-		assertThrows(UnexpectedPathException.class, () -> {
-			boskMapper.readerFor(NonexistentPath.class).readValue("{ \"field\": { \"id\": \"123\" } }");
-		});
-	}
-
-	@Value
-	public static class NonexistentPath implements StateTreeNode {
-		@DeserializationPath("/nonexistent/path")
-		ImplicitRefs field;
-	}
 }

@@ -18,17 +18,12 @@ import io.vena.bosk.MapValue;
 import io.vena.bosk.Path;
 import io.vena.bosk.Phantom;
 import io.vena.bosk.Reference;
-import io.vena.bosk.ReferenceUtils;
-import io.vena.bosk.ReflectiveEntity;
 import io.vena.bosk.SerializationPlugin;
 import io.vena.bosk.SideTable;
 import io.vena.bosk.StateTreeNode;
-import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.exceptions.InvalidTypeException;
-import io.vena.bosk.exceptions.TunneledCheckedException;
 import io.vena.bosk.exceptions.UnexpectedPathException;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Parameter;
@@ -40,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import lombok.Value;
 
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
 import static io.vena.bosk.ReferenceUtils.parameterType;
@@ -72,9 +66,7 @@ public final class GsonPlugin extends SerializationPlugin {
 
 			private TypeAdapter getTypeAdapter(Gson gson, TypeToken typeToken) {
 				Class theClass = typeToken.getRawType();
-				if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-					return derivedRecordAdapter(gson, typeToken, bosk);
-				} else if (Catalog.class.isAssignableFrom(theClass)) {
+				if (Catalog.class.isAssignableFrom(theClass)) {
 					return catalogAdapter(gson, typeToken);
 				} else if (Listing.class.isAssignableFrom(theClass)) {
 					return listingAdapter(gson);
@@ -391,156 +383,7 @@ public final class GsonPlugin extends SerializationPlugin {
 	}
 
 	private <N extends StateTreeNode> TypeAdapter<N> stateTreeNodeAdapter(Gson gson, TypeToken<N> typeToken, Bosk<?> bosk) {
-		StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(typeToken.getType());
-		return compiler.compiled(typeToken, bosk, gson, moderator);
-	}
-
-	private <T> TypeAdapter<T> derivedRecordAdapter(Gson gson, TypeToken<T> typeToken, Bosk<?> bosk) {
-		Type objType = typeToken.getType();
-
-		// Check for special cases
-		Class<?> objClass = rawClass(objType);
-		if (ListValue.class.isAssignableFrom(objClass)) { // TODO: MapValue?
-			Class<?> entryClass = rawClass(parameterType(objType, ListValue.class, 0));
-			if (ReflectiveEntity.class.isAssignableFrom(entryClass)) {
-				@SuppressWarnings("unchecked")
-				TypeAdapter<T> result = derivedRecordListValueOfReflectiveEntityAdapter(gson, objType, objClass, entryClass);
-				return result;
-			} else if (Entity.class.isAssignableFrom(entryClass)) {
-				throw new IllegalArgumentException("Can't hold non-reflective Entity type in @" + DerivedRecord.class.getSimpleName() + " " + objType);
-			}
-		}
-
-		// Default DerivedRecord handling
-		DerivedRecordFieldModerator moderator = new DerivedRecordFieldModerator(objType);
-		return compiler.compiled(typeToken, bosk, gson, moderator);
-	}
-
-
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private <E extends ReflectiveEntity<E>, L extends ListValue<E>> TypeAdapter derivedRecordListValueOfReflectiveEntityAdapter(Gson gson, Type objType, Class objClass, Class entryClass) {
-		Constructor<L> constructor = (Constructor<L>) theOnlyConstructorFor(objClass);
-		Class<?>[] parameters = constructor.getParameterTypes();
-		if (parameters.length == 1 && parameters[0].getComponentType().equals(entryClass)) {
-			TypeToken<Reference<E>> elementType = (TypeToken)TypeToken.getParameterized(Reference.class, entryClass);
-			TypeAdapter<Reference<E>> elementAdapter = gson.getAdapter(elementType);
-			return new TypeAdapter<L>() {
-				@Override
-				public void write(JsonWriter out, L value) throws IOException {
-					out.beginArray();
-					try {
-						value.forEach(entry -> {
-							try {
-								elementAdapter.write(out, entry.reference());
-							} catch (IOException e) {
-								throw new TunneledCheckedException(e);
-							}
-						});
-					} catch (TunneledCheckedException e) {
-						throw e.getCause(IOException.class);
-					}
-					out.endArray();
-				}
-
-				@Override
-				public L read(JsonReader in) throws IOException {
-					in.beginArray();
-					List<E> entries = new ArrayList<>();
-					while (in.hasNext()) {
-						entries.add(elementAdapter.read(in).value());
-					}
-					in.endArray();
-
-					E[] array = (E[])Array.newInstance(entryClass, entries.size());
-					try {
-						return constructor.newInstance(new Object[] { entries.toArray(array) } );
-					} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-						throw new IOException("Error creating " + objClass.getSimpleName() + ": " + e.getMessage(), e);
-					}
-				}
-			};
-		} else {
-			throw new IllegalArgumentException("Cannot serialize " + ListValue.class.getSimpleName() + " subtype " + objType
-					+ ": constructor must have a single array parameter of type " + entryClass.getSimpleName() + "[]");
-		}
-	}
-
-	/**
-	 * Allows custom logic for the serialization and deserialization of an
-	 * object's fields (actually its constructor parameters).
-	 *
-	 * @author Patrick Doyle
-	 */
-	public interface FieldModerator {
-		Type typeOf(Type parameterType);
-		Object valueFor(Type parameterType, Object deserializedValue);
-	}
-
-	/**
-	 * The "normal" {@link FieldModerator} that doesn't add any extra logic.
-	 *
-	 * @author Patrick Doyle
-	 */
-	@Value
-	private static class StateTreeNodeFieldModerator implements FieldModerator {
-		Type nodeType;
-
-		@Override
-		public Type typeOf(Type parameterType) {
-			return parameterType;
-		}
-
-		@Override
-		public Object valueFor(Type parameterType, Object deserializedValue) {
-			return deserializedValue;
-		}
-
-	}
-
-	/**
-	 * Performs additional serialization logic for {@link DerivedRecord}
-	 * objects. Specifically {@link ReflectiveEntity} fields, serializes them as
-	 * though they were {@link Reference}s; otherwise, serializes normally.
-	 *
-	 * @author Patrick Doyle
-	 */
-	@Value
-	private static class DerivedRecordFieldModerator implements FieldModerator {
-		Type nodeType;
-
-		@Override
-		public Type typeOf(Type parameterType) {
-			if (reflectiveEntity(parameterType)) {
-				// These are serialized as References
-				return ReferenceUtils.referenceTypeFor(parameterType);
-			} else {
-				return parameterType;
-			}
-		}
-
-		@Override
-		public Object valueFor(Type parameterType, Object deserializedValue) {
-			if (reflectiveEntity(parameterType)) {
-				// The deserialized value is a Reference; what we want is Reference.value()
-				return ((Reference<?>)deserializedValue).value();
-			} else {
-				return deserializedValue;
-			}
-		}
-
-		private boolean reflectiveEntity(Type parameterType) {
-			Class<?> parameterClass = rawClass(parameterType);
-			if (ReflectiveEntity.class.isAssignableFrom(parameterClass)) {
-				return true;
-			} else if (Entity.class.isAssignableFrom(parameterClass)) {
-				throw new IllegalArgumentException(DerivedRecord.class.getSimpleName() + " " + rawClass(nodeType).getSimpleName() + " cannot contain " + Entity.class.getSimpleName() + " that is not a " + ReflectiveEntity.class.getSimpleName() + ": " + parameterType);
-			} else if (Catalog.class.isAssignableFrom(parameterClass)) {
-				throw new IllegalArgumentException(DerivedRecord.class.getSimpleName() + " " + rawClass(nodeType).getSimpleName() + " cannot contain Catalog (try Listing)");
-			} else {
-				return false;
-			}
-		}
-
+		return compiler.compiled(typeToken, bosk, gson);
 	}
 
 	//
@@ -551,7 +394,7 @@ public final class GsonPlugin extends SerializationPlugin {
 	 * Returns the fields present in the JSON, with value objects deserialized
 	 * using type information from <code>parametersByName</code>.
 	 */
-	public Map<String, Object> gatherParameterValuesByName(Class<?> nodeClass, Map<String, Parameter> parametersByName, FieldModerator moderator, JsonReader in, Gson gson) throws IOException {
+	public Map<String, Object> gatherParameterValuesByName(Class<?> nodeClass, Map<String, Parameter> parametersByName, JsonReader in, Gson gson) throws IOException {
 		Map<String, Object> parameterValuesByName = new HashMap<>();
 		while (in.hasNext()) {
 			String name = in.nextName();
@@ -560,11 +403,7 @@ public final class GsonPlugin extends SerializationPlugin {
 				throw new JsonParseException("No such parameter in constructor for " + nodeClass.getSimpleName() + ": " + name);
 			} else {
 				Type parameterType = parameter.getParameterizedType();
-				Object deserializedValue;
-				try (@SuppressWarnings("unused") DeserializationScope scope = nodeFieldDeserializationScope(nodeClass, name)) {
-					deserializedValue = readField(name, in, gson, parameterType, moderator);
-				}
-				Object value = moderator.valueFor(parameterType, deserializedValue);
+				Object value = readField(name, in, gson, parameterType);
 				Object prev = parameterValuesByName.put(name, value);
 				if (prev != null) {
 					throw new JsonParseException("Parameter appeared twice: " + name);
@@ -574,19 +413,18 @@ public final class GsonPlugin extends SerializationPlugin {
 		return parameterValuesByName;
 	}
 
-	private Object readField(String name, JsonReader in, Gson gson, Type parameterType, FieldModerator moderator) throws IOException {
+	private Object readField(String name, JsonReader in, Gson gson, Type parameterType) throws IOException {
 		// TODO: Combine with similar method in BsonPlugin
-		Type effectiveType = moderator.typeOf(parameterType);
-		Class<?> effectiveClass = rawClass(effectiveType);
+		Class<?> effectiveClass = rawClass(parameterType);
 		if (Optional.class.isAssignableFrom(effectiveClass)) {
 			// Optional field is present in JSON; wrap deserialized value in Optional.of
-			Type contentsType = parameterType(effectiveType, Optional.class, 0);
-			Object deserializedValue = readField(name, in, gson, contentsType, moderator);
+			Type contentsType = parameterType(parameterType, Optional.class, 0);
+			Object deserializedValue = readField(name, in, gson, contentsType);
 			return Optional.of(deserializedValue);
 		} else if (Phantom.class.isAssignableFrom(effectiveClass)) {
 			throw new JsonParseException("Unexpected phantom field \"" + name + "\"");
 		} else {
-			TypeAdapter<?> parameterAdapter = gson.getAdapter(TypeToken.get(effectiveType));
+			TypeAdapter<?> parameterAdapter = gson.getAdapter(TypeToken.get(parameterType));
 			return parameterAdapter.read(in);
 		}
 	}

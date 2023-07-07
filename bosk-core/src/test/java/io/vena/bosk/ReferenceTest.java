@@ -64,7 +64,6 @@ class ReferenceTest extends AbstractBoskTest {
 		assertSame(parent.stringSideTable(), parentRef.thenSideTable(TestChild.class, String.class, TestEntity.Fields.stringSideTable).value());
 		assertSame(parent.phantoms(), parentRef.then(Phantoms.class, TestEntity.Fields.phantoms).value());
 		assertSame(parent.optionals(), parentRef.then(Optionals.class, TestEntity.Fields.optionals).value());
-		assertSame(parent.implicitRefs(), parentRef.then(ImplicitRefs.class, TestEntity.Fields.implicitRefs).value());
 	}
 
 	@Test

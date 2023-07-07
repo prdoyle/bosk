@@ -227,9 +227,6 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 									pType = parameterType(pType, Optional.class, 0);
 									pruneDocument(field.getValue(), pType, alreadyPruned);
 								}
-							} else if (SerializationPlugin.isEnclosingReference(nodeClass, p)) {
-								LOGGER.warn("Pruning enclosing reference " + qualifiedName + " included in BSON");
-								fieldIter.remove();
 							} else {
 								pruneDocument(field.getValue(), pType, alreadyPruned);
 							}

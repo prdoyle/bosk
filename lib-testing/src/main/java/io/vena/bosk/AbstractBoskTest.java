@@ -1,7 +1,5 @@
 package io.vena.bosk;
 
-import io.vena.bosk.annotations.Enclosing;
-import io.vena.bosk.annotations.Self;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import java.lang.reflect.Type;
 import java.util.Optional;
@@ -44,7 +42,6 @@ public abstract class AbstractBoskTest {
 		SideTable<TestChild,String> stringSideTable;
 		Phantoms phantoms;
 		Optionals optionals;
-		ImplicitRefs implicitRefs;
 
 		public TestEntity withChild(TestChild child) {
 			return this.withChildren(children.with(child));
@@ -102,26 +99,6 @@ public abstract class AbstractBoskTest {
 		}
 	}
 
-	@Value
-	@EqualsAndHashCode(callSuper=true)
-	@With
-	@FieldNameConstants
-	public static class ImplicitRefs extends ReflectiveEntity<ImplicitRefs> {
-		Identifier id;
-		Reference<ImplicitRefs> reference;
-		Reference<TestEntity> enclosingRef;
-		@Self Reference<ImplicitRefs> reference2;
-		@Enclosing Reference<TestEntity> enclosingRef2;
-
-		public ImplicitRefs(Identifier id, @Self Reference<ImplicitRefs> reference, @Enclosing Reference<TestEntity> enclosingRef, Reference<ImplicitRefs> reference2, Reference<TestEntity> enclosingRef2) {
-			this.id = id;
-			this.reference = reference;
-			this.enclosingRef = enclosingRef;
-			this.reference2 = reference2;
-			this.enclosingRef2 = enclosingRef2;
-		}
-	}
-
 	public enum TestEnum {
 		OK,
 		NOT_SO_OK
@@ -176,10 +153,7 @@ public abstract class AbstractBoskTest {
 				Optional.of(Catalog.of(new TestChild(Identifier.from("OptionalTestEntity2"), "OptionalTestEntity2", TestEnum.OK, Catalog.empty()))),
 				Optional.of(Listing.of(childrenRef, child2ID)),
 				Optional.of(SideTable.empty(childrenRef, String.class).with(child2ID, "String value associated with " + child2ID))
-			),
-			new ImplicitRefs(Identifier.from("parent_implicitRefs"),
-				teb.implicitRefsRef(parentID), parentRef,
-				teb.implicitRefsRef(parentID), parentRef));
+			));
 		return new TestRoot(
 			Identifier.from("root"),
 			Catalog.of(entity),

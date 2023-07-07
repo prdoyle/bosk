@@ -1,9 +1,5 @@
 package io.vena.bosk;
 
-import io.vena.bosk.annotations.DerivedRecord;
-import io.vena.bosk.annotations.DeserializationPath;
-import io.vena.bosk.annotations.Enclosing;
-import io.vena.bosk.annotations.Self;
 import io.vena.bosk.exceptions.InvalidFieldTypeException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import java.lang.annotation.Annotation;
@@ -23,9 +19,6 @@ import static io.vena.bosk.ReferenceUtils.getterMethod;
 import static io.vena.bosk.ReferenceUtils.parameterType;
 import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.ReferenceUtils.theOnlyConstructorFor;
-import static io.vena.bosk.SerializationPlugin.hasDeserializationPath;
-import static io.vena.bosk.SerializationPlugin.isEnclosingReference;
-import static io.vena.bosk.SerializationPlugin.isSelfReference;
 import static java.lang.reflect.Modifier.isFinal;
 import static java.lang.reflect.Modifier.isPublic;
 import static java.lang.reflect.Modifier.isStatic;
@@ -53,8 +46,6 @@ public final class TypeValidation {
 			} else if (isSimpleClass(theClass)) {
 				// All allowed
 				return;
-			} else if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-				throw new InvalidTypeException(DerivedRecord.class.getSimpleName() + " types are not allowed in a Bosk");
 			} else if (Reference.class.isAssignableFrom(theClass)) {
 				validateFieldsAreFinal(theClass);
 				Type targetType = parameterType(theType, Reference.class, 0);
@@ -196,28 +187,6 @@ public final class TypeValidation {
 		for (int i = 0; i < fieldName.length(); i++) {
 			if (!isValidFieldNameChar(fieldName.codePointAt(i))) {
 				throw new InvalidFieldTypeException(containingClass, fieldName, "Only ASCII letters, numbers, and underscores are allowed in field names; illegal character '" + fieldName.charAt(i) + "' at offset " + i);
-			}
-		}
-		if (hasDeserializationPath(containingClass, parameter)) {
-			throw new InvalidFieldTypeException(containingClass, fieldName, "@" + DeserializationPath.class.getSimpleName() + " not valid inside the bosk");
-		} else if (isEnclosingReference(containingClass, parameter)) {
-			Type type = parameter.getParameterizedType();
-			if (!Reference.class.isAssignableFrom(rawClass(type))) {
-				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Enclosing.class.getSimpleName() + " applies only to Reference parameters");
-			}
-			Type referencedType = parameterType(type, Reference.class, 0);
-			if (!Entity.class.isAssignableFrom(rawClass(referencedType))) {
-				// Not certain this needs to be so strict
-				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Enclosing.class.getSimpleName() + " applies only to References to Entities");
-			}
-		} else if (isSelfReference(containingClass, parameter)) {
-			Type type = parameter.getParameterizedType();
-			if (!Reference.class.isAssignableFrom(rawClass(type))) {
-				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Self.class.getSimpleName() + " applies only to References");
-			}
-			Type referencedType = parameterType(type, Reference.class, 0);
-			if (!rawClass(referencedType).isAssignableFrom(containingClass)) {
-				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Self.class.getSimpleName() + " reference to " + rawClass(referencedType).getSimpleName() + " incompatible with containing class " + containingClass.getSimpleName());
 			}
 		}
 	}

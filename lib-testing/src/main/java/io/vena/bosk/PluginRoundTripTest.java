@@ -22,12 +22,6 @@ public class PluginRoundTripTest extends AbstractRoundTripTest {
 			// Use our entity's equals() to check that all is well
 			//
 			assertEquals(originalRoot, bosk.rootReference().value());
-
-			// Ensure enclosing references point to the right entities
-			//
-			Reference<TestEntity> parentRef = bosk.rootReference().then(TestEntity.class, "entities", "parent");
-			assertEquals(parentRef.then(ImplicitRefs.class, "implicitRefs"), parentRef.value().implicitRefs().reference());
-			assertEquals(parentRef, parentRef.value().implicitRefs().enclosingRef());
 		}
 	}
 

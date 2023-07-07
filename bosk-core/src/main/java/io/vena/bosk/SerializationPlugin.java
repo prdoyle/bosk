@@ -1,32 +1,16 @@
 package io.vena.bosk;
 
-import io.vena.bosk.annotations.DeserializationPath;
-import io.vena.bosk.annotations.Enclosing;
-import io.vena.bosk.annotations.Self;
 import io.vena.bosk.exceptions.DeserializationException;
-import io.vena.bosk.exceptions.InvalidTypeException;
-import io.vena.bosk.exceptions.MalformedPathException;
-import io.vena.bosk.exceptions.ParameterUnboundException;
-import io.vena.bosk.exceptions.UnexpectedPathException;
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Field;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
-import static io.vena.bosk.ReferenceUtils.parameterType;
-import static io.vena.bosk.ReferenceUtils.rawClass;
-import static io.vena.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -78,35 +62,6 @@ public abstract class SerializationPlugin {
 		return newScope;
 	}
 
-	public final DeserializationScope nodeFieldDeserializationScope(Class<?> nodeClass, String fieldName) {
-		DeserializationPath annotation = infoFor(nodeClass).annotatedParameters_DeserializationPath.get(fieldName);
-		if (annotation == null) {
-			return innerDeserializationScope(fieldName);
-		} else {
-			DeserializationScope outerScope = currentScope.get();
-			try {
-				Path path = Path
-					.parseParameterized(annotation.value())
-					.boundBy(outerScope.bindingEnvironment());
-				if (path.numParameters() == 0) {
-					DeserializationScope newScope = new NestedDeserializationScope(outerScope, path, outerScope.bindingEnvironment());
-					currentScope.set(newScope);
-					return newScope;
-				} else {
-					throw new ParameterUnboundException(
-						"Unbound parameters in @"
-							+ DeserializationPath.class.getSimpleName() + "(\"" + path + "\") "
-							+ nodeClass.getSimpleName() + "." + fieldName + " ");
-				}
-			} catch (MalformedPathException e) {
-				throw new MalformedPathException("Invalid DeserializationPath for "
-					+ nodeClass.getSimpleName()
-					+ "." + fieldName
-					+ ": " + e.getMessage(), e);
-			}
-		}
-	}
-
 	private DeserializationScope outermostScope() {
 		return new OutermostDeserializationScope();
 	}
@@ -153,8 +108,7 @@ public abstract class SerializationPlugin {
 	 * @param parametersByName ordered map of constructor {@link Parameter}s.
 	 * @return {@link List} of parameter values to pass to the constructor, in
 	 * the same order as in <code>parametersByName</code>. Missing values are
-	 * supplied where possible, such as <code>Optional.empty()</code> and
-	 * {@link Enclosing} references.
+	 * supplied where possible, such as <code>Optional.empty()</code>.
 	 */
 	public final List<Object> parameterValueList(Class<?> nodeClass, Map<String, Object> parameterValuesByName, LinkedHashMap<String, Parameter> parametersByName, Bosk<?> bosk) {
 		List<Object> parameterValues = new ArrayList<>();
@@ -162,24 +116,19 @@ public abstract class SerializationPlugin {
 			String name = entry.getKey();
 			Parameter parameter = entry.getValue();
 			Class<?> type = parameter.getType();
-			Reference<?> implicitReference = findImplicitReferenceIfAny(nodeClass, parameter, bosk);
 
 			Object value = parameterValuesByName.remove(name);
 			if (value == null) {
 				// Field is absent in the input
-				if (implicitReference != null) {
-					parameterValues.add(implicitReference);
-				} else if (Optional.class.equals(type)) {
+				if (Optional.class.equals(type)) {
 					parameterValues.add(Optional.empty());
 				} else if (Phantom.class.equals(type)) {
 					parameterValues.add(Phantom.empty());
 				} else {
 					throw new DeserializationException("Missing field: " + name);
 				}
-			} else if (implicitReference == null) {
-				parameterValues.add(value);
 			} else {
-				throw new DeserializationException("Unexpected field \"" + name + "\" for implicit reference");
+				parameterValues.add(value);
 			}
 		}
 		if (parameterValuesByName.size() >= 1) {
@@ -187,105 +136,5 @@ public abstract class SerializationPlugin {
 		}
 		return parameterValues;
 	}
-
-	public static boolean isSelfReference(Class<?> nodeClass, Parameter parameter) {
-		return infoFor(nodeClass).annotatedParameters_Self().contains(parameter.getName());
-	}
-
-	public static boolean isEnclosingReference(Class<?> nodeClass, Parameter parameter) {
-		return infoFor(nodeClass).annotatedParameters_Enclosing().contains(parameter.getName());
-	}
-
-	public static boolean hasDeserializationPath(Class<?> nodeClass, Parameter parameter) {
-		return infoFor(nodeClass).annotatedParameters_DeserializationPath().containsKey(parameter.getName());
-	}
-
-	private Reference<?> findImplicitReferenceIfAny(Class<?> nodeClass, Parameter parameter, Bosk<?> bosk) {
-		if (isSelfReference(nodeClass, parameter)) {
-			Class<?> targetClass = rawClass(parameterType(parameter.getParameterizedType(), Reference.class, 0));
-			return selfReference(targetClass, bosk);
-		} else if (isEnclosingReference(nodeClass, parameter)) {
-			Class<?> targetClass = rawClass(parameterType(parameter.getParameterizedType(), Reference.class, 0));
-			Reference<Object> selfRef = selfReference(Object.class, bosk);
-			try {
-				return selfRef.enclosingReference(targetClass);
-			} catch (InvalidTypeException e) {
-				// TODO: Validation needs to check that every location
-				// where this type appears in the document tree is
-				// contained in a document of the target class.
-				throw new UnexpectedPathException("Enclosing reference validation: Error looking up Enclosing ref \"" + parameter.getName() + "\": " + e.getMessage(), e);
-			}
-		} else {
-			return null;
-		}
-	}
-
-	private <T> Reference<T> selfReference(Class<T> targetClass, Bosk<?> bosk) throws AssertionError {
-		Path currentPath = currentScope.get().path();
-		try {
-			return bosk.reference(targetClass, currentPath);
-		} catch (InvalidTypeException e) {
-			throw new UnexpectedPathException("currentDeserializationPath should be valid: \"" + currentPath + "\"", e);
-		}
-	}
-
-	/**
-	 * @return true if the given parameter is computed automatically during
-	 * deserialization, and therefore does not appear in the serialized output.
-	 */
-	public static boolean isImplicitParameter(Class<?> nodeClass, Parameter parameter) {
-		String name = parameter.getName();
-		ParameterInfo info = infoFor(nodeClass);
-		return info.annotatedParameters_Self.contains(name)
-			|| info.annotatedParameters_Enclosing.contains(name);
-	}
-
-
-	private static ParameterInfo infoFor(Class<?> nodeClassArg) {
-		return PARAMETER_INFO_MAP.computeIfAbsent(nodeClassArg, SerializationPlugin::computeInfoFor);
-	}
-
-	private static ParameterInfo computeInfoFor(Class<?> nodeClassArg) {
-		Set<String> selfParameters = new HashSet<>();
-		Set<String> enclosingParameters = new HashSet<>();
-		Map<String, DeserializationPath> deserializationPathParameters = new HashMap<>();
-		for (Parameter parameter: theOnlyConstructorFor(nodeClassArg).getParameters()) {
-			scanForInfo(parameter, parameter.getName(),
-				selfParameters, enclosingParameters, deserializationPathParameters);
-		}
-
-		// Bosk generally ignores an object's fields, looking only at its
-		// constructor arguments and its getters. However, we make an exception
-		// for convenience: Bosk annotations that go on constructor parameters
-		// can also go on fields with the same name. This accommodates systems
-		// like Lombok or Java 14's Records that derive constructors from fields.
-
-		for (Class<?> c = nodeClassArg; c != Object.class; c = c.getSuperclass()) {
-			for (Field field: nodeClassArg.getDeclaredFields()) {
-				scanForInfo(field, field.getName(),
-					selfParameters, enclosingParameters, deserializationPathParameters);
-			}
-		}
-		return new ParameterInfo(selfParameters, enclosingParameters, deserializationPathParameters);
-	}
-
-	private static void scanForInfo(AnnotatedElement thing, String name, Set<String> selfParameters, Set<String> enclosingParameters, Map<String, DeserializationPath> deserializationPathParameters) {
-		if (thing.isAnnotationPresent(Self.class)) {
-			selfParameters.add(name);
-		} else if (thing.isAnnotationPresent(Enclosing.class)) {
-			enclosingParameters.add(name);
-		} else if (thing.isAnnotationPresent(DeserializationPath.class)) {
-			deserializationPathParameters.put(name, thing.getAnnotation(DeserializationPath.class));
-		}
-	}
-
-	@Value
-	private static class ParameterInfo {
-		Set<String> annotatedParameters_Self;
-		Set<String> annotatedParameters_Enclosing;
-		Map<String, DeserializationPath> annotatedParameters_DeserializationPath;
-	}
-
-	private static final Map<Class<?>, ParameterInfo> PARAMETER_INFO_MAP = new ConcurrentHashMap<>();
 
 }

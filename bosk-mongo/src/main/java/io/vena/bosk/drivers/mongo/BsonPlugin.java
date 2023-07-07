@@ -570,10 +570,7 @@ public final class BsonPlugin extends SerializationPlugin {
 				reader.skipValue();
 				continue;
 			}
-			Object value;
-			try (@SuppressWarnings("unused") DeserializationScope s = nodeFieldDeserializationScope(nodeClass, fieldName)) {
-				value = decodeValue(parameter.getParameterizedType(), reader, decoderContext, registry, bosk);
-			}
+			Object value = decodeValue(parameter.getParameterizedType(), reader, decoderContext, registry, bosk);
 			Object old = parameterValuesByName.put(fieldName, value);
 			if (old != null) {
 				throw new BsonFormatException("Hey, two " + fieldName + " fields");
@@ -609,7 +606,7 @@ public final class BsonPlugin extends SerializationPlugin {
 			} catch (IllegalAccessException | InvalidTypeException e1) {
 				throw new IllegalStateException("Eh?", e1);
 			}
-			MethodHandle fieldWriter = parameterWriterHandle(nodeClass, name, parameter, codecRegistry, bosk); // (P,W,E)
+			MethodHandle fieldWriter = parameterWriterHandle(name, parameter, codecRegistry, bosk); // (P,W,E)
 			MethodHandle writerCall = filterArguments(fieldWriter, 0, getter); // (N,W,E)
 			MethodHandle nestedCall = collectArguments(writerCall, 0, handleUnderConstruction); // (N,W,E,N,W,E)
 			handleUnderConstruction = permuteArguments(nestedCall, writerCall.type(), 0, 1, 2, 0, 1, 2); // (N,W,E)
@@ -617,12 +614,8 @@ public final class BsonPlugin extends SerializationPlugin {
 		return handleUnderConstruction;
 	}
 
-	private <R extends Entity> MethodHandle parameterWriterHandle(Class<?> nodeClass, String name, Parameter parameter, CodecRegistry codecRegistry, Bosk<R> bosk) {
-		if (isImplicitParameter(nodeClass, parameter)) {
-			return writeNothingHandle(parameter.getType());
-		} else {
-			return valueWriterHandle(name, parameter.getParameterizedType(), codecRegistry, bosk);
-		}
+	private <R extends Entity> MethodHandle parameterWriterHandle(String name, Parameter parameter, CodecRegistry codecRegistry, Bosk<R> bosk) {
+		return valueWriterHandle(name, parameter.getParameterizedType(), codecRegistry, bosk);
 	}
 
 	private <R extends Entity> MethodHandle valueWriterHandle(String name, Type valueType, CodecRegistry codecRegistry, Bosk<R> bosk) {
