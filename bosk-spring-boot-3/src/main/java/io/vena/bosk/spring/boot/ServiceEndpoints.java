@@ -7,7 +7,6 @@ import io.vena.bosk.EnumerableByIdentifier;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Path;
 import io.vena.bosk.Reference;
-import io.vena.bosk.SerializationPlugin;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NonexistentReferenceException;
 import io.vena.bosk.jackson.JacksonPlugin;
@@ -61,12 +60,9 @@ public class ServiceEndpoints {
 	void putAny(HttpServletRequest req, HttpServletResponse rsp) throws IOException, InvalidTypeException {
 		LOGGER.debug("{} {}", req.getMethod(), req.getRequestURI());
 		Reference<Object> ref = referenceForPath(req);
-		Object newValue;
-		try (@SuppressWarnings("unused") SerializationPlugin.DeserializationScope scope = plugin.newDeserializationScope(ref)) {
-			newValue = mapper
-				.readerFor(mapper.constructType(ref.targetType()))
-				.readValue(req.getReader());
-		}
+		Object newValue = mapper
+			.readerFor(mapper.constructType(ref.targetType()))
+			.readValue(req.getReader());
 		checkForMismatchedID(ref, newValue);
 		discriminatePreconditionCases(req, new PreconditionDiscriminator() {
 			@Override

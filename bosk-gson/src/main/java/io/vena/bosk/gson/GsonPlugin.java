@@ -308,10 +308,7 @@ public final class GsonPlugin extends SerializationPlugin {
 		while (in.hasNext()) {
 			in.beginObject();
 			String fieldName = in.nextName();
-			V value;
-			try (@SuppressWarnings("unused") DeserializationScope scope = innerDeserializationScope(fieldName)) {
-				value = valueAdapter.read(in);
-			}
+			V value = valueAdapter.read(in);
 			in.endObject();
 
 			V oldValue = result.put(Identifier.from(fieldName), value);

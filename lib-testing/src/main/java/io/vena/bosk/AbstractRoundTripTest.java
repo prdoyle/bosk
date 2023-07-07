@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import io.vena.bosk.SerializationPlugin.DeserializationScope;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.gson.GsonPlugin;
@@ -94,9 +93,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 					try {
 						JavaType targetType = javaType(reference.targetType());
 						String json = objectMapper.writerFor(targetType).writeValueAsString(newValue);
-						try (DeserializationScope scope = jp.newDeserializationScope(reference)) {
-							return objectMapper.readerFor(targetType).readValue(json);
-						}
+						return objectMapper.readerFor(targetType).readValue(json);
 					} catch (JsonProcessingException e) {
 						throw new AssertionError(e);
 					}
@@ -133,9 +130,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 				<T> T preprocess(Reference<T> reference, T newValue) {
 					Type targetType = reference.targetType();
 					String json = gson.toJson(newValue, targetType);
-					try (DeserializationScope scope = gp.newDeserializationScope(reference)) {
-						return gson.fromJson(json, targetType);
-					}
+					return gson.fromJson(json, targetType);
 				}
 
 			};
@@ -183,10 +178,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 					try (BsonDocumentReader reader = new BsonDocumentReader(document)) {
 						reader.readStartDocument();
 						reader.readName("value");
-						T result;
-						try (DeserializationScope scope = bp.newDeserializationScope(reference)) {
-							result = codec.decode(reader, DecoderContext.builder().build());
-						}
+						T result = codec.decode(reader, DecoderContext.builder().build());
 						reader.readEndDocument();
 						return result;
 					}

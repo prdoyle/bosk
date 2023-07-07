@@ -427,7 +427,7 @@ public final class BsonPlugin extends SerializationPlugin {
 				reader.readStartDocument();
 				Map<String, Object> parameterValuesByName = gatherParameterValuesByName(nodeClass, parametersByName, reader, decoderContext, registry, bosk);
 				reader.readEndDocument();
-				List<Object> parameterValues = parameterValueList(nodeClass, parameterValuesByName, parametersByName, bosk);
+				List<Object> parameterValues = parameterValueList(parameterValuesByName, parametersByName);
 				try {
 					return (T) factoryHandle.invoke(parameterValues.toArray());
 				} catch (Throwable e) {
@@ -465,10 +465,7 @@ public final class BsonPlugin extends SerializationPlugin {
 				while (reader.readBsonType() != BsonType.END_OF_DOCUMENT) {
 					String fieldName = undottedFieldNameSegment(reader.readName());
 					Identifier entryId = Identifier.from(fieldName);
-					E entry;
-					try (@SuppressWarnings("unused") DeserializationScope s = innerDeserializationScope(fieldName)) {
-						entry = entryCodec.decode(reader, decoderContext);
-					}
+					E entry = entryCodec.decode(reader, decoderContext);
 					if (entryId.equals(entry.id())) {
 						entries.add(entry);
 					} else {
@@ -529,10 +526,7 @@ public final class BsonPlugin extends SerializationPlugin {
 				while (reader.readBsonType() != BsonType.END_OF_DOCUMENT) {
 					String fieldName = undottedFieldNameSegment(reader.readName());
 					Identifier id = Identifier.from(fieldName);
-					V value;
-					try (@SuppressWarnings("unused") DeserializationScope s = innerDeserializationScope(fieldName)) {
-						value = valueCodec.decode(reader, decoderContext);
-					}
+					V value = valueCodec.decode(reader, decoderContext);
 					Object old = valuesById.put(id, value);
 					if (old != null) {
 						throw new BsonFormatException("Duplicate IDs in sideTable: " + id);

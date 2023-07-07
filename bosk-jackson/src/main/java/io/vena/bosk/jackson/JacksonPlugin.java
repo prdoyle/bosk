@@ -500,10 +500,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			expect(START_OBJECT, p);
 			p.nextValue();
 			String fieldName = p.currentName();
-			V value;
-			try (@SuppressWarnings("unused") DeserializationScope scope = innerDeserializationScope(fieldName)) {
-				value = valueDeserializer.deserialize(p, ctxt);
-			}
+			V value = valueDeserializer.deserialize(p, ctxt);
 			p.nextToken();
 			expect(END_OBJECT, p);
 

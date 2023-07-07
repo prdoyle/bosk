@@ -355,7 +355,7 @@ final class JacksonCompiler {
 					// because we need to tolerate the fields arriving in arbitrary order.
 					Map<String, Object> valueMap = jacksonPlugin.gatherParameterValuesByName(nodeJavaType, parametersByName, p, ctxt);
 
-					List<Object> parameterValues = jacksonPlugin.parameterValueList(nodeJavaType.getRawClass(), valueMap, parametersByName, bosk);
+					List<Object> parameterValues = jacksonPlugin.parameterValueList(valueMap, parametersByName);
 
 					@SuppressWarnings("unchecked")
 					T result = (T)codec.instantiateFrom(parameterValues);

@@ -15,9 +15,7 @@ import io.vena.bosk.Listing;
 import io.vena.bosk.ListingEntry;
 import io.vena.bosk.Path;
 import io.vena.bosk.Reference;
-import io.vena.bosk.SerializationPlugin.DeserializationScope;
 import io.vena.bosk.SideTable;
-import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.TestEntityBuilder;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.UnexpectedPathException;
@@ -30,7 +28,6 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import lombok.Value;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -53,7 +50,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GsonPluginTest extends AbstractBoskTest {
 	private Bosk<TestRoot> bosk;
 	private TestEntityBuilder teb;
-	private GsonPlugin gsonPlugin;
 	private Gson boskGson;
 	private CatalogReference<TestEntity> entitiesRef;
 
@@ -72,8 +68,7 @@ class GsonPluginTest extends AbstractBoskTest {
 				.setPrettyPrinting()
 				.create();
 
-		gsonPlugin = new GsonPlugin();
-		TypeAdapterFactory typeAdapterFactory = gsonPlugin.adaptersFor(bosk);
+		TypeAdapterFactory typeAdapterFactory = new GsonPlugin().adaptersFor(bosk);
 		boskGson = new GsonBuilder()
 			.registerTypeAdapterFactory(typeAdapterFactory)
 			.excludeFieldsWithoutExposeAnnotation()
@@ -95,7 +90,7 @@ class GsonPluginTest extends AbstractBoskTest {
 		List<Map<String, Object>> expected = new ArrayList<>();
 		entities.forEach(e1 -> expected.add(singletonMap(e1.id().toString(), plainObjectFor(e1, e1.getClass()))));
 
-		assertGsonWorks(expected, catalog, new TypeToken<Catalog<TestEntity>>(){}.getType(), Path.just(TestRoot.Fields.entities));
+		assertGsonWorks(expected, catalog, new TypeToken<Catalog<TestEntity>>(){}.getType());
 	}
 
 	static Stream<Arguments> catalogArguments() {
@@ -118,7 +113,7 @@ class GsonPluginTest extends AbstractBoskTest {
 		expected.put("ids", strings);
 		expected.put("domain", entitiesRef.pathString());
 
-		assertGsonWorks(expected, listing, new TypeToken<Listing<TestEntity>>(){}.getType(), Path.just("doesn't matter"));
+		assertGsonWorks(expected, listing, new TypeToken<Listing<TestEntity>>(){}.getType());
 	}
 
 	static Stream<Arguments> listingArguments() {
@@ -153,8 +148,7 @@ class GsonPluginTest extends AbstractBoskTest {
 		assertGsonWorks(
 			expected,
 			sideTable,
-			new TypeToken<SideTable<TestEntity, String>>(){}.getType(),
-			Path.just("doesn't matter")
+			new TypeToken<SideTable<TestEntity, String>>(){}.getType()
 		);
 	}
 
@@ -249,15 +243,6 @@ class GsonPluginTest extends AbstractBoskTest {
 		return Arguments.of(asList(entries), TypeToken.getParameterized(ListValue.class, entryType));
 	}
 
-	/**
-	 * Exercise the type-parameter handling a bit
-	 */
-	@Value
-	private static class NodeWithGenerics<A,B> implements StateTreeNode {
-		ListValue<A> listOfA;
-		ListValue<B> listOfB;
-	}
-
 	private TestEntity makeEntityWithOptionalString(Optional<String> optionalString) throws InvalidTypeException {
 		CatalogReference<TestEntity> catalogRef = entitiesRef;
 		Identifier entityID = Identifier.unique("testOptional");
@@ -268,11 +253,11 @@ class GsonPluginTest extends AbstractBoskTest {
 				new Optionals(Identifier.unique("optionals"), optionalString, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()));
 	}
 
-	private void assertGsonWorks(Map<String,?> plainObject, Object boskObject, Type boskObjectType, Path path) {
+	private void assertGsonWorks(Map<String,?> plainObject, Object boskObject, Type boskObjectType) {
 		Map<String, Object> actualPlainObject = plainObjectFor(boskObject, boskObjectType);
 		assertEquals(plainObject, actualPlainObject, "Serialized object should match expected");
 
-		Object deserializedBoskObject = boskGsonObjectFor(plainObject, boskObjectType, path);
+		Object deserializedBoskObject = boskGsonObjectFor(plainObject, boskObjectType);
 		assertEquals(boskObject, deserializedBoskObject, "Deserialized object should match expected");
 
 		Map<String, Object> roundTripPlainObject = plainObjectFor(deserializedBoskObject, boskObjectType);
@@ -280,11 +265,11 @@ class GsonPluginTest extends AbstractBoskTest {
 
 	}
 
-	private void assertGsonWorks(List<?> plainList, Object boskObject, Type boskObjectType, Path path) {
+	private void assertGsonWorks(List<?> plainList, Object boskObject, Type boskObjectType) {
 		List<Object> actualPlainList = plainListFor(boskObject, boskObjectType);
 		assertEquals(plainList, actualPlainList, "Serialized object should match expected");
 
-		Object deserializedBoskObject = boskGsonListFor(plainList, boskObjectType, path);
+		Object deserializedBoskObject = boskGsonListFor(plainList, boskObjectType);
 		assertEquals(boskObject, deserializedBoskObject, "Deserialized object should match expected");
 
 		List<Object> roundTripPlainObject = plainListFor(deserializedBoskObject, boskObjectType);
@@ -302,18 +287,14 @@ class GsonPluginTest extends AbstractBoskTest {
 		return plainGson.fromJson(json, parameterizedType(List.class, Object.class));
 	}
 
-	private Object boskGsonObjectFor(Map<String, ?> plainObject, Type bsonObjectType, Path path) {
+	private Object boskGsonObjectFor(Map<String, ?> plainObject, Type bsonObjectType) {
 		String json = plainGson.toJson(plainObject, new TypeToken<Map<String, Object>>(){}.getType());
-		try (DeserializationScope scope = gsonPlugin.newDeserializationScope(path)) {
-			return boskGson.fromJson(json, bsonObjectType);
-		}
+		return boskGson.fromJson(json, bsonObjectType);
 	}
 
-	private Object boskGsonListFor(List<?> plainList, Type bsonListType, Path path) {
+	private Object boskGsonListFor(List<?> plainList, Type bsonListType) {
 		String json = plainGson.toJson(plainList, new TypeToken<List<Object>>(){}.getType());
-		try (DeserializationScope scope = gsonPlugin.newDeserializationScope(path)) {
-			return boskGson.fromJson(json, bsonListType);
-		}
+		return boskGson.fromJson(json, bsonListType);
 	}
 
 	// Sad paths

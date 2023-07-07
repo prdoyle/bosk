@@ -17,7 +17,6 @@ import io.vena.bosk.ListingEntry;
 import io.vena.bosk.MapValue;
 import io.vena.bosk.Path;
 import io.vena.bosk.Reference;
-import io.vena.bosk.SerializationPlugin.DeserializationScope;
 import io.vena.bosk.SideTable;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.TestEntityBuilder;
@@ -104,7 +103,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		List<Map<String, Object>> expected = new ArrayList<>();
 		entities.forEach(e1 -> expected.add(singletonMap(e1.id().toString(), plainObjectFor(e1))));
 
-		assertJacksonWorks(expected, catalog, new TypeReference<Catalog<TestEntity>>(){}, Path.just(TestRoot.Fields.entities));
+		assertJacksonWorks(expected, catalog, new TypeReference<Catalog<TestEntity>>(){});
 	}
 
 	static Stream<Arguments> catalogArguments() {
@@ -127,7 +126,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		expected.put("ids", strings);
 		expected.put("domain", entitiesRef.pathString());
 
-		assertJacksonWorks(expected, listing, new TypeReference<Listing<TestEntity>>() {}, Path.just("doesn't matter"));
+		assertJacksonWorks(expected, listing, new TypeReference<Listing<TestEntity>>() {});
 	}
 
 	static Stream<Arguments> listingArguments() {
@@ -162,8 +161,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		assertJacksonWorks(
 			expected,
 			sideTable,
-			new TypeReference<SideTable<TestEntity, String>>(){},
-			Path.just("doesn't matter")
+			new TypeReference<SideTable<TestEntity, String>>(){}
 		);
 	}
 
@@ -271,8 +269,8 @@ class JacksonPluginTest extends AbstractBoskTest {
 		assertJacksonWorks(
 			expected,
 			actual,
-			new TypeReference<NodeWithGenerics<Integer, NodeWithGenerics<Double, String>>>() {},
-			Path.empty());
+			new TypeReference<NodeWithGenerics<Integer, NodeWithGenerics<Double, String>>>() {}
+		);
 	}
 
 	@Value
@@ -331,12 +329,12 @@ class JacksonPluginTest extends AbstractBoskTest {
 				new Optionals(Identifier.unique("optionals"), optionalString, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()));
 	}
 
-	private void assertJacksonWorks(Map<String,?> plainObject, Object boskObject, TypeReference<?> boskObjectTypeRef, Path path) {
+	private void assertJacksonWorks(Map<String,?> plainObject, Object boskObject, TypeReference<?> boskObjectTypeRef) {
 		JavaType boskObjectType = TypeFactory.defaultInstance().constructType(boskObjectTypeRef);
 		Map<String, Object> actualPlainObject = plainObjectFor(boskObject);
 		assertEquals(plainObject, actualPlainObject, "Serialized object should match expected");
 
-		Object deserializedBoskObject = boskObjectFor(plainObject, boskObjectType, path);
+		Object deserializedBoskObject = boskObjectFor(plainObject, boskObjectType);
 		assertEquals(boskObject, deserializedBoskObject, "Deserialized object should match expected");
 
 		Map<String, Object> roundTripPlainObject = plainObjectFor(deserializedBoskObject);
@@ -344,12 +342,12 @@ class JacksonPluginTest extends AbstractBoskTest {
 
 	}
 
-	private void assertJacksonWorks(List<?> plainList, Object boskObject, TypeReference<?> boskObjectTypeRef, Path path) {
+	private void assertJacksonWorks(List<?> plainList, Object boskObject, TypeReference<?> boskObjectTypeRef) {
 		JavaType boskObjectType = TypeFactory.defaultInstance().constructType(boskObjectTypeRef);
 		List<Object> actualPlainList = plainListFor(boskObject);
 		assertEquals(plainList, actualPlainList, "Serialized object should match expected");
 
-		Object deserializedBoskObject = boskListFor(plainList, boskObjectType, path);
+		Object deserializedBoskObject = boskListFor(plainList, boskObjectType);
 		assertEquals(boskObject, deserializedBoskObject, "Deserialized object should match expected");
 
 		List<Object> roundTripPlainObject = plainListFor(deserializedBoskObject);
@@ -377,27 +375,23 @@ class JacksonPluginTest extends AbstractBoskTest {
 		}
 	}
 
-	private Object boskObjectFor(Map<String, ?> plainObject, JavaType boskObjectType, Path path) {
+	private Object boskObjectFor(Map<String, ?> plainObject, JavaType boskObjectType) {
 		try {
 			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskObjectType);
 			JavaType mapJavaType = TypeFactory.defaultInstance().constructParametricType(Map.class, String.class, Object.class);
 			String json = plainMapper.writerFor(mapJavaType).writeValueAsString(plainObject);
-			try (DeserializationScope scope = jacksonPlugin.newDeserializationScope(path)) {
-				return boskMapper.readerFor(boskJavaType).readValue(json);
-			}
+			return boskMapper.readerFor(boskJavaType).readValue(json);
 		} catch (JsonProcessingException e) {
 			throw new AssertionError(e);
 		}
 	}
 
-	private Object boskListFor(List<?> plainList, JavaType boskListType, Path path) {
+	private Object boskListFor(List<?> plainList, JavaType boskListType) {
 		try {
 			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskListType);
 			JavaType listJavaType = TypeFactory.defaultInstance().constructParametricType(List.class, Object.class);
 			String json = plainMapper.writerFor(listJavaType).writeValueAsString(plainList);
-			try (DeserializationScope scope = jacksonPlugin.newDeserializationScope(path)) {
-				return boskMapper.readerFor(boskJavaType).readValue(json);
-			}
+			return boskMapper.readerFor(boskJavaType).readValue(json);
 		} catch (JsonProcessingException e) {
 			throw new AssertionError(e);
 		}

@@ -324,7 +324,7 @@ final class GsonAdapterCompiler {
 			Map<String, Object> valueMap = gsonPlugin.gatherParameterValuesByName(nodeClass, parametersByName, in, gson);
 			in.endObject();
 
-			List<Object> parameterValues = gsonPlugin.parameterValueList(nodeClass, valueMap, parametersByName, bosk);
+			List<Object> parameterValues = gsonPlugin.parameterValueList(valueMap, parametersByName);
 
 			@SuppressWarnings("unchecked")
 			T result = (T)codec.instantiateFrom(parameterValues);

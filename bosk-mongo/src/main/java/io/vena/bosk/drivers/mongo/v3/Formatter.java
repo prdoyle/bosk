@@ -3,7 +3,6 @@ package io.vena.bosk.drivers.mongo.v3;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.Listing;
 import io.vena.bosk.Reference;
-import io.vena.bosk.SerializationPlugin;
 import io.vena.bosk.SideTable;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.exceptions.InvalidTypeException;
@@ -43,12 +42,10 @@ import static java.lang.String.format;
 final class Formatter {
 	private final CodecRegistry simpleCodecs;
 	private final Function<Type, Codec<?>> preferredBoskCodecs;
-	private final Function<Reference<?>, SerializationPlugin.DeserializationScope> deserializationScopeFunction;
 
 	Formatter(Bosk<?> bosk, BsonPlugin bsonPlugin) {
 		this.simpleCodecs = CodecRegistries.fromProviders(bsonPlugin.codecProviderFor(bosk), new ValueCodecProvider(), new DocumentCodecProvider());
 		this.preferredBoskCodecs = type -> bsonPlugin.getCodec(type, rawClass(type), simpleCodecs, bosk);
-		this.deserializationScopeFunction = bsonPlugin::newDeserializationScope;
 	}
 
 	/**
@@ -110,9 +107,7 @@ final class Formatter {
 		Type type = target.targetType();
 		Class<T> objectClass = (Class<T>) rawClass(type);
 		Codec<T> objectCodec = (Codec<T>) codecFor(type);
-		try (@SuppressWarnings("unused") BsonPlugin.DeserializationScope scope = deserializationScopeFunction.apply(target)) {
-			return objectClass.cast(objectCodec.decode(doc.asBsonReader(), DecoderContext.builder().build()));
-		}
+		return objectClass.cast(objectCodec.decode(doc.asBsonReader(), DecoderContext.builder().build()));
 	}
 
 	/**
@@ -142,7 +137,6 @@ final class Formatter {
 		BsonDocument document = new BsonDocument();
 		document.append("value", bson);
 		try (
-			@SuppressWarnings("unused") BsonPlugin.DeserializationScope scope = deserializationScopeFunction.apply(target);
 			BsonReader reader = document.asBsonReader()
 		) {
 			reader.readStartDocument();
