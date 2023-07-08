@@ -753,6 +753,11 @@ try (ReadContext originalThReadContext = bosk.new ReadContext()) {
 		}
 
 		@Override
+		public Reference<?> root() {
+			return rootReference();
+		}
+
+		@Override
 		public final <U> Reference<U> then(Class<U> targetClass, String... segments) throws InvalidTypeException {
 			return reference(targetClass, path.then(segments));
 		}
