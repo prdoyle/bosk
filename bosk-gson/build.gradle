@@ -12,8 +12,5 @@ java {
 }
 
 dependencies {
-	api 'com.google.code.gson:gson:2.10.1'
-	api project(":bosk-core")
-
-	testImplementation project(":lib-testing")
+	implementation project(":bosk-core")
 }
