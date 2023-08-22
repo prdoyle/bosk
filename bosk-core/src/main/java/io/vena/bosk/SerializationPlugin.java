@@ -55,14 +55,36 @@ public abstract class SerializationPlugin {
 	private final ThreadLocal<DeserializationScope> currentScope = ThreadLocal.withInitial(this::outermostScope);
 
 	public final DeserializationScope newDeserializationScope(Reference<?> ref) {
-		Path newPath = ref.path();
 		DeserializationScope outerScope = currentScope.get();
 		DeserializationScope newScope = new NestedDeserializationScope(
 			outerScope,
-			newPath,
-			outerScope.bindingEnvironment());
+			ref.path(),
+			outerScope.bindingEnvironment(),
+			determineImpliedID(ref));
 		currentScope.set(newScope);
 		return newScope;
+	}
+
+	@Nullable
+	private static Identifier determineImpliedID(Reference<?> ref) {
+		@Nullable Identifier impliedID;
+		Path path = ref.path();
+		if (path.isEmpty()) {
+			impliedID = null;
+		} else {
+			Reference<?> enclosingRef;
+			try {
+				enclosingRef = ref.enclosingReference(Object.class);
+			} catch (InvalidTypeException e) {
+				throw new AssertionError("Reference with non-empty path must have an enclosing ref", e);
+			}
+			if (AddressableByIdentifier.class.isAssignableFrom(enclosingRef.targetClass())) {
+				impliedID = Identifier.from(path.lastSegment());
+			} else {
+				impliedID = null;
+			}
+		}
+		return impliedID;
 	}
 
 	public final DeserializationScope overlayScope(BindingEnvironment env) {
@@ -70,7 +92,8 @@ public abstract class SerializationPlugin {
 		DeserializationScope newScope = new NestedDeserializationScope(
 			outerScope,
 			outerScope.path(),
-			outerScope.bindingEnvironment().overlay(env));
+			outerScope.bindingEnvironment().overlay(env),
+			outerScope.impliedID());
 		currentScope.set(newScope);
 		return newScope;
 	}
@@ -80,7 +103,8 @@ public abstract class SerializationPlugin {
 		DeserializationScope newScope = new NestedDeserializationScope(
 			outerScope,
 			outerScope.path().then(entryID.toString()),
-			outerScope.bindingEnvironment());
+			outerScope.bindingEnvironment(),
+			);
 		currentScope.set(newScope);
 		return newScope;
 	}
@@ -105,7 +129,9 @@ public abstract class SerializationPlugin {
 					DeserializationScope newScope = new NestedDeserializationScope(
 						outerScope,
 						path,
-						outerScope.bindingEnvironment());
+						outerScope.bindingEnvironment(),
+						null // There's no implied ID for a field
+					);
 					currentScope.set(newScope);
 					return newScope;
 				} else {
