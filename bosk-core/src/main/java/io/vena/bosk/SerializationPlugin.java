@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
+import org.jetbrains.annotations.Nullable;
 
 import static io.vena.bosk.ReferenceUtils.parameterType;
 import static io.vena.bosk.ReferenceUtils.rawClass;
@@ -131,6 +132,7 @@ public abstract class SerializationPlugin {
 
 		public abstract Path path();
 		public abstract BindingEnvironment bindingEnvironment();
+		public abstract @Nullable Identifier impliedID();
 
 		@Override public abstract void close();
 	}
@@ -138,6 +140,7 @@ public abstract class SerializationPlugin {
 	private static final class OutermostDeserializationScope extends DeserializationScope {
 		@Override public Path path() { return Path.empty(); }
 		@Override public BindingEnvironment bindingEnvironment() { return BindingEnvironment.empty(); }
+		@Override public @Nullable Identifier impliedID() { return null; }
 
 		@Override
 		public void close() {
@@ -151,6 +154,7 @@ public abstract class SerializationPlugin {
 		DeserializationScope outer;
 		Path path;
 		BindingEnvironment bindingEnvironment;
+		@Nullable Identifier impliedID;
 
 		@Override
 		public void close() {
