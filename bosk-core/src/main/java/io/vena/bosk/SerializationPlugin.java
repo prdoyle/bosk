@@ -95,7 +95,10 @@ public abstract class SerializationPlugin {
 					.parseParameterized(annotation.value())
 					.boundBy(outerScope.bindingEnvironment());
 				if (path.numParameters() == 0) {
-					DeserializationScope newScope = new NestedDeserializationScope(outerScope, path, outerScope.bindingEnvironment());
+					DeserializationScope newScope = new NestedDeserializationScope(
+						outerScope,
+						path,
+						outerScope.bindingEnvironment());
 					currentScope.set(newScope);
 					return newScope;
 				} else {
