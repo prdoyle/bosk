@@ -26,6 +26,7 @@ import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.TestEntityBuilder;
 import io.vena.bosk.annotations.DerivedRecord;
 import io.vena.bosk.annotations.DeserializationPath;
+import io.vena.bosk.annotations.ReferencePath;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.MalformedPathException;
 import io.vena.bosk.exceptions.ParameterUnboundException;
@@ -55,6 +56,7 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static io.vena.bosk.AbstractBoskTest.TestEnum.OK;
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
@@ -72,6 +74,12 @@ class JacksonPluginTest extends AbstractBoskTest {
 	private ObjectMapper boskMapper;
 	private CatalogReference<TestEntity> entitiesRef;
 	private Reference<TestEntity> parentRef;
+	private Refs refs;
+
+	public interface Refs {
+		@ReferencePath("/entities/-entity-") Reference<TestEntity> entity(Identifier entity);
+		@ReferencePath("/entities/-entity-/implicitRefs") Reference<ImplicitRefs> implicitRefs(Identifier entity);
+	}
 
 	/**
 	 * Not configured by JacksonPlugin. Only for checking the properties of the generated JSON.
@@ -92,6 +100,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		boskMapper = new ObjectMapper()
 			.registerModule(jacksonPlugin.moduleFor(bosk))
 			.enable(INDENT_OUTPUT);
+		refs = bosk.buildReferences(Refs.class);
 	}
 
 	@Test
@@ -465,6 +474,39 @@ class JacksonPluginTest extends AbstractBoskTest {
 
 		@DeserializationPath("/entities/-entity2-/implicitRefs")
 		ImplicitRefs secondField;
+	}
+
+	@Test
+	void deserializationPathMissingID_filledInFromContext() throws InvalidTypeException, JsonProcessingException {
+		Map<String, Object> plainObject = new LinkedHashMap<>();
+		plainObject.put("firstField", emptyMap());
+		plainObject.put("secondField", emptyMap());
+
+		String json = plainMapper.writeValueAsString(plainObject);
+
+		Identifier id123 = Identifier.from("123");
+		Identifier id456 = Identifier.from("456");
+		DeserializationPathContainer expected = new DeserializationPathContainer(
+			new ImplicitRefs(id123,
+				refs.implicitRefs(id123),
+				refs.entity(id123),
+				refs.implicitRefs(id123),
+				refs.entity(id123)),
+			new ImplicitRefs(id456,
+				refs.implicitRefs(id456),
+				refs.entity(id456),
+				refs.implicitRefs(id456),
+				refs.entity(id456))
+		);
+
+		BindingEnvironment env = BindingEnvironment.empty().builder()
+			.bind("entity1", id123)
+			.bind("entity2", Identifier.from("456"))
+			.build();
+		try (DeserializationScope scope = jacksonPlugin.overlayScope(env)) {
+			Object actual = boskObjectFor(plainObject, new TypeReference<DeserializationPathContainer>() {}, Path.empty());
+			assertEquals(expected, actual);
+		}
 	}
 
 	private TestEntity makeEntityWithOptionalString(Optional<String> optionalString) throws InvalidTypeException {
