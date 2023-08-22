@@ -487,7 +487,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 	}
 
-	public interface SerDes<T> {
+	interface SerDes<T> {
 		JsonSerializer<T> serializer(SerializationConfig config);
 		JsonDeserializer<T> deserializer(DeserializationConfig config);
 	}
