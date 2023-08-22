@@ -56,21 +56,30 @@ public abstract class SerializationPlugin {
 	public final DeserializationScope newDeserializationScope(Reference<?> ref) {
 		Path newPath = ref.path();
 		DeserializationScope outerScope = currentScope.get();
-		DeserializationScope newScope = new NestedDeserializationScope(outerScope, newPath, outerScope.bindingEnvironment());
+		DeserializationScope newScope = new NestedDeserializationScope(
+			outerScope,
+			newPath,
+			outerScope.bindingEnvironment());
 		currentScope.set(newScope);
 		return newScope;
 	}
 
 	public final DeserializationScope overlayScope(BindingEnvironment env) {
 		DeserializationScope outerScope = currentScope.get();
-		DeserializationScope newScope = new NestedDeserializationScope(outerScope, outerScope.path(), outerScope.bindingEnvironment().overlay(env));
+		DeserializationScope newScope = new NestedDeserializationScope(
+			outerScope,
+			outerScope.path(),
+			outerScope.bindingEnvironment().overlay(env));
 		currentScope.set(newScope);
 		return newScope;
 	}
 
 	public final DeserializationScope innerDeserializationScope(String lastSegment) {
 		DeserializationScope outerScope = currentScope.get();
-		DeserializationScope newScope = new NestedDeserializationScope(outerScope, outerScope.path().then(lastSegment), outerScope.bindingEnvironment());
+		DeserializationScope newScope = new NestedDeserializationScope(
+			outerScope,
+			outerScope.path().then(lastSegment),
+			outerScope.bindingEnvironment());
 		currentScope.set(newScope);
 		return newScope;
 	}
