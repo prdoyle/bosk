@@ -218,6 +218,13 @@ public abstract class SerializationPlugin {
 					parameterValues.add(Optional.empty());
 				} else if (Phantom.class.equals(type)) {
 					parameterValues.add(Phantom.empty());
+				} else if ("id".equals(name)) {
+					Identifier impliedID = currentScope.get().impliedID();
+					if (impliedID == null) {
+						throw new DeserializationException("Missing id field");
+					} else {
+						parameterValues.add(impliedID);
+					}
 				} else {
 					throw new DeserializationException("Missing field: " + name);
 				}
