@@ -139,7 +139,7 @@ class GsonPluginTest extends AbstractBoskTest {
 		expected.put("ids", strings);
 		expected.put("domain", refs.entities().pathString());
 
-		assertGsonWorks(expected, listing, new TypeToken<Listing<TestEntity>>(){}.getType(), Path.just("doesn't matter"));
+		assertGsonWorks(expected, listing, new TypeToken<Listing<TestEntity>>(){}.getType(), Path.parse("/entities/123/oddChildren"));
 	}
 
 	static Stream<Arguments> listingArguments() {
@@ -175,7 +175,7 @@ class GsonPluginTest extends AbstractBoskTest {
 			expected,
 			sideTable,
 			new TypeToken<SideTable<TestEntity, String>>(){}.getType(),
-			Path.just("doesn't matter")
+			Path.parse("/entities/123/stringSideTable")
 		);
 	}
 

@@ -104,7 +104,7 @@ public abstract class SerializationPlugin {
 			outerScope,
 			outerScope.path().then(entryID.toString()),
 			outerScope.bindingEnvironment(),
-			);
+			entryID);
 		currentScope.set(newScope);
 		return newScope;
 	}
@@ -116,7 +116,8 @@ public abstract class SerializationPlugin {
 			DeserializationScope newScope = new NestedDeserializationScope(
 				outerScope,
 				outerScope.path().then(fieldName),
-				outerScope.bindingEnvironment());
+				outerScope.bindingEnvironment(),
+				null);
 			currentScope.set(newScope);
 			return newScope;
 		} else {
@@ -130,8 +131,7 @@ public abstract class SerializationPlugin {
 						outerScope,
 						path,
 						outerScope.bindingEnvironment(),
-						null // There's no implied ID for a field
-					);
+						null);
 					currentScope.set(newScope);
 					return newScope;
 				} else {

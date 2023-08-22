@@ -148,7 +148,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		expected.put("ids", strings);
 		expected.put("domain", entitiesRef.pathString());
 
-		assertJacksonWorks(expected, listing, new TypeReference<Listing<TestEntity>>() {}, Path.just("doesn't matter"));
+		assertJacksonWorks(expected, listing, new TypeReference<Listing<TestEntity>>() {}, Path.parse("/entities/123/oddChildren"));
 	}
 
 	static Stream<Arguments> listingArguments() {
@@ -184,7 +184,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 			expected,
 			sideTable,
 			new TypeReference<SideTable<TestEntity, String>>(){},
-			Path.just("doesn't matter")
+			Path.parse("/entities/123/stringSideTable")
 		);
 	}
 
