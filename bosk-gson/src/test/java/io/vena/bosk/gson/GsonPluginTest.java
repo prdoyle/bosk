@@ -460,15 +460,19 @@ class GsonPluginTest extends AbstractBoskTest {
 
 	private Object boskGsonObjectFor(Map<String, ?> plainObject, Type bsonObjectType, Path path) {
 		String json = plainGson.toJson(plainObject, new TypeToken<Map<String, Object>>(){}.getType());
-		try (DeserializationScope scope = gsonPlugin.newDeserializationScope(path)) {
+		try (DeserializationScope scope = gsonPlugin.newDeserializationScope(bosk.rootReference().then(Object.class, path))) {
 			return boskGson.fromJson(json, bsonObjectType);
+		} catch (InvalidTypeException e) {
+			throw new AssertionError(e);
 		}
 	}
 
 	private Object boskGsonListFor(List<?> plainList, Type bsonListType, Path path) {
 		String json = plainGson.toJson(plainList, new TypeToken<List<Object>>(){}.getType());
-		try (DeserializationScope scope = gsonPlugin.newDeserializationScope(path)) {
+		try (DeserializationScope scope = gsonPlugin.newDeserializationScope(bosk.rootReference().then(Object.class, path))) {
 			return boskGson.fromJson(json, bsonListType);
+		} catch (InvalidTypeException e) {
+			throw new AssertionError(e);
 		}
 	}
 

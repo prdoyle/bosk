@@ -571,8 +571,10 @@ class JacksonPluginTest extends AbstractBoskTest {
 			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskObjectTypeRef);
 			JavaType mapJavaType = TypeFactory.defaultInstance().constructParametricType(Map.class, String.class, Object.class);
 			String json = plainMapper.writerFor(mapJavaType).writeValueAsString(plainObject);
-			try (DeserializationScope scope = jacksonPlugin.newDeserializationScope(path)) {
+			try (DeserializationScope scope = jacksonPlugin.newDeserializationScope(bosk.rootReference().then(Object.class, path))) {
 				return boskMapper.readerFor(boskJavaType).readValue(json);
+			} catch (InvalidTypeException e) {
+				throw new AssertionError(e);
 			}
 		} catch (JsonProcessingException e) {
 			throw new AssertionError(e);
@@ -584,8 +586,10 @@ class JacksonPluginTest extends AbstractBoskTest {
 			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskListType);
 			JavaType listJavaType = TypeFactory.defaultInstance().constructParametricType(List.class, Object.class);
 			String json = plainMapper.writerFor(listJavaType).writeValueAsString(plainList);
-			try (DeserializationScope scope = jacksonPlugin.newDeserializationScope(path)) {
+			try (DeserializationScope scope = jacksonPlugin.newDeserializationScope(bosk.rootReference().then(Object.class, path))) {
 				return boskMapper.readerFor(boskJavaType).readValue(json);
+			} catch (InvalidTypeException e) {
+				throw new AssertionError(e);
 			}
 		} catch (JsonProcessingException e) {
 			throw new AssertionError(e);

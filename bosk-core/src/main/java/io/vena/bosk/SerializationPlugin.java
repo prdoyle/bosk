@@ -53,15 +53,12 @@ import static java.util.Objects.requireNonNull;
 public abstract class SerializationPlugin {
 	private final ThreadLocal<DeserializationScope> currentScope = ThreadLocal.withInitial(this::outermostScope);
 
-	public final DeserializationScope newDeserializationScope(Path newPath) {
+	public final DeserializationScope newDeserializationScope(Reference<?> ref) {
+		Path newPath = ref.path();
 		DeserializationScope outerScope = currentScope.get();
 		DeserializationScope newScope = new NestedDeserializationScope(outerScope, newPath, outerScope.bindingEnvironment());
 		currentScope.set(newScope);
 		return newScope;
-	}
-
-	public final DeserializationScope newDeserializationScope(Reference<?> ref) {
-		return newDeserializationScope(ref.path());
 	}
 
 	public final DeserializationScope overlayScope(BindingEnvironment env) {
