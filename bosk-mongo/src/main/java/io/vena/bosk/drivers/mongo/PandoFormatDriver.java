@@ -1,31 +1,54 @@
 package io.vena.bosk.drivers.mongo;
 
+import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import io.vena.bosk.Bosk;
+import io.vena.bosk.BoskDriver;
+import io.vena.bosk.EnumerableByIdentifier;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
-import io.vena.bosk.RootReference;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.exceptions.InitializationFailureException;
 import java.io.IOException;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonValue;
 import org.bson.Document;
 
-@RequiredArgsConstructor
-final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R> {
-	private final Formatter formatter;
+final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDriver<R> {
 	private final BsonSurgeon surgeon;
-	private final RootReference<R> rootRef;
+
+	public PandoFormatDriver(
+		Bosk<R> bosk,
+		MongoCollection<Document> collection,
+		MongoDriverSettings driverSettings,
+		BsonPlugin bsonPlugin,
+		FlushLock flushLock,
+		BoskDriver<R> downstream,
+		List<Reference<? extends EnumerableByIdentifier<?>>> separateCollections)
+	{
+		super(
+			PandoFormatDriver.class.getSimpleName() + ": " + driverSettings,
+			collection,
+			driverSettings,
+			new Formatter(bosk, bsonPlugin),
+			bosk.rootReference(),
+			downstream,
+			flushLock,
+			Manifest.forPando()
+		);
+		this.surgeon = new BsonSurgeon(separateCollections); // TODO: From driverSettings
+	}
 
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		BsonValue value = formatter.object2bsonValue(newValue, target.targetType());
 		if (value instanceof BsonDocument) {
-			List<BsonDocument> foo = surgeon.scatter(rootRef, target, (BsonDocument) value);
+			List<BsonDocument> parts = surgeon.scatter(rootRef, target, (BsonDocument) value);
+
 		}
+		doUpdate(replacementDoc(target, newValue), standardPreconditions(target));
 	}
 
 	@Override

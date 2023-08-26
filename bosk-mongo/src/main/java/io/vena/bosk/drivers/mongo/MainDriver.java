@@ -420,7 +420,7 @@ public class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 			}
 		}
 
-		FindIterable<Document> result = collection.find(new BsonDocument("_id", SequoiaFormatDriver.DOCUMENT_ID));
+		FindIterable<Document> result = collection.find(new BsonDocument("_id", AbstractFormatDriver.DOCUMENT_ID));
 		try (MongoCursor<Document> cursor = result.cursor()) {
 			if (cursor.hasNext()) {
 				Long revision = cursor
