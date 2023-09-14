@@ -582,7 +582,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 		LOGGER.debug("Precondition filter: {}", filter);
 		boolean result = !documentExists(filter);
 		if (result) {
-			LOGGER.debug("Precondition failed: {} != {}", precondition, requiredValue);
+			LOGGER.debug("Precondition fail: {} != {}", precondition, requiredValue);
 		}
 		return result;
 	}
