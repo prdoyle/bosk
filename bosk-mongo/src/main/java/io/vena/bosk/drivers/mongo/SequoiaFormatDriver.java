@@ -162,6 +162,11 @@ final class SequoiaFormatDriver<R extends StateTreeNode> implements FormatDriver
 		UpdateResult result = collection.updateOne(filter, update, options);
 		LOGGER.debug("| Result: {}", result);
 		if (settings.experimental().manifestMode() == CREATE_IF_ABSENT) {
+			// This is the only time Sequoia changes two documents for the same operation.
+			// It's the only reason we'd want multi-document transactions,
+			// and it's not even a strong reason, because if the manifest document
+			// already indicates Sequoia, or is absent, this still works correctly
+			// if interpreted as two separate events.
 			writeManifest();
 		}
 	}
