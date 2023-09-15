@@ -4,6 +4,7 @@ import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import io.vena.bosk.StateTreeNode;
+import io.vena.bosk.drivers.mongo.TransactionalCollection.Transaction;
 import io.vena.bosk.exceptions.InitializationFailureException;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -52,7 +53,10 @@ interface FormatDriver<R extends StateTreeNode> extends MongoDriver<R> {
 	StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException;
 
 	/**
-	 * Can assume there is an active database transaction.
+	 * May or may not be called in a transaction. It is safe for an implementations
+	 * to call {@link Transaction#newTransaction()} and {@link Transaction#commit()};
+	 * the caller will not try to roll back the transaction after this method returns.
+	 *
 	 * <p>
 	 * Can assume that the collection is empty or nonexistent,
 	 * in the sense that there is no mess to clean up,

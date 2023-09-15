@@ -47,6 +47,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+/**
+ * A wrapper for {@link MongoCollection} that does the obvious thing with transactions:
+ * maintains a thread-local {@link ClientSession} object and uses it for all
+ * operations (unless a different one is explicitly passed in).
+ */
 @SuppressWarnings("NullableProblems")
 @RequiredArgsConstructor(staticName = "of")
 class TransactionalCollection<TDocument> implements MongoCollection<TDocument> {
@@ -88,7 +93,10 @@ class TransactionalCollection<TDocument> implements MongoCollection<TDocument> {
 		}
 
 		public void commit() {
-			currentSession.get().commitTransaction();
+			ClientSession session = currentSession.get();
+			if (session.hasActiveTransaction()) {
+				session.commitTransaction();
+			}
 		}
 
 		/**

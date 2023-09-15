@@ -91,10 +91,9 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 
 	PandoFormatDriver(
 		Bosk<R> bosk,
-		MongoCollection<BsonDocument> collection,
+		TransactionalCollection<BsonDocument> collection,
 		MongoDriverSettings driverSettings,
 		PandoFormat format, BsonPlugin bsonPlugin,
-		MongoClient mongoClient,
 		FlushLock flushLock,
 		BoskDriver<R> downstream
 	) {
@@ -102,7 +101,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 		this.settings = driverSettings;
 		this.format = format;
 		this.formatter = new Formatter(bosk, bsonPlugin);
-		this.collection = TransactionalCollection.of(collection, mongoClient);
+		this.collection = collection;
 		this.rootRef = bosk.rootReference();
 		this.downstream = downstream;
 		this.flushLock = flushLock;

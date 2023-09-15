@@ -1,11 +1,8 @@
 package io.vena.bosk.drivers.mongo;
 
-import com.mongodb.ClientSessionOptions;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.ReadConcern;
-import com.mongodb.TransactionOptions;
 import com.mongodb.WriteConcern;
-import com.mongodb.client.ClientSession;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -32,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import lombok.var;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonString;
@@ -204,57 +202,28 @@ public class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 	}
 
 	private void initializeCollectionTransaction(R result, FormatDriver<R> newDriver) throws InitializationFailureException {
-		ClientSessionOptions sessionOptions = ClientSessionOptions.builder()
-			.causallyConsistent(true)
-			.defaultTransactionOptions(TransactionOptions.builder()
-				.writeConcern(WriteConcern.MAJORITY)
-				.readConcern(ReadConcern.MAJORITY)
-				.build())
-			.build();
-		try (ClientSession session = mongoClient.startSession(sessionOptions)) {
-			try {
-				session.startTransaction();
-				newDriver.initializeCollection(new StateAndMetadata<>(result, REVISION_ZERO));
-				if (session.hasActiveTransaction()) {
-					session.commitTransaction();
-				}
-			} finally {
-				if (session.hasActiveTransaction()) {
-					session.abortTransaction();
-				}
-			}
+		try (var txn = collection.newTransaction()) {
+			newDriver.initializeCollection(new StateAndMetadata<>(result, REVISION_ZERO));
+			txn.commit();
 		}
 	}
 
 	private void refurbishTransaction() throws IOException {
-		ClientSessionOptions sessionOptions = ClientSessionOptions.builder()
-			.causallyConsistent(true)
-			.defaultTransactionOptions(TransactionOptions.builder()
-				.writeConcern(WriteConcern.MAJORITY)
-				.readConcern(ReadConcern.MAJORITY)
-				.build())
-			.build();
-		try (ClientSession session = mongoClient.startSession(sessionOptions)) {
-			try {
-				// Design note: this operation shouldn't do any special coordination with
-				// the receiver/listener system, because other replicas won't.
-				// That system needs to cope with a refurbish operations without any help.
-				session.startTransaction();
-				StateAndMetadata<R> result = formatDriver.loadAllState();
-				FormatDriver<R> newFormatDriver = newPreferredFormatDriver();
-				collection.deleteMany(new BsonDocument());
-				newFormatDriver.initializeCollection(result);
-				session.commitTransaction();
-				publishFormatDriver(newFormatDriver);
-			} catch (UninitializedCollectionException e) {
-				throw new IOException("Unable to refurbish uninitialized database collection", e);
-			} finally {
-				if (session.hasActiveTransaction()) {
-					session.abortTransaction();
-				}
-			}
+		try (var txn = collection.newTransaction()) {
+			// Design note: this operation shouldn't do any special coordination with
+			// the receiver/listener system, because other replicas won't.
+			// That system needs to cope with a refurbish operations without any help.
+			StateAndMetadata<R> result = formatDriver.loadAllState();
+			FormatDriver<R> newFormatDriver = newPreferredFormatDriver();
+			collection.deleteMany(new BsonDocument());
+			newFormatDriver.initializeCollection(result);
+			txn.commit();
+			publishFormatDriver(newFormatDriver);
+		} catch (UninitializedCollectionException e) {
+			throw new IOException("Unable to refurbish uninitialized database collection", e);
 		}
 	}
+
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		doRetryableDriverOperation(()->{
@@ -452,11 +421,10 @@ public class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 		} else if (format instanceof PandoFormat) {
 			return new PandoFormatDriver<>(
 				bosk,
-				collection,
+				TransactionalCollection.of(collection, mongoClient),
 				driverSettings,
 				(PandoFormat) format,
 				bsonPlugin,
-				mongoClient,
 				new FlushLock(driverSettings, revisionAlreadySeen),
 				downstream);
 		}
