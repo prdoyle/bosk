@@ -9,6 +9,7 @@
 		<appender-ref ref="CONSOLE" />
 	</root>
 
+	<logger name="io.vena.bosk.drivers" level="DEBUG"/>
 	<!-- How to add more tracing during unit tests
 	<logger name="io.vena.bosk.drivers.mongo" level="DEBUG"/>
 	<logger name="io.vena.bosk.drivers.DriverConformanceTest" level="DEBUG"/>

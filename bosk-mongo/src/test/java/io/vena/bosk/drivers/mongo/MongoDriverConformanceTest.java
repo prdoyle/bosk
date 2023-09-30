@@ -28,8 +28,8 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 	static Stream<MongoDriverSettingsBuilder> driverSettings() {
 		return TestParameters.driverSettings(
 			Stream.of(
-				PandoFormat.oneBigDocument()//,
-//				PandoFormat.withSeparateCollections("/catalog", "/sideTable"), // Basic
+//				PandoFormat.oneBigDocument(),
+				PandoFormat.withSeparateCollections("/catalog", "/sideTable") //, // Basic
 //				PandoFormat.withSeparateCollections("/catalog/-x-/sideTable", "/sideTable/-x-/catalog", "/sideTable/-x-/sideTable/-y-/catalog"), // Nesting, parameters
 //				PandoFormat.withSeparateCollections("/sideTable/-x-/sideTable/-y-/catalog"), // Multiple parameters in the not-separated part
 //				SEQUOIA

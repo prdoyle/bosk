@@ -15,6 +15,7 @@ import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
 import io.vena.bosk.EnumerableByIdentifier;
 import io.vena.bosk.Identifier;
+import io.vena.bosk.MapValue;
 import io.vena.bosk.Reference;
 import io.vena.bosk.RootReference;
 import io.vena.bosk.StateTreeNode;
@@ -33,6 +34,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import lombok.NonNull;
+import lombok.var;
+import org.bson.BsonBoolean;
 import org.bson.BsonDocument;
 import org.bson.BsonInt32;
 import org.bson.BsonInt64;
@@ -83,6 +86,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 	private final Demultiplexer demultiplexer = new Demultiplexer();
 
 	private volatile BsonInt64 revisionToSkip = null;
+	private volatile MapValue<String> latestDiagnosticAttributes = null;
 
 	static final BsonString ROOT_DOCUMENT_ID = new BsonString("|");
 
@@ -195,23 +199,24 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 			throw new IllegalStateException("Cannot locate root document");
 		}
 		BsonValue revision = mainPart.get(DocumentFields.revision.name(), REVISION_ZERO);
+		MapValue<String> diagnosticAttributes = formatter.getDiagnosticAttributesFromFullDocument(mainPart);
 
 		BsonDocument combinedState = bsonSurgeon.gather(allParts);
 		R root = formatter.document2object(combinedState, rootRef);
-		return new StateAndMetadata<>(root, revision.asInt64(), rootRef.diagnosticContext().getAttributes());
+		return new StateAndMetadata<>(root, revision.asInt64(), diagnosticAttributes);
 	}
 
 	@Override
 	public void initializeCollection(StateAndMetadata<R> priorContents) {
 		BsonValue initialState = formatter.object2bsonValue(priorContents.state, rootRef.targetType());
 		BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision.longValue());
-		// Note that priorContents.diagnosticAttributes are ignored, and we use the attributes from this thread
 
 		LOGGER.debug("** Initial upsert for {}", ROOT_DOCUMENT_ID.getValue());
 		collection.ensureTransactionStarted();
 		if (initialState instanceof BsonDocument) {
 			upsertAndRemoveSubParts(rootRef, initialState.asDocument()); // Mutates initialState!
 		}
+		// Note that priorContents.diagnosticAttributes are ignored, and we use the attributes from this thread
 		BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision));
 		BsonDocument filter = rootDocumentFilter();
 		UpdateOptions options = new UpdateOptions().upsert(true);
@@ -285,14 +290,24 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 					return;
 				}
 
-				BsonDocument state = fullDocument.getDocument(DocumentFields.state.name());
-				if (state == null) {
-					ChangeStreamDocument<BsonDocument> mainEvent = events.get(events.size() - 2);
-					LOGGER.debug("Main event is {} on {}", mainEvent.getOperationType(), mainEvent.getDocumentKey());
-					propagateDownstream(mainEvent, events.subList(0, events.size() - 2));
+				MapValue<String> diagnosticAttributes = formatter.getDiagnosticAttributesFromFullDocument(fullDocument);
+				if (diagnosticAttributes == null) {
+					LOGGER.debug("No diagnostic attributes in full document; using existing attributes: {}", latestDiagnosticAttributes);
+					diagnosticAttributes = latestDiagnosticAttributes;
 				} else {
-					LOGGER.debug("Main event is final event");
-					propagateDownstream(finalEvent, events.subList(0, events.size() - 1));
+					LOGGER.debug("Recorded diagnostic attributes from full document: {}", diagnosticAttributes);
+					latestDiagnosticAttributes = diagnosticAttributes;
+				}
+				try (var __ = rootRef.diagnosticContext().withOnly(diagnosticAttributes)) {
+					BsonDocument state = fullDocument.getDocument(DocumentFields.state.name());
+					if (state == null) {
+						ChangeStreamDocument<BsonDocument> mainEvent = events.get(events.size() - 2);
+						LOGGER.debug("Main event is {} on {}", mainEvent.getOperationType(), mainEvent.getDocumentKey());
+						propagateDownstream(mainEvent, events.subList(0, events.size() - 2));
+					} else {
+						LOGGER.debug("Main event is final event");
+						propagateDownstream(finalEvent, events.subList(0, events.size() - 1));
+					}
 				}
 
 				flushLock.finishedRevision(revision);
@@ -300,16 +315,26 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 			case UPDATE: {
 				// TODO: Combine code with INSERT and REPLACE events
 				BsonInt64 revision = formatter.getRevisionFromUpdateEvent(finalEvent);
-				boolean mainEventIsFinalEvent = updateEventHasField(finalEvent, DocumentFields.state); // If the final update changes only the revision field, then it's not the main event
-				if (mainEventIsFinalEvent) {
-					LOGGER.debug("Main event is final event");
-					propagateDownstream(finalEvent, events.subList(0, events.size() - 1));
-				} else if (events.size() < 2) {
-					LOGGER.debug("Main event is a no-op");
+				MapValue<String> diagnosticAttributes = formatter.getDiagnosticAttributesFromUpdateEvent(finalEvent);
+				if (diagnosticAttributes == null) {
+					LOGGER.debug("No diagnostic attributes in update event; using existing attributes: {}", latestDiagnosticAttributes);
+					diagnosticAttributes = latestDiagnosticAttributes;
 				} else {
-					ChangeStreamDocument<BsonDocument> mainEvent = events.get(events.size() - 2);
-					LOGGER.debug("Main event is {} on {}", mainEvent.getOperationType(), mainEvent.getDocumentKey());
-					propagateDownstream(mainEvent, events.subList(0, events.size() - 2));
+					LOGGER.debug("Recorded diagnostic attributes from event: {}", diagnosticAttributes);
+					latestDiagnosticAttributes = diagnosticAttributes;
+				}
+				try (var __ = rootRef.diagnosticContext().withOnly(diagnosticAttributes)) {
+					boolean mainEventIsFinalEvent = updateEventHasField(finalEvent, DocumentFields.state); // If the final update changes only the revision field, then it's not the main event
+					if (mainEventIsFinalEvent) {
+						LOGGER.debug("Main event is final event");
+						propagateDownstream(finalEvent, events.subList(0, events.size() - 1));
+					} else if (events.size() < 2) {
+						LOGGER.debug("Main event is a no-op");
+					} else {
+						ChangeStreamDocument<BsonDocument> mainEvent = events.get(events.size() - 2);
+						LOGGER.debug("Main event is {} on {}", mainEvent.getOperationType(), mainEvent.getDocumentKey());
+						propagateDownstream(mainEvent, events.subList(0, events.size() - 2));
+					}
 				}
 				flushLock.finishedRevision(revision);
 			} break;
@@ -500,21 +525,38 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 			if (target.equals(mainRef)) {
 				// Upsert the main doc
 				// TODO: merge this with the same code in upsertAndRemoveSubParts
-				LOGGER.debug("| Update main document");
-				BsonDocument update = new BsonDocument("$set",
+				LOGGER.debug("| Upsert main document");
+				BsonDocument updateDoc = new BsonDocument("$set",
 					filter.clone()
-						.append(DocumentFields.state.name(), value));
-				collection.updateOne(filter, update, new UpdateOptions().upsert(true));
+						.append(DocumentFields.state.name(), value)
+						.append(DocumentFields.diagnostics.name(), formatter.encodeDiagnostics(rootRef.diagnosticContext().getAttributes())));
+				LOGGER.debug("| Update: {}", updateDoc);
+				LOGGER.debug("| Filter: {}", filter);
+				collection.updateOne(filter, updateDoc, new UpdateOptions().upsert(true));
+				try {
+					// Move up to the parent document to create the "true" stub
+					mainRef = mainRef(mainRef.enclosingReference(Object.class));
+					LOGGER.debug("Move up to enclosing main reference {}", mainRef);
+				} catch (InvalidTypeException e) {
+					throw new AssertionError("Every non-root reference has an enclosing reference");
+				}
+				if (mainRef.equals(rootRef)) {
+					rootUpdate = replacementDoc(target, new BsonBoolean(true), mainRef);
+					rootFilter = standardRootPreconditions(target);
+				} else {
+					doUpdate(replacementDoc(target, new BsonBoolean(true), mainRef), standardPreconditions(target, mainRef, documentFilter(mainRef)));
+					rootUpdate = blankUpdateDoc();
+					rootFilter = rootDocumentFilter();
+				}
 			} else {
 				// Update part of the main doc (which must already exist)
 				String key = dottedFieldNameOf(target, mainRef);
 				LOGGER.debug("| Set field {} in {}: {}", key, mainRef, value);
 				BsonDocument mainUpdate = new BsonDocument("$set", new BsonDocument(key, value));
 				doUpdate(mainUpdate, standardPreconditions(target, mainRef, filter));
+				rootUpdate = blankUpdateDoc();
+				rootFilter = rootDocumentFilter();
 			}
-			// On the root doc, we're only bumping the revision
-			rootUpdate = blankUpdateDoc();
-			rootFilter = rootDocumentFilter();
 		}
 		LOGGER.debug("| Update root document");
 		doUpdate(rootUpdate, rootFilter);
@@ -745,8 +787,8 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 					}
 
 					BsonValue replacementValue = entry.getValue();
-					if (replacementValue instanceof BsonDocument) {
-						LOGGER.debug("Replacement value is a document; gather along with {} subparts", subParts.size());
+					if (!subParts.isEmpty()) {
+						LOGGER.debug("Gather replacement value with {} subparts", subParts.size());
 						String mainID = "|" + String.join("|", BsonSurgeon.docSegments(ref, mainRef));
 						BsonDocument mainDocument = new BsonDocument()
 							.append("_id", new BsonString(mainID))
@@ -757,7 +799,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 
 						replacementValue = bsonSurgeon.gather(parts);
 					} else {
-						LOGGER.debug("Replacement value is scalar: {}", replacementValue);
+						LOGGER.debug("Replacement value has no subparts: {}", replacementValue);
 					}
 
 					LOGGER.debug("| Replace {}", ref);

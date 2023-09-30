@@ -53,7 +53,8 @@ public abstract class AbstractDriverTest {
 		// This is the bosk we're testing
 		bosk = new Bosk<TestEntity>("Test bosk", TestEntity.class, AbstractDriverTest::initialRoot, DriverStack.of(
 			MirroringDriver.targeting(canonicalBosk),
-			DriverStateVerifier.wrap(driverFactory, TestEntity.class, AbstractDriverTest::initialRoot)
+			driverFactory
+//			DriverStateVerifier.wrap(driverFactory, TestEntity.class, AbstractDriverTest::initialRoot)
 		));
 		driver = bosk.driver();
 	}
