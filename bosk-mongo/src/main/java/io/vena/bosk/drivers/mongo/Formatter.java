@@ -1,5 +1,7 @@
 package io.vena.bosk.drivers.mongo;
 
+import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import com.mongodb.client.model.changestream.UpdateDescription;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDiagnosticContext;
 import io.vena.bosk.Listing;
@@ -223,6 +225,58 @@ final class Formatter {
 			reader.readName("value");
 			return objectCodec.decode(reader, DecoderContext.builder().build());
 		}
+	}
+
+	BsonInt64 getRevisionFromFullDocument(BsonDocument fullDocument) {
+		if (fullDocument == null) {
+			return null;
+		}
+		return fullDocument.getInt64(DocumentFields.revision.name(), null);
+	}
+
+	MapValue<String> getDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {
+		if (fullDocument == null) {
+			return null;
+		}
+		BsonDocument diagnostics = fullDocument.getDocument(DocumentFields.diagnostics.name(), null);
+		if (diagnostics == null) {
+			return null;
+		}
+		return decodeDiagnosticAttributes(diagnostics);
+	}
+
+	BsonInt64 getRevisionFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
+		if (event == null) {
+			return null;
+		}
+		UpdateDescription updateDescription = event.getUpdateDescription();
+		if (updateDescription == null) {
+			return null;
+		}
+		BsonDocument updatedFields = updateDescription.getUpdatedFields();
+		if (updatedFields == null) {
+			return null;
+		}
+		return updatedFields.getInt64(DocumentFields.revision.name(), null);
+	}
+
+	MapValue<String> getDiagnosticAttributesFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
+		if (event == null) {
+			return null;
+		}
+		UpdateDescription updateDescription = event.getUpdateDescription();
+		if (updateDescription == null) {
+			return null;
+		}
+		BsonDocument updatedFields = updateDescription.getUpdatedFields();
+		if (updatedFields == null) {
+			return null;
+		}
+		BsonDocument diagnostics = updatedFields.getDocument(DocumentFields.diagnostics.name(), null);
+		if (diagnostics == null) {
+			return null;
+		}
+		return decodeDiagnosticAttributes(diagnostics);
 	}
 
 	/**

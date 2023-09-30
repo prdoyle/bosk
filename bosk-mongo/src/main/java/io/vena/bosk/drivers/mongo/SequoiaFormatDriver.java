@@ -139,7 +139,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> implements FormatDriver
 			BsonDocument document = cursor.next();
 			BsonDocument state = document.getDocument(DocumentFields.state.name(), null);
 			BsonInt64 revision = document.getInt64(DocumentFields.revision.name(), REVISION_ZERO);
-			MapValue<String> diagnosticAttributes = getDiagnosticAttributesFromFullDocument(document);
+			MapValue<String> diagnosticAttributes = formatter.getDiagnosticAttributesFromFullDocument(document);
 			if (state == null) {
 				throw new IOException("No existing state in document");
 			} else {
@@ -214,7 +214,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> implements FormatDriver
 				if (fullDocument == null) {
 					throw new UnprocessableEventException("Missing fullDocument", event.getOperationType());
 				}
-				BsonInt64 revision = getRevisionFromFullDocument(fullDocument);
+				BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
 				BsonDocument state = fullDocument.getDocument(DocumentFields.state.name(), null);
 				if (state == null) {
 					throw new UnprocessableEventException("Missing state field", event.getOperationType());
@@ -224,7 +224,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> implements FormatDriver
 				// saves us in MongoDriverResiliencyTest.documentReappears_recovers because when the doc
 				// disappears, we don't null out revisionToSkip. TODO: Rethink what's the right way to handle this.
 				LOGGER.debug("| Replace {}", rootRef);
-				MapValue<String> diagnosticAttributes = getDiagnosticAttributesFromFullDocument(fullDocument);
+				MapValue<String> diagnosticAttributes = formatter.getDiagnosticAttributesFromFullDocument(fullDocument);
 				try (var __ = rootRef.diagnosticContext().withOnly(diagnosticAttributes)) {
 					downstream.submitReplacement(rootRef, newRoot);
 				}
@@ -233,9 +233,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> implements FormatDriver
 			case UPDATE: {
 				UpdateDescription updateDescription = event.getUpdateDescription();
 				if (updateDescription != null) {
-					BsonInt64 revision = getRevisionFromUpdateEvent(event);
+					BsonInt64 revision = formatter.getRevisionFromUpdateEvent(event);
 					if (shouldNotSkip(revision)) {
-						MapValue<String> attributes = getDiagnosticAttributesFromUpdateEvent(event);
+						MapValue<String> attributes = formatter.getDiagnosticAttributesFromUpdateEvent(event);
 						try (var __ = rootRef.diagnosticContext().withOnly(attributes)) {
 							replaceUpdatedFields(updateDescription.getUpdatedFields());
 							deleteRemovedFields(updateDescription.getRemovedFields(), event.getOperationType());
@@ -282,58 +282,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> implements FormatDriver
 		LOGGER.debug("+ onRevisionToSkip({})", revision.longValue());
 		revisionToSkip = revision;
 		flushLock.finishedRevision(revision);
-	}
-
-	private BsonInt64 getRevisionFromFullDocument(BsonDocument fullDocument) {
-		if (fullDocument == null) {
-			return null;
-		}
-		return fullDocument.getInt64(DocumentFields.revision.name(), null);
-	}
-
-	private MapValue<String> getDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {
-		if (fullDocument == null) {
-			return null;
-		}
-		BsonDocument diagnostics = fullDocument.getDocument(DocumentFields.diagnostics.name(), null);
-		if (diagnostics == null) {
-			return null;
-		}
-		return formatter.decodeDiagnosticAttributes(diagnostics);
-	}
-
-	private static BsonInt64 getRevisionFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
-		if (event == null) {
-			return null;
-		}
-		UpdateDescription updateDescription = event.getUpdateDescription();
-		if (updateDescription == null) {
-			return null;
-		}
-		BsonDocument updatedFields = updateDescription.getUpdatedFields();
-		if (updatedFields == null) {
-			return null;
-		}
-		return updatedFields.getInt64(DocumentFields.revision.name(), null);
-	}
-
-	private MapValue<String> getDiagnosticAttributesFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
-		if (event == null) {
-			return null;
-		}
-		UpdateDescription updateDescription = event.getUpdateDescription();
-		if (updateDescription == null) {
-			return null;
-		}
-		BsonDocument updatedFields = updateDescription.getUpdatedFields();
-		if (updatedFields == null) {
-			return null;
-		}
-		BsonDocument diagnostics = updatedFields.getDocument(DocumentFields.diagnostics.name(), null);
-		if (diagnostics == null) {
-			return null;
-		}
-		return formatter.decodeDiagnosticAttributes(diagnostics);
 	}
 
 	//

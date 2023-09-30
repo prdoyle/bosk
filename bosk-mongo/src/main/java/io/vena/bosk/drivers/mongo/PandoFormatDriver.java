@@ -15,7 +15,6 @@ import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
 import io.vena.bosk.EnumerableByIdentifier;
 import io.vena.bosk.Identifier;
-import io.vena.bosk.MapValue;
 import io.vena.bosk.Reference;
 import io.vena.bosk.RootReference;
 import io.vena.bosk.StateTreeNode;
@@ -280,7 +279,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 					throw new UnprocessableEventException("Missing fullDocument on final event", finalEvent.getOperationType());
 				}
 
-				BsonInt64 revision = getRevisionFromFullDocument(fullDocument);
+				BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
 				if (shouldSkip(revision)) {
 					LOGGER.debug("Skipping revision {}", revision.longValue());
 					return;
@@ -300,7 +299,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 			} break;
 			case UPDATE: {
 				// TODO: Combine code with INSERT and REPLACE events
-				BsonInt64 revision = getRevisionFromUpdateEvent(finalEvent);
+				BsonInt64 revision = formatter.getRevisionFromUpdateEvent(finalEvent);
 				boolean mainEventIsFinalEvent = updateEventHasField(finalEvent, DocumentFields.state); // If the final update changes only the revision field, then it's not the main event
 				if (mainEventIsFinalEvent) {
 					LOGGER.debug("Main event is final event");
@@ -437,63 +436,6 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 		LOGGER.debug("+ onRevisionToSkip({})", revision.longValue());
 		revisionToSkip = revision;
 		flushLock.finishedRevision(revision);
-	}
-
-	private BsonInt64 getRevisionFromFullDocument(BsonDocument fullDocument) {
-		if (fullDocument == null) {
-			return null;
-		}
-		BsonValue revision = fullDocument.get(DocumentFields.revision.name());
-		if (revision == null) {
-			return null;
-		} else {
-			return revision.asInt64();
-		}
-	}
-
-	private MapValue<String> getDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {
-		if (fullDocument == null) {
-			return null;
-		}
-		BsonDocument diagnostics = fullDocument.getDocument(DocumentFields.diagnostics.name(), null);
-		if (diagnostics == null) {
-			return null;
-		}
-		return formatter.decodeDiagnosticAttributes(diagnostics);
-	}
-
-	private static BsonInt64 getRevisionFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
-		if (event == null) {
-			return null;
-		}
-		UpdateDescription updateDescription = event.getUpdateDescription();
-		if (updateDescription == null) {
-			return null;
-		}
-		BsonDocument updatedFields = updateDescription.getUpdatedFields();
-		if (updatedFields == null) {
-			return null;
-		}
-		return updatedFields.getInt64(DocumentFields.revision.name(), null);
-	}
-
-	private MapValue<String> getDiagnosticAttributesFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
-		if (event == null) {
-			return null;
-		}
-		UpdateDescription updateDescription = event.getUpdateDescription();
-		if (updateDescription == null) {
-			return null;
-		}
-		BsonDocument updatedFields = updateDescription.getUpdatedFields();
-		if (updatedFields == null) {
-			return null;
-		}
-		BsonDocument diagnostics = updatedFields.getDocument(DocumentFields.diagnostics.name(), null);
-		if (diagnostics == null) {
-			return null;
-		}
-		return formatter.decodeDiagnosticAttributes(diagnostics);
 	}
 
 	private static boolean updateEventHasField(ChangeStreamDocument<BsonDocument> event, DocumentFields field) {
