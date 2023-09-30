@@ -332,6 +332,10 @@ public class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 					LOGGER.debug("Loading database state to submit to downstream driver");
 					FormatDriver<R> newDriver = detectFormat();
 					StateAndMetadata<R> loadedState = newDriver.loadAllState();
+					// TODO: It's not clear we actually want loadedState.diagnosticAttributes here.
+					// This causes downstream.submitReplacement to be associated with the last update to the state,
+					// which is of dubious relevance. We might just want to use the context from the current thread,
+					// which is probably empty because this runs on the ChangeReceiver thread.
 					try (var ___ = bosk.rootReference().diagnosticContext().withOnly(loadedState.diagnosticAttributes)) {
 						downstream.submitReplacement(bosk.rootReference(), loadedState.state);
 					}

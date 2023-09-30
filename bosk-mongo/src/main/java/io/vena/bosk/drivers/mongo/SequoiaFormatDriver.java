@@ -139,12 +139,12 @@ final class SequoiaFormatDriver<R extends StateTreeNode> implements FormatDriver
 			BsonDocument document = cursor.next();
 			BsonDocument state = document.getDocument(DocumentFields.state.name(), null);
 			BsonInt64 revision = document.getInt64(DocumentFields.revision.name(), REVISION_ZERO);
-			// TODO: diagnostics
+			MapValue<String> diagnosticAttributes = getDiagnosticAttributesFromFullDocument(document);
 			if (state == null) {
 				throw new IOException("No existing state in document");
 			} else {
 				R root = formatter.document2object(state, rootRef);
-				return new StateAndMetadata<>(root, revision, rootRef.diagnosticContext().getAttributes());
+				return new StateAndMetadata<>(root, revision, diagnosticAttributes);
 			}
 		} catch (NoSuchElementException e) {
 			throw new UninitializedCollectionException("No existing document", e);
