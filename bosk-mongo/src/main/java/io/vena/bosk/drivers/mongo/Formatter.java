@@ -1,7 +1,9 @@
 package io.vena.bosk.drivers.mongo;
 
 import io.vena.bosk.Bosk;
+import io.vena.bosk.BoskDiagnosticContext;
 import io.vena.bosk.Listing;
+import io.vena.bosk.MapValue;
 import io.vena.bosk.Reference;
 import io.vena.bosk.SerializationPlugin;
 import io.vena.bosk.SideTable;
@@ -15,6 +17,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
@@ -26,6 +29,7 @@ import org.bson.BsonDocumentWriter;
 import org.bson.BsonInt32;
 import org.bson.BsonInt64;
 import org.bson.BsonReader;
+import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.bson.codecs.Codec;
 import org.bson.codecs.DecoderContext;
@@ -92,6 +96,7 @@ final class Formatter {
 		path,
 		state,
 		revision,
+		diagnostics,
 	}
 
 	private final BsonInt32 SUPPORTED_MANIFEST_VERSION = new BsonInt32(1);
@@ -166,6 +171,22 @@ final class Formatter {
 			.decode(
 				new BsonDocumentReader(manifest),
 				DecoderContext.builder().build());
+	}
+
+	BsonDocument encodeDiagnostics(MapValue<String> attributes) {
+		BsonDocument result = new BsonDocument();
+		attributes.forEach((name, value) -> result.put(name, new BsonString(value)));
+		return new BsonDocument("attributes", result);
+	}
+
+	MapValue<String> decodeDiagnosticAttributes(BsonDocument diagnostics) {
+		MapValue<String> result = MapValue.empty();
+		for (Map.Entry<String, BsonValue> foo: diagnostics.getDocument("attributes").entrySet()) {
+			String name = foo.getKey();
+			String value = foo.getValue().asString().getValue();
+			result = result.with(name, value);
+		}
+		return result;
 	}
 
 	/**

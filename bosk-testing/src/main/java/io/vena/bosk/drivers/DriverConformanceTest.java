@@ -12,6 +12,7 @@ import io.vena.bosk.MapValue;
 import io.vena.bosk.Path;
 import io.vena.bosk.Reference;
 import io.vena.bosk.SideTable;
+import io.vena.bosk.annotations.ReferencePath;
 import io.vena.bosk.drivers.state.TestEntity;
 import io.vena.bosk.drivers.state.TestValues;
 import io.vena.bosk.exceptions.InvalidTypeException;
@@ -49,6 +50,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public abstract class DriverConformanceTest extends AbstractDriverTest {
 	// Subclass can initialize this as desired
 	protected DriverFactory<TestEntity> driverFactory;
+
+	public interface Refs {
+		@ReferencePath("/id") Reference<Identifier> rootID();
+		@ReferencePath("/catalog/-id-") Reference<TestEntity> catalogEntry(Identifier id);
+	}
 
 	@ParametersByName
 	void initialState(Path enclosingCatalogPath) {
@@ -373,8 +379,48 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
-	void update_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
+	void submitReplacement_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
 		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
+		Reference<String> ref = bosk.rootReference().then(String.class, "string");
+		testDiagnosticContextPropagation(() -> bosk.driver().submitReplacement(ref, "newValue"));
+	}
+
+	@ParametersByName
+	void submitConditionalReplacement_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
+		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
+		Refs refs = bosk.buildReferences(Refs.class);
+		Reference<String> ref = bosk.rootReference().then(String.class, "string");
+		testDiagnosticContextPropagation(() -> bosk.driver().submitConditionalReplacement(ref, "newValue", refs.rootID(), Identifier.from("root")));
+	}
+
+	@ParametersByName
+	void submitInitialization_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
+		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
+		Refs refs = bosk.buildReferences(Refs.class);
+		Identifier id = Identifier.from("testEntity");
+		Reference<TestEntity> ref = refs.catalogEntry(id);
+		testDiagnosticContextPropagation(() -> bosk.driver().submitInitialization(ref, emptyEntityAt(ref)));
+	}
+
+	@ParametersByName
+	void submitDeletion_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
+		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
+		Refs refs = bosk.buildReferences(Refs.class);
+		Reference<TestEntity> ref = refs.catalogEntry(Identifier.unique("e"));
+		autoInitialize(ref);
+		testDiagnosticContextPropagation(() -> bosk.driver().submitDeletion(ref));
+	}
+
+	@ParametersByName
+	void submitConditionalDeletion_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
+		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
+		Refs refs = bosk.buildReferences(Refs.class);
+		Reference<TestEntity> ref = refs.catalogEntry(Identifier.unique("e"));
+		autoInitialize(ref);
+		testDiagnosticContextPropagation(() -> bosk.driver().submitConditionalDeletion(ref, refs.rootID(), Identifier.from("root")));
+	}
+
+	private void testDiagnosticContextPropagation(Runnable operation) throws InvalidTypeException, IOException, InterruptedException {
 		AtomicBoolean diagnosticsAreReady = new AtomicBoolean(false);
 		Semaphore diagnosticsVerified = new Semaphore(0);
 		bosk.registerHook("contextPropagatesToHook", bosk.rootReference(), ref -> {
@@ -386,10 +432,9 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 			}
 		});
 		bosk.driver().flush();
-		Reference<String> ref = bosk.rootReference().then(String.class, "string");
 		try (var __ = bosk.diagnosticContext().withAttribute("attributeName", "attributeValue")) {
 			diagnosticsAreReady.set(true);
-			bosk.driver().submitReplacement(ref, "newValue");
+			operation.run();
 		}
 		bosk.driver().flush();
 		assertTrue(diagnosticsVerified.tryAcquire(5, SECONDS));

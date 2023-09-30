@@ -30,7 +30,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import lombok.var;
 import org.bson.BsonDocument;
-import org.bson.BsonInt32;
 import org.bson.BsonInt64;
 import org.bson.BsonString;
 import org.slf4j.Logger;
@@ -163,7 +162,7 @@ public class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 			root = callDownstreamInitialRoot(rootType);
 			try (var session = collection.newSession()) {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
-				preferredDriver.initializeCollection(new StateAndMetadata<>(root, REVISION_ZERO));
+				preferredDriver.initializeCollection(new StateAndMetadata<>(root, REVISION_ZERO, bosk.diagnosticContext().getAttributes()));
 				preferredDriver.onRevisionToSkip(REVISION_ONE); // initialRoot handles REVISION_ONE; downstream only needs to know about changes after that
 				session.commitTransactionIfAny();
 				// We can now publish the driver knowing that the transaction, if there is one, has committed
@@ -333,7 +332,9 @@ public class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 					LOGGER.debug("Loading database state to submit to downstream driver");
 					FormatDriver<R> newDriver = detectFormat();
 					StateAndMetadata<R> loadedState = newDriver.loadAllState();
-					downstream.submitReplacement(bosk.rootReference(), loadedState.state);
+					try (var ___ = bosk.rootReference().diagnosticContext().withOnly(loadedState.diagnosticAttributes)) {
+						downstream.submitReplacement(bosk.rootReference(), loadedState.state);
+					}
 					newDriver.onRevisionToSkip(loadedState.revision);
 					publishFormatDriver(newDriver);
 				}

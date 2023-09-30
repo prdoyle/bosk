@@ -198,14 +198,14 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 
 		BsonDocument combinedState = bsonSurgeon.gather(allParts);
 		R root = formatter.document2object(combinedState, rootRef);
-		return new StateAndMetadata<>(root, revision.asInt64());
+		return new StateAndMetadata<>(root, revision.asInt64(), rootRef.diagnosticContext().getAttributes());
 	}
 
 	@Override
 	public void initializeCollection(StateAndMetadata<R> priorContents) {
 		BsonValue initialState = formatter.object2bsonValue(priorContents.state, rootRef.targetType());
 		BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision.longValue());
-
+		// Note that priorContents.diagnosticAttributes are ignored, and we use the attributes from this thread
 
 		LOGGER.debug("** Initial upsert for {}", ROOT_DOCUMENT_ID.getValue());
 		collection.ensureTransactionStarted();

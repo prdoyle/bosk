@@ -48,7 +48,7 @@ public final class BoskDiagnosticContext {
 	 * Adds attributes to the current thread's diagnostic context.
 	 * If an attribute already exists, it will be replaced.
 	 */
-	public DiagnosticScope withAttributes(MapValue<String> additionalAttributes) {
+	public DiagnosticScope withAttributes(@NotNull MapValue<String> additionalAttributes) {
 		return new DiagnosticScope(currentAttributes.get().withAll(additionalAttributes));
 	}
 
@@ -57,8 +57,15 @@ public final class BoskDiagnosticContext {
 	 * Existing attributes are removed/replaced.
 	 * <p>
 	 * This is intended for propagating context from one thread to another.
+	 * <p>
+	 * If <code>attributes</code> is null, this is a no-op, and any existing attributes on this thread are retained.
+	 * If ensuring a clean set of attributes is important, pass an empty map instead of null.
 	 */
-	public DiagnosticScope withOnly(MapValue<String> attributes) {
-		return new DiagnosticScope(attributes);
+	public DiagnosticScope withOnly(@Nullable MapValue<String> attributes) {
+		if (attributes == null) {
+			return new DiagnosticScope(currentAttributes.get());
+		} else {
+			return new DiagnosticScope(attributes);
+		}
 	}
 }
