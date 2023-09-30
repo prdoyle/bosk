@@ -434,9 +434,10 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		bosk.driver().flush();
 		try (var __ = bosk.diagnosticContext().withAttribute("attributeName", "attributeValue")) {
 			diagnosticsAreReady.set(true);
+			LOGGER.debug("Running operation with diagnostic context");
 			operation.run();
 		}
-		bosk.driver().flush();
+		assertCorrectBoskContents();
 		assertTrue(diagnosticsVerified.tryAcquire(5, SECONDS));
 	}
 
