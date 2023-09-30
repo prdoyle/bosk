@@ -101,8 +101,9 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
-	void delete(Path enclosingCatalogPath, Identifier childID) {
+	void deleteExisting(Path enclosingCatalogPath, Identifier childID) {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
+		autoInitialize(ref.then(childID));
 		driver.submitDeletion(ref.then(childID));
 		assertCorrectBoskContents();
 	}
