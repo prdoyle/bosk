@@ -827,6 +827,11 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 		}
 
 		@Override
+		public BoskDiagnosticContext diagnosticContext() {
+			return diagnosticContext;
+		}
+
+		@Override
 		public <T> T buildReferences(Class<T> refsClass) throws InvalidTypeException {
 			return ReferenceBuilder.buildReferences(refsClass, Bosk.this);
 		}

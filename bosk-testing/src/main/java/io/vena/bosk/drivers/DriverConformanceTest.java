@@ -18,6 +18,7 @@ import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.junit.ParametersByName;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import lombok.var;
@@ -30,6 +31,7 @@ import static io.vena.bosk.util.Classes.listValue;
 import static io.vena.bosk.util.Classes.mapValue;
 import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -373,24 +375,25 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 
 	@Disabled("Not yet working")
 	@ParametersByName
-	void diagnosticContext_propagates() throws InvalidTypeException {
+	void diagnosticContext_propagates() throws InvalidTypeException, IOException, InterruptedException {
 		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		AtomicBoolean diagnosticsAreReady = new AtomicBoolean(false);
-		AtomicBoolean diagnosticsVerified = new AtomicBoolean(false);
+		Semaphore diagnosticsVerified = new Semaphore(0);
 		bosk.registerHook("contextPropagatesToHook", bosk.rootReference(), ref -> {
 			if (diagnosticsAreReady.get()) {
 				assertEquals("attributeValue", bosk.diagnosticContext().getAttribute("attributeName"));
 				assertEquals(MapValue.singleton("attributeName", "attributeValue"), bosk.diagnosticContext().getAttributes());
-				diagnosticsVerified.set(true);
+				diagnosticsVerified.release();
 			}
 		});
+		bosk.driver().flush();
 		Reference<String> ref = bosk.rootReference().then(String.class, "string");
 		try (var __ = bosk.diagnosticContext().withAttribute("attributeName", "attributeValue")) {
 			diagnosticsAreReady.set(true);
 			bosk.driver().submitReplacement(ref, "newValue");
-			diagnosticsAreReady.set(false);
 		}
-		assertTrue(diagnosticsVerified.get());
+		bosk.driver().flush();
+		assertTrue(diagnosticsVerified.tryAcquire(5, SECONDS));
 	}
 
 	private Reference<TestValues> initializeBoskWithBlankValues(Path enclosingCatalogPath) throws InvalidTypeException {
