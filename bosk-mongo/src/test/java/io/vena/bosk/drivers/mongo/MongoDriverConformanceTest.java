@@ -13,8 +13,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
-import static io.vena.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
-
 @UsesMongoService
 class MongoDriverConformanceTest extends DriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
@@ -30,11 +28,11 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 	static Stream<MongoDriverSettingsBuilder> driverSettings() {
 		return TestParameters.driverSettings(
 			Stream.of(
-//				PandoFormat.oneBigDocument(),
+				PandoFormat.oneBigDocument()//,
 //				PandoFormat.withSeparateCollections("/catalog", "/sideTable"), // Basic
 //				PandoFormat.withSeparateCollections("/catalog/-x-/sideTable", "/sideTable/-x-/catalog", "/sideTable/-x-/sideTable/-y-/catalog"), // Nesting, parameters
 //				PandoFormat.withSeparateCollections("/sideTable/-x-/sideTable/-y-/catalog"), // Multiple parameters in the not-separated part
-				SEQUOIA
+//				SEQUOIA
 			),
 			Stream.of(EventTiming.NORMAL) // EARLY is slow; LATE is really slow
 		);

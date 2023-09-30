@@ -15,6 +15,7 @@ import io.vena.bosk.BoskDriver;
 import io.vena.bosk.Entity;
 import io.vena.bosk.EnumerableByIdentifier;
 import io.vena.bosk.Identifier;
+import io.vena.bosk.MapValue;
 import io.vena.bosk.Reference;
 import io.vena.bosk.RootReference;
 import io.vena.bosk.StateTreeNode;
@@ -279,7 +280,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 					throw new UnprocessableEventException("Missing fullDocument on final event", finalEvent.getOperationType());
 				}
 
-				BsonInt64 revision = getRevisionFromFullDocumentEvent(fullDocument);
+				BsonInt64 revision = getRevisionFromFullDocument(fullDocument);
 				if (shouldSkip(revision)) {
 					LOGGER.debug("Skipping revision {}", revision.longValue());
 					return;
@@ -438,7 +439,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 		flushLock.finishedRevision(revision);
 	}
 
-	private BsonInt64 getRevisionFromFullDocumentEvent(BsonDocument fullDocument) {
+	private BsonInt64 getRevisionFromFullDocument(BsonDocument fullDocument) {
 		if (fullDocument == null) {
 			return null;
 		}
@@ -448,6 +449,17 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 		} else {
 			return revision.asInt64();
 		}
+	}
+
+	private MapValue<String> getDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {
+		if (fullDocument == null) {
+			return null;
+		}
+		BsonDocument diagnostics = fullDocument.getDocument(DocumentFields.diagnostics.name(), null);
+		if (diagnostics == null) {
+			return null;
+		}
+		return formatter.decodeDiagnosticAttributes(diagnostics);
 	}
 
 	private static BsonInt64 getRevisionFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
@@ -463,6 +475,25 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 			return null;
 		}
 		return updatedFields.getInt64(DocumentFields.revision.name(), null);
+	}
+
+	private MapValue<String> getDiagnosticAttributesFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
+		if (event == null) {
+			return null;
+		}
+		UpdateDescription updateDescription = event.getUpdateDescription();
+		if (updateDescription == null) {
+			return null;
+		}
+		BsonDocument updatedFields = updateDescription.getUpdatedFields();
+		if (updatedFields == null) {
+			return null;
+		}
+		BsonDocument diagnostics = updatedFields.getDocument(DocumentFields.diagnostics.name(), null);
+		if (diagnostics == null) {
+			return null;
+		}
+		return formatter.decodeDiagnosticAttributes(diagnostics);
 	}
 
 	private static boolean updateEventHasField(ChangeStreamDocument<BsonDocument> event, DocumentFields field) {
@@ -696,8 +727,15 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 	private <T> BsonDocument replacementDoc(Reference<T> target, BsonValue value, Reference<?> startingRef) {
 		String key = dottedFieldNameOf(target, startingRef);
 		LOGGER.debug("| Set field {}: {}", key, value);
-		return blankUpdateDoc()
-			.append("$set", new BsonDocument(key, value));
+		BsonDocument result = blankUpdateDoc();
+		result.compute("$set", (__,existing) -> {
+			if (existing == null) {
+				return new BsonDocument(key, value);
+			} else {
+				return existing.asDocument().append(key, value);
+			}
+		});
+		return result;
 	}
 
 	private <T> BsonDocument deletionDoc(Reference<T> target, Reference<?> startingRef) {
@@ -707,7 +745,8 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 	}
 
 	private BsonDocument blankUpdateDoc() {
-		return new BsonDocument("$inc", new BsonDocument(DocumentFields.revision.name(), new BsonInt64(1)));
+		return new BsonDocument("$inc", new BsonDocument(DocumentFields.revision.name(), new BsonInt64(1)))
+			.append("$set", new BsonDocument(DocumentFields.diagnostics.name(), formatter.encodeDiagnostics(rootRef.diagnosticContext().getAttributes())));
 	}
 
 	private BsonDocument initialDocument(BsonValue initialState, BsonInt64 revision) {
@@ -716,6 +755,7 @@ final class PandoFormatDriver<R extends StateTreeNode> implements FormatDriver<R
 		fieldValues.put(DocumentFields.path.name(), new BsonString("/"));
 		fieldValues.put(DocumentFields.state.name(), initialState);
 		fieldValues.put(DocumentFields.revision.name(), revision);
+		fieldValues.put(DocumentFields.diagnostics.name(), formatter.encodeDiagnostics(rootRef.diagnosticContext().getAttributes()));
 
 		return fieldValues;
 	}
