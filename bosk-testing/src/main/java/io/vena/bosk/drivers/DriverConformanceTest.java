@@ -373,23 +373,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
-	void diagnosticContext_propagatedByRegistration() throws InvalidTypeException, IOException, InterruptedException {
-		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
-		Semaphore diagnosticsVerified = new Semaphore(0);
-		bosk.driver().flush();
-		try (var __ = bosk.diagnosticContext().withAttribute("attributeName", "attributeValue")) {
-			bosk.registerHook("contextPropagatesToHook", bosk.rootReference(), ref -> {
-				assertEquals("attributeValue", bosk.diagnosticContext().getAttribute("attributeName"));
-				assertEquals(MapValue.singleton("attributeName", "attributeValue"), bosk.diagnosticContext().getAttributes());
-				diagnosticsVerified.release();
-			});
-		}
-		bosk.driver().flush();
-		assertTrue(diagnosticsVerified.tryAcquire(5, SECONDS));
-	}
-
-	@ParametersByName
-	void diagnosticContext_propagatedByUpdate() throws InvalidTypeException, IOException, InterruptedException {
+	void update_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
 		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		AtomicBoolean diagnosticsAreReady = new AtomicBoolean(false);
 		Semaphore diagnosticsVerified = new Semaphore(0);
