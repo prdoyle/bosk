@@ -72,6 +72,29 @@ public class HanoiTest {
 		assertTrue(isQuiescent);
 	}
 
+	@Test
+	void threePuzzles() throws InterruptedException {
+		isQuiescent = false;
+		bosk.driver().submitReplacement(refs.puzzles(),
+			Catalog.of(
+				newPuzzle(PUZZLE_1, 5),
+				newPuzzle(PUZZLE_2, 3),
+				newPuzzle(PUZZLE_3, 8)
+			));
+		quiescenceSemaphore.acquire();
+		try (var __ = bosk.readContext()) {
+			assertEquals(new HanoiState(
+				Catalog.of(
+					solvedPuzzle(PUZZLE_1, 5),
+					solvedPuzzle(PUZZLE_2, 3),
+					solvedPuzzle(PUZZLE_3, 8)
+				),
+				Listing.of(refs.puzzles(), PUZZLE_2, PUZZLE_1, PUZZLE_3) // Solved in order of size
+			), bosk.rootReference().valueIfExists());
+		}
+		assertTrue(isQuiescent);
+	}
+
 	private void quiescenceHook(Reference<HanoiState> ref) {
 		if (isQuiescent) {
 			LOGGER.debug("Already quiescent");
@@ -255,6 +278,8 @@ public class HanoiTest {
 	}
 
 	private static final Identifier PUZZLE_1 = Identifier.from("p1");
+	private static final Identifier PUZZLE_2 = Identifier.from("p2");
+	private static final Identifier PUZZLE_3 = Identifier.from("p3");
 	private static final Identifier LEFT    = Identifier.from("left");
 	private static final Identifier MIDDLE  = Identifier.from("middle");
 	private static final Identifier RIGHT   = Identifier.from("right");
