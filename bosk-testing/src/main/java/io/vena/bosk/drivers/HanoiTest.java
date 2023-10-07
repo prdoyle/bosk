@@ -4,6 +4,7 @@ import io.vena.bosk.BindingEnvironment;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.Catalog;
 import io.vena.bosk.CatalogReference;
+import io.vena.bosk.DriverFactory;
 import io.vena.bosk.Entity;
 import io.vena.bosk.Identifier;
 import io.vena.bosk.Listing;
@@ -12,12 +13,12 @@ import io.vena.bosk.Reference;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.annotations.ReferencePath;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.junit.ParametersByName;
 import java.util.concurrent.Semaphore;
 import java.util.stream.IntStream;
 import lombok.Value;
 import lombok.var;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,10 +26,12 @@ import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class HanoiTest {
+public abstract class HanoiTest {
 	Bosk<HanoiState> bosk;
 	Refs refs;
 	Semaphore quiescenceSemaphore;
+	protected DriverFactory<HanoiState> driverFactory;
+
 	volatile boolean isQuiescent;
 
 	public interface Refs {
@@ -48,7 +51,7 @@ public class HanoiTest {
 			"Hanoi",
 			HanoiState.class,
 			this::defaultRoot,
-			Bosk::simpleDriver
+			driverFactory
 		);
 		refs = bosk.rootReference().buildReferences(Refs.class);
 		quiescenceSemaphore = new Semaphore(0);
@@ -56,7 +59,7 @@ public class HanoiTest {
 		bosk.registerHook("discMoved", refs.anyDisc(), this::discMoved);
 	}
 
-	@Test
+	@ParametersByName
 	void onePuzzle() throws InterruptedException {
 		int numDiscs = 6;
 		isQuiescent = false;
@@ -72,7 +75,7 @@ public class HanoiTest {
 		assertTrue(isQuiescent);
 	}
 
-	@Test
+	@ParametersByName
 	void threePuzzles() throws InterruptedException {
 		isQuiescent = false;
 		bosk.driver().submitReplacement(refs.puzzles(),
