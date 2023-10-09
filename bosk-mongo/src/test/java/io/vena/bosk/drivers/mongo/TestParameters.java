@@ -19,8 +19,8 @@ public class TestParameters {
 			.flatMap(f -> timingsList.stream()
 				.map(e -> MongoDriverSettings.builder()
 					.preferredDatabaseFormat(f)
-					.recoveryPollingMS(3000) // Note that some tests can take as long as 10x this
-					.flushTimeoutMS(4000) // A little more than recoveryPollingMS
+					.recoveryPollingMS(300) // Note that some tests can take as long as 10x this
+					.flushTimeoutMS(400) // A little more than recoveryPollingMS
 					.testing(MongoDriverSettings.Testing.builder()
 						.eventDelayMS(e.eventDelayMS)
 						.build())

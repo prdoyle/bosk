@@ -15,6 +15,7 @@ import io.vena.bosk.annotations.ReferencePath;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.junit.ParametersByName;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import lombok.Value;
 import lombok.var;
@@ -23,14 +24,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
+import static java.lang.System.identityHashCode;
+import static java.lang.Thread.currentThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public abstract class HanoiTest {
-	Bosk<HanoiState> bosk;
+	protected Bosk<HanoiState> bosk;
 	Refs refs;
 	Semaphore quiescenceSemaphore;
 	protected DriverFactory<HanoiState> driverFactory;
+	private static final AtomicInteger boskCounter = new AtomicInteger(0);
 
 	volatile boolean isQuiescent;
 
@@ -48,13 +52,15 @@ public abstract class HanoiTest {
 	void setup() throws InvalidTypeException {
 		isQuiescent = true;
 		bosk = new Bosk<HanoiState>(
-			"Hanoi",
+			"Hanoi" + boskCounter.incrementAndGet(),
 			HanoiState.class,
 			this::defaultRoot,
 			driverFactory
 		);
 		refs = bosk.rootReference().buildReferences(Refs.class);
-		quiescenceSemaphore = new Semaphore(0);
+		Semaphore sem = new Semaphore(0);
+		quiescenceSemaphore = sem;
+		LOGGER.debug("Created semaphore {}", identityHashCode(sem));
 		bosk.registerHook("quiescence", bosk.rootReference(), this::quiescenceHook);
 		bosk.registerHook("discMoved", refs.anyDisc(), this::discMoved);
 	}
@@ -70,7 +76,8 @@ public abstract class HanoiTest {
 			assertEquals(new HanoiState(
 				Catalog.of(solvedPuzzle(PUZZLE_1, numDiscs)),
 				Listing.of(refs.puzzles(), PUZZLE_1)
-			), bosk.rootReference().valueIfExists());
+			), bosk.rootReference().valueIfExists(),
+				bosk.name() + " must match on " + currentThread().getName());
 		}
 		assertTrue(isQuiescent);
 	}
@@ -85,15 +92,18 @@ public abstract class HanoiTest {
 				newPuzzle(PUZZLE_3, 8)
 			));
 		quiescenceSemaphore.acquire();
+		LOGGER.debug("Acquired semaphore {}", identityHashCode(quiescenceSemaphore));
 		try (var __ = bosk.readContext()) {
-			assertEquals(new HanoiState(
+			HanoiState expected = new HanoiState(
 				Catalog.of(
 					solvedPuzzle(PUZZLE_1, 5),
 					solvedPuzzle(PUZZLE_2, 3),
 					solvedPuzzle(PUZZLE_3, 8)
 				),
 				Listing.of(refs.puzzles(), PUZZLE_2, PUZZLE_1, PUZZLE_3) // Solved in order of size
-			), bosk.rootReference().valueIfExists());
+			);
+			assertEquals(expected, bosk.rootReference().valueIfExists(),
+				bosk.name() + " must match on " + currentThread().getName());
 		}
 		assertTrue(isQuiescent);
 	}

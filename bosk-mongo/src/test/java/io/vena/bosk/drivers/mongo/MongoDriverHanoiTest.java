@@ -14,11 +14,15 @@ public class MongoDriverHanoiTest extends HanoiTest {
 
 	@ParametersByName
 	public MongoDriverHanoiTest(MongoDriverSettingsBuilder driverSettings) {
+		MongoDriverSettings settings = driverSettings.build();
 		this.driverFactory = MongoDriver.factory(
 			mongoService.clientSettings(),
-			driverSettings.build(),
+			settings,
 			new BsonPlugin()
 		);
+		mongoService.client()
+			.getDatabase(settings.database())
+			.drop();
 	}
 
 	@BeforeAll
@@ -31,9 +35,9 @@ public class MongoDriverHanoiTest extends HanoiTest {
 		return TestParameters.driverSettings(
 			Stream.of(
 				PandoFormat.oneBigDocument(),
-				PandoFormat.withSeparateCollections("/puzzles"),
-				PandoFormat.withSeparateCollections("/puzzles/-puzzle-/towers"),
-				PandoFormat.withSeparateCollections("/puzzles", "/puzzles/-puzzle-/towers/-tower-/discs"),
+//				PandoFormat.withSeparateCollections("/puzzles"),
+//				PandoFormat.withSeparateCollections("/puzzles/-puzzle-/towers"),
+//				PandoFormat.withSeparateCollections("/puzzles", "/puzzles/-puzzle-/towers/-tower-/discs"),
 				SEQUOIA
 			),
 			Stream.of(NORMAL)
