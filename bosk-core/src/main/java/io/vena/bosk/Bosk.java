@@ -26,7 +26,6 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
-import lombok.var;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -35,7 +34,6 @@ import org.slf4j.LoggerFactory;
 import static io.vena.bosk.Path.parameterNameFromSegment;
 import static io.vena.bosk.ReferenceUtils.rawClass;
 import static io.vena.bosk.TypeValidation.validateType;
-import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
 import static lombok.AccessLevel.NONE;
@@ -173,6 +171,7 @@ public class Bosk<R extends StateTreeNode> {
 	private final class LocalDriver implements BoskDriver<R> {
 		final DefaultRootFunction<R> initialRootFunction;
 		final Deque<Runnable> hookExecutionQueue = new ConcurrentLinkedDeque<>();
+		final Deque<Runnable> hookQuiescenceQueue = new ConcurrentLinkedDeque<>();
 		final Semaphore hookExecutionPermit = new Semaphore(1);
 
 		@Override
@@ -322,7 +321,7 @@ public class Bosk<R extends StateTreeNode> {
 		 */
 		private synchronized <T> boolean tryGraftDeletion(Reference<T> target) {
 			Path targetPath = target.path();
-			if (targetPath.length() == 0) {
+			if (targetPath.isEmpty()) {
 				throw new IllegalArgumentException("Cannot delete root object");
 			}
 			Dereferencer dereferencer = dereferencerFor(target);
@@ -421,6 +420,13 @@ public class Bosk<R extends StateTreeNode> {
 								LOGGER.error("Hook aborted due to exception: {}",  e.getMessage(), e);
 							}
 						}
+						for (Runnable ex = hookQuiescenceQueue.pollFirst(); ex != null; ex = hookQuiescenceQueue.pollFirst()) {
+							try {
+								ex.run();
+							} catch (Exception e) {
+								LOGGER.error("Hook quiescence action aborted due to exception: {}",  e.getMessage(), e);
+							}
+						}
 					} finally {
 						hookExecutionPermit.release();
 					}
@@ -495,10 +501,6 @@ public class Bosk<R extends StateTreeNode> {
 		HookRegistration<T> reg = new HookRegistration<>(name, requireNonNull(scope), requireNonNull(action));
 		hooks.add(reg);
 		localDriver.triggerEverywhere(reg);
-	}
-
-	public Iterable<HookRegistration<?>> allRegisteredHooks() {
-		return unmodifiableList(hooks);
 	}
 
 	@Value
@@ -612,6 +614,21 @@ public class Bosk<R extends StateTreeNode> {
 				throw new AssertionError("Parameterized reference must be truncatable at the location of the parameter", e);
 			}
 		}
+	}
+
+	/**
+	 * Runs the given <code>action</code> once when there are no pending hooks to run.
+	 * In particular, <code>action</code> will run after all hooks for any updates already applied
+	 * as well as any hooks triggered "recursively" by those hooks.
+	 * <p>
+	 * Note that if the bosk is sufficiently busy with multiple threads,
+	 * or hooks continually trigger other hooks, this may never happen.
+	 * <p>
+	 * The <code>action</code> itself may submit more updates that trigger more hooks.
+	 */
+	public void onHookQuiescence(Runnable action) {
+		localDriver.hookQuiescenceQueue.addLast(action);
+		localDriver.drainQueueIfAllowed();
 	}
 
 	@Nullable
