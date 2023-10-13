@@ -24,7 +24,7 @@ class ReferenceBuilder {
 
 		cb.beginClass();
 
-		for (Method method: refsClass.getDeclaredMethods()) {
+		for (Method method: refsClass.getDeclaredMethods()) { // TODO: Inherited methods
 			ReferencePath referencePath = method.getAnnotation(ReferencePath.class);
 			if (referencePath == null) {
 				throw new InvalidTypeException("Missing " + ReferencePath.class.getSimpleName() + " annotation on " + methodName(method));
