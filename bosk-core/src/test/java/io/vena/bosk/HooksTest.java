@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.val;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -18,6 +19,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class HooksTest extends AbstractBoskTest {
 	Bosk<TestRoot> bosk;
@@ -61,6 +63,17 @@ public class HooksTest extends AbstractBoskTest {
 		variant.submit.replacement(bosk, refs, refs.childString(child2), "Too early");
 		assertEquals(emptyList(), recorder.events(), "Hook shouldn't see updates unless they are registered");
 	}
+
+	@Disabled
+	@Test
+	void outsideScope_throws() {
+		bosk.registerHook("outOfScope", refs.child(child1), ref -> {
+			refs.child(child2).valueIfExists();
+			fail("Exception should have prevented us from reaching this point");
+		});
+		bosk.driver().submitReplacement(refs.childString(child1), "New value");
+	}
+
 
 	/////////////
 	//
