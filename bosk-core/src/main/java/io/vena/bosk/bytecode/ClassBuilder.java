@@ -1,9 +1,13 @@
 package io.vena.bosk.bytecode;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -285,24 +289,32 @@ public final class ClassBuilder<T> {
 	 */
 	public void invoke(Method method) {
 		setAccessible(method); // Hmm, we seem to get IllegalAccessError even after doing this
-		emitLineNumberInfo();
-		Class<?> type = method.getDeclaringClass();
-		String typeName = Type.getInternalName(type);
-		String methodName = method.getName();
-		String signature = getMethodDescriptor(method);
-		Type methodType = Type.getType(method);
-		int weird = methodType.getArgumentsAndReturnSizes();
-		int argumentSlots = weird >> 2; // NOTE: This is off by 1 for static methods!
-		int resultSlots = weird & 0x3;
-		if (isStatic(method.getModifiers())) {
-			argumentSlots -= 1; // Static methods have no "this" argument
-			methodVisitor().visitMethodInsn(INVOKESTATIC, typeName, methodName, signature, false);
-		} else if (type.isInterface()) {
-			methodVisitor().visitMethodInsn(INVOKEINTERFACE, typeName, methodName, signature, true);
+		if (true) {
+			MethodHandle handle;
+			try {
+				handle = LOOKUP.unreflect(method);
+			} catch (IllegalAccessException e) {
+				throw new IllegalArgumentException(e);
+			}
+			invoke(handle);
 		} else {
-			methodVisitor().visitMethodInsn(INVOKEVIRTUAL, typeName, methodName, signature, false);
+			emitLineNumberInfo();
+			Class<?> type = method.getDeclaringClass();
+			String typeName = Type.getInternalName(type);
+			String methodName = method.getName();
+			String signature = getMethodDescriptor(method);
+			Type methodType = Type.getType(method);
+			int netSlotsPopped = netSlotsPopped(methodType);
+			if (isStatic(method.getModifiers())) {
+				netSlotsPopped -= 1; // Static methods have no "this" argument
+				methodVisitor().visitMethodInsn(INVOKESTATIC, typeName, methodName, signature, false);
+			} else if (type.isInterface()) {
+				methodVisitor().visitMethodInsn(INVOKEINTERFACE, typeName, methodName, signature, true);
+			} else {
+				methodVisitor().visitMethodInsn(INVOKEVIRTUAL, typeName, methodName, signature, false);
+			}
+			endPop(netSlotsPopped);
 		}
-		endPop(argumentSlots - resultSlots);
 	}
 
 	/**
@@ -310,12 +322,53 @@ public final class ClassBuilder<T> {
 	 */
 	public void invoke(Constructor<?> ctor) {
 		setAccessible(ctor); // Hmm, we seem to get IllegalAccessError even after doing this
+		if (false) {
+			MethodHandle handle;
+			try {
+				handle = LOOKUP.unreflectConstructor(ctor);
+			} catch (IllegalAccessException e) {
+				throw new IllegalArgumentException(e);
+			}
+			invoke(handle);
+		} else {
+			emitLineNumberInfo();
+			String typeName = Type.getInternalName(ctor.getDeclaringClass());
+			Type[] parameterTypes = Stream.of(ctor.getParameterTypes()).map(Type::getType).toArray(Type[]::new);
+			String signature = getMethodDescriptor(Type.getType(void.class), parameterTypes);
+			methodVisitor().visitMethodInsn(INVOKESPECIAL, typeName, "<init>", signature, false);
+			endPop(ctor.getParameterCount()); // TODO: Doesn't work with longs or doubles!
+		}
+	}
+
+	/**
+	 * Emit INVOKEVIRTUAL for {@link MethodHandle#invokeExact} for the given {@link MethodHandle} object.
+	 */
+	public void invoke(MethodHandle mh) {
 		emitLineNumberInfo();
-		String typeName = Type.getInternalName(ctor.getDeclaringClass());
-		Type[] parameterTypes = Stream.of(ctor.getParameterTypes()).map(Type::getType).toArray(Type[]::new);
-		String signature = getMethodDescriptor(Type.getType(void.class), parameterTypes);
-		methodVisitor().visitMethodInsn(INVOKESPECIAL, typeName, "<init>", signature, false);
-		endPop(ctor.getParameterCount());
+		String descriptor = mh.type().descriptorString();
+
+		// Insert the MethodHandle before the arguments
+		Deque<LocalVariable> args = new ArrayDeque<>(mh.type().parameterCount());
+		for (int i = 0; i < mh.type().parameterCount(); i++) {
+			args.addFirst(popToLocal(ASTORE));
+		}
+		pushObject(mh);
+		for (LocalVariable arg: args) {
+			pushLocal(ALOAD, arg);
+		}
+
+		methodVisitor().visitMethodInsn(INVOKEVIRTUAL, "java/lang/invoke/MethodHandle", "invokeExact", descriptor, false);
+		endPop(netSlotsPopped(Type.getMethodType(descriptor)));
+	}
+
+	/**
+	 * Note that this is off by 1 for static methods!
+	 */
+	private static int netSlotsPopped(Type methodType) {
+		int weird = methodType.getArgumentsAndReturnSizes();
+		int argumentSlots = weird >> 2;
+		int resultSlots = weird & 0x3;
+		return argumentSlots - resultSlots;
 	}
 
 	/**
@@ -410,4 +463,6 @@ public final class ClassBuilder<T> {
 	}
 
 	public static final Type OBJECT_TYPE = Type.getType(Object.class);
+
+	private final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 }
