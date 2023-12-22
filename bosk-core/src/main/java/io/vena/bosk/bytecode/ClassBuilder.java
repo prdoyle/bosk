@@ -1,5 +1,6 @@
 package io.vena.bosk.bytecode;
 
+import java.io.PrintWriter;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
@@ -7,6 +8,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
@@ -16,6 +18,8 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.util.Textifier;
+import org.objectweb.asm.util.TraceClassVisitor;
 
 import static io.vena.bosk.util.ReflectionHelpers.setAccessible;
 import static java.lang.reflect.Modifier.isStatic;
@@ -95,7 +99,7 @@ public final class ClassBuilder<T> {
 			interfaces = new String[0];
 		}
 		this.classWriter = new ClassWriter(COMPUTE_FRAMES);
-		this.classVisitor = classWriter;
+		this.classVisitor = new TraceClassVisitor(classWriter, new PrintWriter(System.out));
 		classVisitor.visit(V1_8, ACC_PUBLIC | ACC_FINAL | ACC_SUPER, slashyName, null, superClassName, interfaces);
 		classVisitor.visitSource(sourceFileOrigin.getFileName(), null);
 	}
@@ -348,13 +352,14 @@ public final class ClassBuilder<T> {
 		String descriptor = mh.type().descriptorString();
 
 		// Insert the MethodHandle before the arguments
-		Deque<LocalVariable> args = new ArrayDeque<>(mh.type().parameterCount());
-		for (int i = 0; i < mh.type().parameterCount(); i++) {
-			args.addFirst(popToLocal(ASTORE));
+		List<Class<?>> parameters = mh.type().parameterList();
+		Deque<LocalVariable> args = new ArrayDeque<>(parameters.size());
+		for (int i = parameters.size()-1; i >= 0; i--) {
+			args.addFirst(popToLocal(Type.getType(parameters.get(i))));
 		}
 		pushObject(mh);
 		for (LocalVariable arg: args) {
-			pushLocal(ALOAD, arg);
+			pushLocal(arg);
 		}
 
 		methodVisitor().visitMethodInsn(INVOKEVIRTUAL, "java/lang/invoke/MethodHandle", "invokeExact", descriptor, false);
@@ -464,5 +469,5 @@ public final class ClassBuilder<T> {
 
 	public static final Type OBJECT_TYPE = Type.getType(Object.class);
 
-	private final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
+	private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
 }
