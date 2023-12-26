@@ -1,5 +1,6 @@
 package io.vena.bosk.bytecode;
 
+import java.io.PrintWriter;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
@@ -16,6 +17,7 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
+import org.objectweb.asm.util.TraceClassVisitor;
 
 import static io.vena.bosk.util.ReflectionHelpers.setAccessible;
 import static java.lang.reflect.Modifier.isStatic;
@@ -95,7 +97,7 @@ public final class ClassBuilder<T> {
 			interfaces = new String[0];
 		}
 		this.classWriter = new ClassWriter(COMPUTE_FRAMES);
-		this.classVisitor = classWriter;
+		this.classVisitor = new TraceClassVisitor(classWriter, new PrintWriter(System.out));
 		classVisitor.visit(V1_8, ACC_PUBLIC | ACC_FINAL | ACC_SUPER, slashyName, null, superClassName, interfaces);
 		classVisitor.visitSource(sourceFileOrigin.getFileName(), null);
 	}
