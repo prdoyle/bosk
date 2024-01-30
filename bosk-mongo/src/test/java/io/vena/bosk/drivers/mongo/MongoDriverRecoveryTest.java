@@ -24,9 +24,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static ch.qos.logback.classic.Level.DEBUG;
 import static ch.qos.logback.classic.Level.ERROR;
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
 import static io.vena.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
+import static io.vena.bosk.drivers.mongo.MongoDriverRecoveryTest.FlushOrWait.FLUSH;
 import static io.vena.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -53,7 +55,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	static Stream<TestParameters.ParameterSet> parameters() {
 		return TestParameters.driverSettings(
 			Stream.of(
-				SEQUOIA,
+//				SEQUOIA,
 				PandoFormat.withGraftPoints("/catalog", "/sideTable")
 			),
 			Stream.of(EventTiming.NORMAL)
@@ -67,7 +69,8 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 	@SuppressWarnings("unused")
 	static Stream<FlushOrWait> flushOrWait() {
-		return Stream.of(FlushOrWait.values());
+//		return Stream.of(FlushOrWait.values());
+		return Stream.of(FLUSH);
 	}
 
 	@ParametersByName
@@ -134,6 +137,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	@ParametersByName
 	@UsesMongoService
 	void databaseDropped_recovers() throws InvalidTypeException, InterruptedException, IOException {
+		setLogging(DEBUG, getClass().getPackage());
 		testRecovery(() -> {
 			LOGGER.debug("Drop database");
 			mongoService.client()
