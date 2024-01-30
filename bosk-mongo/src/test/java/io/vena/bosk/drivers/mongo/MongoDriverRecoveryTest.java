@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static ch.qos.logback.classic.Level.DEBUG;
-import static ch.qos.logback.classic.Level.ERROR;
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
 import static io.vena.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 import static io.vena.bosk.drivers.mongo.MongoDriverRecoveryTest.FlushOrWait.FLUSH;
@@ -42,7 +41,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	@BeforeEach
 	void setupLogging() {
 		// This test deliberately provokes a lot of warnings, so log errors only
-		setLogging(ERROR, MainDriver.class, ChangeReceiver.class);
+//		setLogging(ERROR, MainDriver.class, ChangeReceiver.class);
 	}
 
 	@ParametersByName
