@@ -1,8 +1,5 @@
 package io.vena.bosk.annotations;
 
-import io.vena.bosk.SerializationPlugin;
-import io.vena.bosk.SerializationPlugin.DeserializationScope;
-import io.vena.bosk.StateTreeNode;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
@@ -11,7 +8,7 @@ import static java.lang.annotation.ElementType.PARAMETER;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
- * On a field of a {@link StateTreeNode}, indicates that implicit references
+ * On a field of a <code>StateTreeNode</code>, indicates that implicit references
  * enclosed by that field should be constructed using the supplied path string as a prefix.
  *
  * <p>
@@ -35,9 +32,9 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *
  * <p>
  * If the path contains parameters, their values will be taken from the
- * {@link DeserializationScope#bindingEnvironment binding environment} on the
- * {@link DeserializationScope deserialization scope}, which can be set using
- * {@link SerializationPlugin#overlayScope}.
+ * binding environment on the
+ * <code>DeserializationScope</code>, which can be set using
+ * <code>SerializationPlugin.overlayScope</code>.
  */
 @Retention(RUNTIME)
 @Target({ FIELD, PARAMETER })

@@ -1,6 +1,5 @@
 package io.vena.bosk.annotations;
 
-import io.vena.bosk.StateTreeNode;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 import java.util.Optional;
@@ -9,7 +8,7 @@ import static java.lang.annotation.ElementType.FIELD;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
- * Marks a static final field in a {@link StateTreeNode} to indicate that it can be
+ * Marks a static final field in a <code>StateTreeNode</code> to indicate that it can be
  * used as a default value for a given field, for backward compatibility with external
  * systems that don't yet support the field.
  *

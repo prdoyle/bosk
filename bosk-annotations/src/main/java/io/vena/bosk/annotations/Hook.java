@@ -1,6 +1,5 @@
 package io.vena.bosk.annotations;
 
-import io.vena.bosk.Bosk;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
@@ -9,7 +8,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
  * Marks a method to be registered as a hook
- * for an object passed to {@link Bosk#registerHooks}.
+ * for an object passed to <code>Bosk.registerHooks</code>.
  */
 @Retention(RUNTIME)
 @Target(METHOD)
