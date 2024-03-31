@@ -12,6 +12,7 @@ java {
 }
 
 dependencies {
+	api project(":bosk-annotations")
 	implementation group: 'org.ow2.asm', name: 'asm', version: '9.6'
 	implementation group: 'org.ow2.asm', name: 'asm-util', version: '9.6'
 	implementation 'org.pcollections:pcollections:4.0.1'
