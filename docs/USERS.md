@@ -733,6 +733,7 @@ We hope to overcome this shortcoming in the near future.[^polyfill]
 there is a brief window (before the change events arrive) when writes to the old Sequoia driver will
 be silently ignored. While refurbishing from Sequoia to a different format,
 ensure the bosk is quiescent (not performing any updates), or is performing a `flush()` before each update.
+This is a consequence of Sequoia's design simplicity; specifically, its avoidance of multi-document transactions.
 
 [^polyfill]: See [Issue #108](https://github.com/venasolutions/bosk/issues/108).
 
