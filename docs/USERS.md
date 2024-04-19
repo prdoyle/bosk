@@ -312,7 +312,7 @@ Reference<City> anyCity = bosk.reference(City.class, Path.parseParameterized(
 	"/planets/-planet-/cities/-city-"));
 ```
 
-Parameter values can either be supplied by position or by value.
+Parameter values can either be supplied by position or by name.
 To supply parameters by position, use `Reference.boundTo`:
 
 ``` java
