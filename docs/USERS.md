@@ -737,38 +737,26 @@ This is a consequence of Sequoia's design simplicity; specifically, its avoidanc
 
 [^polyfill]: See [Issue #108](https://github.com/venasolutions/bosk/issues/108).
 
-#### Compliance rules
+#### Conformance rules
 
 `BoskDriver` implementations typically take the form of a stackable layer that accepts update requests, performs some sort of processing, and forwards the (possibly modified) requests to the next driver in the chain (the _downstream_) driver.
 This is a powerful technique to add functionality to a Bosk instance.
 
 To retain compatibility with application code, however, driver implementations must obey the `BoskDriver` contract.
-The low-level details of that contract are well documented in the `BoskDriver` javadocs, and are tested in the `DriverConformanceTest` class,
-but there are also important higher-level rules governing the allowed differences between the updates a driver receives and those it forwards to the downstream driver.
+The low-level details of that contract are well documented in the `BoskDriver` javadocs, and are tested in the `DriverConformanceTest` class.
+In addition, there there are also important higher-level rules governing the allowed differences between the updates a driver receives and those it forwards to the downstream driver.
 Breaking these rules might alter application behaviour in ways that the developers won't be expecting.
 
 Broadly, the validity of a sequence of updates can be understood in terms of the implied _sequence of states_ that exist between updates.
-The rules are:
-- A state can be skipped
-- A state can be repeated any number of times in a row
-- No swapping the order of states
-- No completely novel states that weren't in the original update stream
+The updates emitted downstream by a driver layer are allowed to differ from the operations it received,
+provided that the emitted updates have the same effect on the bosk state.
+For example, if the layer receives a conditional update whose precondition matches, it is allowed to submit an equivalent unconditional update downstream.
+Another example: if the layer receives an update that has no effect on the state, it is allowed to ignore that update and decline to submit it downstream.
+These rules are checked during the `DriverConformanceTest` suite via the `DriverStateVerifier` class.
 
-Some specific changes are allowed. A driver may:
-1. omit a change that has no effect on the state
-2. substitute a smaller change having the same effect
-3. re-apply a prior update if that has no effect
-4. omit any contiguous sequence of updates having no overall effect
-5. combine a contiguous sequence of updates into a single update with the same overall effect
-
-(These rules require that the driver maintains an awareness of the current bosk state, which _most drivers do not_,
+(These state-based rules require that the driver maintains an awareness of the current bosk state, which _most drivers do not_,
 and so most drivers are rarely able to take advantage of these options,
 because they can't generally determine what effect an update will have.)
-
-Drivers sometimes break these rules judiciously,
-on the understanding that developers ought not to be taken by surprise.
-For example, `MongoDriver.refurbish` breaks the "no completely novel states" rule,
-but does so in a desirable way that users are expecting.
 
 ### Serialization: `bosk-jackson`
 
