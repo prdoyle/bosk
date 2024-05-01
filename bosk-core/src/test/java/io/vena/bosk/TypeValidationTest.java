@@ -134,14 +134,53 @@ class TypeValidationTest {
 		Double doubleObject
 	) implements StateTreeNode { }
 
-	public record BooleanPrimitive(boolean field) implements StateTreeNode {}
-	public record BytePrimitive(byte field) implements StateTreeNode {}
-	public record CharPrimitive(char field) implements StateTreeNode {}
-	public record ShortPrimitive(short field) implements StateTreeNode {}
-	public record IntegerPrimitive(int field) implements StateTreeNode {}
-	public record LongPrimitive(long field) implements StateTreeNode {}
-	public record FloatPrimitive(float field) implements StateTreeNode {}
-	public record DoublePrimitive(double field) implements StateTreeNode {}
+	public record BooleanPrimitive(boolean field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record BytePrimitive(byte field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record CharPrimitive(char field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record ShortPrimitive(short field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record IntegerPrimitive(int field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record LongPrimitive(long field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record FloatPrimitive(float field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record DoublePrimitive(double field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
 	public static final class SimpleTypes implements Entity {

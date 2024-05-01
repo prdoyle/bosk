@@ -7,6 +7,7 @@ import io.vena.bosk.annotations.Self;
 import io.vena.bosk.exceptions.InvalidFieldTypeException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import java.lang.annotation.Annotation;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -50,6 +51,9 @@ public final class TypeValidation {
 			Class<?> theClass = rawClass(theType);
 			if (!isPublic(theClass.getModifiers())) {
 				throw new InvalidTypeException("Class is not public: " + theClass.getName());
+			} else if (theClass.isPrimitive()) {
+				Class<?> wrapped = MethodType.methodType(theClass).wrap().returnType();
+				throw new InvalidTypeException("Primitive types are not allowed in a bosk; use boxed " + wrapped.getSimpleName() + " instead of primitive " + theClass.getSimpleName());
 			} else if (isSimpleClass(theClass)) {
 				// All allowed
 				return;
