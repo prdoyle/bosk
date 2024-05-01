@@ -30,7 +30,7 @@ class TypeValidationTest {
 
 	@ParameterizedTest
 	@ValueSource(classes = {
-			Primitives.class,
+			BoxedPrimitives.class,
 			SimpleTypes.class,
 			BoskyTypes.class,
 			AllowedFieldNames.class,
@@ -46,7 +46,11 @@ class TypeValidationTest {
 			String.class,
 			//MissingConstructorArgument.class, // TODO: Currently doesn't work because Bosk is constructor-driven. Figure out what's the system of record here
 			ArrayField.class,
+			BooleanPrimitive.class,
+			BytePrimitive.class,
 			CatalogOfInvalidType.class,
+			CharPrimitive.class,
+			DoublePrimitive.class,
 			DerivedRecordField.class,
 			DerivedRecordType.class,
 			EnclosingNonReference.class,
@@ -56,11 +60,13 @@ class TypeValidationTest {
 			ExtraConstructor.class,
 			ExtraConstructorArgument.class,
 			FieldNameWithDollarSign.class,
+			FloatPrimitive.class,
 			GetterHasParameter.class,
 			GetterReturnsSubtype.class,
 			GetterReturnsSupertype.class,
 			GetterReturnsWrongType.class,
 			HasDeserializationPath.class,
+			IntegerPrimitive.class,
 			ListingOfInvalidType.class,
 			ListValueInvalidSubclass.class,
 			ListValueMutableSubclass.class,
@@ -72,10 +78,12 @@ class TypeValidationTest {
 			ListValueSubclassWithMutableField.class,
 			ListValueSubclassWithTwoConstructors.class,
 			ListValueSubclassWithWrongConstructor.class,
+			LongPrimitive.class,
 			ReferenceToReference.class,
 			SelfNonReference.class,
 			SelfWrongType.class,
 			SelfSubtype.class,
+			ShortPrimitive.class,
 			SideTableWithInvalidKey.class,
 			SideTableWithInvalidValue.class,
 			MutableField.class,
@@ -115,23 +123,25 @@ class TypeValidationTest {
 	// OK, here come the classes...
 	//
 
-	public record Primitives(
-		Identifier id,
-		boolean booleanPrimitive,
-		byte bytePrimitive,
-		short shortPrimitive,
-		int intPrimitive,
-		long longPrimitive,
-		float floatPrimitive,
-		double doublePrimitive,
+	public record BoxedPrimitives(
 		Boolean booleanObject,
 		Byte byteObject,
+		Character charObject,
 		Short shortObject,
 		Integer intObject,
 		Long longObject,
 		Float floatObject,
 		Double doubleObject
-	) implements Entity { }
+	) implements StateTreeNode { }
+
+	public record BooleanPrimitive(boolean field) implements StateTreeNode {}
+	public record BytePrimitive(byte field) implements StateTreeNode {}
+	public record CharPrimitive(char field) implements StateTreeNode {}
+	public record ShortPrimitive(short field) implements StateTreeNode {}
+	public record IntegerPrimitive(int field) implements StateTreeNode {}
+	public record LongPrimitive(long field) implements StateTreeNode {}
+	public record FloatPrimitive(float field) implements StateTreeNode {}
+	public record DoublePrimitive(double field) implements StateTreeNode {}
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
 	public static final class SimpleTypes implements Entity {
@@ -175,9 +185,9 @@ class TypeValidationTest {
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
 	public static final class AllowedFieldNames implements StateTreeNode {
-		int justLetters;
-		int someNumbers4U2C;
-		int hereComesAnUnderscore_toldYouSo;
+		Integer justLetters;
+		Integer someNumbers4U2C;
+		Integer hereComesAnUnderscore_toldYouSo;
 	}
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)

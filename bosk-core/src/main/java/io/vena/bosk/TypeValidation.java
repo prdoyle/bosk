@@ -126,7 +126,7 @@ public final class TypeValidation {
 	}
 
 	private static boolean isSimpleClass(Class<?> theClass) {
-		if (theClass.isPrimitive() || theClass.isEnum()) {
+		if (theClass.isEnum()) {
 			return true;
 		} else {
 			for (Class<?> simpleClass: SIMPLE_VALUE_CLASSES) {
@@ -262,6 +262,7 @@ public final class TypeValidation {
 
 	private static final List<Class<?>> SIMPLE_VALUE_CLASSES = asList(
 		Number.class, // TODO: This includes classes like AtomicLong which are not immutable!!
+		Character.class,
 		Boolean.class,
 		String.class);
 
