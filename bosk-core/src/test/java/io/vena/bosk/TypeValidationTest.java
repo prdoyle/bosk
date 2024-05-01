@@ -115,24 +115,23 @@ class TypeValidationTest {
 	// OK, here come the classes...
 	//
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class Primitives implements Entity {
-		Identifier id;
-		boolean booleanPrimitive;
-		byte bytePrimitive;
-		short shortPrimitive;
-		int intPrimitive;
-		long longPrimitive;
-		float floatPrimitive;
-		double doublePrimitive;
-		Boolean booleanObject;
-		Byte byteObject;
-		Short shortObject;
-		Integer intObject;
-		Long longObject;
-		Float floatObject;
-		Double doubleObject;
-	}
+	public record Primitives(
+		Identifier id,
+		boolean booleanPrimitive,
+		byte bytePrimitive,
+		short shortPrimitive,
+		int intPrimitive,
+		long longPrimitive,
+		float floatPrimitive,
+		double doublePrimitive,
+		Boolean booleanObject,
+		Byte byteObject,
+		Short shortObject,
+		Integer intObject,
+		Long longObject,
+		Float floatObject,
+		Double doubleObject
+	) implements Entity { }
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
 	public static final class SimpleTypes implements Entity {
