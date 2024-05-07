@@ -92,7 +92,7 @@ class BoskLocalReferenceTest {
 	@Getter @With @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
 	@EqualsAndHashCode(callSuper = false) @ToString @FieldNameConstants
 	public static class Root implements StateTreeNode {
-		int version;
+		Integer version;
 		Catalog<TestEntity> entities;
 	}
 
@@ -100,7 +100,7 @@ class BoskLocalReferenceTest {
 	@EqualsAndHashCode(callSuper = false) @ToString @FieldNameConstants
 	public static class TestEntity implements Entity {
 		Identifier id;
-		int version;
+		Integer version;
 		Reference<TestEntity> refField;
 		Catalog<TestEntity> catalog;
 		Listing<TestEntity> listing;

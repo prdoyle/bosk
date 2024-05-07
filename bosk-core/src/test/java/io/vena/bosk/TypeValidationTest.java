@@ -30,7 +30,7 @@ class TypeValidationTest {
 
 	@ParameterizedTest
 	@ValueSource(classes = {
-			Primitives.class,
+			BoxedPrimitives.class,
 			SimpleTypes.class,
 			BoskyTypes.class,
 			AllowedFieldNames.class,
@@ -46,7 +46,11 @@ class TypeValidationTest {
 			String.class,
 			//MissingConstructorArgument.class, // TODO: Currently doesn't work because Bosk is constructor-driven. Figure out what's the system of record here
 			ArrayField.class,
+			BooleanPrimitive.class,
+			BytePrimitive.class,
 			CatalogOfInvalidType.class,
+			CharPrimitive.class,
+			DoublePrimitive.class,
 			DerivedRecordField.class,
 			DerivedRecordType.class,
 			EnclosingNonReference.class,
@@ -56,11 +60,13 @@ class TypeValidationTest {
 			ExtraConstructor.class,
 			ExtraConstructorArgument.class,
 			FieldNameWithDollarSign.class,
+			FloatPrimitive.class,
 			GetterHasParameter.class,
 			GetterReturnsSubtype.class,
 			GetterReturnsSupertype.class,
 			GetterReturnsWrongType.class,
 			HasDeserializationPath.class,
+			IntegerPrimitive.class,
 			ListingOfInvalidType.class,
 			ListValueInvalidSubclass.class,
 			ListValueMutableSubclass.class,
@@ -72,10 +78,12 @@ class TypeValidationTest {
 			ListValueSubclassWithMutableField.class,
 			ListValueSubclassWithTwoConstructors.class,
 			ListValueSubclassWithWrongConstructor.class,
+			LongPrimitive.class,
 			ReferenceToReference.class,
 			SelfNonReference.class,
 			SelfWrongType.class,
 			SelfSubtype.class,
+			ShortPrimitive.class,
 			SideTableWithInvalidKey.class,
 			SideTableWithInvalidValue.class,
 			MutableField.class,
@@ -115,23 +123,63 @@ class TypeValidationTest {
 	// OK, here come the classes...
 	//
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class Primitives implements Entity {
-		Identifier id;
-		boolean booleanPrimitive;
-		byte bytePrimitive;
-		short shortPrimitive;
-		int intPrimitive;
-		long longPrimitive;
-		float floatPrimitive;
-		double doublePrimitive;
-		Boolean booleanObject;
-		Byte byteObject;
-		Short shortObject;
-		Integer intObject;
-		Long longObject;
-		Float floatObject;
-		Double doubleObject;
+	public record BoxedPrimitives(
+		Boolean booleanObject,
+		Byte byteObject,
+		Character charObject,
+		Short shortObject,
+		Integer intObject,
+		Long longObject,
+		Float floatObject,
+		Double doubleObject
+	) implements StateTreeNode { }
+
+	public record BooleanPrimitive(boolean field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record BytePrimitive(byte field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record CharPrimitive(char field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record ShortPrimitive(short field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record IntegerPrimitive(int field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record LongPrimitive(long field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record FloatPrimitive(float field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
+	}
+
+	public record DoublePrimitive(double field) implements StateTreeNode {
+		static void testException(InvalidTypeException e) {
+			assertThat(e.getMessage(), containsStringIgnoringCase("primitive"));
+		}
 	}
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
@@ -176,9 +224,9 @@ class TypeValidationTest {
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
 	public static final class AllowedFieldNames implements StateTreeNode {
-		int justLetters;
-		int someNumbers4U2C;
-		int hereComesAnUnderscore_toldYouSo;
+		Integer justLetters;
+		Integer someNumbers4U2C;
+		Integer hereComesAnUnderscore_toldYouSo;
 	}
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)

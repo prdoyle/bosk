@@ -2,7 +2,7 @@ package io.vena.bosk;
 
 import io.vena.bosk.Bosk.DefaultRootFunction;
 import io.vena.bosk.TypeValidationTest.MutableField;
-import io.vena.bosk.TypeValidationTest.Primitives;
+import io.vena.bosk.TypeValidationTest.BoxedPrimitives;
 import io.vena.bosk.TypeValidationTest.SimpleTypes;
 import io.vena.bosk.drivers.ForwardingDriver;
 import io.vena.bosk.exceptions.InvalidTypeException;
@@ -90,7 +90,7 @@ public class BoskConstructorTest {
 		assertThrows(ClassCastException.class, ()->
 			new Bosk<Entity> (
 				"Mismatched root",
-				Primitives.class, // Valid but wrong
+				BoxedPrimitives.class, // Valid but wrong
 				bosk -> newEntity(),
 				Bosk::simpleDriver
 			)
