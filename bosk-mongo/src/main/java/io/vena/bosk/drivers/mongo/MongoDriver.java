@@ -7,6 +7,8 @@ import io.vena.bosk.BoskInfo;
 import io.vena.bosk.DriverFactory;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.drivers.mongo.status.MongoStatus;
+import io.vena.bosk.updates.LegacyShimDriver;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 
 /**
@@ -71,6 +73,11 @@ public sealed interface MongoDriver<R extends StateTreeNode>
 	) {
 		driverSettings.validate();
 		return (b, d) -> new MainDriver<>(b, clientSettings, driverSettings, bsonPlugin, d);
+	}
+
+	@Override
+	default <T> void submit(Update<T> update) {
+		new LegacyShimDriver<>(this).submit(update);
 	}
 
 	interface MongoDriverFactory<RR extends StateTreeNode> extends DriverFactory<RR> {

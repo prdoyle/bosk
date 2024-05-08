@@ -3,16 +3,14 @@ package io.vena.bosk.drivers;
 import io.vena.bosk.BoskDiagnosticContext;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.DriverFactory;
-import io.vena.bosk.Identifier;
 import io.vena.bosk.MapValue;
-import io.vena.bosk.Reference;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 
 import static lombok.AccessLevel.PROTECTED;
@@ -34,7 +32,7 @@ import static lombok.AccessLevel.PROTECTED;
 @RequiredArgsConstructor(access = PROTECTED)
 public class BufferingDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	private final BoskDriver<R> downstream;
-	private final Deque<Consumer<BoskDriver<R>>> updateQueue = new ConcurrentLinkedDeque<>();
+	private final Deque<Runnable> updateQueue = new ConcurrentLinkedDeque<>();
 
 	public static <RR extends StateTreeNode> BufferingDriver<RR> writingTo(BoskDriver<RR> downstream) {
 		return new BufferingDriver<>(downstream);
@@ -50,45 +48,22 @@ public class BufferingDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	}
 
 	@Override
-	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		enqueue(d -> d.submitReplacement(target, newValue), target.root().diagnosticContext());
-	}
-
-	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		enqueue(d -> d.submitInitialization(target, newValue), target.root().diagnosticContext());
-	}
-
-	@Override
-	public <T> void submitDeletion(Reference<T> target) {
-		enqueue(d -> d.submitDeletion(target), target.root().diagnosticContext());
-	}
-
-	@Override
-	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		enqueue(d -> d.submitConditionalReplacement(target, newValue, precondition, requiredValue), target.root().diagnosticContext());
-	}
-
-	@Override
-	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		enqueue(d -> d.submitConditionalDeletion(target, precondition, requiredValue), target.root().diagnosticContext());
+	public <T> void submit(Update<T> update) {
+		BoskDiagnosticContext diagnosticContext = update.target().root().diagnosticContext();
+		MapValue<String> capturedAttributes = diagnosticContext.getAttributes();
+		updateQueue.add(() -> {
+			try (var __ = diagnosticContext.withOnly(capturedAttributes)) {
+				downstream.submit(update);
+			}
+		});
 	}
 
 	@Override
 	public void flush() throws InterruptedException, IOException {
-		for (Consumer<BoskDriver<R>> update = updateQueue.pollFirst(); update != null; update = updateQueue.pollFirst()) {
-			update.accept(downstream);
+		for (Runnable update = updateQueue.pollFirst(); update != null; update = updateQueue.pollFirst()) {
+			update.run();
 		}
 		downstream.flush();
-	}
-
-	private void enqueue(Consumer<BoskDriver<R>> action, BoskDiagnosticContext diagnosticContext) {
-		MapValue<String> capturedAttributes = diagnosticContext.getAttributes();
-		updateQueue.add(d -> {
-			try (var __ = diagnosticContext.withOnly(capturedAttributes)) {
-				action.accept(d);
-			}
-		});
 	}
 
 }

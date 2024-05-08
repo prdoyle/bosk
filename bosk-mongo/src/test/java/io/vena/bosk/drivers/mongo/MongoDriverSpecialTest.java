@@ -22,6 +22,8 @@ import io.vena.bosk.drivers.state.TestValues;
 import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.junit.ParametersByName;
+import io.vena.bosk.updates.Replace;
+import io.vena.bosk.updates.Update;
 import io.vena.bosk.util.Classes;
 import java.io.IOException;
 import java.util.Optional;
@@ -107,9 +109,11 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test", TestEntity.class, this::initialRoot,
 			(b,d) -> driverFactory.build(b, new BufferingDriver<>(d) {
 				@Override
-				public <T> void submitReplacement(Reference<T> target, T newValue) {
-					super.submitReplacement(target, newValue);
-					replacementsSeen.add(target);
+				public <T> void submit(Update<T> update) {
+					super.submit(update);
+					if (update instanceof Replace<?>) {
+						replacementsSeen.add(update.target());
+					}
 				}
 			}));
 

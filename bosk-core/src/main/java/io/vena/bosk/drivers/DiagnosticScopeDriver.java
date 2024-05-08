@@ -4,10 +4,9 @@ import io.vena.bosk.BoskDiagnosticContext;
 import io.vena.bosk.BoskDiagnosticContext.DiagnosticScope;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.DriverFactory;
-import io.vena.bosk.Identifier;
-import io.vena.bosk.Reference;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.function.Function;
@@ -37,37 +36,9 @@ public class DiagnosticScopeDriver<R extends StateTreeNode> implements BoskDrive
 	}
 
 	@Override
-	public <T> void submitReplacement(Reference<T> target, T newValue) {
+	public <T> void submit(Update<T> update) {
 		try (var __ = scopeSupplier.apply(diagnosticContext)) {
-			downstream.submitReplacement(target, newValue);
-		}
-	}
-
-	@Override
-	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		try (var __ = scopeSupplier.apply(diagnosticContext)) {
-			downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue);
-		}
-	}
-
-	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		try (var __ = scopeSupplier.apply(diagnosticContext)) {
-			downstream.submitInitialization(target, newValue);
-		}
-	}
-
-	@Override
-	public <T> void submitDeletion(Reference<T> target) {
-		try (var __ = scopeSupplier.apply(diagnosticContext)) {
-			downstream.submitDeletion(target);
-		}
-	}
-
-	@Override
-	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		try (var __ = scopeSupplier.apply(diagnosticContext)) {
-			downstream.submitConditionalDeletion(target, precondition, requiredValue);
+			downstream.submit(update);
 		}
 	}
 

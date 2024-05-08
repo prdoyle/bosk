@@ -9,6 +9,14 @@ import io.vena.bosk.dereferencers.PathCompiler;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.exceptions.NoReadContextException;
 import io.vena.bosk.exceptions.ReferenceBindingException;
+import io.vena.bosk.updates.ConditionalUpdate;
+import io.vena.bosk.updates.Delete;
+import io.vena.bosk.updates.IfEquals;
+import io.vena.bosk.updates.IfNonexistent;
+import io.vena.bosk.updates.Precondition;
+import io.vena.bosk.updates.Replace;
+import io.vena.bosk.updates.UnconditionalUpdate;
+import io.vena.bosk.updates.Update;
 import io.vena.bosk.util.Classes;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -208,94 +216,60 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
-		public <T> void submitReplacement(Reference<T> target, T newValue) {
-			assertCorrectBosk(target);
+		public <T> void submit(Update<T> update) {
+			assertCorrectBosk(update.target());
 			synchronized (this) {
-				R priorRoot = currentRoot;
-				if (!tryGraftReplacement(target, newValue)) {
-					return;
+				boolean preconditionSatisfied;
+				UnconditionalUpdate<T> action;
+				if (update instanceof ConditionalUpdate<T> c) {
+					preconditionSatisfied = isPreconditionSatisfied(c.precondition());
+					action = c.action();
+				} else if (update instanceof UnconditionalUpdate<T> u){
+					preconditionSatisfied = true;
+					action = u;
+				} else {
+					throw new AssertionError("Unexpected update: " + update);
 				}
-				queueHooks(target, priorRoot);
-			}
-			drainQueueIfAllowed();
-		}
-
-		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
-			assertCorrectBosk(target);
-			synchronized (this) {
-				boolean preconditionsSatisfied;
-				try (@SuppressWarnings("unused") ReadContext executionContext = new ReadContext(currentRoot)) {
-					preconditionsSatisfied = !target.exists();
-				}
-				if (preconditionsSatisfied) {
+				if (preconditionSatisfied) {
 					R priorRoot = currentRoot;
-					if (!tryGraftReplacement(target, newValue)) {
+					if (!tryGraft(action)) {
 						return;
 					}
-					queueHooks(target, priorRoot);
+					queueHooks(action.target(), priorRoot);
 				}
 			}
 			drainQueueIfAllowed();
 		}
 
-		@Override
-		public <T> void submitDeletion(Reference<T> target) {
-			assertCorrectBosk(target);
-			synchronized (this) {
-				R priorRoot = currentRoot;
-				if (!tryGraftDeletion(target)) {
-					return;
+		private boolean isPreconditionSatisfied(Precondition precondition) {
+			assertCorrectBosk(precondition.location());
+			try (@SuppressWarnings("unused") var __ = new ReadContext(currentRoot)) {
+				if (precondition instanceof IfNonexistent i) {
+					return !i.location().exists();
+				} else if (precondition instanceof IfEquals i) {
+					return Objects.equals(i.location().valueIfExists(), i.requiredValue());
+				} else {
+					// TODO: Type switch in Java 21
+					throw new AssertionError("Unexpected precondition: " + precondition);
 				}
-				queueHooks(target, priorRoot);
 			}
-			drainQueueIfAllowed();
+		}
+
+		private <T> boolean tryGraft(Update<T> update) {
+			if (update instanceof Replace<T> r) {
+				return tryGraftReplacement(r.target(), r.newValue());
+			} else if (update instanceof Delete<T> d) {
+				return tryGraftDeletion(d.target());
+			} else {
+				// TODO: Type switch in Java 21
+				throw new AssertionError("Unexpected update: " + update);
+			}
 		}
 
 		@Override
 		public void flush() {
 			// Nothing to do here. Updates are applied to the current state immediately as they arrive.
 			// No need to drain the hook queue because `flush` makes no guarantees about hooks.
-		}
-
-		@Override
-		public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-			assertCorrectBosk(target);
-			assertCorrectBosk(precondition);
-			synchronized (this) {
-				boolean preconditionsSatisfied;
-				try (@SuppressWarnings("unused") ReadContext executionContext = new ReadContext(currentRoot)) {
-					preconditionsSatisfied = Objects.equals(precondition.valueIfExists(), requiredValue);
-				}
-				if (preconditionsSatisfied) {
-					R priorRoot = currentRoot;
-					if (!tryGraftReplacement(target, newValue)) {
-						return;
-					}
-					queueHooks(target, priorRoot);
-				}
-			}
-			drainQueueIfAllowed();
-		}
-
-		@Override
-		public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-			assertCorrectBosk(target);
-			assertCorrectBosk(precondition);
-			synchronized (this) {
-				boolean preconditionsSatisfied;
-				try (@SuppressWarnings("unused") ReadContext executionContext = new ReadContext(currentRoot)) {
-					preconditionsSatisfied = Objects.equals(precondition.value(), requiredValue);
-				}
-				if (preconditionsSatisfied) {
-					R priorRoot = currentRoot;
-					if (!tryGraftDeletion(target)) {
-						return;
-					}
-					queueHooks(target, priorRoot);
-				}
-			}
-			drainQueueIfAllowed();
 		}
 
 		/**

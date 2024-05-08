@@ -13,6 +13,8 @@ import io.vena.bosk.drivers.operations.SubmitInitialization;
 import io.vena.bosk.drivers.operations.SubmitReplacement;
 import io.vena.bosk.drivers.operations.UpdateOperation;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.updates.LegacyShimDriver;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.function.Consumer;
@@ -24,6 +26,9 @@ import lombok.RequiredArgsConstructor;
  * <p>
  * <em>Implementation note</em>: this class calls the downstream driver using {@link UpdateOperation#submitTo}
  * so that the ordinary {@link DriverConformanceTest} suite also tests all the {@link UpdateOperation} objects.
+ * <p>
+ * <em>Evolution note</em>: The {@link UpdateOperation} hierarchy is obsolete now that we have the {@link Update}
+ * hierarchy. We should reconcile these.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReportingDriver<R extends StateTreeNode> implements BoskDriver<R> {
@@ -39,6 +44,11 @@ public class ReportingDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	@Override
 	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		return downstream.initialRoot(rootType);
+	}
+
+	@Override
+	public <T> void submit(Update<T> update) {
+		new LegacyShimDriver<>(this).submit(update);
 	}
 
 	@Override

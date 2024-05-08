@@ -7,6 +7,13 @@ import io.vena.bosk.Identifier;
 import io.vena.bosk.Reference;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.updates.ConditionalUpdate;
+import io.vena.bosk.updates.Delete;
+import io.vena.bosk.updates.IfEquals;
+import io.vena.bosk.updates.IfNonexistent;
+import io.vena.bosk.updates.Replace;
+import io.vena.bosk.updates.Update;
+import io.vena.bosk.updates.UpdateVisitor;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import lombok.RequiredArgsConstructor;
@@ -44,28 +51,8 @@ public class MirroringDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	}
 
 	@Override
-	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		mirror.driver().submitReplacement(correspondingReference(target), newValue);
-	}
-
-	@Override
-	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		mirror.driver().submitConditionalReplacement(correspondingReference(target), newValue, correspondingReference(precondition), requiredValue);
-	}
-
-	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		mirror.driver().submitInitialization(correspondingReference(target), newValue);
-	}
-
-	@Override
-	public <T> void submitDeletion(Reference<T> target) {
-		mirror.driver().submitDeletion(correspondingReference(target));
-	}
-
-	@Override
-	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		mirror.driver().submitConditionalDeletion(correspondingReference(target), correspondingReference(precondition), requiredValue);
+	public <T> void submit(Update<T> update) {
+		mirror.driver().submit(new ReferenceFixer<T>().visit(update));
 	}
 
 	@Override
@@ -79,6 +66,45 @@ public class MirroringDriver<R extends StateTreeNode> implements BoskDriver<R> {
 			return (Reference<T>) mirror.rootReference().then(Object.class, original.path());
 		} catch (InvalidTypeException e) {
 			throw new AssertionError("References are expected to be compatible: " + original, e);
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private class ReferenceFixer<TT> implements UpdateVisitor<Update<TT>> {
+
+		@Override
+		public <T> Update<TT> visitReplacement(Reference<T> target, T newValue) {
+			return new Replace(correspondingReference(target), newValue);
+		}
+
+		@Override
+		public <T> Update<TT> visitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
+			return new ConditionalUpdate<>(
+				new IfEquals(correspondingReference(precondition), requiredValue),
+				new Replace(correspondingReference(target), newValue)
+			);
+		}
+
+		@Override
+		public <T> Update<TT> visitInitialization(Reference<T> target, T newValue) {
+			var correspondingTarget = correspondingReference(target);
+			return new ConditionalUpdate(
+				new IfNonexistent(correspondingTarget),
+				new Replace<>(correspondingTarget, newValue)
+			);
+		}
+
+		@Override
+		public <T> Update<TT> visitDeletion(Reference<T> target) {
+			return new Delete(correspondingReference(target));
+		}
+
+		@Override
+		public <T> Update<TT> visitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
+			return new ConditionalUpdate<>(
+				new IfEquals(correspondingReference(precondition), requiredValue),
+				new Delete(correspondingReference(target))
+			);
 		}
 	}
 

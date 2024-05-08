@@ -4,6 +4,12 @@ import io.vena.bosk.Bosk.ReadContext;
 import io.vena.bosk.drivers.ForwardingDriver;
 import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.updates.ConditionalUpdate;
+import io.vena.bosk.updates.Delete;
+import io.vena.bosk.updates.IfEquals;
+import io.vena.bosk.updates.IfNonexistent;
+import io.vena.bosk.updates.Replace;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 import java.lang.reflect.Type;
 
@@ -48,6 +54,16 @@ public interface BoskDriver<R extends StateTreeNode> {
 	R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException;
 
 	/**
+	 * Requests that the given <code>update</code> by applied to the state tree.
+	 *
+	 * <p>
+	 * Changes will not be visible in the {@link io.vena.bosk.Bosk.ReadContext} in which this method
+	 * was called. If the <code>update</code>'s {@link Update#target} is inside an enclosing object that
+	 * does not exist at the time the update is applied, it is silently ignored.
+	 */
+	<T> void submit(Update<T> update);
+
+	/**
 	 * Requests that the object referenced by <code>target</code> be changed to <code>newValue</code>.
 	 *
 	 * <p>
@@ -55,7 +71,9 @@ public interface BoskDriver<R extends StateTreeNode> {
 	 * was called. If <code>target</code> is inside an enclosing object that does not exist at the
 	 * time the update is applied, it is silently ignored.
 	 */
-	<T> void submitReplacement(Reference<T> target, T newValue);
+	default <T> void submitReplacement(Reference<T> target, T newValue) {
+		submit(new Replace<>(target, newValue));
+	}
 
 	/**
 	 * Like {@link #submitReplacement}, but has no effect unless
@@ -64,14 +82,25 @@ public interface BoskDriver<R extends StateTreeNode> {
 	 *
 	 * @see #submitReplacement
 	 */
-	<T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue);
+	default <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
+		submit(new ConditionalUpdate<>(
+			new IfEquals(precondition, requiredValue),
+			new Replace<>(target, newValue)
+		));
+	}
+
 
 	/**
 	 * Like {@link #submitReplacement}, but has no effect if the target object already exists.
 	 *
 	 * @see #submitReplacement
 	 */
-	<T> void submitInitialization(Reference<T> target, T newValue);
+	default <T> void submitInitialization(Reference<T> target, T newValue) {
+		submit(new ConditionalUpdate<>(
+			new IfNonexistent(target),
+			new Replace<>(target, newValue)
+		));
+	}
 
 	/**
 	 * Requests that the object referenced by <code>target</code> be deleted.
@@ -87,7 +116,9 @@ public interface BoskDriver<R extends StateTreeNode> {
 	 * @throws IllegalArgumentException if the targeted object is not deletable,
 	 * regardless of whether it exists.
 	 */
-	<T> void submitDeletion(Reference<T> target);
+	default <T> void submitDeletion(Reference<T> target) {
+		submit(new Delete<>(target));
+	}
 
 	/**
 	 * Like {@link #submitDeletion(Reference)} but has no effect unless
@@ -96,7 +127,12 @@ public interface BoskDriver<R extends StateTreeNode> {
 	 *
 	 * @see #submitDeletion(Reference)
 	 */
-	<T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue);
+	default<T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
+		submit(new ConditionalUpdate<>(
+			new IfEquals(precondition, requiredValue),
+			new Delete<>(target)
+		));
+	}
 
 	/**
 	 * Blocks until all prior updates have been applied to the Bosk.

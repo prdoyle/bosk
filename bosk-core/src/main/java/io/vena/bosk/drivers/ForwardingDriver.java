@@ -1,10 +1,9 @@
 package io.vena.bosk.drivers;
 
 import io.vena.bosk.BoskDriver;
-import io.vena.bosk.Identifier;
-import io.vena.bosk.Reference;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -38,28 +37,8 @@ public class ForwardingDriver<R extends StateTreeNode> implements BoskDriver<R> 
 	}
 
 	@Override
-	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		downstream.forEach(d -> d.submitReplacement(target, newValue));
-	}
-
-	@Override
-	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		downstream.forEach(d -> d.submitConditionalReplacement(target, newValue, precondition, requiredValue));
-	}
-
-	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		downstream.forEach(d -> d.submitInitialization(target, newValue));
-	}
-
-	@Override
-	public <T> void submitDeletion(Reference<T> target) {
-		downstream.forEach(d -> d.submitDeletion(target));
-	}
-
-	@Override
-	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		downstream.forEach(d -> d.submitConditionalDeletion(target, precondition, requiredValue));
+	public <T> void submit(Update<T> update) {
+		downstream.forEach(d -> d.submit(update));
 	}
 
 	@Override

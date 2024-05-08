@@ -3,10 +3,9 @@ package io.vena.bosk.drivers;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.BoskInfo;
 import io.vena.bosk.DriverFactory;
-import io.vena.bosk.Identifier;
-import io.vena.bosk.Reference;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.ExecutorService;
@@ -34,28 +33,8 @@ public class AsyncDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	}
 
 	@Override
-	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		submitAsyncTask("submitReplacement", () -> downstream.submitReplacement(target, newValue));
-	}
-
-	@Override
-	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		submitAsyncTask("submitConditionalReplacement", () -> downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue));
-	}
-
-	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		submitAsyncTask("submitInitialization", () -> downstream.submitInitialization(target, newValue));
-	}
-
-	@Override
-	public <T> void submitDeletion(Reference<T> target) {
-		submitAsyncTask("submitDeletion", () -> downstream.submitDeletion(target));
-	}
-
-	@Override
-	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		submitAsyncTask("submitConditionalDeletion", () -> downstream.submitConditionalDeletion(target, precondition, requiredValue));
+	public <T> void submit(Update<T> update) {
+		submitAsyncTask(update.toString(), () -> downstream.submit(update));
 	}
 
 	@Override

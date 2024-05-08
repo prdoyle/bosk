@@ -2,10 +2,9 @@ package io.vena.bosk.drivers;
 
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.DriverFactory;
-import io.vena.bosk.Identifier;
-import io.vena.bosk.Reference;
 import io.vena.bosk.StateTreeNode;
 import io.vena.bosk.exceptions.InvalidTypeException;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Random;
@@ -51,33 +50,9 @@ public final class JitterDriver<R extends StateTreeNode> implements BoskDriver<R
 	}
 
 	@Override
-	public <T> void submitReplacement(Reference<T> target, T newValue) {
+	public <T> void submit(Update<T> update) {
 		sleep();
-		downstream.submitReplacement(target, newValue);
-	}
-
-	@Override
-	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		sleep();
-		downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue);
-	}
-
-	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		sleep();
-		downstream.submitInitialization(target, newValue);
-	}
-
-	@Override
-	public <T> void submitDeletion(Reference<T> target) {
-		sleep();
-		downstream.submitDeletion(target);
-	}
-
-	@Override
-	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		sleep();
-		downstream.submitConditionalDeletion(target, precondition, requiredValue);
+		downstream.submit(update);
 	}
 
 	@Override

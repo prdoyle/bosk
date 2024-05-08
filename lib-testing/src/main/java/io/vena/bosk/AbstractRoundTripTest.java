@@ -9,6 +9,9 @@ import io.vena.bosk.SerializationPlugin.DeserializationScope;
 import io.vena.bosk.drivers.mongo.BsonPlugin;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import io.vena.bosk.jackson.JacksonPlugin;
+import io.vena.bosk.updates.ConditionalUpdate;
+import io.vena.bosk.updates.Replace;
+import io.vena.bosk.updates.Update;
 import java.io.IOException;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
@@ -213,23 +216,21 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		}
 
 		@Override
-		public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-			downstream.submitConditionalReplacement(target, preprocess(target, newValue), precondition, requiredValue);
-		}
-
-		@Override
-		public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-			downstream.submitConditionalDeletion(target, precondition, requiredValue);
-		}
-
-		@Override
-		public <T> void submitReplacement(Reference<T> target, T newValue) {
-			downstream.submitReplacement(target, preprocess(target, newValue));
-		}
-
-		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
-			downstream.submitInitialization(target, preprocess(target, newValue));
+		public <T> void submit(Update<T> update) {
+			if (update instanceof Replace<T> r) {
+				downstream.submit(new Replace<>(r.target(), preprocess(r.target(), r.newValue())));
+			} else if (update instanceof ConditionalUpdate<T> c) {
+				if (c.action() instanceof Replace<T> r) {
+					downstream.submit(new ConditionalUpdate<>(
+						c.precondition(),
+						new Replace<>(r.target(), preprocess(r.target(), r.newValue()))
+					));
+				} else {
+					downstream.submit(update);
+				}
+			} else {
+				downstream.submit(update);
+			}
 		}
 
 		abstract <T> T preprocess(Reference<T> reference, T newValue);
@@ -237,11 +238,6 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		@Override
 		public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 			return downstream.initialRoot(rootType);
-		}
-
-		@Override
-		public <T> void submitDeletion(Reference<T> target) {
-			downstream.submitDeletion(target);
 		}
 
 		@Override
