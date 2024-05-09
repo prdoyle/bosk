@@ -670,7 +670,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 */
 	public final class ReadContext implements AutoCloseable {
 		final R originalRoot;
-		final R snapshot;
+		final R snapshot; // Mostly for adopt()
 
 		/**
 		 * Creates a {@link ReadContext} for the current thread. If one is already
@@ -693,8 +693,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			}
 		}
 
-		private ReadContext(ReadContext toInherit) {
-			R snapshotToInherit = requireNonNull(toInherit.snapshot);
+		private ReadContext(ReadContext toAdopt) {
+			R snapshotToInherit = requireNonNull(toAdopt.snapshot);
 			originalRoot = rootSnapshot.get();
 			if (originalRoot == null) {
 				rootSnapshot.set(this.snapshot = snapshotToInherit);
