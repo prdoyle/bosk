@@ -361,8 +361,16 @@ class BoskLocalReferenceTest {
 			assertSame(firstValue, ref.value(), "New ReadContext sees same value as before");
 			bosk.driver().submitReplacement(ref, secondValue);
 			assertSame(firstValue, ref.value(), "Bosk updates not visible during the same ReadContext");
+
+			try (val ___ = bosk.supersedingReadContext()) {
+				assertSame(secondValue, ref.value(), "Superseding context sees the latest state");
+				try (val ____ = bosk.readContext()) {
+					assertSame(secondValue, ref.value(), "Nested context matches outer context");
+				}
+			}
+
 			try (val ___ = bosk.readContext()) {
-				assertSame(firstValue, ref.value(), "Nested context matches outer context");
+				assertSame(firstValue, ref.value(), "Nested context matches original outer context");
 			}
 		}
 
