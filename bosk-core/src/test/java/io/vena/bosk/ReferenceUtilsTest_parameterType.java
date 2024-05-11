@@ -89,6 +89,18 @@ class ReferenceUtilsTest_parameterType {
 		checkStringAndIntegerParameters(type, BinaryClass.class);
 	}
 
+	@Test
+	void testParameterWithParameters() throws NoSuchFieldException {
+		abstract class TestClass {
+			public SideTableReference<Entity, String> sideTable;
+		}
+		Type type = TestClass.class.getDeclaredField("sideTable").getGenericType();
+		Type targetType = parameterType(type, Reference.class, 0);
+		Type keyType = parameterType(targetType, SideTable.class, 0);
+		Type valueType = parameterType(targetType, SideTable.class, 1);
+		assertEquals(Entity.class, keyType);
+		assertEquals(String.class, valueType);
+	}
 
 	private void checkStringAndIntegerParameters(Type type, Class<?> expectedClass) {
 		assertEquals(String.class,  parameterType(type, expectedClass, 0));

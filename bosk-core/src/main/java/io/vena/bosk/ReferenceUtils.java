@@ -197,24 +197,39 @@ C&lt;String> someField;
 			// Recurse with supertype
 			Type returned = parameterType(supertype, genericClass, index);
 
-			if (returned instanceof TypeVariable) {
-				// The recursive call has returned us one of the type variables
-				// from our own generic class.  For example, if parameterizedType
-				// were C<String> and C was declared as C<T> extends S<U>, then
-				// `returned` is T, and it's our job here to resolve it back to String.
-				TypeVariable<?>[] typeVariables = actualClass.getTypeParameters();
-				for (int i = 0; i < typeVariables.length; i++) {
-					if (returned.equals(typeVariables[i])) {
-						return parameterType(parameterizedType, i);
-					}
-				}
-				throw new AssertionError("Expected type variable match for " + returned + " in " + actualClass.getSimpleName() + " type parameters: " + Arrays.toString(actualClass.getTypeParameters()));
-			} else {
-				return returned;
-			}
+			return resolveTypeVariables(returned, parameterizedType);
 		} catch (AssertionError e) {
 			// Help diagnose assertion errors from recursive calls
 			throw new AssertionError(format("parameterType(%s, %s, %s): %s", parameterizedType, genericClass, index, e.getMessage()), e);
+		}
+	}
+
+	/**
+	 * @param typeWithVariables a {@link Type} that may or may not contain references to {@link TypeVariable}s.
+	 * @param environmentType the type that defines what those variables mean
+	 * @return a new type whose variables are all bound by the definitions in <code>environmentType</code>
+	 */
+	private static Type resolveTypeVariables(Type typeWithVariables, Type environmentType) {
+		if (typeWithVariables instanceof TypeVariable) {
+			// The recursive call has typeWithVariables us one of the type variables
+			// from our own generic class.  For example, if environmentType
+			// were C<String> and C was declared as C<T> extends S<U>, then
+			// `typeWithVariables` is T, and it's our job here to resolve it back to String.
+			Class<?> parameterizedClass = rawClass(environmentType);
+			TypeVariable<?>[] typeVariables = parameterizedClass.getTypeParameters();
+			for (int i = 0; i < typeVariables.length; i++) {
+				if (typeWithVariables.equals(typeVariables[i])) {
+					return parameterType(environmentType, i);
+				}
+			}
+			throw new AssertionError("Expected type variable match for " + typeWithVariables + " in " + parameterizedClass.getSimpleName() + " type parameters: " + Arrays.toString(parameterizedClass.getTypeParameters()));
+		} else if (typeWithVariables instanceof ParameterizedType pt) {
+			Type[] resolvedParameters = Stream.of(pt.getActualTypeArguments())
+				.map(t -> resolveTypeVariables(t, environmentType))
+				.toArray(Type[]::new);
+			return Types.parameterizedType(rawClass(pt), resolvedParameters);
+		} else {
+			return typeWithVariables;
 		}
 	}
 
