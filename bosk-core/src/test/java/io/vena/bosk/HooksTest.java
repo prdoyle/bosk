@@ -29,6 +29,9 @@ public class HooksTest extends AbstractBoskTest {
 	public interface Refs {
 		@ReferencePath("/id") Reference<Identifier> rootID();
 		@ReferencePath("/entities/parent") Reference<TestEntity> parent();
+		@ReferencePath("/entities/parent/children") CatalogReference<TestChild> parentChildren();
+		@ReferencePath("/entities/parent/oddChildren") ListingReference<TestChild> parentOddChildren();
+		@ReferencePath("/entities/parent/stringSideTable") SideTableReference<TestChild, String> parentStringSideTable();
 		@ReferencePath("/entities/parent/string") Reference<String> parentString();
 		@ReferencePath("/entities/-parent-/children/-child-") Reference<TestChild> anyChild();
 		@ReferencePath("/entities/parent/children/-child-") Reference<TestChild> child(Identifier child);
@@ -510,6 +513,42 @@ public class HooksTest extends AbstractBoskTest {
 			super(bosk);
 		}
 	}
+
+	@ParameterizedTest
+	@ValueSource(classes = {ReferenceSubclassHooks.class})
+	void registerHooks_referenceSubclasses_works(Class<? extends ReferenceSubclassHooks> receiverClass) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+		ReferenceSubclassHooks receiver = receiverClass.getConstructor(Bosk.class).newInstance(bosk);
+		List<List<Object>> expected = asList(
+			// At registration time, the hook is called on all existing nodes
+			asList("childrenChanged", refs.parentChildren()),
+			asList("oddChildrenChanged", refs.parentOddChildren()),
+			asList("stringSideTableChanged", refs.parentStringSideTable())
+		);
+		assertEquals(expected, receiver.hookCalls);
+	}
+
+	public static class ReferenceSubclassHooks {
+		final List<List<Object>> hookCalls = new ArrayList<>();
+		public ReferenceSubclassHooks(Bosk<?> bosk) throws InvalidTypeException {
+			bosk.registerHooks(this);
+		}
+
+		@Hook("/entities/parent/children")
+		void childrenChanged(CatalogReference<TestChild> ref) {
+			hookCalls.add(asList("childrenChanged", ref));
+		}
+
+		@Hook("/entities/parent/oddChildren")
+		void oddChildrenChanged(ListingReference<TestChild> ref) {
+			hookCalls.add(asList("oddChildrenChanged", ref));
+		}
+
+		@Hook("/entities/parent/stringSideTable")
+		void stringSideTableChanged(SideTableReference<TestChild, String> ref) {
+			hookCalls.add(asList("stringSideTableChanged", ref));
+		}
+	}
+
 
 	interface Submit {
 		<T> void replacement(Bosk<?> bosk, Refs refs, Reference<T> target, T newValue);

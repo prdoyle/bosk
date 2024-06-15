@@ -38,7 +38,20 @@ class HookRegistrar {
 				}
 				method.setAccessible(true);
 				Path path = Path.parseParameterized(hookAnnotation.value());
-				Reference<Object> scope = bosk.rootReference().then(Object.class, path);
+
+				Reference<?> plainRef = bosk.rootReference().then(Object.class, path);
+				// Now substitute one of the handy Reference subtypes where possible
+				Reference<?> scope;
+				if (Catalog.class.isAssignableFrom(plainRef.targetClass())) {
+					scope = bosk.rootReference().thenCatalog(Entity.class, path);
+				} else if (Listing.class.isAssignableFrom(plainRef.targetClass())) {
+					scope = bosk.rootReference().thenListing(Entity.class, path);
+				} else if (SideTable.class.isAssignableFrom(plainRef.targetClass())) {
+					scope = bosk.rootReference().thenSideTable(Entity.class, Object.class, path);
+				} else {
+					scope = plainRef;
+				}
+
 				List<Function<Reference<?>, Object>> argumentFunctions = new ArrayList<>(method.getParameterCount());
 				argumentFunctions.add(ref -> receiverObject); // The "this" pointer
 				for (Parameter p : method.getParameters()) {
@@ -46,12 +59,12 @@ class HookRegistrar {
 						if (ReferenceUtils.parameterType(p.getParameterizedType(), Reference.class, 0).equals(scope.targetType())) {
 							argumentFunctions.add(ref -> ref);
 						} else {
-							throw new IllegalArgumentException("Expected reference to " + scope.targetType() + ": " + method.getName() + " parameter " + p.getName());
+							throw new IllegalArgumentException("Expected reference to " + scope.targetType() + ": " + method.getName() + " parameter " + p);
 						}
 					} else if (p.getType().isAssignableFrom(BindingEnvironment.class)) {
 						argumentFunctions.add(ref -> scope.parametersFrom(ref.path()));
 					} else {
-						throw new IllegalArgumentException("Unsupported parameter type " + p.getType() + ": " + method.getName() + " parameter " + p.getName());
+						throw new IllegalArgumentException("Unsupported parameter type " + p.getType() + ": " + method.getName() + " parameter " + p);
 					}
 				}
 				MethodHandle hook;
