@@ -1,6 +1,7 @@
 package io.vena.bosk;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Composes multiple {@link DriverFactory} objects into a stack so that they
@@ -21,21 +22,24 @@ public interface DriverStack<R extends StateTreeNode> extends DriverFactory<R> {
 	 */
 	@SafeVarargs
 	static <RR extends StateTreeNode> DriverStack<RR> of(DriverFactory<RR>...factories) {
-		return new DriverStack<RR>() {
+		return DriverStack.of(Arrays.asList(factories));
+	}
+
+	static <RR extends StateTreeNode> DriverStack<RR> of(List<DriverFactory<RR>> factories) {
+		return new DriverStack<>() {
 			@Override
 			public BoskDriver<RR> build(BoskInfo<RR> boskInfo, BoskDriver<RR> downstream) {
 				BoskDriver<RR> result = downstream;
-				for (int i = factories.length - 1; i >= 0; i--) {
-					result = factories[i].build(boskInfo, result);
+				for (int i = factories.size() - 1; i >= 0; i--) {
+					result = factories.get(i).build(boskInfo, result);
 				}
 				return result;
 			}
 
 			@Override
 			public String toString() {
-				return Arrays.toString(factories);
+				return factories.toString();
 			}
 		};
 	}
-
 }
