@@ -36,3 +36,11 @@ allprojects {
 	group = 'io.vena'
 	// version should be set as a property with -Pversion
 }
+
+subprojects {
+	tasks.register('quickTest', Test) {
+		useJUnitPlatform {
+			excludeTags 'long-running'
+		}
+	}
+}

@@ -4,8 +4,10 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
+import static io.vena.bosk.Tags.LONG_RUNNING;
 import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
 
 /**
@@ -29,5 +31,6 @@ import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
 @Target({ ElementType.ANNOTATION_TYPE, ElementType.METHOD, ElementType.TYPE })
 @Retention(RetentionPolicy.RUNTIME)
 @ResourceLock(value="mongoContainer", mode=READ_WRITE)
+@Tag(LONG_RUNNING) // This annotation serializes the tests and so it makes them all slower
 public @interface DisruptsMongoService {
 }

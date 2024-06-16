@@ -5,10 +5,13 @@ import io.vena.bosk.drivers.mongo.TestParameters.ParameterSet;
 import io.vena.bosk.junit.ParametersByName;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 
+import static io.vena.bosk.Tags.LONG_RUNNING;
 import static io.vena.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static io.vena.bosk.drivers.mongo.TestParameters.EventTiming.NORMAL;
 
+@Tag(LONG_RUNNING)
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;
 

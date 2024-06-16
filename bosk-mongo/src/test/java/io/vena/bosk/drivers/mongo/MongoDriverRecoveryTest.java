@@ -21,11 +21,13 @@ import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static ch.qos.logback.classic.Level.ERROR;
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
+import static io.vena.bosk.Tags.LONG_RUNNING;
 import static io.vena.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 import static io.vena.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /**
  * Tests the kinds of recovery actions a human operator might take to try to get a busted service running again.
  */
+@Tag(LONG_RUNNING)
 public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	FlushOrWait flushOrWait;
 

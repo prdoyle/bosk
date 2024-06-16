@@ -37,11 +37,13 @@ import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static ch.qos.logback.classic.Level.ERROR;
 import static io.vena.bosk.ListingEntry.LISTING_ENTRY;
+import static io.vena.bosk.Tags.LONG_RUNNING;
 import static io.vena.bosk.drivers.mongo.Formatter.DocumentFields.path;
 import static io.vena.bosk.drivers.mongo.Formatter.DocumentFields.revision;
 import static io.vena.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
@@ -58,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Tests {@link MongoDriver}-specific functionality not covered by {@link MongoDriverConformanceTest}.
  */
+@Tag(LONG_RUNNING)
 class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	@ParametersByName
 	public MongoDriverSpecialTest(TestParameters.ParameterSet parameters) {
