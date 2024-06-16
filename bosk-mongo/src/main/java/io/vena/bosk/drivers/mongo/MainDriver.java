@@ -10,7 +10,6 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import io.vena.bosk.Bosk;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.BoskInfo;
 import io.vena.bosk.Identifier;
@@ -25,6 +24,8 @@ import io.vena.bosk.exceptions.FlushFailureException;
 import io.vena.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
@@ -92,7 +93,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 			this.bsonPlugin = bsonPlugin;
 			this.downstream = downstream;
 
-			MongoClient mongoClient = MongoClients.create(
+			MongoClient mongoClient = findOrCreateMongoClient(
 				MongoClientSettings.builder(clientSettings)
 					// By default, let's deal only with durable data that won't get rolled back
 					.readConcern(ReadConcern.MAJORITY)
@@ -109,6 +110,13 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 			this.formatter = new Formatter(boskInfo, bsonPlugin);
 			this.receiver = new ChangeReceiver(boskInfo.name(), boskInfo.instanceID(), listener, driverSettings, rawCollection);
 		}
+	}
+
+	private static MongoClient findOrCreateMongoClient(MongoClientSettings settings) {
+//		return MongoClients.create(settings);
+		return CLIENT_POOL.computeIfAbsent(
+			settings,
+			MongoClients::create);
 	}
 
 	@Override
@@ -692,4 +700,10 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 	public static final BsonString MANIFEST_ID = new BsonString("manifest");
 	private static final Exception FAILURE_TO_COMPUTE_INITIAL_ROOT = new InitialRootFailureException("Failure to compute initial root");
 	private static final Logger LOGGER = LoggerFactory.getLogger(MainDriver.class);
+
+	/**
+	 * Create just one {@link MongoClient} for a given combination of {@link MongoClientSettings}.
+	 * This doesn't matter much in production, where we create very few bosks, but for tests, it's a big deal.
+	 */
+	private static final Map<MongoClientSettings, MongoClient> CLIENT_POOL = new HashMap<>();
 }
