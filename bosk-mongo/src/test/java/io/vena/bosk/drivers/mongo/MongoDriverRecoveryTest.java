@@ -141,6 +141,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 			LOGGER.debug("Drop database");
 			mongoService.client()
 				.getDatabase(driverSettings.database())
+				.getCollection(COLLECTION_NAME)
 				.drop();
 		}, (b) -> initializeDatabase("after drop"));
 	}

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 
 import static io.vena.bosk.Tags.LONG_RUNNING;
+import static io.vena.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 import static io.vena.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static io.vena.bosk.drivers.mongo.TestParameters.EventTiming.NORMAL;
 
@@ -25,6 +26,7 @@ public class MongoDriverHanoiTest extends HanoiTest {
 		);
 		mongoService.client()
 			.getDatabase(settings.database())
+			.getCollection(COLLECTION_NAME)
 			.drop();
 	}
 

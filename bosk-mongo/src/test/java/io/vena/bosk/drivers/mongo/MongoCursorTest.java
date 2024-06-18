@@ -142,7 +142,7 @@ public class MongoCursorTest {
 
 	@AfterEach
 	void teardown() {
-		database.drop();
+		collection.drop();
 	}
 
 	private static final String DATABASE = "MongoCursorTest_DB";

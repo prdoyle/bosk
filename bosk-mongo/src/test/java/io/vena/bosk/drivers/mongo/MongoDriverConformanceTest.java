@@ -64,6 +64,7 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 				driver.close();
 				mongoService.client()
 					.getDatabase(driverSettings.database())
+					.getCollection(MainDriver.COLLECTION_NAME)
 					.drop();
 			});
 			return driver;
