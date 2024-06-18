@@ -11,6 +11,8 @@ import works.bosk.DriverStack;
 import works.bosk.drivers.HanoiTest;
 import works.bosk.junit.ParametersByName;
 
+import static works.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
+
 @UsesMongoService
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;
@@ -29,6 +31,7 @@ public class MongoDriverHanoiTest extends HanoiTest {
 		);
 		mongoService.client()
 			.getDatabase(settings.database())
+			.getCollection(COLLECTION_NAME)
 			.drop();
 	}
 
