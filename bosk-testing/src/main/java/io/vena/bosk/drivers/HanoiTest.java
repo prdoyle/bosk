@@ -36,6 +36,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * (Note that this doesn't provoke quite as many race conditions as one might think
  * when using just {@link Bosk#simpleDriver}, because hooks are usually executed on
  * the same thread that submitted the triggering update.)
+ *
+ * <p>
+ * Performance-wise, this is an unusual test because almost all the logic happens
+ * in hooks, meaning time it takes for submitted updates to be applied to the local
+ * state appears directly on the critical path.
  */
 public abstract class HanoiTest {
 	protected Bosk<HanoiState> bosk;
