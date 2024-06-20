@@ -15,6 +15,10 @@ java {
 	targetCompatibility = '17'
 }
 
+configurations {
+	otel
+}
+
 dependencies {
 	api project(":bosk-core")
 	api 'org.mongodb:mongodb-driver-sync:4.1.2'
@@ -24,7 +28,22 @@ dependencies {
 
 	testImplementation project(":bosk-testing")
 	testImplementation project(":lib-testing")
+
+	// OTEL
+//	implementation 'io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:2.5.0'
+//	testImplementation 'io.opentelemetry:opentelemetry-sdk:2.5.0'
+	testImplementation 'io.opentelemetry:opentelemetry-exporter-jaeger:1.34.1'
+	otel 'io.opentelemetry.javaagent:opentelemetry-javaagent:2.5.0'
+
 }
+
+test {
+		jvmArgs = [
+				"-javaagent:${configurations.otel.singleFile.absolutePath}",
+				"-Dotel.javaagent.configuration-file=${projectDir}/otel.properties"
+		]
+}
+
 
 pitest {
 	pitestVersion = '1.15.0'

@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.58
+    container_name: jaeger
+    ports:
+      - "5775:5775/udp"    # UDP port for tchannel, used by the Jaeger agent
+      - "6831:6831/udp"    # UDP port for the Jaeger agent
+      - "6832:6832/udp"    # UDP port for the Jaeger agent
+      - "5778:5778"        # HTTP port for the Jaeger agent's UI
+      - "16686:16686"      # HTTP port for the Jaeger query service UI
+      - "14268:14268"      # HTTP port for the Jaeger collector
+      - "14250:14250"      # gRPC port for the Jaeger collector
+      - "4318:4318"        # OTLP port for the Jaeger collector

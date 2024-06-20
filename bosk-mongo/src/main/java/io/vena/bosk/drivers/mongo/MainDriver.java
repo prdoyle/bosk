@@ -10,6 +10,7 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.vena.bosk.BoskDriver;
 import io.vena.bosk.BoskInfo;
 import io.vena.bosk.Identifier;
@@ -581,6 +582,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 		return ex;
 	}
 
+	@WithSpan
 	private <X extends Exception, Y extends Exception> void doRetryableDriverOperation(RetryableOperation<X,Y> operation, String description, Object... args) throws X,Y {
 		RetryableOperation<X,Y> operationInSession = () -> {
 			int immediateRetriesLeft = 2;
