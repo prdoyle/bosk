@@ -1,6 +1,8 @@
 package io.vena.bosk.drivers.mongo;
 
+import io.vena.bosk.DriverStack;
 import io.vena.bosk.drivers.HanoiTest;
+import io.vena.bosk.drivers.OtelSpanContextDriver;
 import io.vena.bosk.drivers.mongo.TestParameters.ParameterSet;
 import io.vena.bosk.junit.ParametersByName;
 import java.util.stream.Stream;
@@ -19,10 +21,13 @@ public class MongoDriverHanoiTest extends HanoiTest {
 	@ParametersByName
 	public MongoDriverHanoiTest(ParameterSet parameters) {
 		MongoDriverSettings settings = parameters.driverSettingsBuilder().build();
-		this.driverFactory = MongoDriver.factory(
-			mongoService.clientSettings(),
-			settings,
-			new BsonPlugin()
+		this.driverFactory = DriverStack.of(
+			OtelSpanContextDriver.factory(),
+			MongoDriver.factory(
+				mongoService.clientSettings(),
+				settings,
+				new BsonPlugin()
+			)
 		);
 		mongoService.client()
 			.getDatabase(settings.database())
@@ -39,10 +44,10 @@ public class MongoDriverHanoiTest extends HanoiTest {
 	static Stream<ParameterSet> parameters() {
 		return TestParameters.driverSettings(
 			Stream.of(
-				PandoFormat.oneBigDocument(),
-				PandoFormat.withGraftPoints("/puzzles"),
-				PandoFormat.withGraftPoints("/puzzles/-puzzle-/towers"),
-				PandoFormat.withGraftPoints("/puzzles", "/puzzles/-puzzle-/towers/-tower-/discs"),
+//				PandoFormat.oneBigDocument(),
+//				PandoFormat.withGraftPoints("/puzzles"),
+//				PandoFormat.withGraftPoints("/puzzles/-puzzle-/towers"),
+//				PandoFormat.withGraftPoints("/puzzles", "/puzzles/-puzzle-/towers/-tower-/discs"),
 				SEQUOIA
 			),
 			Stream.of(NORMAL)

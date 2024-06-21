@@ -1,5 +1,6 @@
 package io.vena.bosk.drivers;
 
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.vena.bosk.BindingEnvironment;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.Catalog;
@@ -73,6 +74,7 @@ public abstract class HanoiTest {
 	}
 
 	@ParametersByName
+	@WithSpan
 	void onePuzzle() throws InterruptedException {
 		int numDiscs = 6;
 		bosk.driver().submitReplacement(refs.puzzle(PUZZLE_1),

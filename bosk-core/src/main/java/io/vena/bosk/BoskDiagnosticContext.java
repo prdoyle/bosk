@@ -1,7 +1,18 @@
 package io.vena.bosk;
 
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.context.propagation.TextMapGetter;
+import io.opentelemetry.context.propagation.TextMapPropagator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * A thread-local set of name-value pairs that propagate all the way from
@@ -13,13 +24,20 @@ public final class BoskDiagnosticContext {
 
 	public final class DiagnosticScope implements AutoCloseable {
 		final MapValue<String> oldAttributes = currentAttributes.get();
+		final Scope otelScope;
 
 		DiagnosticScope(MapValue<String> attributes) {
 			currentAttributes.set(attributes);
+			otelScope = PROPAGATORS.getTextMapPropagator().extract(
+				Context.current(),
+				attributes,
+				DIAGNOSTIC_ATTRIBUTE_GETTER
+			).makeCurrent();
 		}
 
 		@Override
 		public void close() {
+			otelScope.close();
 			currentAttributes.set(oldAttributes);
 		}
 	}
@@ -68,4 +86,41 @@ public final class BoskDiagnosticContext {
 			return new DiagnosticScope(attributes);
 		}
 	}
+
+	public DiagnosticScope withCurrentOtelContext() {
+		Map<String, String> carrier = new LinkedHashMap<>();
+		TextMapPropagator textMapPropagator = PROPAGATORS
+			.getTextMapPropagator();
+		textMapPropagator
+			.inject(
+				Context.current(),
+				carrier,
+				(map, key, value) -> {
+					if (map != null) {
+						map.put(OTEL_PREFIX + key, value);
+					}
+				});
+
+		return withAttributes(MapValue.fromOrderedMap(carrier));
+	}
+
+	private static final ContextPropagators PROPAGATORS = GlobalOpenTelemetry.getPropagators();
+
+	private static final TextMapGetter<MapValue<String>> DIAGNOSTIC_ATTRIBUTE_GETTER =
+		new TextMapGetter<>() {
+			@Override
+			public Set<String> keys(MapValue<String> carrier) {
+				return carrier.keySet().stream()
+					.filter(k -> k.startsWith(OTEL_PREFIX))
+					.map(k -> k.substring(OTEL_PREFIX.length()))
+					.collect(toSet());
+			}
+
+			@Override
+			public String get(MapValue<String> carrier, String key) {
+				return carrier == null ? null : carrier.get(OTEL_PREFIX + key);
+			}
+		};
+
+	public static final String OTEL_PREFIX = "otel.";
 }
