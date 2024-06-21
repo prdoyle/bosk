@@ -1,5 +1,7 @@
 package io.vena.bosk;
 
+import io.opentelemetry.instrumentation.annotations.SpanAttribute;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.vena.bosk.BoskDiagnosticContext.DiagnosticScope;
 import io.vena.bosk.ReferenceUtils.CatalogRef;
 import io.vena.bosk.ReferenceUtils.ListingRef;
@@ -399,7 +401,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 					) {
 						try (@SuppressWarnings("unused") ReadContext executionContext = new ReadContext(rootForHook)) {
 							LOGGER.debug("Hook: RUN {}({})", reg.name, changedRef);
-							reg.hook.onChanged(changedRef);
+							callHook(reg, changedRef, reg.name());
 						} catch (Exception e) {
 							LOGGER.error("Bosk hook \"" + reg.name() + "\" terminated with an exception, which usually indicates a bug. State updates may have been lost", e);
 
@@ -413,6 +415,11 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 					}
 				});
 			});
+		}
+
+		@WithSpan
+		private static <R extends StateTreeNode, S> void callHook(Bosk<R>.HookRegistration<S> reg, @SpanAttribute("hook.reference") Reference<S> changedRef, @SpanAttribute("hook.name") String hookName) {
+			reg.hook.onChanged(changedRef);
 		}
 
 		/**

@@ -1,5 +1,7 @@
 package io.vena.bosk.drivers;
 
+import io.opentelemetry.instrumentation.annotations.SpanAttribute;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.vena.bosk.Bosk;
 import io.vena.bosk.Catalog;
 import io.vena.bosk.CatalogReference;
@@ -62,7 +64,8 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
-	void replaceIdentical(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
+	@WithSpan("replaceIdentical")
+	void replaceIdentical(@SpanAttribute("enclosingPath") Path enclosingCatalogPath, @SpanAttribute("childID") Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitReplacement(ref.then(childID), newEntity(childID, ref));
 		assertCorrectBoskContents();
@@ -455,7 +458,8 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		return ref;
 	}
 
-	private CatalogReference<TestEntity> initializeBoskWithCatalog(Path enclosingCatalogPath) {
+	@WithSpan
+	private CatalogReference<TestEntity> initializeBoskWithCatalog(@SpanAttribute("enclosingCatalogPath") Path enclosingCatalogPath) {
 		LOGGER.debug("initializeBoskWithCatalog({})", enclosingCatalogPath);
 		setupBosksAndReferences(driverFactory);
 		try {

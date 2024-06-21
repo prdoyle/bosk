@@ -375,6 +375,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 		}
 
 		@Override
+		@WithSpan("onConnectionSucceeded")
 		public void onConnectionSucceeded() throws
 			UnrecognizedFormatException,
 			UninitializedCollectionException,
@@ -582,7 +583,6 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 		return ex;
 	}
 
-	@WithSpan
 	private <X extends Exception, Y extends Exception> void doRetryableDriverOperation(RetryableOperation<X,Y> operation, String description, Object... args) throws X,Y {
 		RetryableOperation<X,Y> operationInSession = () -> {
 			int immediateRetriesLeft = 2;

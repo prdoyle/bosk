@@ -27,7 +27,8 @@ public class MongoDriverHanoiTest extends HanoiTest {
 				mongoService.clientSettings(),
 				settings,
 				new BsonPlugin()
-			)
+			),
+			OtelSpanContextDriver.factory()
 		);
 		mongoService.client()
 			.getDatabase(settings.database())
