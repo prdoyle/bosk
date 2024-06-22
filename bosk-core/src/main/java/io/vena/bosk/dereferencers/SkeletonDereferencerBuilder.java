@@ -22,7 +22,7 @@ import java.lang.reflect.Method;
 abstract class SkeletonDereferencerBuilder implements DereferencerBuilder {
 	protected final ClassBuilder<Dereferencer> cb;
 
-	public SkeletonDereferencerBuilder(String className, ClassLoader parentClassLoader, StackTraceElement sourceFileOrigin) {
+	public SkeletonDereferencerBuilder(String className, ClassLoader parentClassLoader, StackWalker.StackFrame sourceFileOrigin) {
 		this.cb = new ClassBuilder<>(className, DereferencerRuntime.class, parentClassLoader, sourceFileOrigin);
 	}
 
