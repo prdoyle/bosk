@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.vena.bosk.util.ReflectionHelpers.getDeclaredMethodsInOrder;
 import static java.lang.reflect.Modifier.isPrivate;
 import static java.lang.reflect.Modifier.isStatic;
 
@@ -25,7 +26,7 @@ class HookRegistrar {
 			receiverClass != null;
 			receiverClass = receiverClass.getSuperclass()
 		) {
-			for (Method method : receiverClass.getDeclaredMethods()) {
+			for (Method method : getDeclaredMethodsInOrder(receiverClass)) {
 				Hook hookAnnotation = method.getAnnotation(Hook.class);
 				if (hookAnnotation == null) {
 					continue;
