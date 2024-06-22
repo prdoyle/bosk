@@ -515,9 +515,13 @@ public class HooksTest extends AbstractBoskTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(classes = {ReferenceSubclassHooks.class})
-	void registerHooks_referenceSubclasses_works(Class<? extends ReferenceSubclassHooks> receiverClass) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
-		ReferenceSubclassHooks receiver = receiverClass.getConstructor(Bosk.class).newInstance(bosk);
+	@ValueSource(classes = {
+		ReferenceSubclassHooks.class,
+		ImplicitBytecodeOrderHooks.class,
+		InheritedHooksSub.class
+	})
+	void registerHooks_multipleHooks_works(Class<? extends AbstractHookRecorder> receiverClass) throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+		AbstractHookRecorder receiver = receiverClass.getConstructor(Bosk.class).newInstance(bosk);
 		List<List<Object>> expected = asList(
 			// At registration time, the hook is called on all existing nodes
 			asList("childrenChanged", refs.parentChildren()),
@@ -527,10 +531,16 @@ public class HooksTest extends AbstractBoskTest {
 		assertEquals(expected, receiver.hookCalls);
 	}
 
-	public static class ReferenceSubclassHooks {
-		final List<List<Object>> hookCalls = new ArrayList<>();
-		public ReferenceSubclassHooks(Bosk<?> bosk) throws InvalidTypeException {
+	public static abstract class AbstractHookRecorder {
+		protected final List<List<Object>> hookCalls = new ArrayList<>();
+		public AbstractHookRecorder(Bosk<?> bosk) throws InvalidTypeException {
 			bosk.registerHooks(this);
+		}
+	}
+
+	public static class ReferenceSubclassHooks extends AbstractHookRecorder {
+		public ReferenceSubclassHooks(Bosk<?> bosk) throws InvalidTypeException {
+			super(bosk);
 		}
 
 		@Hook("/entities/parent/children")
@@ -549,6 +559,55 @@ public class HooksTest extends AbstractBoskTest {
 		}
 	}
 
+	public static class ImplicitBytecodeOrderHooks extends AbstractHookRecorder {
+		public ImplicitBytecodeOrderHooks(Bosk<?> bosk) throws InvalidTypeException {
+			super(bosk);
+		}
+
+		@Hook(value = "/entities/parent/children")
+		void childrenChanged(Reference<Catalog<TestChild>> ref) {
+			hookCalls.add(asList("childrenChanged", ref));
+		}
+
+		@Hook(value = "/entities/parent/oddChildren")
+		void oddChildrenChanged(Reference<Listing<TestChild>> ref) {
+			hookCalls.add(asList("oddChildrenChanged", ref));
+		}
+
+		@Hook(value = "/entities/parent/stringSideTable")
+		void stringSideTableChanged(Reference<SideTable<TestChild, String>> ref) {
+			hookCalls.add(asList("stringSideTableChanged", ref));
+		}
+
+	}
+
+	public abstract static class InheritedHooksSuper extends AbstractHookRecorder {
+		public InheritedHooksSuper(Bosk<?> bosk) throws InvalidTypeException {
+			super(bosk);
+		}
+
+		@Hook(value = "/entities/parent/children")
+		void childrenChanged(Reference<Catalog<TestChild>> ref) {
+			hookCalls.add(asList("childrenChanged", ref));
+		}
+
+		@Hook(value = "/entities/parent/stringSideTable", priority = -1)
+		void stringSideTableChanged(Reference<SideTable<TestChild, String>> ref) {
+			hookCalls.add(asList("stringSideTableChanged", ref));
+		}
+
+	}
+
+	public static class InheritedHooksSub extends InheritedHooksSuper {
+		public InheritedHooksSub(Bosk<?> bosk) throws InvalidTypeException {
+			super(bosk);
+		}
+
+		@Hook(value = "/entities/parent/oddChildren")
+		void oddChildrenChanged(Reference<Listing<TestChild>> ref) {
+			hookCalls.add(asList("oddChildrenChanged", ref));
+		}
+	}
 
 	interface Submit {
 		<T> void replacement(Bosk<?> bosk, Refs refs, Reference<T> target, T newValue);
