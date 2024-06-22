@@ -7,8 +7,25 @@ package works.bosk.logging;
  * For now, only bosk-mongo uses these.
  */
 public final class MdcKeys {
-	public static final String BOSK_NAME        = "bosk.name";
+	/**
+	 * The value of {@link Bosk#name()}.
+	 */
+	public static final String BOSK_NAME = "bosk.name";
+
+	/**
+	 * The value of {@link Bosk#instanceID()}.
+	 */
 	public static final String BOSK_INSTANCE_ID = "bosk.instanceID";
-	public static final String EVENT            = "bosk.MongoDriver.event";
-	public static final String TRANSACTION      = "bosk.MongoDriver.transaction";
+
+	/**
+	 * A unique string generated for each MongoDB change event received by a particular bosk.
+	 */
+	public static final String EVENT = "bosk.MongoDriver.event";
+
+	/**
+	 * A unique string generated for each MongoDB {@link ClientSession}.
+	 * Technically, not every session is a transaction, but we do use them for
+	 * transactions, and this name seemed to convey the intent better than "session".
+	 */
+	public static final String TRANSACTION = "bosk.MongoDriver.transaction";
 }
