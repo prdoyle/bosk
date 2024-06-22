@@ -15,6 +15,7 @@ import works.bosk.exceptions.InvalidTypeException;
 
 import static java.lang.reflect.Modifier.isPrivate;
 import static java.lang.reflect.Modifier.isStatic;
+import static works.bosk.util.ReflectionHelpers.getDeclaredMethodsInOrder;
 
 @RequiredArgsConstructor
 class HookRegistrar {
@@ -25,7 +26,7 @@ class HookRegistrar {
 			receiverClass != null;
 			receiverClass = receiverClass.getSuperclass()
 		) {
-			for (Method method : receiverClass.getDeclaredMethods()) {
+			for (Method method : getDeclaredMethodsInOrder(receiverClass)) {
 				Hook hookAnnotation = method.getAnnotation(Hook.class);
 				if (hookAnnotation == null) {
 					continue;
