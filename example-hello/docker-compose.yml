@@ -1,0 +1,7 @@
+services:
+  hello:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "1111:1111"
