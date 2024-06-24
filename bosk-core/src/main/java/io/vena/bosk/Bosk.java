@@ -225,7 +225,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			assertCorrectBosk(target);
 			synchronized (this) {
 				boolean preconditionsSatisfied;
-				try (@SuppressWarnings("unused") ReadContext executionContext = new ReadContext(currentRoot)) {
+				try (@SuppressWarnings("unused") ReadContext executionContext = supersedingReadContext()) {
 					preconditionsSatisfied = !target.exists();
 				}
 				if (preconditionsSatisfied) {
@@ -264,7 +264,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			assertCorrectBosk(precondition);
 			synchronized (this) {
 				boolean preconditionsSatisfied;
-				try (@SuppressWarnings("unused") ReadContext executionContext = new ReadContext(currentRoot)) {
+				try (@SuppressWarnings("unused") ReadContext executionContext = supersedingReadContext()) {
 					preconditionsSatisfied = Objects.equals(precondition.valueIfExists(), requiredValue);
 				}
 				if (preconditionsSatisfied) {
@@ -284,7 +284,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			assertCorrectBosk(precondition);
 			synchronized (this) {
 				boolean preconditionsSatisfied;
-				try (@SuppressWarnings("unused") ReadContext executionContext = new ReadContext(currentRoot)) {
+				try (@SuppressWarnings("unused") ReadContext executionContext = supersedingReadContext()) {
 					preconditionsSatisfied = Objects.equals(precondition.value(), requiredValue);
 				}
 				if (preconditionsSatisfied) {
@@ -670,7 +670,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 */
 	public final class ReadContext implements AutoCloseable {
 		final R originalRoot;
-		final R snapshot;
+		final R snapshot; // Mostly for adopt()
 
 		/**
 		 * Creates a {@link ReadContext} for the current thread. If one is already
@@ -693,8 +693,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			}
 		}
 
-		private ReadContext(ReadContext toInherit) {
-			R snapshotToInherit = requireNonNull(toInherit.snapshot);
+		private ReadContext(ReadContext toAdopt) {
+			R snapshotToInherit = requireNonNull(toAdopt.snapshot);
 			originalRoot = rootSnapshot.get();
 			if (originalRoot == null) {
 				rootSnapshot.set(this.snapshot = snapshotToInherit);
@@ -797,6 +797,35 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 	 */
 	public final ReadContext readContext() {
 		return new ReadContext();
+	}
+
+	/**
+	 * Establishes a new {@link ReadContext} for the calling thread, similar to {@link #readContext()}, except that
+	 * if the calling thread already has a context, it will be ignored,
+	 * and the newly created context will have a fresh snapshot of the bosk's state tree;
+	 * then, when the returned context is {@link ReadContext#close closed},
+	 * the previous context will be restored.
+	 * <p>
+	 * This is intended to support coordination of distributed logic among multiple threads (or servers) using the same bosk.
+	 * Threads can submit an update, call {@link BoskDriver#flush}, and then use this method
+	 * to inspect the bosk state and determine what effect the update had.
+	 * <p>
+	 * Use this method when it's important to observe the bosk state after a {@link BoskDriver#flush flush}
+	 * performed by the same thread.
+	 * When in doubt, you probably want {@link #readContext()} instead of this.
+	 * This method opens the possibility that the same thread can see two different revisions of the bosk state,
+	 * which can lead to confusing bugs in application code.
+	 * In addition, when the returned context is {@link ReadContext#close closed},
+	 * the bosk state can appear to revert to a prior state, which can be confusing.
+	 *
+	 * @see #readContext()
+	 */
+	public final ReadContext supersedingReadContext() {
+		R snapshot = currentRoot;
+		if (snapshot == null) {
+			throw new IllegalStateException("Bosk constructor has not yet finished; cannot create a ReadContext");
+		}
+		return new ReadContext(snapshot);
 	}
 
 	/**

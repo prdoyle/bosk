@@ -356,44 +356,58 @@ class BoskLocalReferenceTest {
 		assertThrows(IllegalStateException.class, ref::value, "Can't read from Bosk between ReadContexts");
 
 		T secondValue = updater.apply(firstValue);
+		T thirdValue = updater.apply(secondValue);
 		try (val __ = bosk.readContext()) {
 			assertSame(firstValue, ref.value(), "New ReadContext sees same value as before");
 			bosk.driver().submitReplacement(ref, secondValue);
 			assertSame(firstValue, ref.value(), "Bosk updates not visible during the same ReadContext");
+
+			try (val ___ = bosk.supersedingReadContext()) {
+				assertSame(secondValue, ref.value(), "Superseding context sees the latest state");
+				try (val ____ = bosk.readContext()) {
+					assertSame(secondValue, ref.value(), "Nested context matches outer context");
+				}
+			}
+
+			try (val ___ = bosk.readContext()) {
+				assertSame(firstValue, ref.value(), "Nested context matches original outer context");
+			}
 		}
 
-		try (val context = bosk.readContext()) {
+		try (
+			val context = bosk.readContext();
+		) {
 			assertSame(secondValue, ref.value(), "New value is visible in next ReadContext");
-			bosk.driver().submitReplacement(ref, firstValue);
+			bosk.driver().submitReplacement(ref, thirdValue);
 			assertSame(secondValue, ref.value(), "Bosk updates still not visible during the same ReadContext");
 			ExecutorService executor = Executors.newFixedThreadPool(1);
-			Future<?> future = executor.submit(()->{
-				IllegalStateException caught = null;
-				try {
-					ref.value();
-				} catch (IllegalStateException e) {
-					caught = e;
-				} catch (Throwable e) {
-					fail("Unexpected exception: ", e);
-				}
-				assertNotNull(caught, "New thread should not have any scope by default, so an exception should be thrown");
-				try (val unrelatedContext = bosk.readContext()) {
-					assertSame(firstValue, ref.value(), "Separate thread should see the latest state");
-				}
-				try (val inheritedContext = context.adopt()) {
-					assertSame(secondValue, ref.value(), "Inherited scope should see the same state");
-
-					try (val reinheritedContext = inheritedContext.adopt()) {
-						// Harmless to re-assert a scope you're already in
-						assertSame(secondValue, ref.value(), "Inner scope should see the same state");
+			try {
+				Future<?> future = executor.submit(() -> {
+					IllegalStateException caught = null;
+					try {
+						ref.value();
+					} catch (IllegalStateException e) {
+						caught = e;
+					} catch (Throwable e) {
+						fail("Unexpected exception: ", e);
 					}
-				}
-			});
-			future.get();
-		}
+					assertNotNull(caught, "New thread should not have any scope by default, so an exception should be thrown");
+					try (val unrelatedContext = bosk.readContext()) {
+						assertSame(thirdValue, ref.value(), "Separate thread should see the latest state");
+					}
+					try (val inheritedContext = context.adopt()) {
+						assertSame(secondValue, ref.value(), "Inherited scope should see the same state");
 
-		try (val __ = bosk.readContext()) {
-			assertSame(firstValue, ref.value(), "Referenced item is restored to its original state");
+						try (val reinheritedContext = inheritedContext.adopt()) {
+							// Harmless to re-assert a scope you're already in
+							assertSame(secondValue, ref.value(), "Inner scope should see the same state");
+						}
+					}
+				});
+				future.get();
+			} finally {
+				executor.shutdown();
+			}
 		}
 
 		// Reset the bosk for subsequent tests.  This is necessary because we do

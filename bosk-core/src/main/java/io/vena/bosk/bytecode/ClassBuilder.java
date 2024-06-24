@@ -376,7 +376,7 @@ public final class ClassBuilder<T> {
 
 		int lineNumber = bestFrame.getLineNumber();
 		if (lineNumber == currentLineNumber) {
-			LOGGER.debug("Omitting line number info; line number is already {}", lineNumber);
+			LOGGER.trace("Omitting line number info; line number is already {}", lineNumber);
 		} else {
 			currentLineNumber = lineNumber;
 			Label label = new Label();

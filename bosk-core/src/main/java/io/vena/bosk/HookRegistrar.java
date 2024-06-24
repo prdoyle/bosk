@@ -41,7 +41,7 @@ class HookRegistrar {
 				List<Function<Reference<?>, Object>> argumentFunctions = new ArrayList<>(method.getParameterCount());
 				argumentFunctions.add(ref -> receiverObject); // The "this" pointer
 				for (Parameter p : method.getParameters()) {
-					if (p.getType().isAssignableFrom(Reference.class)) {
+					if (Reference.class.isAssignableFrom(p.getType())) {
 						if (ReferenceUtils.parameterType(p.getParameterizedType(), Reference.class, 0).equals(scope.targetType())) {
 							argumentFunctions.add(ref -> ref);
 						} else {
