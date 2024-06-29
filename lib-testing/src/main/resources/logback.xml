@@ -10,13 +10,13 @@
 	</root>
 
 	<!-- This emits warnings that matter in production but not in tests -->
-	<logger name="io.vena.bosk.drivers.mongo.UninitializedCollectionException" level="ERROR"/>
+	<logger name="mongo.drivers.works.bosk.UninitializedCollectionException" level="ERROR"/>
 
 	<!-- How to add more tracing during unit tests
 	<logger name="io.vena.bosk.drivers.mongo" level="DEBUG"/>
-	<logger name="io.vena.bosk.drivers.DriverConformanceTest" level="DEBUG"/>
-	<logger name="io.vena.bosk.drivers.mongo.PandoFormatDriver" level="TRACE"/>
-	<logger name="io.vena.bosk.drivers.mongo.MainDriver" level="TRACE"/>
+	<logger name="drivers.works.bosk.DriverConformanceTest" level="DEBUG"/>
+	<logger name="mongo.drivers.works.bosk.PandoFormatDriver" level="TRACE"/>
+	<logger name="mongo.drivers.works.bosk.MainDriver" level="TRACE"/>
 	 -->
 
 </configuration>

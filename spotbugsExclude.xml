@@ -26,12 +26,12 @@
 		<Bug code="PI"/> <!-- Some of our type names match those of the Java Standard Library -->
 	</Match>
 	<Match>
-		<Class name="io.vena.bosk.Path"/>
+		<Class name="works.bosk.Path"/>
 		<Method name="empty"/>
 		<Bug code="MS"/>
 	</Match>
 	<Match>
-		<Class name="io.vena.bosk.Bosk$DefiniteReference"/>
+		<Class name="works.bosk.Bosk$DefiniteReference"/>
 		<Method name="dereferencer"/>
 		<Bug code="JLM"/>
 	</Match>

@@ -1,7 +1,7 @@
 package io.vena.hello.state;
 
-import io.vena.bosk.Entity;
-import io.vena.bosk.Identifier;
+import works.bosk.Entity;
+import works.bosk.Identifier;
 
 /**
  * Someone to be greeted.

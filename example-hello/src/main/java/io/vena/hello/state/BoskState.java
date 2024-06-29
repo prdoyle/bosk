@@ -1,8 +1,8 @@
 package io.vena.hello.state;
 
-import io.vena.bosk.Bosk;
-import io.vena.bosk.Catalog;
-import io.vena.bosk.StateTreeNode;
+import works.bosk.Bosk;
+import works.bosk.Catalog;
+import works.bosk.StateTreeNode;
 
 /**
  * The root of the {@link Bosk} state tree.

@@ -1,8 +1,8 @@
 package io.vena.hello;
 
-import io.vena.bosk.Reference;
-import io.vena.bosk.annotations.Hook;
-import io.vena.bosk.exceptions.InvalidTypeException;
+import works.bosk.Reference;
+import works.bosk.annotations.Hook;
+import works.bosk.exceptions.InvalidTypeException;
 import io.vena.hello.state.Target;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
