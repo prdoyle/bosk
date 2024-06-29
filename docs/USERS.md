@@ -872,12 +872,12 @@ unless the method accepts enough arguments to bind all the parameters.
 Example:
 
 ``` java
-import io.vena.bosk.Bosk;
-import io.vena.bosk.Identifier;
-import io.vena.bosk.Path;
-import io.vena.bosk.Reference;
-import io.vena.bosk.annotations.ReferencePath;
-import io.vena.bosk.exceptions.InvalidTypeException;
+import works.bosk.Bosk;
+import works.bosk.Identifier;
+import works.bosk.Path;
+import works.bosk.Reference;
+import annotations.works.bosk.ReferencePath;
+import exceptions.works.bosk.InvalidTypeException;
 
 @Singleton // You can use your framework's dependency injection for this
 public class ExampleBosk extends Bosk<ExampleState> {

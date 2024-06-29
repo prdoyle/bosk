@@ -30,8 +30,8 @@ pitest {
 	pitestVersion = '1.15.0'
 	junit5PluginVersion = '1.2.0'
 	jvmArgs = ['-ea'] // Our unit tests check for assert statements
-	targetClasses = ['io.vena.bosk.drivers.mongo.BsonSurgeon']
-	targetTests   = ['io.vena.bosk.drivers.mongo.BsonSurgeonTest']
+	targetClasses = ['works.bosk.drivers.mongo.BsonSurgeon']
+	targetTests   = ['works.bosk.drivers.mongo.BsonSurgeonTest']
 	threads = 4
 	outputFormats = ['XML', 'HTML']
 	timestampedReports = false

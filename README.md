@@ -1,5 +1,5 @@
-![Release status](https://github.com/venasolutions/bosk/actions/workflows/release.yml/badge.svg)
-[![Maven Central](https://img.shields.io/maven-central/v/io.vena/bosk-core)](https://mvnrepository.com/artifact/io.vena/bosk-core)
+![Release status](https://github.com/boskworks/bosk/actions/workflows/release.yml/badge.svg)
+[![Maven Central](https://img.shields.io/maven-central/v/works.bosk/bosk-core)](https://mvnrepository.com/artifact/works.bosk/bosk-core)
 
 # Bosk
 
@@ -69,8 +69,8 @@ The library works particularly well with Java records.
 You can define your state tree's root node as follows:
 
 ```
-import io.vena.bosk.StateTreeNode;
-import io.vena.bosk.Identifier;
+import works.bosk.StateTreeNode;
+import works.bosk.Identifier;
 
 public record ExampleState (
 	// Add fields here as you need them
@@ -92,11 +92,11 @@ public class ExampleState implements StateTreeNode {
 Now declare your singleton `Bosk` class to house and manage your application state:
 
 ```
-import io.vena.bosk.Bosk;
-import io.vena.bosk.DriverFactory;
-import io.vena.bosk.Reference;
-import io.vena.bosk.annotations.ReferencePath;
-import io.vena.bosk.exceptions.InvalidTypeException;
+import works.bosk.Bosk;
+import works.bosk.DriverFactory;
+import works.bosk.Reference;
+import annotations.works.bosk.ReferencePath;
+import exceptions.works.bosk.InvalidTypeException;
 
 @Singleton // You can use your framework's dependency injection for this
 public class ExampleBosk extends Bosk<ExampleState> {
@@ -170,9 +170,9 @@ and change your Bosk `driverFactory` method to substitute `MongoDriver` in place
 import com.mongodb.MongoClientSettings;
 import com.mongodb.ReadConcern;
 import com.mongodb.WriteConcern;
-import io.vena.bosk.drivers.mongo.BsonPlugin;
-import io.vena.bosk.drivers.mongo.MongoDriver;
-import io.vena.bosk.drivers.mongo.MongoDriverSettings;
+import mongo.drivers.works.bosk.BsonPlugin;
+import mongo.drivers.works.bosk.MongoDriver;
+import mongo.drivers.works.bosk.MongoDriverSettings;
 
 ...
 	private static DriverFactory<ExampleState> driverFactory() {

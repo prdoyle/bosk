@@ -50,7 +50,7 @@ publishing {
 					developer {
 						id = 'pdoyle'
 						name = 'Patrick Doyle'
-						email = 'pdoyle@venacorp.com'
+						email = 'p.r.doyle@gmail.com'
 					}
 					developer {
 						id = 'gjohnson'
@@ -59,9 +59,9 @@ publishing {
 					}
 				}
 				scm {
-					connection = 'scm:git:git://github.com/venasolutions/bosk.git'
-					developerConnection = 'scm:git:ssh://github.com:venasolutions/bosk.git'
-					url = 'https://github.com/venasolutions/bosk'
+					connection = 'scm:git:git://github.com/boskworks/bosk.git'
+					developerConnection = 'scm:git:ssh://github.com:boskworks/bosk.git'
+					url = 'https://github.com/boskworks/bosk'
 				}
 			}
 		}
