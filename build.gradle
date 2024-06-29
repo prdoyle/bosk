@@ -33,6 +33,6 @@ spotless {
 }
 
 allprojects {
-	group = 'io.vena'
+	group = 'works.bosk'
 	// version should be set as a property with -Pversion
 }
