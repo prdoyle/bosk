@@ -1,4 +1,4 @@
-package io.vena.hello;
+package works.bosk.hello;
 
 import java.util.List;
 

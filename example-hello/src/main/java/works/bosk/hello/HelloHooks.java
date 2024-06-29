@@ -1,9 +1,9 @@
-package io.vena.hello;
+package works.bosk.hello;
 
 import works.bosk.Reference;
 import works.bosk.annotations.Hook;
 import works.bosk.exceptions.InvalidTypeException;
-import io.vena.hello.state.Target;
+import works.bosk.hello.state.Target;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

@@ -1,4 +1,4 @@
-package io.vena.hello.state;
+package works.bosk.hello.state;
 
 import works.bosk.Bosk;
 import works.bosk.Catalog;
