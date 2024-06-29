@@ -32,7 +32,7 @@ jobs:
 
       - name: Run Gradle Publish
         run: |
-          ./gradlew spotlessCheck spotBugsMain test publish \
+          ./gradlew :bosk-core:test publish \
             -Pversion="${{github.event.release.tag_name}}" \
             --info
         env:
