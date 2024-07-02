@@ -1,6 +1,12 @@
 ![Release status](https://github.com/venasolutions/bosk/actions/workflows/release.yml/badge.svg)
 [![Maven Central](https://img.shields.io/maven-central/v/io.vena/bosk-core)](https://mvnrepository.com/artifact/io.vena/bosk-core)
 
+# MOVED
+
+ **This project now lives here: https://github.com/boskworks/bosk**
+
+If you are a Vena developer, check with your dev management or technical leaders to understand the current state of the bosk library used internally.
+
 # Bosk
 
 ![Three inquisitive cartoon trees with eyes](/art/bosk-evergreen-icon.png)
