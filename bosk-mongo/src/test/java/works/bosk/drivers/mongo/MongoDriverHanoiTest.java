@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeAll;
 import works.bosk.drivers.HanoiTest;
 import works.bosk.junit.ParametersByName;
 
+@UsesMongoService
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;
 
