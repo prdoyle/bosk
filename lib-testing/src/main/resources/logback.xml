@@ -17,6 +17,8 @@
 	<logger name="works.bosk.drivers.DriverConformanceTest" level="DEBUG"/>
 	<logger name="works.bosk.drivers.mongo.PandoFormatDriver" level="TRACE"/>
 	<logger name="works.bosk.drivers.mongo.MainDriver" level="TRACE"/>
+	<logger name="works.bosk.drivers.mongo.AbstractMongoDriverTest" level="INFO"/>
+	<logger name="works.bosk.drivers.mongo.BoskLogFilter" level="DEBUG"/>
 	 -->
 
 </configuration>
