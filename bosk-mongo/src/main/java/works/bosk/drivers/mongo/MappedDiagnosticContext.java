@@ -2,6 +2,7 @@ package works.bosk.drivers.mongo;
 
 import org.slf4j.MDC;
 import works.bosk.Identifier;
+import works.bosk.logging.MdcKeys;
 
 final class MappedDiagnosticContext {
 

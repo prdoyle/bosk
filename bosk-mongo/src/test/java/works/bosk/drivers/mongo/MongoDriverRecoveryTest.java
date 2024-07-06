@@ -34,7 +34,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	FlushOrWait flushOrWait;
 
 	@BeforeEach
-	void setupLogging() {
+	void overrideLogging() {
 		// This test deliberately provokes a lot of warnings, so log errors only
 		setLogging(ERROR, MainDriver.class, ChangeReceiver.class);
 	}
@@ -78,6 +78,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		LOGGER.debug("Create a new bosk that can't connect");
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test " + boskCounter.incrementAndGet(), TestEntity.class, this::initialRoot, driverFactory);
+
 		MongoDriverSpecialTest.Refs refs = bosk.buildReferences(MongoDriverSpecialTest.Refs.class);
 		BoskDriver<TestEntity> driver = bosk.driver();
 		TestEntity defaultState = initialRoot(bosk);
@@ -206,6 +207,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		TestEntity beforeState = initializeDatabase("before deletion");
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test " + boskCounter.incrementAndGet(), TestEntity.class, this::initialRoot, driverFactory);
+
 		try (var __ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
@@ -267,6 +269,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		TestEntity beforeState = initializeDatabase("before disruption");
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>("Test " + boskCounter.incrementAndGet(), TestEntity.class, this::initialRoot, driverFactory);
+
 		try (var __ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}

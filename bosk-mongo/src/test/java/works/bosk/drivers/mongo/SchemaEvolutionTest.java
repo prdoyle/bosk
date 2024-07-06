@@ -41,6 +41,10 @@ public class SchemaEvolutionTest {
 		fromHelper.setupDriverFactory();
 		toHelper  .setupDriverFactory();
 
+		// Changing formats often causes events that are not understood by other FormatDrivers
+		fromHelper.setLogging(Level.ERROR, ChangeReceiver.class);
+		toHelper.setLogging(Level.ERROR, ChangeReceiver.class);
+
 		fromHelper.clearTearDown(testInfo);
 		toHelper  .clearTearDown(testInfo);
 	}
@@ -68,8 +72,6 @@ public class SchemaEvolutionTest {
 
 	@ParametersByName
 	void pairwise_readCompatible() throws Exception {
-		fromHelper.setLogging(Level.ERROR, SequoiaFormatDriver.class, PandoFormatDriver.class);
-
 		LOGGER.debug("Create fromBosk [{}]", fromHelper.name);
 		Bosk<TestEntity> fromBosk = newBosk(fromHelper);
 		Refs fromRefs = fromBosk.buildReferences(Refs.class);
@@ -105,8 +107,6 @@ public class SchemaEvolutionTest {
 
 	@ParametersByName
 	void pairwise_writeCompatible() throws Exception {
-		fromHelper.setLogging(Level.ERROR, SequoiaFormatDriver.class, PandoFormatDriver.class, ChangeReceiver.class);
-
 		LOGGER.debug("Create fromBosk [{}]", fromHelper.name);
 		Bosk<TestEntity> fromBosk = newBosk(fromHelper);
 		Refs fromRefs = fromBosk.buildReferences(Refs.class);

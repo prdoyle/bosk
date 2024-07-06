@@ -17,6 +17,7 @@ import works.bosk.Bosk;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
+import works.bosk.DriverStack;
 import works.bosk.Entity;
 import works.bosk.Identifier;
 import works.bosk.Listing;
@@ -29,6 +30,7 @@ import works.bosk.drivers.mongo.MongoDriverSettings.MongoDriverSettingsBuilder;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.logback.BoskLogFilter;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -38,6 +40,7 @@ abstract class AbstractMongoDriverTest {
 	protected static final Identifier rootID = Identifier.from("root");
 
 	protected static MongoService mongoService;
+	protected BoskLogFilter.LogController logController;
 	protected DriverFactory<TestEntity> driverFactory;
 	protected Deque<Runnable> tearDownActions;
 	protected final MongoDriverSettings driverSettings;
@@ -54,7 +57,8 @@ abstract class AbstractMongoDriverTest {
 
 	@BeforeEach
 	void setupDriverFactory() {
-		driverFactory = createDriverFactory();
+		logController = new BoskLogFilter.LogController();
+		driverFactory = createDriverFactory(logController);
 
 		// Start with a clean slate
 		mongoService.client()
@@ -83,37 +87,6 @@ abstract class AbstractMongoDriverTest {
 	void runTearDown(TestInfo testInfo) {
 		tearDownActions.forEach(Runnable::run);
 		logTest("\\=== Done", testInfo);
-	}
-
-	// We'd like to use SLF4J's "Level" but that doesn't support OFF
-	public void setLogging(Level level, Logger logger) {
-		ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) logger;
-		if (Level.DEBUG.isGreaterOrEqual(logbackLogger.getEffectiveLevel())) {
-			// Note: in logback, a "greater" level is less verbose. So if DEBUG is greater or equal to
-			// the current effective level, it means the user has asked for DEBUG logs (or more),
-			// assuming the logback.xml settings specify INFO by default.
-			if (!ALREADY_WARNED.getAndSet(true)) {
-				LOGGER.warn("Logging level is {}; ignoring the recommended setting from the testcase itself", logbackLogger.getEffectiveLevel());
-			}
-			return;
-		}
-		Level originalLevel = logbackLogger.getLevel();
-		if (originalLevel == null) {
-			tearDownActions.addFirst(()->logbackLogger.setLevel(originalLevel));
-			logbackLogger.setLevel(level);
-		} else if (!ALREADY_WARNED.getAndSet(true)){
-			LOGGER.warn("Logging level has been overridden by the user; ignoring the recommended setting from the testcase itself");
-		}
-	}
-
-	public void setLogging(Level level, Class<?>... loggers) {
-		for (var logger: loggers) {
-			setLogging(level, LoggerFactory.getLogger(logger));
-		}
-	}
-
-	public void setLogging(Level level, Package logger) {
-		setLogging(level, LoggerFactory.getLogger(logger.getName()));
 	}
 
 	private static void logTest(String verb, TestInfo testInfo) {
@@ -150,8 +123,8 @@ abstract class AbstractMongoDriverTest {
 		);
 	}
 
-	protected <E extends Entity> DriverFactory<E> createDriverFactory() {
-		return (boskInfo, downstream) -> {
+	protected <E extends Entity> DriverFactory<E> createDriverFactory(BoskLogFilter.LogController logController) {
+		DriverFactory<E> mongoDriverFactory = (boskInfo, downstream) -> {
 			MongoDriver<E> driver = MongoDriver.<E>factory(
 				MongoClientSettings.builder(mongoService.clientSettings())
 					.applyToClusterSettings(builder -> {
@@ -168,6 +141,10 @@ abstract class AbstractMongoDriverTest {
 			tearDownActions.addFirst(driver::close);
 			return driver;
 		};
+		return DriverStack.of(
+			BoskLogFilter.withController(logController),
+			mongoDriverFactory
+		);
 	}
 
 	public interface Refs {
@@ -179,6 +156,10 @@ abstract class AbstractMongoDriverTest {
 		@ReferencePath("/listing/-entity-") Reference<ListingEntry> listingEntry(Identifier entity);
 		@ReferencePath("/values") Reference<TestValues> values();
 		@ReferencePath("/values/string") Reference<String> valuesString();
+	}
+
+	protected void setLogging(Level level, Class<?>... loggers) {
+		logController.setLogging(level, loggers);
 	}
 
 	/**

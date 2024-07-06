@@ -1,5 +1,6 @@
 <configuration>
 	<appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+		<filter class="works.bosk.logback.BoskLogFilter"/>
 		<encoder>
 			<pattern>%d %-5level [%thread] [%X{bosk.name}]%X{bosk.MongoDriver.transaction}%X{bosk.MongoDriver.event} %logger{25}: %msg%n</pattern>
 		</encoder>
@@ -18,7 +19,7 @@
 	<logger name="works.bosk.drivers.mongo.PandoFormatDriver" level="TRACE"/>
 	<logger name="works.bosk.drivers.mongo.MainDriver" level="TRACE"/>
 	<logger name="works.bosk.drivers.mongo.AbstractMongoDriverTest" level="INFO"/>
-	<logger name="works.bosk.drivers.mongo.BoskLogFilter" level="DEBUG"/>
+	<logger name="works.bosk.logback.BoskLogFilter" level="DEBUG"/>
 	 -->
 
 </configuration>

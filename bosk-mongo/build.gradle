@@ -22,6 +22,7 @@ dependencies {
 	// Allows us to annotate status objects so they're handy to serialize with jackson
 	implementation group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: '2.16.1'
 
+	testImplementation project(":bosk-logback")
 	testImplementation project(":bosk-testing")
 	testImplementation project(":lib-testing")
 }
