@@ -1,6 +1,5 @@
 package works.bosk.bytecode;
 
-import works.bosk.exceptions.NotYetImplementedException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -26,9 +25,9 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.util.TraceClassVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.ReflectionHelpers;
 
-import static works.bosk.util.ReflectionHelpers.setAccessible;
 import static java.lang.reflect.Modifier.isStatic;
 import static java.util.Objects.requireNonNull;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;

@@ -1,20 +1,5 @@
 package works.bosk.dereferencers;
 
-import works.bosk.AbstractBoskTest;
-import works.bosk.Bosk;
-import works.bosk.Bosk.NonexistentEntryException;
-import works.bosk.Catalog;
-import works.bosk.Entity;
-import works.bosk.Identifier;
-import works.bosk.Listing;
-import works.bosk.MapValue;
-import works.bosk.Path;
-import works.bosk.Reference;
-import works.bosk.SideTable;
-import works.bosk.StateTreeNode;
-import works.bosk.TestEntityBuilder;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NonexistentReferenceException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,8 +15,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import works.bosk.AbstractBoskTest;
+import works.bosk.Bosk;
+import works.bosk.Bosk.NonexistentEntryException;
+import works.bosk.Catalog;
+import works.bosk.Entity;
+import works.bosk.Identifier;
+import works.bosk.Listing;
+import works.bosk.MapValue;
+import works.bosk.Path;
+import works.bosk.Reference;
+import works.bosk.SideTable;
+import works.bosk.StateTreeNode;
+import works.bosk.TestEntityBuilder;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NonexistentReferenceException;
 
-import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static java.util.Collections.singletonList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -40,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
+import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 public class PathCompilerTest extends AbstractBoskTest {
 	PathCompiler pathCompiler;

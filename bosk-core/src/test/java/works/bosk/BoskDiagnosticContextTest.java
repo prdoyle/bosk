@@ -1,14 +1,14 @@
 package works.bosk;
 
-import works.bosk.annotations.ReferencePath;
-import works.bosk.drivers.AbstractDriverTest;
-import works.bosk.drivers.state.TestEntity;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.util.concurrent.Semaphore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.drivers.AbstractDriverTest;
 import works.bosk.drivers.DriverConformanceTest;
+import works.bosk.drivers.state.TestEntity;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;

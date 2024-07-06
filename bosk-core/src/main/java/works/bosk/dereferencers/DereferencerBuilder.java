@@ -1,7 +1,7 @@
 package works.bosk.dereferencers;
 
-import works.bosk.Path;
 import java.lang.reflect.Type;
+import works.bosk.Path;
 
 /**
  * Provides info for a particular {@link Path}, determined by reflection analysis.

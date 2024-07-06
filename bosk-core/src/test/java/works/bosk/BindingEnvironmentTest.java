@@ -1,8 +1,5 @@
 package works.bosk;
 
-import works.bosk.BindingEnvironment.Builder;
-import works.bosk.exceptions.ParameterAlreadyBoundException;
-import works.bosk.exceptions.ParameterUnboundException;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -13,6 +10,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import works.bosk.BindingEnvironment.Builder;
+import works.bosk.exceptions.ParameterAlreadyBoundException;
+import works.bosk.exceptions.ParameterUnboundException;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;

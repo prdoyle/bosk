@@ -1,14 +1,14 @@
 package works.bosk;
 
-import works.bosk.annotations.Self;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Parameter;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
+import works.bosk.annotations.Self;
 
-import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
 
 // TODO: This should aim for full coverage of SerializationPlugin
 class SerializationPluginTest {

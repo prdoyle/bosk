@@ -1,12 +1,5 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.Bosk;
-import works.bosk.CatalogReference;
-import works.bosk.Path;
-import works.bosk.Reference;
-import works.bosk.drivers.AbstractDriverTest;
-import works.bosk.drivers.state.TestEntity;
-import works.bosk.exceptions.InvalidTypeException;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +8,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import works.bosk.Bosk;
+import works.bosk.CatalogReference;
+import works.bosk.Path;
+import works.bosk.Reference;
+import works.bosk.drivers.AbstractDriverTest;
+import works.bosk.drivers.state.TestEntity;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

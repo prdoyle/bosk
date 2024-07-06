@@ -1,10 +1,10 @@
 package works.bosk.drivers.mongo;
 
+import java.util.Collection;
 import works.bosk.Catalog;
 import works.bosk.ListValue;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
-import java.util.Collection;
 
 import static java.util.Arrays.asList;
 

@@ -1,13 +1,13 @@
 package works.bosk.drivers.mongo;
 
 import com.mongodb.MongoClientSettings;
+import java.io.IOException;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.status.MongoStatus;
-import java.io.IOException;
 
 /**
  * A {@link BoskDriver} that maintains the bosk state in a MongoDB database.

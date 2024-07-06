@@ -11,17 +11,6 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.type.TypeFactory;
-import works.bosk.BoskInfo;
-import works.bosk.Catalog;
-import works.bosk.Entity;
-import works.bosk.Phantom;
-import works.bosk.Reference;
-import works.bosk.ReflectiveEntity;
-import works.bosk.annotations.DerivedRecord;
-import works.bosk.bytecode.ClassBuilder;
-import works.bosk.bytecode.LocalVariable;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -38,12 +27,23 @@ import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskInfo;
+import works.bosk.Catalog;
+import works.bosk.Entity;
+import works.bosk.Phantom;
+import works.bosk.Reference;
+import works.bosk.ReflectiveEntity;
+import works.bosk.annotations.DerivedRecord;
+import works.bosk.bytecode.ClassBuilder;
+import works.bosk.bytecode.LocalVariable;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 
+import static java.util.Arrays.asList;
 import static works.bosk.ReferenceUtils.getterMethod;
 import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static works.bosk.SerializationPlugin.isImplicitParameter;
 import static works.bosk.bytecode.ClassBuilder.here;
-import static java.util.Arrays.asList;
 
 @RequiredArgsConstructor
 final class JacksonCompiler {

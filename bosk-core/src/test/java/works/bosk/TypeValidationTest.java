@@ -1,10 +1,5 @@
 package works.bosk;
 
-import works.bosk.annotations.DerivedRecord;
-import works.bosk.annotations.DeserializationPath;
-import works.bosk.annotations.Enclosing;
-import works.bosk.annotations.Self;
-import works.bosk.exceptions.InvalidTypeException;
 import java.util.ArrayList;
 import java.util.Optional;
 import lombok.AccessLevel;
@@ -16,6 +11,11 @@ import lombok.experimental.FieldDefaults;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import works.bosk.annotations.DerivedRecord;
+import works.bosk.annotations.DeserializationPath;
+import works.bosk.annotations.Enclosing;
+import works.bosk.annotations.Self;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;

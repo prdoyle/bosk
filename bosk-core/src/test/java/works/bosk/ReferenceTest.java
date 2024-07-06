@@ -1,12 +1,12 @@
 package works.bosk;
 
-import works.bosk.annotations.ReferencePath;
-import works.bosk.exceptions.InvalidTypeException;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.util.Classes;
 
 import static java.util.Collections.emptyList;

@@ -1,15 +1,15 @@
 package works.bosk.drivers.state;
 
+import java.util.Optional;
+import lombok.Value;
+import lombok.With;
+import lombok.experimental.FieldNameConstants;
 import works.bosk.Catalog;
 import works.bosk.Entity;
 import works.bosk.Identifier;
 import works.bosk.Listing;
 import works.bosk.Reference;
 import works.bosk.SideTable;
-import java.util.Optional;
-import lombok.Value;
-import lombok.With;
-import lombok.experimental.FieldNameConstants;
 
 @Value
 @With

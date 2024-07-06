@@ -1,8 +1,8 @@
 package works.bosk.drivers.mongo;
 
+import java.util.Optional;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
-import java.util.Optional;
 
 /**
  * Defines the format of the manifest document, which is stored in the database

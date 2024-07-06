@@ -1,9 +1,5 @@
 package works.bosk;
 
-import works.bosk.annotations.ReferencePath;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NonexistentReferenceException;
-import works.bosk.util.Classes;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -26,9 +22,11 @@ import lombok.experimental.FieldNameConstants;
 import lombok.val;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NonexistentReferenceException;
+import works.bosk.util.Classes;
 
-import static works.bosk.ListingEntry.LISTING_ENTRY;
-import static works.bosk.ReferenceUtils.rawClass;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,6 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static works.bosk.ListingEntry.LISTING_ENTRY;
+import static works.bosk.ReferenceUtils.rawClass;
 
 /**
  * Tests that the Bosk can supply references that point to the right things, and

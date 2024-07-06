@@ -1,9 +1,6 @@
 package works.bosk.spring.boot;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import works.bosk.Bosk;
-import works.bosk.jackson.BoskJacksonModule;
-import works.bosk.jackson.JacksonPlugin;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -11,6 +8,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import works.bosk.Bosk;
+import works.bosk.jackson.BoskJacksonModule;
+import works.bosk.jackson.JacksonPlugin;
 
 @Configuration
 @EnableConfigurationProperties(WebProperties.class)

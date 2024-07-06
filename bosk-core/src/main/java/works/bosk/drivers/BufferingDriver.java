@@ -1,5 +1,11 @@
 package works.bosk.drivers;
 
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.Deque;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.function.Consumer;
+import lombok.RequiredArgsConstructor;
 import works.bosk.BoskDiagnosticContext;
 import works.bosk.BoskDriver;
 import works.bosk.DriverFactory;
@@ -8,12 +14,6 @@ import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
-import java.io.IOException;
-import java.lang.reflect.Type;
-import java.util.Deque;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.function.Consumer;
-import lombok.RequiredArgsConstructor;
 
 import static lombok.AccessLevel.PROTECTED;
 

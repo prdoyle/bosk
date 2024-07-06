@@ -1,9 +1,9 @@
 package works.bosk.drivers.mongo.example;
 
-import works.bosk.exceptions.InvalidTypeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import works.bosk.exceptions.InvalidTypeException;
 
 @Disabled("Not yet actually hooked up to MongoDB in Testcontainers")
 public class ExampleTest {

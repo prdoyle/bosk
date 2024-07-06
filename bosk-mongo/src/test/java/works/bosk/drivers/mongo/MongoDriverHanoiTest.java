@@ -1,9 +1,9 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.drivers.HanoiTest;
-import works.bosk.junit.ParametersByName;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import works.bosk.drivers.HanoiTest;
+import works.bosk.junit.ParametersByName;
 
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;

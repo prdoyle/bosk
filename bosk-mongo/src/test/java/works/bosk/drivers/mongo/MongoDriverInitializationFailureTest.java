@@ -1,8 +1,8 @@
 package works.bosk.drivers.mongo;
 
+import org.junit.jupiter.api.Test;
 import works.bosk.Bosk;
 import works.bosk.drivers.state.TestEntity;
-import org.junit.jupiter.api.Test;
 
 import static ch.qos.logback.classic.Level.ERROR;
 import static org.junit.jupiter.api.Assertions.assertThrows;

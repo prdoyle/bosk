@@ -1,12 +1,12 @@
 package works.bosk;
 
-import works.bosk.annotations.ReferencePath;
-import works.bosk.bytecode.ClassBuilder;
-import works.bosk.exceptions.InvalidTypeException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import org.jetbrains.annotations.NotNull;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.bytecode.ClassBuilder;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static works.bosk.ReferenceUtils.parameterType;
 import static works.bosk.ReferenceUtils.rawClass;

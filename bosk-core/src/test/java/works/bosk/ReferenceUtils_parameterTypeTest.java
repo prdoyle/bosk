@@ -6,10 +6,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import works.bosk.util.Types;
 
-import static works.bosk.ReferenceUtils.parameterType;
-import static works.bosk.ReferenceUtils.rawClass;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.ReferenceUtils.parameterType;
+import static works.bosk.ReferenceUtils.rawClass;
 
 class ReferenceUtils_parameterTypeTest extends AbstractBoskTest {
 

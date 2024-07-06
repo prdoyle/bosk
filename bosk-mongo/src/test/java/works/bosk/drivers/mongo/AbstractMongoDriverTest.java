@@ -2,6 +2,17 @@ package works.bosk.drivers.mongo;
 
 import ch.qos.logback.classic.Level;
 import com.mongodb.MongoClientSettings;
+import java.lang.reflect.Method;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -18,17 +29,6 @@ import works.bosk.drivers.mongo.MongoDriverSettings.MongoDriverSettingsBuilder;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;
 import works.bosk.exceptions.InvalidTypeException;
-import java.lang.reflect.Method;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 

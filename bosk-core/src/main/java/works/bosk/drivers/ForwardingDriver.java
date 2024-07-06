@@ -1,15 +1,15 @@
 package works.bosk.drivers;
 
-import works.bosk.BoskDriver;
-import works.bosk.Identifier;
-import works.bosk.Reference;
-import works.bosk.StateTreeNode;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import works.bosk.BoskDriver;
+import works.bosk.Identifier;
+import works.bosk.Reference;
+import works.bosk.StateTreeNode;
+import works.bosk.exceptions.InvalidTypeException;
 
 @RequiredArgsConstructor
 public class ForwardingDriver<R extends StateTreeNode> implements BoskDriver<R> {

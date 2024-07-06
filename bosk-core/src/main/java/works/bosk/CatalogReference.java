@@ -2,9 +2,9 @@ package works.bosk;
 
 import works.bosk.exceptions.InvalidTypeException;
 
+import static java.util.Arrays.asList;
 import static works.bosk.ReferenceUtils.parameterType;
 import static works.bosk.ReferenceUtils.rawClass;
-import static java.util.Arrays.asList;
 
 /**
  * A convenience interface equivalent to <code>Reference&lt;Catalog&lt;E>></code>

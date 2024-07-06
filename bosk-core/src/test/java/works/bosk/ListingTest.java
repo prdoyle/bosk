@@ -1,7 +1,5 @@
 package works.bosk;
 
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NonexistentReferenceException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -27,6 +25,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NonexistentReferenceException;
 
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toCollection;
@@ -36,7 +36,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /*

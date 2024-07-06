@@ -1,11 +1,5 @@
 package works.bosk;
 
-import works.bosk.annotations.DerivedRecord;
-import works.bosk.annotations.DeserializationPath;
-import works.bosk.annotations.Enclosing;
-import works.bosk.annotations.Self;
-import works.bosk.exceptions.InvalidFieldTypeException;
-import works.bosk.exceptions.InvalidTypeException;
 import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
@@ -19,16 +13,21 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import works.bosk.annotations.DerivedRecord;
+import works.bosk.annotations.DeserializationPath;
+import works.bosk.annotations.Enclosing;
+import works.bosk.annotations.Self;
+import works.bosk.exceptions.InvalidFieldTypeException;
+import works.bosk.exceptions.InvalidTypeException;
 
-import static works.bosk.ReferenceUtils.parameterType;
-import static works.bosk.SerializationPlugin.hasDeserializationPath;
-import static works.bosk.SerializationPlugin.isEnclosingReference;
-import static works.bosk.SerializationPlugin.isSelfReference;
 import static java.lang.reflect.Modifier.isFinal;
 import static java.lang.reflect.Modifier.isPublic;
 import static java.lang.reflect.Modifier.isStatic;
 import static java.util.Arrays.asList;
 import static java.util.Collections.newSetFromMap;
+import static works.bosk.SerializationPlugin.hasDeserializationPath;
+import static works.bosk.SerializationPlugin.isEnclosingReference;
+import static works.bosk.SerializationPlugin.isSelfReference;
 
 /**
  * Checks that a given type conforms to the rules for a {@link Bosk} root type.

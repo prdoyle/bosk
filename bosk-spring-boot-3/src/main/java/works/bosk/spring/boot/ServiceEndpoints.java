@@ -1,16 +1,6 @@
 package works.bosk.spring.boot;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import works.bosk.Bosk;
-import works.bosk.Entity;
-import works.bosk.EnumerableByIdentifier;
-import works.bosk.Identifier;
-import works.bosk.Path;
-import works.bosk.Reference;
-import works.bosk.SerializationPlugin;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NonexistentReferenceException;
-import works.bosk.jackson.JacksonPlugin;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -25,6 +15,16 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import works.bosk.Bosk;
+import works.bosk.Entity;
+import works.bosk.EnumerableByIdentifier;
+import works.bosk.Identifier;
+import works.bosk.Path;
+import works.bosk.Reference;
+import works.bosk.SerializationPlugin;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NonexistentReferenceException;
+import works.bosk.jackson.JacksonPlugin;
 
 @RestController
 @RequestMapping("${bosk.web.service-path}")

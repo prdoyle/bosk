@@ -1,6 +1,5 @@
 package works.bosk;
 
-import works.bosk.exceptions.InvalidTypeException;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
@@ -8,6 +7,7 @@ import lombok.experimental.FieldNameConstants;
 import lombok.val;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 

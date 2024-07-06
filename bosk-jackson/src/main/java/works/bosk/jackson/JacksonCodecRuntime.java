@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import works.bosk.jackson.JacksonCompiler.Codec;
 import java.io.IOException;
+import works.bosk.jackson.JacksonCompiler.Codec;
 
 /**
  * <strong>This is not part of the public API.</strong>

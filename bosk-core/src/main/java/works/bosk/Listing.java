@@ -1,6 +1,5 @@
 package works.bosk;
 
-import works.bosk.exceptions.NonexistentReferenceException;
 import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,6 +17,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.pcollections.OrderedPSet;
+import works.bosk.exceptions.NonexistentReferenceException;
 
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;

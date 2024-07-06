@@ -1,6 +1,5 @@
 package works.bosk;
 
-import works.bosk.exceptions.InvalidTypeException;
 import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -11,6 +10,7 @@ import lombok.val;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.StringContains.containsString;

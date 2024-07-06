@@ -1,12 +1,5 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.Bosk;
-import works.bosk.EnumerableByIdentifier;
-import works.bosk.Identifier;
-import works.bosk.Path;
-import works.bosk.Reference;
-import works.bosk.SideTable;
-import works.bosk.exceptions.InvalidTypeException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -18,13 +11,20 @@ import org.bson.BsonDocument;
 import org.bson.BsonInvalidOperationException;
 import org.bson.BsonString;
 import org.bson.BsonValue;
+import works.bosk.Bosk;
+import works.bosk.EnumerableByIdentifier;
+import works.bosk.Identifier;
+import works.bosk.Path;
+import works.bosk.Reference;
+import works.bosk.SideTable;
+import works.bosk.exceptions.InvalidTypeException;
 
-import static works.bosk.drivers.mongo.Formatter.containerSegments;
-import static works.bosk.drivers.mongo.Formatter.dottedFieldNameSegments;
-import static works.bosk.drivers.mongo.Formatter.undottedFieldNameSegment;
 import static java.util.Collections.emptyList;
 import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
+import static works.bosk.drivers.mongo.Formatter.containerSegments;
+import static works.bosk.drivers.mongo.Formatter.dottedFieldNameSegments;
+import static works.bosk.drivers.mongo.Formatter.undottedFieldNameSegment;
 
 /**
  * Splits up a single large BSON document into multiple self-describing pieces,

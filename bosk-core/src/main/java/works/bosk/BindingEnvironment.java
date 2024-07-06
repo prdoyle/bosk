@@ -1,19 +1,19 @@
 package works.bosk;
 
-import works.bosk.exceptions.ParameterAlreadyBoundException;
-import works.bosk.exceptions.ParameterUnboundException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
+import works.bosk.exceptions.ParameterAlreadyBoundException;
+import works.bosk.exceptions.ParameterUnboundException;
 
-import static works.bosk.Path.isValidParameterName;
-import static works.bosk.Path.parameterNameFromSegment;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static lombok.AccessLevel.PRIVATE;
+import static works.bosk.Path.isValidParameterName;
+import static works.bosk.Path.parameterNameFromSegment;
 
 /**
  * A mapping from {@link String} names to {@link Identifier} values.

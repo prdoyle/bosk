@@ -1,11 +1,6 @@
 package works.bosk.drivers.mongo;
 
 import ch.qos.logback.classic.Level;
-import works.bosk.Bosk;
-import works.bosk.Reference;
-import works.bosk.annotations.ReferencePath;
-import works.bosk.drivers.state.TestEntity;
-import works.bosk.junit.ParametersByName;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -15,6 +10,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.Bosk;
+import works.bosk.Reference;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.drivers.state.TestEntity;
+import works.bosk.junit.ParametersByName;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

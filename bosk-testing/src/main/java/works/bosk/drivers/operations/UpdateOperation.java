@@ -1,10 +1,10 @@
 package works.bosk.drivers.operations;
 
+import java.util.Collection;
+import works.bosk.BoskDiagnosticContext;
 import works.bosk.BoskDriver;
 import works.bosk.MapValue;
 import works.bosk.Reference;
-import java.util.Collection;
-import works.bosk.BoskDiagnosticContext;
 
 public sealed interface UpdateOperation permits
 	ConditionalOperation,

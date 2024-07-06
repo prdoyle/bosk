@@ -5,10 +5,6 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
-import works.bosk.SerializationPlugin.DeserializationScope;
-import works.bosk.drivers.mongo.BsonPlugin;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.jackson.JacksonPlugin;
 import java.io.IOException;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
@@ -32,9 +28,12 @@ import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.SerializationPlugin.DeserializationScope;
+import works.bosk.drivers.mongo.BsonPlugin;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.jackson.JacksonPlugin;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
-import static works.bosk.ReferenceUtils.parameterType;
 import static java.lang.System.identityHashCode;
 import static java.util.Collections.newSetFromMap;
 

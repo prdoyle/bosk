@@ -1,5 +1,6 @@
 package works.bosk.util;
 
+import org.junit.jupiter.api.Test;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
 import works.bosk.Entity;
@@ -9,7 +10,6 @@ import works.bosk.ListingReference;
 import works.bosk.Reference;
 import works.bosk.SideTable;
 import works.bosk.SideTableReference;
-import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

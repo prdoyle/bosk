@@ -1,9 +1,9 @@
 package works.bosk.drivers.operations;
 
+import java.util.Collection;
 import works.bosk.BoskDriver;
 import works.bosk.MapValue;
 import works.bosk.Reference;
-import java.util.Collection;
 
 public record SubmitInitialization<T>(
 	Reference<T> target,

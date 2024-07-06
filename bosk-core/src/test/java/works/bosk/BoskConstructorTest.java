@@ -1,24 +1,24 @@
 package works.bosk;
 
-import works.bosk.Bosk.DefaultRootFunction;
-import works.bosk.TypeValidationTest.MutableField;
-import works.bosk.TypeValidationTest.BoxedPrimitives;
-import works.bosk.TypeValidationTest.SimpleTypes;
-import works.bosk.drivers.ForwardingDriver;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
+import works.bosk.Bosk.DefaultRootFunction;
+import works.bosk.TypeValidationTest.BoxedPrimitives;
+import works.bosk.TypeValidationTest.MutableField;
+import works.bosk.TypeValidationTest.SimpleTypes;
+import works.bosk.drivers.ForwardingDriver;
+import works.bosk.exceptions.InvalidTypeException;
 
-import static works.bosk.TypeValidationTest.SimpleTypes.MyEnum.LEFT;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.TypeValidationTest.SimpleTypes.MyEnum.LEFT;
 
 /**
  * These tests don't use @{@link org.junit.jupiter.api.BeforeEach}

@@ -1,6 +1,5 @@
 package works.bosk;
 
-import works.bosk.exceptions.MalformedPathException;
 import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.net.URLDecoder;
@@ -20,6 +19,7 @@ import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.exceptions.MalformedPathException;
 
 import static java.lang.Character.isDigit;
 import static java.lang.String.format;

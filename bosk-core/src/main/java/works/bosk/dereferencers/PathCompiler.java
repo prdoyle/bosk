@@ -1,19 +1,5 @@
 package works.bosk.dereferencers;
 
-import works.bosk.BoskDriver;
-import works.bosk.Catalog;
-import works.bosk.Entity;
-import works.bosk.Identifier;
-import works.bosk.Listing;
-import works.bosk.ListingEntry;
-import works.bosk.Path;
-import works.bosk.Phantom;
-import works.bosk.Reference;
-import works.bosk.SideTable;
-import works.bosk.StateTreeNode;
-import works.bosk.bytecode.LocalVariable;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.ConstantCallSite;
 import java.lang.invoke.MethodHandle;
@@ -36,14 +22,21 @@ import lombok.Value;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskDriver;
+import works.bosk.Catalog;
+import works.bosk.Entity;
+import works.bosk.Identifier;
+import works.bosk.Listing;
+import works.bosk.ListingEntry;
+import works.bosk.Path;
+import works.bosk.Phantom;
+import works.bosk.Reference;
+import works.bosk.SideTable;
+import works.bosk.StateTreeNode;
+import works.bosk.bytecode.LocalVariable;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 
-import static works.bosk.Path.isParameterSegment;
-import static works.bosk.ReferenceUtils.getterMethod;
-import static works.bosk.ReferenceUtils.gettersForConstructorParameters;
-import static works.bosk.ReferenceUtils.parameterType;
-import static works.bosk.ReferenceUtils.rawClass;
-import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
-import static works.bosk.bytecode.ClassBuilder.here;
 import static java.lang.invoke.MethodHandles.collectArguments;
 import static java.lang.invoke.MethodHandles.permuteArguments;
 import static java.util.Collections.synchronizedList;
@@ -51,6 +44,13 @@ import static java.util.Collections.synchronizedMap;
 import static java.util.Locale.ROOT;
 import static java.util.stream.Collectors.joining;
 import static lombok.AccessLevel.PRIVATE;
+import static works.bosk.Path.isParameterSegment;
+import static works.bosk.ReferenceUtils.getterMethod;
+import static works.bosk.ReferenceUtils.gettersForConstructorParameters;
+import static works.bosk.ReferenceUtils.parameterType;
+import static works.bosk.ReferenceUtils.rawClass;
+import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
+import static works.bosk.bytecode.ClassBuilder.here;
 
 /**
  * Compiles {@link Path} objects into {@link Dereferencer}s for a given source {@link Type}.

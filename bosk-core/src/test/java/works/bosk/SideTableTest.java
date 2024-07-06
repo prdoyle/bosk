@@ -1,7 +1,5 @@
 package works.bosk;
 
-import works.bosk.annotations.ReferencePath;
-import works.bosk.exceptions.InvalidTypeException;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -10,6 +8,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;

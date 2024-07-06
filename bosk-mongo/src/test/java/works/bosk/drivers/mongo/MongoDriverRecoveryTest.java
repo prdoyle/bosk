@@ -1,13 +1,6 @@
 package works.bosk.drivers.mongo;
 
 import com.mongodb.client.MongoCollection;
-import works.bosk.Bosk;
-import works.bosk.BoskDriver;
-import works.bosk.Listing;
-import works.bosk.drivers.state.TestEntity;
-import works.bosk.exceptions.FlushFailureException;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.junit.ParametersByName;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -21,11 +14,18 @@ import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.Bosk;
+import works.bosk.BoskDriver;
+import works.bosk.Listing;
+import works.bosk.drivers.state.TestEntity;
+import works.bosk.exceptions.FlushFailureException;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.junit.ParametersByName;
 
 import static ch.qos.logback.classic.Level.ERROR;
-import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 /**
  * Tests the kinds of recovery actions a human operator might take to try to get a busted service running again.

@@ -1,14 +1,5 @@
 package works.bosk;
 
-import works.bosk.annotations.DeserializationPath;
-import works.bosk.annotations.Enclosing;
-import works.bosk.annotations.Polyfill;
-import works.bosk.annotations.Self;
-import works.bosk.exceptions.DeserializationException;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.MalformedPathException;
-import works.bosk.exceptions.ParameterUnboundException;
-import works.bosk.exceptions.UnexpectedPathException;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Parameter;
@@ -27,8 +18,16 @@ import lombok.EqualsAndHashCode;
 import lombok.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.annotations.DeserializationPath;
+import works.bosk.annotations.Enclosing;
+import works.bosk.annotations.Polyfill;
+import works.bosk.annotations.Self;
+import works.bosk.exceptions.DeserializationException;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.MalformedPathException;
+import works.bosk.exceptions.ParameterUnboundException;
+import works.bosk.exceptions.UnexpectedPathException;
 
-import static works.bosk.ReferenceUtils.parameterType;
 import static java.lang.reflect.Modifier.isPrivate;
 import static java.lang.reflect.Modifier.isStatic;
 import static java.util.Objects.requireNonNull;

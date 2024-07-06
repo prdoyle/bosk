@@ -1,13 +1,13 @@
 package works.bosk;
 
-import works.bosk.annotations.Enclosing;
-import works.bosk.annotations.Self;
-import works.bosk.exceptions.InvalidTypeException;
 import java.util.Optional;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 import lombok.With;
 import lombok.experimental.FieldNameConstants;
+import works.bosk.annotations.Enclosing;
+import works.bosk.annotations.Self;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Arrays.asList;
 

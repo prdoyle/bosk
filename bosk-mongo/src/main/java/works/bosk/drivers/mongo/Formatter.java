@@ -2,13 +2,6 @@ package works.bosk.drivers.mongo;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.UpdateDescription;
-import works.bosk.BoskInfo;
-import works.bosk.Listing;
-import works.bosk.MapValue;
-import works.bosk.Reference;
-import works.bosk.SerializationPlugin;
-import works.bosk.SideTable;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
 import java.net.URLDecoder;
@@ -45,11 +38,18 @@ import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.io.BasicOutputBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskInfo;
+import works.bosk.Listing;
+import works.bosk.MapValue;
+import works.bosk.Reference;
+import works.bosk.SerializationPlugin;
+import works.bosk.SideTable;
+import works.bosk.exceptions.InvalidTypeException;
 
-import static works.bosk.ReferenceUtils.rawClass;
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
+import static works.bosk.ReferenceUtils.rawClass;
 
 /**
  * Facilities to translate between in-DB and in-memory representations.

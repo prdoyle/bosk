@@ -2,6 +2,22 @@ package works.bosk.drivers.mongo;
 
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import java.io.IOException;
+import java.util.Optional;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.stream.Stream;
+import lombok.With;
+import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.BsonInt64;
+import org.bson.BsonNull;
+import org.bson.BsonString;
+import org.bson.Document;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.Catalog;
@@ -21,25 +37,8 @@ import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
 import works.bosk.util.Classes;
-import java.io.IOException;
-import java.util.Optional;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.stream.Stream;
-import lombok.With;
-import org.bson.BsonDocument;
-import org.bson.BsonInt32;
-import org.bson.BsonInt64;
-import org.bson.BsonNull;
-import org.bson.BsonString;
-import org.bson.Document;
-import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static ch.qos.logback.classic.Level.ERROR;
-import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static java.lang.Long.max;
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -48,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 /**
  * Tests {@link MongoDriver}-specific functionality not covered by {@link MongoDriverConformanceTest}.

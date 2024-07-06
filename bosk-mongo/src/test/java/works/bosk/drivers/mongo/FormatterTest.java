@@ -1,14 +1,5 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.AbstractBoskTest;
-import works.bosk.Bosk;
-import works.bosk.Catalog;
-import works.bosk.CatalogReference;
-import works.bosk.Identifier;
-import works.bosk.Reference;
-import works.bosk.TestEntityBuilder;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.util.Types;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.stream.Stream;
@@ -20,9 +11,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import works.bosk.AbstractBoskTest;
+import works.bosk.Bosk;
+import works.bosk.Catalog;
+import works.bosk.CatalogReference;
+import works.bosk.Identifier;
+import works.bosk.Reference;
+import works.bosk.TestEntityBuilder;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.util.Types;
 
-import static works.bosk.TypeValidation.validateType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.TypeValidation.validateType;
 
 class FormatterTest extends AbstractBoskTest {
 	Bosk<TestRoot> bosk;

@@ -1,8 +1,8 @@
 package works.bosk.dereferencers;
 
+import java.lang.reflect.Method;
 import works.bosk.Reference;
 import works.bosk.bytecode.ClassBuilder;
-import java.lang.reflect.Method;
 
 /**
  * The skeleton of a builder for {@link Dereferencer} objects. Creates a new class,

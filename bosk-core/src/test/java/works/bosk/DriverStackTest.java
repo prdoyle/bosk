@@ -1,7 +1,7 @@
 package works.bosk;
 
-import works.bosk.drivers.ForwardingDriver;
 import org.junit.jupiter.api.Test;
+import works.bosk.drivers.ForwardingDriver;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;

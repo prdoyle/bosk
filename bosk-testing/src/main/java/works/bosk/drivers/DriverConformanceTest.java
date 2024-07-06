@@ -1,11 +1,18 @@
 package works.bosk.drivers;
 
+import java.io.IOException;
+import java.time.temporal.ChronoUnit;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
+import works.bosk.BoskDriver;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
 import works.bosk.Identifier;
-import works.bosk.BoskDriver;
 import works.bosk.ListValue;
 import works.bosk.Listing;
 import works.bosk.ListingEntry;
@@ -18,17 +25,7 @@ import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
-import java.io.IOException;
-import java.time.temporal.ChronoUnit;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import static works.bosk.ListingEntry.LISTING_ENTRY;
-import static works.bosk.util.Classes.listValue;
-import static works.bosk.util.Classes.mapValue;
 import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -36,6 +33,9 @@ import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static works.bosk.ListingEntry.LISTING_ENTRY;
+import static works.bosk.util.Classes.listValue;
+import static works.bosk.util.Classes.mapValue;
 
 /**
  * Tests the basic functionality of {@link BoskDriver}

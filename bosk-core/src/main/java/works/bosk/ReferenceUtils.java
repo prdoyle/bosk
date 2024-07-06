@@ -1,7 +1,5 @@
 package works.bosk;
 
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.util.Types;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -18,9 +16,10 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import lombok.experimental.Delegate;
+import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.util.ReflectionHelpers;
+import works.bosk.util.Types;
 
-import static works.bosk.util.ReflectionHelpers.setAccessible;
 import static java.lang.String.format;
 import static java.lang.reflect.Modifier.STATIC;
 import static java.util.stream.Collectors.toList;

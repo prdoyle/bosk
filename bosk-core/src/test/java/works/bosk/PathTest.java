@@ -1,6 +1,5 @@
 package works.bosk;
 
-import works.bosk.exceptions.MalformedPathException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,11 +14,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import works.bosk.exceptions.MalformedPathException;
 
-import static works.bosk.BindingEnvironment.empty;
-import static works.bosk.PathTest.ValidityKind.ALWAYS;
-import static works.bosk.PathTest.ValidityKind.NEVER;
-import static works.bosk.PathTest.ValidityKind.NOT_IF_PARSED;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -29,6 +25,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static works.bosk.BindingEnvironment.empty;
+import static works.bosk.PathTest.ValidityKind.ALWAYS;
+import static works.bosk.PathTest.ValidityKind.NEVER;
+import static works.bosk.PathTest.ValidityKind.NOT_IF_PARSED;
 
 @SuppressWarnings("Convert2MethodRef") // We use lambda syntax for consistency in here
 class PathTest {

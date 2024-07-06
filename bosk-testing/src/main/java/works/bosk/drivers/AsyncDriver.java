@@ -1,12 +1,5 @@
 package works.bosk.drivers;
 
-import works.bosk.BoskDriver;
-import works.bosk.BoskInfo;
-import works.bosk.DriverFactory;
-import works.bosk.Identifier;
-import works.bosk.Reference;
-import works.bosk.StateTreeNode;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.ExecutorService;
@@ -15,6 +8,13 @@ import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskDriver;
+import works.bosk.BoskInfo;
+import works.bosk.DriverFactory;
+import works.bosk.Identifier;
+import works.bosk.Reference;
+import works.bosk.StateTreeNode;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static lombok.AccessLevel.PRIVATE;
 
