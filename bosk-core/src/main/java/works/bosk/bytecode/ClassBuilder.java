@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.ReflectionHelpers;
 
+import static java.lang.System.identityHashCode;
 import static java.lang.reflect.Modifier.isStatic;
 import static java.util.Objects.requireNonNull;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
@@ -202,7 +203,7 @@ public final class ClassBuilder<T> {
 		String fullName = "CallSite_" + CALL_SITE_COUNT.incrementAndGet() + "_" + name;
 
 		CALL_SITES_BY_NAME.put(fullName, callSite);
-		LOGGER.debug("Added call site ({})", name);
+		LOGGER.debug("Added call site \"{}\" {}", fullName, identityHashCode(callSite));
 
 		methodVisitor().visitInvokeDynamicInsn(
 			fullName,
@@ -415,8 +416,15 @@ public final class ClassBuilder<T> {
 	private static final Map<String, CallSite> CALL_SITES_BY_NAME = new ConcurrentHashMap<>();
 
 	public static CallSite retrieveCallSite(MethodHandles.Lookup __, String name, MethodType ___) {
-		LOGGER.debug("retrieveCallSite({})", name);
-		return requireNonNull(CALL_SITES_BY_NAME.remove(name));
+		// Note: if there is parallelism while the bootstrap is occurring, the bootstrap method
+		// may be called multiple times. We'd like to call CALL_SITES_BY_NAME.remove here, but
+		// we can't. This is currently a memory leak.
+//		CallSite callSite = CALL_SITES_BY_NAME.remove(name);
+		CallSite callSite = CALL_SITES_BY_NAME.get(name);
+		if (callSite == null) {
+			LOGGER.error("Unable to retrieve call site \"{}\"", name, new Exception("Call context"));
+		}
+		return requireNonNull(callSite);
 	}
 
 	private static final Method RETRIEVE_CALL_SITE_METHOD;
