@@ -3,7 +3,10 @@ package works.bosk.drivers.mongo;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 import works.bosk.DriverStack;
 import works.bosk.drivers.HanoiTest;
 import works.bosk.junit.ParametersByName;
@@ -32,6 +35,18 @@ public class MongoDriverHanoiTest extends HanoiTest {
 	@BeforeAll
 	static void setupMongoConnection() {
 		mongoService = new MongoService();
+	}
+
+	@BeforeEach
+	void logStart(TestInfo testInfo) {
+		AbstractMongoDriverTest.logTest("/=== Start", testInfo);
+	}
+
+	@AfterEach
+	void logDone(TestInfo testInfo) {
+		shutdownOperations.forEach(Runnable::run);
+		shutdownOperations.clear();
+		AbstractMongoDriverTest.logTest("\\=== Done", testInfo);
 	}
 
 	@SuppressWarnings("unused")

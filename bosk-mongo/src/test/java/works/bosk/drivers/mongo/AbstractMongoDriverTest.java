@@ -89,7 +89,7 @@ abstract class AbstractMongoDriverTest {
 		logTest("\\=== Done", testInfo);
 	}
 
-	private static void logTest(String verb, TestInfo testInfo) {
+	public static void logTest(String verb, TestInfo testInfo) {
 		String method =
 			testInfo.getTestClass().map(Class::getSimpleName).orElse(null)
 				+ "."
