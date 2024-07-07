@@ -207,21 +207,21 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 					// also REPLACE. That would imply that this case is impossible.
 					throw new UnprocessableEventException("Missing fullDocument", event.getOperationType());
 				}
-				BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
-				BsonDocument state = fullDocument.getDocument(DocumentFields.state.name(), null);
-				if (state == null) {
-					throw new UnprocessableEventException("Missing state field", event.getOperationType());
-				}
-				R newRoot = formatter.document2object(state, rootRef);
-				// Note that we do not check revisionToSkip here. We probably should... but this actually
-				// saves us in MongoDriverResiliencyTest.documentReappears_recovers because when the doc
-				// disappears, we don't null out revisionToSkip. TODO: Rethink what's the right way to handle this.
-				LOGGER.debug("| Replace {}", rootRef);
 				MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromFullDocument(fullDocument);
 				try (var __ = rootRef.diagnosticContext().withOnly(diagnosticAttributes)) {
+					BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
+					BsonDocument state = fullDocument.getDocument(DocumentFields.state.name(), null);
+					if (state == null) {
+						throw new UnprocessableEventException("Missing state field", event.getOperationType());
+					}
+					R newRoot = formatter.document2object(state, rootRef);
+					// Note that we do not check revisionToSkip here. We probably should... but this actually
+					// saves us in MongoDriverResiliencyTest.documentReappears_recovers because when the doc
+					// disappears, we don't null out revisionToSkip. TODO: Rethink what's the right way to handle this.
+					LOGGER.debug("| Replace {}", rootRef);
 					downstream.submitReplacement(rootRef, newRoot);
+					flushLock.finishedRevision(revision);
 				}
-				flushLock.finishedRevision(revision);
 			} break;
 			case UPDATE: {
 				UpdateDescription updateDescription = event.getUpdateDescription();

@@ -66,7 +66,7 @@ public final class ClassBuilder<T> {
 	private final String superClassName;
 	private final String slashyName; // like "java/lang/Object"
 	private final String dottyName;  // like "java.lang.Object"
-	private final StackTraceElement sourceFileOrigin; // Where this ClassBuilder was instantiated
+	private final StackWalker.StackFrame sourceFileOrigin; // Where this ClassBuilder was instantiated
 	private ClassVisitor classVisitor = null;
 	private ClassWriter classWriter = null;
 	private MethodBuilder currentMethod = null;
@@ -81,7 +81,7 @@ public final class ClassBuilder<T> {
 	 * @param sourceFileOrigin Indicates the package in which the generated class should reside, and
 	 * 		the source file to which all debug line number information should refer.
 	 */
-	public ClassBuilder(String className, Class<? extends T> supertype, ClassLoader parentClassLoader, StackTraceElement sourceFileOrigin) {
+	public ClassBuilder(String className, Class<? extends T> supertype, ClassLoader parentClassLoader, StackWalker.StackFrame sourceFileOrigin) {
 		this.supertype = supertype;
 		this.parentClassLoader = parentClassLoader;
 		if (supertype.isInterface()) {
@@ -109,7 +109,7 @@ public final class ClassBuilder<T> {
 		classVisitor.visitSource(sourceFileOrigin.getFileName(), null);
 	}
 
-	private void generateConstructor(StackTraceElement sourceFileOrigin) {
+	private void generateConstructor(StackWalker.StackFrame sourceFileOrigin) {
 		MethodVisitor ctor = classVisitor.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
 		ctor.visitCode();
 		Label label = new Label();
@@ -122,8 +122,11 @@ public final class ClassBuilder<T> {
 		ctor.visitEnd();
 	}
 
-	public static StackTraceElement here() {
-		return new Exception().getStackTrace()[1];
+	public static StackWalker.StackFrame here() {
+		return StackWalker.getInstance().walk(frames -> frames
+			.skip(1)
+			.findFirst()
+			.orElseThrow());
 	}
 
 	public void beginMethod(Method method) {
@@ -361,19 +364,17 @@ public final class ClassBuilder<T> {
 	}
 
 	private void emitLineNumberInfo() {
-		StackTraceElement bestFrame = sourceFileOrigin;
 
 		// Try to find a more specific line number. Due to the limits of
 		// Java's source line number info, it needs to be in the same file
 		// as sourceFileOrigin; try to pick the deepest frame in that file.
 		//
 		String sourceFileName = sourceFileOrigin.getFileName();
-		for (StackTraceElement frame: new Exception().getStackTrace()) {
-			if (Objects.equals(sourceFileName, frame.getFileName())) {
-				bestFrame = frame;
-				break;
-			}
-		}
+		StackWalker.StackFrame bestFrame = StackWalker.getInstance().walk(frames -> frames
+			.filter(frame -> Objects.equals(sourceFileName, frame.getFileName()))
+			.findFirst()
+			.orElse(sourceFileOrigin)
+		);
 
 		int lineNumber = bestFrame.getLineNumber();
 		if (lineNumber == currentLineNumber) {

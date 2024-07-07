@@ -33,6 +33,7 @@ import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.logback.BoskLogFilter;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static works.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 
 abstract class AbstractMongoDriverTest {
 	protected static final Identifier entity123 = Identifier.from("123");
@@ -63,6 +64,7 @@ abstract class AbstractMongoDriverTest {
 		// Start with a clean slate
 		mongoService.client()
 			.getDatabase(driverSettings.database())
+			.getCollection(COLLECTION_NAME)
 			.drop();
 	}
 

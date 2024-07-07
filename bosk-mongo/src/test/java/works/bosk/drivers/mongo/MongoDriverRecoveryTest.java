@@ -26,6 +26,7 @@ import static ch.qos.logback.classic.Level.ERROR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
+import static works.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 
 /**
  * Tests the kinds of recovery actions a human operator might take to try to get a busted service running again.
@@ -135,6 +136,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 			LOGGER.debug("Drop database");
 			mongoService.client()
 				.getDatabase(driverSettings.database())
+				.getCollection(COLLECTION_NAME)
 				.drop();
 		}, (b) -> initializeDatabase("after drop"));
 	}
@@ -146,7 +148,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 			LOGGER.debug("Drop collection");
 			mongoService.client()
 				.getDatabase(driverSettings.database())
-				.getCollection(MainDriver.COLLECTION_NAME)
+				.getCollection(COLLECTION_NAME)
 				.drop();
 		}, (b) -> initializeDatabase("after drop"));
 	}
@@ -158,7 +160,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 			LOGGER.debug("Delete document");
 			mongoService.client()
 				.getDatabase(driverSettings.database())
-				.getCollection(MainDriver.COLLECTION_NAME)
+				.getCollection(COLLECTION_NAME)
 				.deleteMany(new BsonDocument());
 		}, (b) -> initializeDatabase("after deletion"));
 	}
@@ -168,7 +170,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	void documentReappears_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		MongoCollection<Document> collection = mongoService.client()
 			.getDatabase(driverSettings.database())
-			.getCollection(MainDriver.COLLECTION_NAME);
+			.getCollection(COLLECTION_NAME);
 		AtomicReference<Document> originalDocument = new AtomicReference<>();
 		BsonString rootDocumentID = (driverSettings.preferredDatabaseFormat() == MongoDriverSettings.DatabaseFormat.SEQUOIA)?
 			SequoiaFormatDriver.DOCUMENT_ID :
@@ -215,7 +217,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		LOGGER.debug("Delete revision field");
 		mongoService.client()
 			.getDatabase(driverSettings.database())
-			.getCollection(MainDriver.COLLECTION_NAME)
+			.getCollection(COLLECTION_NAME)
 			.updateOne(
 				new BsonDocument(),
 				new BsonDocument("$unset", new BsonDocument(Formatter.DocumentFields.revision.name(), new BsonNull())) // Value is ignored
@@ -240,7 +242,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	private void setRevision(long revisionNumber) {
 		mongoService.client()
 			.getDatabase(driverSettings.database())
-			.getCollection(MainDriver.COLLECTION_NAME)
+			.getCollection(COLLECTION_NAME)
 			.updateOne(
 				new BsonDocument(),
 				new BsonDocument("$set", new BsonDocument(Formatter.DocumentFields.revision.name(), new BsonInt64(revisionNumber))) // Value is ignored

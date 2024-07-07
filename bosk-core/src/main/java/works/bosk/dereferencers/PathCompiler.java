@@ -207,7 +207,7 @@ public final class PathCompiler {
 		// Construction
 		//
 
-		public StepwiseDereferencerBuilder(Path path, StackTraceElement sourceFileOrigin) throws InvalidTypeException {
+		public StepwiseDereferencerBuilder(Path path, StackWalker.StackFrame sourceFileOrigin) throws InvalidTypeException {
 			super("DEREFERENCER", rawClass(sourceType).getClassLoader(), sourceFileOrigin);
 			assert !path.isEmpty();
 			steps = new ArrayList<>();

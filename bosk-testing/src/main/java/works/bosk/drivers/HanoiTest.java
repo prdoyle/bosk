@@ -58,7 +58,7 @@ public abstract class HanoiTest {
 	@BeforeEach
 	void setup() throws InvalidTypeException {
 		bosk = new Bosk<HanoiState>(
-			"Hanoi" + boskCounter.incrementAndGet(),
+			getClass().getSimpleName() + "_" + boskCounter.incrementAndGet(),
 			HanoiState.class,
 			this::defaultRoot,
 			driverFactory
