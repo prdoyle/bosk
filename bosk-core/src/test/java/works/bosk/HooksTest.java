@@ -1,8 +1,5 @@
 package works.bosk;
 
-import works.bosk.annotations.Hook;
-import works.bosk.annotations.ReferencePath;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -14,6 +11,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import works.bosk.annotations.Hook;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;

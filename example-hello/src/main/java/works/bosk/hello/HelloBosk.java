@@ -1,5 +1,6 @@
 package works.bosk.hello;
 
+import org.springframework.stereotype.Component;
 import works.bosk.Bosk;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -8,7 +9,6 @@ import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.hello.state.BoskState;
 import works.bosk.hello.state.Target;
-import org.springframework.stereotype.Component;
 
 @Component
 public class HelloBosk extends Bosk<BoskState> {

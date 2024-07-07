@@ -1,12 +1,12 @@
 package works.bosk.drivers.state;
 
-import works.bosk.ListValue;
-import works.bosk.MapValue;
-import works.bosk.StateTreeNode;
 import java.time.temporal.ChronoUnit;
 import lombok.Value;
 import lombok.With;
 import lombok.experimental.FieldNameConstants;
+import works.bosk.ListValue;
+import works.bosk.MapValue;
+import works.bosk.StateTreeNode;
 
 import static java.time.temporal.ChronoUnit.FOREVER;
 

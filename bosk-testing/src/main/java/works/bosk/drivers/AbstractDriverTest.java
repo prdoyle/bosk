@@ -1,5 +1,12 @@
 package works.bosk.drivers;
 
+import java.io.IOException;
+import java.lang.reflect.Method;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.CatalogReference;
@@ -10,13 +17,6 @@ import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.exceptions.InvalidTypeException;
-import java.io.IOException;
-import java.lang.reflect.Method;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static java.lang.Thread.currentThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;

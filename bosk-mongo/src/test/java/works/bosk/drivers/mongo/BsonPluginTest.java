@@ -1,14 +1,5 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.Bosk;
-import works.bosk.Catalog;
-import works.bosk.CatalogReference;
-import works.bosk.Entity;
-import works.bosk.Identifier;
-import works.bosk.Path;
-import works.bosk.SideTable;
-import works.bosk.StateTreeNode;
-import works.bosk.exceptions.InvalidTypeException;
 import lombok.experimental.FieldNameConstants;
 import org.bson.BsonDocument;
 import org.bson.BsonDocumentReader;
@@ -20,6 +11,15 @@ import org.bson.codecs.ValueCodecProvider;
 import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.junit.jupiter.api.Test;
+import works.bosk.Bosk;
+import works.bosk.Catalog;
+import works.bosk.CatalogReference;
+import works.bosk.Entity;
+import works.bosk.Identifier;
+import works.bosk.Path;
+import works.bosk.SideTable;
+import works.bosk.StateTreeNode;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

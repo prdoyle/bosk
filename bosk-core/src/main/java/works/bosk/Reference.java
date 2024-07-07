@@ -1,13 +1,13 @@
 package works.bosk;
 
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NonexistentReferenceException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NonexistentReferenceException;
 
 import static java.util.Arrays.asList;
 

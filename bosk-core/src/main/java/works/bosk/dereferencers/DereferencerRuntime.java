@@ -1,12 +1,12 @@
 package works.bosk.dereferencers;
 
+import java.util.Optional;
 import works.bosk.Bosk.NonexistentEntryException;
 import works.bosk.Catalog;
 import works.bosk.Identifier;
 import works.bosk.Listing;
 import works.bosk.Reference;
 import works.bosk.SideTable;
-import java.util.Optional;
 
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 

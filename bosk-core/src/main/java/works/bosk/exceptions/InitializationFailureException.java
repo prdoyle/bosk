@@ -1,7 +1,7 @@
 package works.bosk.exceptions;
 
-import works.bosk.BoskDriver;
 import java.io.IOException;
+import works.bosk.BoskDriver;
 
 /**
  * Indicates that a call to {@link BoskDriver#initialRoot} is unable to return an

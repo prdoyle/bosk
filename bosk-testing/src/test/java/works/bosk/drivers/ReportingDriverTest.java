@@ -1,5 +1,13 @@
 package works.bosk.drivers;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import works.bosk.BoskDiagnosticContext;
 import works.bosk.Identifier;
 import works.bosk.ListingEntry;
@@ -15,18 +23,10 @@ import works.bosk.drivers.operations.UpdateOperation;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 
-import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 class ReportingDriverTest extends AbstractDriverTest {
 	List<UpdateOperation> ops;

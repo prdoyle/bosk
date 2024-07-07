@@ -1,11 +1,6 @@
 package works.bosk.drivers.mongo;
 
 import ch.qos.logback.classic.Level;
-import works.bosk.Bosk;
-import works.bosk.Reference;
-import works.bosk.annotations.ReferencePath;
-import works.bosk.drivers.state.TestEntity;
-import works.bosk.junit.ParametersByName;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -15,6 +10,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.Bosk;
+import works.bosk.Reference;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.drivers.state.TestEntity;
+import works.bosk.junit.ParametersByName;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -40,6 +40,10 @@ public class SchemaEvolutionTest {
 	void beforeEach(TestInfo testInfo) {
 		fromHelper.setupDriverFactory();
 		toHelper  .setupDriverFactory();
+
+		// Changing formats often causes events that are not understood by other FormatDrivers
+		fromHelper.setLogging(Level.ERROR, ChangeReceiver.class);
+		toHelper.setLogging(Level.ERROR, ChangeReceiver.class);
 
 		fromHelper.clearTearDown(testInfo);
 		toHelper  .clearTearDown(testInfo);
@@ -68,8 +72,6 @@ public class SchemaEvolutionTest {
 
 	@ParametersByName
 	void pairwise_readCompatible() throws Exception {
-		fromHelper.setLogging(Level.ERROR, SequoiaFormatDriver.class, PandoFormatDriver.class);
-
 		LOGGER.debug("Create fromBosk [{}]", fromHelper.name);
 		Bosk<TestEntity> fromBosk = newBosk(fromHelper);
 		Refs fromRefs = fromBosk.buildReferences(Refs.class);
@@ -105,8 +107,6 @@ public class SchemaEvolutionTest {
 
 	@ParametersByName
 	void pairwise_writeCompatible() throws Exception {
-		fromHelper.setLogging(Level.ERROR, SequoiaFormatDriver.class, PandoFormatDriver.class, ChangeReceiver.class);
-
 		LOGGER.debug("Create fromBosk [{}]", fromHelper.name);
 		Bosk<TestEntity> fromBosk = newBosk(fromHelper);
 		Refs fromRefs = fromBosk.buildReferences(Refs.class);

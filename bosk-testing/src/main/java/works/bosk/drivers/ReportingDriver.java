@@ -1,5 +1,10 @@
 package works.bosk.drivers;
 
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.function.Consumer;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
 import works.bosk.BoskDiagnosticContext;
 import works.bosk.BoskDriver;
 import works.bosk.DriverFactory;
@@ -13,11 +18,6 @@ import works.bosk.drivers.operations.SubmitInitialization;
 import works.bosk.drivers.operations.SubmitReplacement;
 import works.bosk.drivers.operations.UpdateOperation;
 import works.bosk.exceptions.InvalidTypeException;
-import java.io.IOException;
-import java.lang.reflect.Type;
-import java.util.function.Consumer;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Sends an {@link UpdateOperation} to a given listener whenever one of the update methods is called.

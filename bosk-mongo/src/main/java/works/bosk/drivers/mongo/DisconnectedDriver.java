@@ -1,17 +1,17 @@
 package works.bosk.drivers.mongo;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import works.bosk.Identifier;
-import works.bosk.Reference;
-import works.bosk.StateTreeNode;
-import works.bosk.drivers.mongo.status.MongoStatus;
-import works.bosk.exceptions.InitializationFailureException;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.Identifier;
+import works.bosk.Reference;
+import works.bosk.StateTreeNode;
+import works.bosk.drivers.mongo.status.MongoStatus;
+import works.bosk.exceptions.InitializationFailureException;
 
 @RequiredArgsConstructor
 final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<R> {

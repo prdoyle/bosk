@@ -1,7 +1,7 @@
 package works.bosk;
 
-import works.bosk.junit.ParametersByName;
 import java.util.stream.Stream;
+import works.bosk.junit.ParametersByName;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

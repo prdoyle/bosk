@@ -1,14 +1,5 @@
 package works.bosk.drivers;
 
-import works.bosk.Bosk;
-import works.bosk.BoskDriver;
-import works.bosk.DriverFactory;
-import works.bosk.DriverStack;
-import works.bosk.Reference;
-import works.bosk.StateTreeNode;
-import works.bosk.drivers.operations.UpdateOperation;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Deque;
@@ -19,6 +10,15 @@ import java.util.concurrent.LinkedBlockingDeque;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.Bosk;
+import works.bosk.BoskDriver;
+import works.bosk.DriverFactory;
+import works.bosk.DriverStack;
+import works.bosk.Reference;
+import works.bosk.StateTreeNode;
+import works.bosk.drivers.operations.UpdateOperation;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 
 import static java.lang.Thread.currentThread;
 import static lombok.AccessLevel.PRIVATE;

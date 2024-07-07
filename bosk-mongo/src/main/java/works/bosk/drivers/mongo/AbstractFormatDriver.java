@@ -1,16 +1,16 @@
 package works.bosk.drivers.mongo;
 
+import java.io.IOException;
+import lombok.RequiredArgsConstructor;
+import org.bson.BsonDocument;
+import org.bson.BsonInt64;
+import org.bson.BsonValue;
 import works.bosk.MapValue;
 import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.status.BsonComparator;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.drivers.mongo.status.StateStatus;
-import java.io.IOException;
-import lombok.RequiredArgsConstructor;
-import org.bson.BsonDocument;
-import org.bson.BsonInt64;
-import org.bson.BsonValue;
 
 import static works.bosk.drivers.mongo.Formatter.REVISION_ZERO;
 

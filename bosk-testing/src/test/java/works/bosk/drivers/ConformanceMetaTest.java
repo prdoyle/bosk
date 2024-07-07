@@ -1,7 +1,7 @@
 package works.bosk.drivers;
 
-import works.bosk.Bosk;
 import org.junit.jupiter.api.BeforeEach;
+import works.bosk.Bosk;
 
 /**
  * Makes sure {@link DriverConformanceTest} works properly by testing

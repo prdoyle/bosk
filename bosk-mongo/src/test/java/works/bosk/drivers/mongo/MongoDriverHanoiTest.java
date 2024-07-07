@@ -1,20 +1,31 @@
 package works.bosk.drivers.mongo;
 
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
+import works.bosk.DriverStack;
 import works.bosk.drivers.HanoiTest;
 import works.bosk.junit.ParametersByName;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 
+@UsesMongoService
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;
+	private Queue<Runnable> shutdownOperations = new ConcurrentLinkedDeque<>();
 
 	@ParametersByName
 	public MongoDriverHanoiTest(TestParameters.ParameterSet parameters) {
 		MongoDriverSettings settings = parameters.driverSettingsBuilder().build();
-		this.driverFactory = MongoDriver.factory(
-			mongoService.clientSettings(),
-			settings,
-			new BsonPlugin()
+		this.driverFactory = DriverStack.of(
+			(b,d) -> { shutdownOperations.add(((MongoDriver<?>)d)::close); return d;},
+			MongoDriver.factory(
+				mongoService.clientSettings(),
+				settings,
+				new BsonPlugin()
+			)
 		);
 		mongoService.client()
 			.getDatabase(settings.database())
@@ -24,6 +35,18 @@ public class MongoDriverHanoiTest extends HanoiTest {
 	@BeforeAll
 	static void setupMongoConnection() {
 		mongoService = new MongoService();
+	}
+
+	@BeforeEach
+	void logStart(TestInfo testInfo) {
+		AbstractMongoDriverTest.logTest("/=== Start", testInfo);
+	}
+
+	@AfterEach
+	void logDone(TestInfo testInfo) {
+		shutdownOperations.forEach(Runnable::run);
+		shutdownOperations.clear();
+		AbstractMongoDriverTest.logTest("\\=== Done", testInfo);
 	}
 
 	@SuppressWarnings("unused")

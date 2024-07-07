@@ -1,12 +1,12 @@
 package works.bosk.hello;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import works.bosk.Reference;
 import works.bosk.annotations.Hook;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.hello.state.Target;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 @Component
 public class HelloHooks {

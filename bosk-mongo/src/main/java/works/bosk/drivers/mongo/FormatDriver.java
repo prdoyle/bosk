@@ -3,13 +3,13 @@ package works.bosk.drivers.mongo;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import works.bosk.BoskDiagnosticContext;
-import works.bosk.StateTreeNode;
-import works.bosk.exceptions.InitializationFailureException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
+import works.bosk.BoskDiagnosticContext;
+import works.bosk.StateTreeNode;
+import works.bosk.exceptions.InitializationFailureException;
 
 /**
  * Additional {@link MongoDriver} functionality that the format-specific drivers must implement.

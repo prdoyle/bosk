@@ -1,6 +1,5 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.exceptions.FlushFailureException;
 import java.io.Closeable;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
@@ -9,6 +8,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.bson.BsonInt64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.exceptions.FlushFailureException;
 
 import static java.lang.System.identityHashCode;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;

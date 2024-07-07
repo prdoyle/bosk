@@ -1,5 +1,8 @@
 package works.bosk.drivers;
 
+import java.io.IOException;
+import java.lang.reflect.Type;
+import lombok.RequiredArgsConstructor;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.DriverFactory;
@@ -7,9 +10,6 @@ import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
-import java.io.IOException;
-import java.lang.reflect.Type;
-import lombok.RequiredArgsConstructor;
 
 import static java.util.Arrays.asList;
 import static lombok.AccessLevel.PRIVATE;

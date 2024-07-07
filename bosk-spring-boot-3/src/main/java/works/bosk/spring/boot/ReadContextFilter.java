@@ -1,6 +1,5 @@
 package works.bosk.spring.boot;
 
-import works.bosk.Bosk;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -9,6 +8,7 @@ import jakarta.servlet.ServletResponse;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import works.bosk.Bosk;
 
 @Component
 @RequiredArgsConstructor

@@ -1,9 +1,9 @@
 package works.bosk;
 
-import works.bosk.annotations.ReferencePath;
-import works.bosk.exceptions.InvalidTypeException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

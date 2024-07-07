@@ -10,18 +10,6 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import works.bosk.BoskDriver;
-import works.bosk.BoskInfo;
-import works.bosk.Identifier;
-import works.bosk.Reference;
-import works.bosk.StateTreeNode;
-import works.bosk.drivers.mongo.Formatter.DocumentFields;
-import works.bosk.drivers.mongo.MappedDiagnosticContext.MDCScope;
-import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
-import works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode;
-import works.bosk.drivers.mongo.status.MongoStatus;
-import works.bosk.exceptions.FlushFailureException;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.ExecutionException;
@@ -36,14 +24,26 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskDriver;
+import works.bosk.BoskInfo;
+import works.bosk.Identifier;
+import works.bosk.Reference;
+import works.bosk.StateTreeNode;
+import works.bosk.drivers.mongo.Formatter.DocumentFields;
+import works.bosk.drivers.mongo.MappedDiagnosticContext.MDCScope;
+import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
+import works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode;
+import works.bosk.drivers.mongo.status.MongoStatus;
+import works.bosk.exceptions.FlushFailureException;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ONE;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.MappedDiagnosticContext.setupMDC;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.USE_IF_EXISTS;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 /**
  * This is the driver returned to the user by {@link MongoDriver#factory}.

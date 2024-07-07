@@ -1,17 +1,17 @@
 package works.bosk.drivers;
 
-import works.bosk.BoskDriver;
-import works.bosk.DriverFactory;
-import works.bosk.Identifier;
-import works.bosk.Reference;
-import works.bosk.StateTreeNode;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Random;
 import java.util.function.DoubleSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskDriver;
+import works.bosk.DriverFactory;
+import works.bosk.Identifier;
+import works.bosk.Reference;
+import works.bosk.StateTreeNode;
+import works.bosk.exceptions.InvalidTypeException;
 
 public final class JitterDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	private final BoskDriver<R> downstream;

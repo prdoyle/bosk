@@ -1,15 +1,5 @@
 package works.bosk;
 
-import works.bosk.BoskDiagnosticContext.DiagnosticScope;
-import works.bosk.ReferenceUtils.CatalogRef;
-import works.bosk.ReferenceUtils.ListingRef;
-import works.bosk.ReferenceUtils.SideTableRef;
-import works.bosk.dereferencers.Dereferencer;
-import works.bosk.dereferencers.PathCompiler;
-import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NoReadContextException;
-import works.bosk.exceptions.ReferenceBindingException;
-import works.bosk.util.Classes;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -30,15 +20,25 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskDiagnosticContext.DiagnosticScope;
+import works.bosk.ReferenceUtils.CatalogRef;
+import works.bosk.ReferenceUtils.ListingRef;
+import works.bosk.ReferenceUtils.SideTableRef;
+import works.bosk.dereferencers.Dereferencer;
+import works.bosk.dereferencers.PathCompiler;
+import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NoReadContextException;
 import works.bosk.exceptions.NonexistentReferenceException;
+import works.bosk.exceptions.ReferenceBindingException;
+import works.bosk.util.Classes;
 
-import static works.bosk.Path.parameterNameFromSegment;
-import static works.bosk.ReferenceUtils.rawClass;
-import static works.bosk.TypeValidation.validateType;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
 import static lombok.AccessLevel.NONE;
+import static works.bosk.Path.parameterNameFromSegment;
+import static works.bosk.ReferenceUtils.rawClass;
+import static works.bosk.TypeValidation.validateType;
 
 /**
  * A mutable container for an immutable object tree with cross-tree {@link Reference}s,

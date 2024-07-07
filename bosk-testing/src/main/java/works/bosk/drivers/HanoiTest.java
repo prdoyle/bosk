@@ -1,5 +1,12 @@
 package works.bosk.drivers;
 
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
+import org.junit.jupiter.api.BeforeEach;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.BindingEnvironment;
 import works.bosk.Bosk;
 import works.bosk.Catalog;
@@ -15,19 +22,12 @@ import works.bosk.annotations.Hook;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
-import org.junit.jupiter.api.BeforeEach;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.stream.Collectors.joining;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 /**
  * Exercises a lot of bosk reads, updates, and hooks.

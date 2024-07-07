@@ -1,17 +1,17 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.DriverFactory;
-import works.bosk.StateTreeNode;
-import works.bosk.drivers.DriverConformanceTest;
-import works.bosk.drivers.mongo.TestParameters.EventTiming;
-import works.bosk.drivers.mongo.TestParameters.ParameterSet;
-import works.bosk.junit.ParametersByName;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import works.bosk.DriverFactory;
+import works.bosk.StateTreeNode;
+import works.bosk.drivers.DriverConformanceTest;
+import works.bosk.drivers.mongo.TestParameters.EventTiming;
+import works.bosk.drivers.mongo.TestParameters.ParameterSet;
+import works.bosk.junit.ParametersByName;
 
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 

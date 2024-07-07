@@ -17,7 +17,7 @@ public class TestParameters {
 		MongoDriverSettings.MongoDriverSettingsBuilder driverSettingsBuilder;
 
 		public static ParameterSet from(MongoDriverSettings.DatabaseFormat format, EventTiming timing) {
-			String dbName = MongoDriverRecoveryTest.class.getSimpleName()
+			String dbName = TestParameters.class.getSimpleName()
 				+ "_" + dbCounter.incrementAndGet()
 				+ "_" + format.getClass().getSimpleName()
 				+ timing.suffix;

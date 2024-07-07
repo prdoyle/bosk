@@ -1,7 +1,5 @@
 package works.bosk;
 
-import works.bosk.annotations.Hook;
-import works.bosk.exceptions.InvalidTypeException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
@@ -12,6 +10,8 @@ import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.annotations.Hook;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static java.lang.reflect.Modifier.isPrivate;
 import static java.lang.reflect.Modifier.isStatic;

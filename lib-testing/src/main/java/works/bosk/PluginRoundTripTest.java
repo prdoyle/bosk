@@ -1,9 +1,9 @@
 package works.bosk;
 
-import works.bosk.exceptions.InvalidTypeException;
 import lombok.val;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

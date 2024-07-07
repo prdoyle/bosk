@@ -1,16 +1,5 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.Bosk;
-import works.bosk.Catalog;
-import works.bosk.CatalogReference;
-import works.bosk.EnumerableByIdentifier;
-import works.bosk.Identifier;
-import works.bosk.Reference;
-import works.bosk.SideTableReference;
-import works.bosk.annotations.ReferencePath;
-import works.bosk.drivers.AbstractDriverTest;
-import works.bosk.drivers.state.TestEntity;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -23,6 +12,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.Bosk;
+import works.bosk.Catalog;
+import works.bosk.CatalogReference;
+import works.bosk.EnumerableByIdentifier;
+import works.bosk.Identifier;
+import works.bosk.Reference;
+import works.bosk.SideTableReference;
+import works.bosk.annotations.ReferencePath;
+import works.bosk.drivers.AbstractDriverTest;
+import works.bosk.drivers.state.TestEntity;
+import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;

@@ -1,9 +1,9 @@
 package works.bosk.drivers.mongo;
 
-import works.bosk.BoskDriver;
 import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.Value;
+import works.bosk.BoskDriver;
 
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.USE_IF_EXISTS;

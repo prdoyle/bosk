@@ -1,7 +1,7 @@
 package works.bosk.drivers.mongo.example;
 
-import works.bosk.StateTreeNode;
 import lombok.Value;
+import works.bosk.StateTreeNode;
 
 @Value
 public class ExampleState implements StateTreeNode {

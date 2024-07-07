@@ -1,11 +1,11 @@
 package works.bosk;
 
-import works.bosk.drivers.ForwardingDriver;
-import works.bosk.exceptions.FlushFailureException;
-import works.bosk.exceptions.InvalidTypeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import works.bosk.drivers.ForwardingDriver;
+import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InitializationFailureException;
+import works.bosk.exceptions.InvalidTypeException;
 
 /**
  * Receives update requests for some {@link Bosk}.
