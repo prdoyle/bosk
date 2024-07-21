@@ -240,7 +240,7 @@ public abstract class SerializationPlugin {
 		return infoFor(nodeClass).annotatedParameters_DeserializationPath().containsKey(parameter.getName());
 	}
 
-	public <R extends StateTreeNode> void initializeEnclosingPolyfills(Reference<?> target, BoskDriver<R> formatDriver) {
+	public <R extends StateTreeNode> void initializeEnclosingPolyfills(Reference<?> target, BoskDriver<R> driver) {
 		if (!ANY_POLYFILLS.get()) {
 			return;
 		}
@@ -256,15 +256,15 @@ public abstract class SerializationPlugin {
 		 */
 		if (!target.path().isEmpty()) {
 			try {
-				initializePolyfills(target.enclosingReference(Object.class), formatDriver);
+				initializePolyfills(target.enclosingReference(Object.class), driver);
 			} catch (InvalidTypeException e) {
 				throw new AssertionError("Every non-root reference has an enclosing reference: " + target);
 			}
 		}
 	}
 
-	private <R extends StateTreeNode, T> void initializePolyfills(Reference<T> ref, BoskDriver<R> formatDriver) {
-		initializeEnclosingPolyfills(ref, formatDriver);
+	private <R extends StateTreeNode, T> void initializePolyfills(Reference<T> ref, BoskDriver<R> driver) {
+		initializeEnclosingPolyfills(ref, driver);
 		if (!ref.path().isEmpty()) {
 			Class<?> enclosing;
 			try {
@@ -275,7 +275,7 @@ public abstract class SerializationPlugin {
 			if (StateTreeNode.class.isAssignableFrom(enclosing)) {
 				Object result = infoFor(enclosing).polyfills().get(ref.path().lastSegment());
 				if (result != null) {
-					formatDriver.submitInitialization(ref, ref.targetClass().cast(result));
+					driver.submitInitialization(ref, ref.targetClass().cast(result));
 				}
 			}
 		}
@@ -322,16 +322,16 @@ public abstract class SerializationPlugin {
 	}
 
 
-	private static ParameterInfo infoFor(Class<?> nodeClassArg) {
-		return PARAMETER_INFO_MAP.computeIfAbsent(nodeClassArg, SerializationPlugin::computeInfoFor);
+	private static ParameterInfo infoFor(Class<?> nodeClass) {
+		return PARAMETER_INFO_MAP.computeIfAbsent(nodeClass, SerializationPlugin::computeInfoFor);
 	}
 
-	private static ParameterInfo computeInfoFor(Class<?> nodeClassArg) {
+	private static ParameterInfo computeInfoFor(Class<?> nodeClass) {
 		Set<String> selfParameters = new HashSet<>();
 		Set<String> enclosingParameters = new HashSet<>();
 		Map<String, DeserializationPath> deserializationPathParameters = new HashMap<>();
 		Map<String, Object> polyfills = new HashMap<>();
-		for (Parameter parameter: ReferenceUtils.theOnlyConstructorFor(nodeClassArg).getParameters()) {
+		for (Parameter parameter: ReferenceUtils.theOnlyConstructorFor(nodeClass).getParameters()) {
 			scanForInfo(parameter, parameter.getName(),
 				selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
 		}
@@ -342,7 +342,7 @@ public abstract class SerializationPlugin {
 		// can also go on fields with the same name. This accommodates systems
 		// like Lombok that derive constructors from fields.
 
-		for (Class<?> c = nodeClassArg; c != Object.class; c = c.getSuperclass()) {
+		for (Class<?> c = nodeClass; c != Object.class; c = c.getSuperclass()) {
 			for (Field field: c.getDeclaredFields()) {
 				scanForInfo(field, field.getName(),
 					selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
