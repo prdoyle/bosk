@@ -10,6 +10,7 @@ import works.bosk.exceptions.InvalidTypeException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.BoskTestUtils.boskName;
 
 class VariantTest extends AbstractBoskTest {
 
@@ -46,7 +47,7 @@ class VariantTest extends AbstractBoskTest {
 	@Test
 	void test() throws InvalidTypeException, IOException, InterruptedException {
 		String stringValue = "test";
-		var bosk = new Bosk<>(VariantTest.class.getSimpleName(), BoskState.class, new BoskState(new StringCase(stringValue)), Bosk::simpleDriver);
+		var bosk = new Bosk<>(boskName(), BoskState.class, new BoskState(new StringCase(stringValue)), Bosk::simpleDriver);
 		var refs = bosk.rootReference().buildReferences(Refs.class);
 		try (var __ = bosk.readContext()) {
 			assertEquals(stringValue, refs.stringValue().value());

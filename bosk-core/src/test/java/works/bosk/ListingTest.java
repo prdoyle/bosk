@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static works.bosk.BoskTestUtils.boskName;
 
 /*
  * TODO: This test is written in a mighty weird style. Change it to set up
@@ -54,7 +55,7 @@ class ListingTest {
 			return childrenStream
 					.map(children -> {
 						TestEntity root = new TestEntity(Identifier.unique("parent"), Catalog.of(children));
-						Bosk<TestEntity> bosk = new Bosk<>("Test Bosk", TestEntity.class, root, Bosk::simpleDriver);
+						Bosk<TestEntity> bosk = new Bosk<>(boskName(), TestEntity.class, root, Bosk::simpleDriver);
 						CatalogReference<TestEntity> catalog;
 						try {
 							catalog = bosk.rootReference().thenCatalog(TestEntity.class, Path.just(TestEntity.Fields.children));
@@ -73,7 +74,7 @@ class ListingTest {
 			TestEntity child = new TestEntity(Identifier.unique("child"), Catalog.empty());
 			List<TestEntity> children = singletonList(child);
 			TestEntity root = new TestEntity(Identifier.unique("parent"), Catalog.of(children));
-			Bosk<TestEntity> bosk = new Bosk<>("Test Bosk", TestEntity.class, root, Bosk::simpleDriver);
+			Bosk<TestEntity> bosk = new Bosk<>(boskName(), TestEntity.class, root, Bosk::simpleDriver);
 			CatalogReference<TestEntity> childrenRef = bosk.rootReference().thenCatalog(TestEntity.class, Path.just(TestEntity.Fields.children));
 			return idStreams().map(list -> Arguments.of(list.map(Identifier::from).collect(toList()), childrenRef, bosk));
 		}
@@ -248,7 +249,7 @@ class ListingTest {
 		TestEntity child = new TestEntity(Identifier.unique("child"), Catalog.empty());
 		List<TestEntity> children = singletonList(child);
 		TestEntity root = new TestEntity(Identifier.unique("parent"), Catalog.of(children));
-		Bosk<TestEntity> bosk = new Bosk<>("Test Bosk", TestEntity.class, root, Bosk::simpleDriver);
+		Bosk<TestEntity> bosk = new Bosk<>(boskName(), TestEntity.class, root, Bosk::simpleDriver);
 		CatalogReference<TestEntity> childrenRef = bosk.rootReference().thenCatalog(TestEntity.class, Path.just(TestEntity.Fields.children));
 
 		Listing<TestEntity> actual = Listing.empty(childrenRef);

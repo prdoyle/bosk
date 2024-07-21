@@ -14,6 +14,7 @@
 	<logger name="works.bosk.drivers.mongo.UninitializedCollectionException" level="ERROR"/>
 
 	<!-- How to add more tracing during unit tests
+	<logger name="works.bosk" level="INFO"/>
 	<logger name="works.bosk.drivers.mongo" level="DEBUG"/>
 	<logger name="works.bosk.drivers.DriverConformanceTest" level="DEBUG"/>
 	<logger name="works.bosk.drivers.mongo.PandoFormatDriver" level="TRACE"/>

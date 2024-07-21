@@ -17,13 +17,14 @@ import works.bosk.drivers.state.TestEntity;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.BoskTestUtils.boskName;
 
 class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
 	private Bosk<TestEntity> bosk;
 
 	@BeforeEach
 	void setUpStuff() {
-		bosk = new Bosk<TestEntity>("Test bosk", TestEntity.class, AbstractDriverTest::initialRoot, Bosk::simpleDriver);
+		bosk = new Bosk<TestEntity>(boskName(), TestEntity.class, AbstractDriverTest::initialRoot, Bosk::simpleDriver);
 	}
 
 	private CatalogReference<TestEntity> rootCatalogRef(Bosk<TestEntity> bosk) throws InvalidTypeException {

@@ -22,6 +22,7 @@ import works.bosk.exceptions.NotYetImplementedException;
 
 import static java.lang.Thread.currentThread;
 import static lombok.AccessLevel.PRIVATE;
+import static works.bosk.BoskTestUtils.boskName;
 
 /**
  * Watches the updates entering and leaving a particular {@link BoskDriver} and ensures
@@ -51,7 +52,7 @@ public class DriverStateVerifier<R extends StateTreeNode> {
 
 	public static <RR extends StateTreeNode> DriverFactory<RR> wrap(DriverFactory<RR> subject, Type rootType, Bosk.DefaultRootFunction<RR> defaultRootFunction) {
 		Bosk<RR> stateTrackingBosk = new Bosk<>(
-			DriverStateVerifier.class.getSimpleName(),
+			boskName(),
 			rootType, defaultRootFunction,
 			Bosk::simpleDriver
 		);

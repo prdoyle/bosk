@@ -20,6 +20,7 @@ import works.bosk.exceptions.InvalidTypeException;
 
 import static java.lang.Thread.currentThread;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.BoskTestUtils.boskName;
 
 public abstract class AbstractDriverTest {
 	protected final Identifier child1ID = Identifier.from("child1");
@@ -48,10 +49,10 @@ public abstract class AbstractDriverTest {
 
 	protected void setupBosksAndReferences(DriverFactory<TestEntity> driverFactory) {
 		// This is the bosk whose behaviour we'll consider to be correct by definition
-		canonicalBosk = new Bosk<TestEntity>(getClass().getSimpleName() + "-canonical", TestEntity.class, AbstractDriverTest::initialRoot, Bosk::simpleDriver);
+		canonicalBosk = new Bosk<TestEntity>(boskName("Canonical", 1), TestEntity.class, AbstractDriverTest::initialRoot, Bosk::simpleDriver);
 
 		// This is the bosk we're testing
-		bosk = new Bosk<TestEntity>(getClass().getSimpleName(), TestEntity.class, AbstractDriverTest::initialRoot, DriverStack.of(
+		bosk = new Bosk<TestEntity>(boskName("Test", 1), TestEntity.class, AbstractDriverTest::initialRoot, DriverStack.of(
 			MirroringDriver.targeting(canonicalBosk),
 			DriverStateVerifier.wrap(driverFactory, TestEntity.class, AbstractDriverTest::initialRoot)
 		));

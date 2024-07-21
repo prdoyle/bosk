@@ -17,6 +17,7 @@ import works.bosk.drivers.state.TestEntity;
 import works.bosk.junit.ParametersByName;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.BoskTestUtils.boskName;
 
 @UsesMongoService
 public class SchemaEvolutionTest {
@@ -176,10 +177,8 @@ public class SchemaEvolutionTest {
 	}
 
 	private static Bosk<TestEntity> newBosk(Helper helper) {
-		return new Bosk<TestEntity>("bosk" + boskCounter.incrementAndGet(), TestEntity.class, helper::initialRoot, helper.driverFactory);
+		return new Bosk<TestEntity>(boskName(helper.toString()), TestEntity.class, helper::initialRoot, helper.driverFactory);
 	}
-
-	private static final AtomicInteger boskCounter = new AtomicInteger(0);
 
 	record Configuration(
 		MongoDriverSettings.DatabaseFormat preferredFormat,

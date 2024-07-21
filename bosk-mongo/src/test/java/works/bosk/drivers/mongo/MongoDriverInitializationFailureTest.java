@@ -6,6 +6,7 @@ import works.bosk.drivers.state.TestEntity;
 
 import static ch.qos.logback.classic.Level.ERROR;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.BoskTestUtils.boskName;
 
 /**
  * Tests the functionality of {@link MongoDriverSettings.InitialDatabaseUnavailableMode#FAIL FAIL} mode.
@@ -27,7 +28,7 @@ public class MongoDriverInitializationFailureTest extends AbstractMongoDriverTes
 		mongoService.proxy().setConnectionCut(true);
 		tearDownActions.add(()->mongoService.proxy().setConnectionCut(false));
 		assertThrows(InitialRootFailureException.class, ()->{
-			new Bosk<TestEntity>("Fail", TestEntity.class, this::initialRoot, super.createDriverFactory(logController));
+			new Bosk<TestEntity>(boskName("Fail"), TestEntity.class, this::initialRoot, super.createDriverFactory(logController));
 		});
 	}
 

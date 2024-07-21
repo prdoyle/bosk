@@ -8,6 +8,7 @@ import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.BoskTestUtils.boskName;
 
 /**
  * To get complete coverage of Bosk.java, include these:
@@ -40,7 +41,7 @@ public class BoskUpdateTest extends AbstractBoskTest {
 	@BeforeEach
 	void createBosk() throws InvalidTypeException {
 		bosk = new Bosk<TestRoot>(
-			BoskUpdateTest.class.getSimpleName(),
+			boskName(),
 			TestRoot.class,
 			AbstractBoskTest::initialRoot,
 			Bosk::simpleDriver

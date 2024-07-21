@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static works.bosk.BoskTestUtils.boskName;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.ReferenceUtils.rawClass;
 
@@ -55,6 +56,7 @@ import static works.bosk.ReferenceUtils.rawClass;
  *
  */
 class BoskLocalReferenceTest {
+	String boskName;
 	Bosk<Root> bosk;
 	Root root;
 	Refs refs;
@@ -66,8 +68,9 @@ class BoskLocalReferenceTest {
 
 	@BeforeEach
 	void initializeBosk() throws InvalidTypeException {
+		boskName = boskName();
 		Root initialRoot = new Root(1, Catalog.empty());
-		bosk = new Bosk<>(BOSK_NAME, Root.class, initialRoot, Bosk::simpleDriver);
+		bosk = new Bosk<>(boskName, Root.class, initialRoot, Bosk::simpleDriver);
 		refs = bosk.rootReference().buildReferences(Refs.class);
 		Identifier ernieID = Identifier.from("ernie");
 		Identifier bertID = Identifier.from("bert");
@@ -255,7 +258,7 @@ class BoskLocalReferenceTest {
 
 	@Test
 	void testName() {
-		assertEquals(BOSK_NAME, bosk.name());
+		assertEquals(boskName, bosk.name());
 	}
 
 	@Test
@@ -270,15 +273,15 @@ class BoskLocalReferenceTest {
 				this.mutableString = str;
 			}
 		}
-		assertThrows(IllegalArgumentException.class, () -> new Bosk<>("invalid", InvalidRoot.class, new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
-		assertThrows(IllegalArgumentException.class, () -> new Bosk<>("invalid", String.class, new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
+		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), InvalidRoot.class, new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
+		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), String.class, new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
 	}
 
 	@Test
 	void testDriver() {
 		// This doesn't test the operation of the driver; merely that the right driver is returned
 		AtomicReference<BoskDriver<Root>> driver = new AtomicReference<>();
-		Bosk<Root> myBosk = new Bosk<>("My bosk", Root.class, new Root(123, Catalog.empty()), (b,d) -> {
+		Bosk<Root> myBosk = new Bosk<>(boskName(), Root.class, new Root(123, Catalog.empty()), (b,d) -> {
 			BoskDriver<Root> bd = new ProxyDriver(d);
 			driver.set(bd);
 			return bd;
@@ -446,6 +449,4 @@ class BoskLocalReferenceTest {
 			throw new AssertionError("Unexpected!", e);
 		}
 	}
-
-	private static final String BOSK_NAME = "bosk name";
 }
