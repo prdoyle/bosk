@@ -9,8 +9,10 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import works.bosk.annotations.DerivedRecord;
@@ -25,6 +27,7 @@ import static java.lang.reflect.Modifier.isPublic;
 import static java.lang.reflect.Modifier.isStatic;
 import static java.util.Arrays.asList;
 import static java.util.Collections.newSetFromMap;
+import static java.util.Objects.requireNonNull;
 import static works.bosk.SerializationPlugin.hasDeserializationPath;
 import static works.bosk.SerializationPlugin.isEnclosingReference;
 import static works.bosk.SerializationPlugin.isSelfReference;
@@ -139,6 +142,15 @@ public final class TypeValidation {
 	}
 
 	private static void validateStateTreeNodeClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
+		var variantCaseMap = SerializationPlugin.getVariantCaseMapIfAny(nodeClass);
+		if (variantCaseMap == null) {
+			validateOrdinaryStateTreeNodeClass(nodeClass, alreadyValidated);
+		} else {
+			validateVariantNodeClass(nodeClass, variantCaseMap, alreadyValidated);
+		}
+	}
+
+	private static void validateOrdinaryStateTreeNodeClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
 		Constructor<?>[] constructors = nodeClass.getConstructors();
 		if (constructors.length != 1) {
 			throw new InvalidTypeException(nodeClass.getSimpleName() + " must have one constructor; found " + constructors.length + " constructors");
@@ -146,20 +158,35 @@ public final class TypeValidation {
 
 		// Every constructor parameter must have an appropriate getter and wither
 		for (Parameter p: constructors[0].getParameters()) {
-			validateConstructorParameter(nodeClass, p);
+			var typesToValidate = validateConstructorParameter(nodeClass, p);
 			validateGetter(nodeClass, p);
 
-			// Recurse to check that the field type itself is valid.
-			// For troubleshooting reasons, wrap any thrown exception so the
-			// user is able to follow the reference chain.
-			try {
-				validateType(p.getParameterizedType(), alreadyValidated);
-			} catch (InvalidTypeException e) {
-				throw new InvalidFieldTypeException(nodeClass, p.getName(), e.getMessage(), e);
+			for (Type type : typesToValidate) {// Recurse to check that the field type itself is valid.
+				// For troubleshooting reasons, wrap any thrown exception so the
+				// user is able to follow the reference chain.
+				try {
+					validateType(type, alreadyValidated);
+				} catch (InvalidTypeException e) {
+					throw new InvalidFieldTypeException(nodeClass, p.getName(), e.getMessage(), e);
+				}
 			}
 		}
 
 		validateFieldsAreFinal(nodeClass);
+	}
+
+	private static void validateVariantNodeClass(Class<?> nodeClass, Map<String, Type> variantCaseMap, Set<Type> alreadyValidated) throws InvalidTypeException {
+		if (!nodeClass.isInterface()) {
+			throw new InvalidTypeException("Variant node class " + nodeClass.getSimpleName() + " must be an interface");
+		}
+		if (!VariantNode.class.isAssignableFrom(nodeClass)) {
+			throw new InvalidTypeException("Variant node class " + nodeClass.getSimpleName() + " must implement " + VariantNode.class.getSimpleName());
+		}
+
+		for (Map.Entry<String, Type> entry : variantCaseMap.entrySet()) {
+			validateFieldName(nodeClass, requireNonNull(entry.getKey())); // TODO: this produces confusing exception messages
+			validateType(requireNonNull(entry.getValue()), alreadyValidated);
+		}
 	}
 
 	/**
@@ -192,13 +219,13 @@ public final class TypeValidation {
 		}
 	}
 
-	private static void validateConstructorParameter(Class<?> containingClass, Parameter parameter) throws InvalidFieldTypeException {
+	/**
+	 * @return the set of types this <code>parameter</code> might use;
+	 * usually, that's just the declared parameterized type of the parameter.
+	 */
+	private static Collection<Type> validateConstructorParameter(Class<?> containingClass, Parameter parameter) throws InvalidFieldTypeException {
 		String fieldName = parameter.getName();
-		for (int i = 0; i < fieldName.length(); i++) {
-			if (!isValidFieldNameChar(fieldName.codePointAt(i))) {
-				throw new InvalidFieldTypeException(containingClass, fieldName, "Only ASCII letters, numbers, and underscores are allowed in field names; illegal character '" + fieldName.charAt(i) + "' at offset " + i);
-			}
-		}
+		validateFieldName(containingClass, fieldName);
 		if (hasDeserializationPath(containingClass, parameter)) {
 			throw new InvalidFieldTypeException(containingClass, fieldName, "@" + DeserializationPath.class.getSimpleName() + " not valid inside the bosk");
 		} else if (isEnclosingReference(containingClass, parameter)) {
@@ -219,6 +246,15 @@ public final class TypeValidation {
 			Type referencedType = ReferenceUtils.parameterType(type, Reference.class, 0);
 			if (!ReferenceUtils.rawClass(referencedType).isAssignableFrom(containingClass)) {
 				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Self.class.getSimpleName() + " reference to " + ReferenceUtils.rawClass(referencedType).getSimpleName() + " incompatible with containing class " + containingClass.getSimpleName());
+			}
+		}
+		return List.of(parameter.getParameterizedType());
+	}
+
+	private static void validateFieldName(Class<?> containingClass, String fieldName) throws InvalidFieldTypeException {
+		for (int i = 0; i < fieldName.length(); i++) {
+			if (!isValidFieldNameChar(fieldName.codePointAt(i))) {
+				throw new InvalidFieldTypeException(containingClass, fieldName, "Only ASCII letters, numbers, and underscores are allowed in field names; illegal character '" + fieldName.charAt(i) + "' at offset " + i);
 			}
 		}
 	}

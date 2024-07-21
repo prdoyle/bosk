@@ -25,7 +25,7 @@ spotless {
 		target '**/*.gradle', '**/*.md', '**/.gitignore'
 
 		trimTrailingWhitespace()
-		indentWithTabs()
+		//indentWithTabs() For markdown, we want to align some code examples very carefully, so we use spaces
 		replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
 		replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
 		endWithNewline()

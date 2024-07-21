@@ -19,6 +19,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
+import lombok.experimental.Delegate;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,8 +32,10 @@ import works.bosk.ListingEntry;
 import works.bosk.Path;
 import works.bosk.Phantom;
 import works.bosk.Reference;
+import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
+import works.bosk.annotations.VariantCaseMap;
 import works.bosk.bytecode.LocalVariable;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
@@ -212,14 +215,16 @@ public final class PathCompiler {
 			assert !path.isEmpty();
 			steps = new ArrayList<>();
 			Type currentType = sourceType;
+			Step priorStep = null;
 			for (int i = 0; i < path.length(); i++) {
-				Step step = newSegmentStep(currentType, path.segment(i), i);
+				Step step = newSegmentStep(currentType, path.segment(i), i, priorStep);
 				steps.add(step);
 				currentType = step.targetType();
+				priorStep = step;
 			}
 		}
 
-		private Step newSegmentStep(Type currentType, String segment, int segmentNum) throws InvalidTypeException {
+		private Step newSegmentStep(Type currentType, String segment, int segmentNum, Step priorStep) throws InvalidTypeException {
 			Class<?> currentClass = rawClass(currentType);
 			if (Catalog.class.isAssignableFrom(currentClass)) {
 				return new CatalogEntryStep(parameterType(currentType, Catalog.class, 0), segmentNum);
@@ -229,6 +234,8 @@ public final class PathCompiler {
 				Type keyType = parameterType(currentType, SideTable.class, 0);
 				Type targetType = parameterType(currentType, SideTable.class, 1);
 				return new SideTableEntryStep(keyType, targetType, segmentNum);
+			} else if (priorStep instanceof VariantFieldStep v) {
+				return new VariantCaseStep(segment, v.caseType(segment));
 			} else if (StateTreeNode.class.isAssignableFrom(currentClass)) {
 				if (isParameterSegment(segment)) {
 					throw new InvalidTypeException("Invalid parameter location: expected a field of " + currentClass.getSimpleName());
@@ -243,7 +250,10 @@ public final class PathCompiler {
 
 				Step fieldStep = newFieldStep(segment, getters, theOnlyConstructorFor(currentClass));
 				Class<?> fieldClass = rawClass(fieldStep.targetType());
-				if (Optional.class.isAssignableFrom(fieldClass)) {
+				Map<String, Type> typeMap = SerializationPlugin.getVariantCaseMapIfAny(fieldStep.targetClass());
+				if (typeMap != null) {
+					return new VariantFieldStep(typeMap, fieldStep);
+				} else if (Optional.class.isAssignableFrom(fieldClass)) {
 					return new OptionalValueStep(parameterType(fieldStep.targetType(), Optional.class, 0), fieldStep);
 				} else if (Phantom.class.isAssignableFrom(fieldClass)) {
 					return new PhantomValueStep(parameterType(fieldStep.targetType(), Phantom.class, 0), segment);
@@ -544,6 +554,64 @@ public final class PathCompiler {
 			@Override public void generate_without() { /* No effect */ }
 		}
 
+		/**
+		 * Augments another step to capture info for fields using
+		 * {@link VariantCaseMap}.
+		 */
+		public record VariantFieldStep(
+			Map<String, Type> variantMap,
+			@Delegate Step fieldStep
+		) implements Step {
+			public Type caseType(String caseName) throws InvalidTypeException {
+				Type result = variantMap.get(caseName);
+				if (result == null) {
+					throw new InvalidTypeException("Unknown variant case \"" + caseName + "\" of " + fieldStep.targetClass().getSimpleName() + "." + fieldStep.fullyParameterizedPathSegment());
+				} else {
+					return result;
+				}
+			}
+		}
+
+		@Value
+		public class VariantCaseStep implements Step {
+			String name;
+			Type targetType;
+
+			@Override
+			public Type targetType() {
+				return targetType;
+			}
+
+			@Override
+			public String fullyParameterizedPathSegment() {
+				return name;
+			}
+
+			/**
+			 * The "containing object" is actually the object we want.
+			 * If it's the right type,
+			 * then picking one case of a variant is nothing but a downcast,
+			 * which {@link StepwiseDereferencerBuilder#generate_get} already does.
+			 * If it's the wrong type, then we want to treat that as nonexistent.
+			 */
+			@Override
+			public void generate_get() {
+				cb.pushObject(targetClass().getSimpleName(), targetClass(), Class.class);
+				pushReference();
+				invoke(INSTANCEOF_OR_NONEXISTENT);
+			}
+
+			/**
+			 * We actually replace the entire "containing object".
+			 * Simply discard the old value and return the new one.
+			 */
+			@Override
+			public void generate_with() {
+				swap(); // Move old value to top of stack
+				pop();  // Discard old value
+			}
+		}
+
 		@Value
 		public class CustomStep implements Step {
 			Type targetType;
@@ -584,13 +652,14 @@ public final class PathCompiler {
 	static final Method SIDE_TABLE_GET, SIDE_TABLE_WITH, SIDE_TABLE_WITHOUT;
 	static final Method OPTIONAL_OF, OPTIONAL_OR_THROW, OPTIONAL_EMPTY;
 	static final Method THROW_NONEXISTENT_ENTRY, THROW_CANNOT_REPLACE_PHANTOM;
-	static final Method INVALID_WITHOUT;
+	static final Method INSTANCEOF_OR_NONEXISTENT, INVALID_WITHOUT;
 
 	static {
 		try {
 			CATALOG_GET = DereferencerRuntime.class.getDeclaredMethod("catalogEntryOrThrow", Catalog.class, Identifier.class, Reference.class);
 			CATALOG_WITH = Catalog.class.getDeclaredMethod("with", Entity.class);
 			CATALOG_WITHOUT = Catalog.class.getDeclaredMethod("without", Identifier.class);
+			INSTANCEOF_OR_NONEXISTENT = DereferencerRuntime.class.getDeclaredMethod("instanceofOrNonexistent", Object.class, Class.class, Reference.class);
 			LISTING_GET = DereferencerRuntime.class.getDeclaredMethod("listingEntryOrThrow", Listing.class, Identifier.class, Reference.class);
 			LISTING_WITH = DereferencerRuntime.class.getDeclaredMethod("listingWith", Listing.class, Identifier.class, Object.class);
 			LISTING_WITHOUT = Listing.class.getDeclaredMethod("withoutID", Identifier.class);
