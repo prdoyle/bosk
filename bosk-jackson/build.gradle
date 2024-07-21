@@ -14,5 +14,6 @@ dependencies {
 	api 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
 	api project(":bosk-core")
 
+	testImplementation project(":bosk-testing")
 	testImplementation project(":lib-testing")
 }

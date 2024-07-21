@@ -45,6 +45,7 @@ import works.bosk.Reference;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
+import works.bosk.VariantNode;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.UnexpectedPathException;
 
@@ -331,7 +332,7 @@ public final class BsonPlugin extends SerializationPlugin {
 					}
 				}
 				reader.readEndDocument();
-				return MapValue.fromOrderedMap(entries);
+				return MapValue.copyOf(entries);
 			}
 
 		};
@@ -401,6 +402,15 @@ public final class BsonPlugin extends SerializationPlugin {
 	}
 
 	private <T extends StateTreeNode, R extends StateTreeNode> Codec<T> stateTreeNodeCodec(Class<T> nodeClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
+		var variantCaseMap = getVariantCaseMapIfAny(nodeClass);
+		if (variantCaseMap == null) {
+			return ordinaryStateTreeNodeCodec(nodeClass, registry, boskInfo);
+		} else {
+			return variantNodeCodec(nodeClass, variantCaseMap, registry, boskInfo);
+		}
+	}
+
+	private <T extends StateTreeNode, R extends StateTreeNode> Codec<T> ordinaryStateTreeNodeCodec(Class<T> nodeClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
 		// Pre-compute some reflection-based stuff
 		//
 		Constructor<?> constructor = theOnlyConstructorFor(nodeClass);
@@ -435,7 +445,51 @@ public final class BsonPlugin extends SerializationPlugin {
 				}
 			}
 
-			@Override public Class<T> getEncoderClass() { return nodeClass; }
+			@Override
+			public Class<T> getEncoderClass() {
+				return nodeClass;
+			}
+		};
+	}
+
+	private <T extends StateTreeNode, R extends StateTreeNode> Codec<T> variantNodeCodec(Class<T> nodeClass, Map<String, Type> variantCaseMap, CodecRegistry registry, BoskInfo<R> boskInfo) {
+		return new Codec<>() {
+			@Override
+			public void encode(BsonWriter writer, T stateTreeNode, EncoderContext encoderContext) {
+				VariantNode value = (VariantNode) stateTreeNode;
+				String tag = value.tag();
+				Type targetType = variantCaseMap.get(tag);
+				@SuppressWarnings("unchecked")
+				Codec<T> caseCodec = (Codec<T>) getCodec(targetType, rawClass(targetType), registry, boskInfo);
+				writer.writeStartDocument();
+				try {
+					writer.writeName(tag);
+					caseCodec.encode(writer, stateTreeNode, encoderContext);
+				} catch (Throwable e) {
+					throw new IllegalStateException("Error encoding " + nodeClass + ": " + e.getMessage(), e);
+				}
+				writer.writeEndDocument();
+			}
+
+			@Override
+			public T decode(BsonReader reader, DecoderContext decoderContext) {
+				reader.readStartDocument();
+				String tag = reader.readName();
+				Type caseType = variantCaseMap.get(tag);
+				if (caseType == null) {
+					throw new IllegalStateException("Unexpected tag \"" + tag + "\"");
+				}
+				@SuppressWarnings("unchecked")
+				Codec<T> caseCodec = (Codec<T>) getCodec(caseType, rawClass(caseType), registry, boskInfo);
+				T result = caseCodec.decode(reader, decoderContext);
+				reader.readEndDocument();
+				return result;
+			}
+
+			@Override
+			public Class<T> getEncoderClass() {
+				return nodeClass;
+			}
 		};
 	}
 
@@ -542,7 +596,7 @@ public final class BsonPlugin extends SerializationPlugin {
 
 				reader.readEndDocument();
 
-				return SideTable.fromOrderedMap(domain, valuesById);
+				return SideTable.copyOf(domain, valuesById);
 			}
 
 			private MethodHandle sideTableWriterHandle(Type valueType, CodecRegistry codecRegistry) {

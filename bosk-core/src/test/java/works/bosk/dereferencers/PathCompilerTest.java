@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
+import static works.bosk.BoskTestUtils.boskName;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 public class PathCompilerTest extends AbstractBoskTest {
@@ -268,7 +269,7 @@ public class PathCompilerTest extends AbstractBoskTest {
 			.getConstructor(Identifier.class)
 			.newInstance(rootID);
 		Bosk<StateTreeNode> differentBosk = new Bosk<>(
-			"Different",
+			boskName("Different"),
 			differentRootClass,
 			initialRoot,
 			Bosk::simpleDriver

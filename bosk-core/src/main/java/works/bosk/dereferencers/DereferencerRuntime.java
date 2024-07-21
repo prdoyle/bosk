@@ -66,4 +66,11 @@ public abstract class DereferencerRuntime implements Dereferencer {
 		}
 	}
 
+	protected static Object instanceofOrNonexistent(Object object, Class<?> desiredClass, Reference<?> ref) throws NonexistentEntryException {
+		if (desiredClass.isInstance(object)) {
+			return object;
+		} else {
+			throw new NonexistentEntryException(ref.path());
+		}
+	}
 }

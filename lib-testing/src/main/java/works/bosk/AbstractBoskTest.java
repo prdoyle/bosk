@@ -10,6 +10,7 @@ import works.bosk.annotations.Self;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Arrays.asList;
+import static works.bosk.BoskTestUtils.boskName;
 
 public abstract class AbstractBoskTest {
 	@With
@@ -126,7 +127,7 @@ public abstract class AbstractBoskTest {
 	}
 
 	protected static Bosk<TestRoot> setUpBosk(DriverFactory<TestRoot> driverFactory) {
-		return new Bosk<TestRoot>("Test", TestRoot.class, AbstractRoundTripTest::initialRoot, driverFactory);
+		return new Bosk<TestRoot>(boskName(1), TestRoot.class, AbstractRoundTripTest::initialRoot, driverFactory);
 	}
 
 	protected static TestRoot initialRoot(Bosk<TestRoot> bosk) {

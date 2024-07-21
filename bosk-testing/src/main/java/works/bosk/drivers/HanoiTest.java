@@ -2,7 +2,6 @@ package works.bosk.drivers;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
@@ -27,6 +26,7 @@ import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.stream.Collectors.joining;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.BoskTestUtils.boskName;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 /**
@@ -42,7 +42,6 @@ public abstract class HanoiTest {
 	Refs refs;
 	BlockingQueue<Integer> numSolved;
 	protected DriverFactory<HanoiState> driverFactory;
-	private static final AtomicInteger boskCounter = new AtomicInteger(0);
 
 	public interface Refs {
 		@ReferencePath("/puzzles")
@@ -58,7 +57,7 @@ public abstract class HanoiTest {
 	@BeforeEach
 	void setup() throws InvalidTypeException {
 		bosk = new Bosk<HanoiState>(
-			getClass().getSimpleName() + "_" + boskCounter.incrementAndGet(),
+			boskName(),
 			HanoiState.class,
 			this::defaultRoot,
 			driverFactory

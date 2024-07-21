@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.BoskTestUtils.boskName;
 
 public class ReferenceErrorTest {
 	Bosk<?> bosk;
@@ -17,7 +18,7 @@ public class ReferenceErrorTest {
 	@BeforeEach
 	void setupBosk() {
 		bosk = new Bosk<>(
-			"Test",
+			boskName(),
 			BadGetters.class,
 			new BadGetters(Identifier.from("test"), new NestedObject(Optional.of("stringValue"))),
 			Bosk::simpleDriver);

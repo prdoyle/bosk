@@ -23,6 +23,9 @@ import works.bosk.SideTable;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;
+import works.bosk.drivers.state.TestValues.IdentifierCase;
+import works.bosk.drivers.state.TestValues.StringCase;
+import works.bosk.drivers.state.TestValues.Variant;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
 
@@ -236,7 +239,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
-	void replaceNonexistentField(Path enclosingCatalogPath) throws InvalidTypeException {
+	void replaceFieldOfNonexistentEntry(Path enclosingCatalogPath) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		driver.submitReplacement(
 			ref.then(String.class, "nonexistent", "string"),
@@ -322,6 +325,30 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		assertThrows(NullPointerException.class, ()->driver.submitReplacement(enumRef, null));
 		assertCorrectBoskContents();
 		assertThrows(IllegalArgumentException.class, ()->driver.submitDeletion(enumRef));
+		assertCorrectBoskContents();
+	}
+
+	@ParametersByName
+	void variant() throws InvalidTypeException {
+		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
+		assertCorrectBoskContents();
+
+		Reference<Variant> variantRef = ref.then(Variant.class, TestValues.Fields.variant);
+		driver.submitReplacement(variantRef, new StringCase("value1"));
+		assertCorrectBoskContents();
+		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(variantRef));
+		assertCorrectBoskContents();
+
+		Reference<StringCase> stringCaseRef = variantRef.then(StringCase.class, "string");
+		driver.submitReplacement(stringCaseRef, new StringCase("value2"));
+		assertCorrectBoskContents();
+		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(stringCaseRef));
+		assertCorrectBoskContents();
+
+		Reference<IdentifierCase> idCaseRef = variantRef.then(IdentifierCase.class, "identifier");
+		driver.submitReplacement(idCaseRef, new IdentifierCase(Identifier.from("value3")));
+		assertCorrectBoskContents();
+		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(idCaseRef));
 		assertCorrectBoskContents();
 	}
 

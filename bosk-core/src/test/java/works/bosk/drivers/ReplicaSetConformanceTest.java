@@ -6,6 +6,7 @@ import works.bosk.Bosk;
 import works.bosk.drivers.state.TestEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.BoskTestUtils.boskName;
 
 class ReplicaSetConformanceTest extends DriverConformanceTest {
 	Bosk<TestEntity> replicaBosk;
@@ -14,7 +15,7 @@ class ReplicaSetConformanceTest extends DriverConformanceTest {
 	void setupDriverFactory() {
 		ReplicaSet<TestEntity> replicaSet = new ReplicaSet<>();
 		replicaBosk = new Bosk<TestEntity>(
-			"Replica bosk",
+			boskName("Replica"),
 			TestEntity.class,
 			AbstractDriverTest::initialRoot,
 			replicaSet.driverFactory());

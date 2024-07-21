@@ -22,7 +22,6 @@ import works.bosk.util.Types;
 
 import static java.lang.String.format;
 import static java.lang.reflect.Modifier.STATIC;
-import static java.util.stream.Collectors.toList;
 
 /**
  * Collection of utilities for implementing {@link Reference}s.
@@ -277,9 +276,11 @@ C&lt;String> someField;
 	public static <T> Constructor<T> theOnlyConstructorFor(Class<T> nodeClass) {
 		List<Constructor<?>> constructors = Stream.of(nodeClass.getDeclaredConstructors())
 				.filter(ctor -> !ctor.isSynthetic())
-				.collect(toList());
-		if (constructors.size() != 1) {
-			throw new IllegalArgumentException("Ambiguous constructor list: " + constructors);
+				.toList();
+		if (constructors.isEmpty()) {
+			throw new IllegalArgumentException("No suitable constructor for " + nodeClass.getSimpleName());
+		} else if (constructors.size() >= 2) {
+			throw new IllegalArgumentException("Ambiguous constructor list for " + nodeClass.getSimpleName() + ": " + constructors);
 		}
 		@SuppressWarnings("unchecked")
 		Constructor<T> theConstructor = (Constructor<T>) constructors.get(0);

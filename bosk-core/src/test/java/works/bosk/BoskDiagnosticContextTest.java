@@ -13,6 +13,7 @@ import works.bosk.exceptions.InvalidTypeException;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static works.bosk.BoskTestUtils.boskName;
 
 /**
  * Note that context propagation for driver operations is tested by {@link DriverConformanceTest}.
@@ -27,7 +28,7 @@ class BoskDiagnosticContextTest extends AbstractDriverTest {
 	@BeforeEach
 	void setupBosk() throws InvalidTypeException {
 		bosk = new Bosk<TestEntity>(
-			BoskDiagnosticContextTest.class.getSimpleName(),
+			boskName(),
 			TestEntity.class,
 			AbstractDriverTest::initialRoot,
 			Bosk::simpleDriver

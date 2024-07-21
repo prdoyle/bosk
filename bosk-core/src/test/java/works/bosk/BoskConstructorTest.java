@@ -18,6 +18,7 @@ import static java.util.Collections.singleton;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.BoskTestUtils.boskName;
 import static works.bosk.TypeValidationTest.SimpleTypes.MyEnum.LEFT;
 
 /**
@@ -28,7 +29,7 @@ public class BoskConstructorTest {
 
 	@Test
 	void basicProperties_correctValues() {
-		String name = "Name";
+		String name = boskName();
 		Type rootType = SimpleTypes.class;
 		StateTreeNode root = newEntity();
 
@@ -63,7 +64,7 @@ public class BoskConstructorTest {
 	void invalidRootType_throws() {
 		assertThrows(IllegalArgumentException.class, ()->
 			new Bosk<MutableField>(
-				"Invalid root type",
+				boskName("Invalid root type"),
 				MutableField.class,
 				bosk -> new MutableField(),
 				Bosk::simpleDriver));
@@ -89,7 +90,7 @@ public class BoskConstructorTest {
 	void mismatchedRootType_throws() {
 		assertThrows(ClassCastException.class, ()->
 			new Bosk<Entity> (
-				"Mismatched root",
+				boskName("Mismatched root"),
 				BoxedPrimitives.class, // Valid but wrong
 				bosk -> newEntity(),
 				Bosk::simpleDriver
@@ -101,7 +102,7 @@ public class BoskConstructorTest {
 	void driverInitialRoot_matches() {
 		SimpleTypes root = newEntity();
 		Bosk<StateTreeNode> bosk = new Bosk<StateTreeNode>(
-			"By value",
+			boskName(),
 			SimpleTypes.class,
 			__ -> {throw new AssertionError("Shouldn't be called");},
 			initialRootDriver(()->root));
@@ -114,14 +115,14 @@ public class BoskConstructorTest {
 	void defaultRoot_matches() {
 		SimpleTypes root = newEntity();
 		{
-			Bosk<StateTreeNode> valueBosk = new Bosk<>("By value", SimpleTypes.class, root, Bosk::simpleDriver);
+			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, root, Bosk::simpleDriver);
 			try (val __ = valueBosk.readContext()) {
 				assertSame(root, valueBosk.rootReference().value());
 			}
 		}
 
 		{
-			Bosk<StateTreeNode> functionBosk = new Bosk<StateTreeNode>("By value", SimpleTypes.class, __ -> root, Bosk::simpleDriver);
+			Bosk<StateTreeNode> functionBosk = new Bosk<StateTreeNode>(boskName(), SimpleTypes.class, __ -> root, Bosk::simpleDriver);
 			try (val __ = functionBosk.readContext()) {
 				assertSame(root, functionBosk.rootReference().value());
 			}
@@ -135,7 +136,7 @@ public class BoskConstructorTest {
 
 	private static void assertInitialRootThrows(Class<? extends Throwable> expectedType, InitialRootFunction initialRootFunction) {
 		assertThrows(expectedType, () -> new Bosk<>(
-			"Throw test",
+			boskName(),
 			SimpleTypes.class,
 			newEntity(),
 			initialRootDriver(initialRootFunction)
@@ -144,7 +145,7 @@ public class BoskConstructorTest {
 
 	private static void assertDefaultRootThrows(Class<? extends Throwable> expectedType, DefaultRootFunction<StateTreeNode> defaultRootFunction) {
 		assertThrows(expectedType, () -> new Bosk<>(
-			"Throw test",
+			boskName(),
 			SimpleTypes.class,
 			defaultRootFunction,
 			Bosk::simpleDriver

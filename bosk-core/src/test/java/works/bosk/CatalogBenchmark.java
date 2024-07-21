@@ -14,6 +14,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static org.openjdk.jmh.annotations.Mode.Throughput;
+import static works.bosk.BoskTestUtils.boskName;
 
 @Fork(0)
 @Warmup(iterations = 5, time = 1)
@@ -29,7 +30,7 @@ public class CatalogBenchmark {
 		@Setup(Level.Trial)
 		public void setup() throws InvalidTypeException {
 			Bosk<AbstractBoskTest.TestRoot> bosk = new Bosk<AbstractBoskTest.TestRoot>(
-				"CatalogBenchmarkBosk",
+				boskName(),
 				AbstractBoskTest.TestRoot.class,
 				AbstractBoskTest::initialRoot,
 				Bosk::simpleDriver
