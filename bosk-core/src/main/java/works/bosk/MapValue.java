@@ -1,7 +1,6 @@
 package works.bosk;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -53,14 +52,24 @@ public final class MapValue<V> implements Map<String, V> {
 		return new MapValue<>(OrderedPMap.from(map));
 	}
 
+	/**
+	 * Use {@link #copyOf}.
+	 */
+	@Deprecated(forRemoval = true)
 	public static <VV> MapValue<VV> fromOrderedMap(Map<String, VV> entries) {
-		return fromEntries(entries.entrySet().iterator());
+		return copyOf(entries);
 	}
 
-	private static <VV> MapValue<VV> fromEntries(Iterator<Entry<String, VV>> entrySet) {
-		LinkedHashMap<String,VV> map = new LinkedHashMap<>();
-		entrySet.forEachRemaining(entry -> addToMap(map, entry.getKey(), entry.getValue()));
-		return new MapValue<>(OrderedPMap.from(map));
+	/**
+	 * Preserves the order, if any, of the entries in <code>map</code>.
+	 */
+	public static <VV> MapValue<VV> copyOf(Map<String, VV> contents) {
+		OrderedPMap<String, VV> map = OrderedPMap.from(contents);
+		map.forEach((k,v) -> {
+			requireNonNull(k);
+			requireNonNull(v);
+		});
+		return new MapValue<>(map);
 	}
 
 	private static <VV> void addToMap(LinkedHashMap<String, VV> map, String key, VV newValue) {
@@ -101,7 +110,7 @@ public final class MapValue<V> implements Map<String, V> {
 	 * an unmodifiableMap so it's exception-compatible.
 	 */
 	@SuppressWarnings("rawtypes")
-	private static final MapValue EMPTY = fromOrderedMap(emptyMap());
+	private static final MapValue EMPTY = copyOf(emptyMap());
 
 	///////////////////////
 	//

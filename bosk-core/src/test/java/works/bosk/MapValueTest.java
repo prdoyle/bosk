@@ -55,7 +55,7 @@ class MapValueTest extends AbstractBoskTest {
 	}
 
 	private static <V> Arguments fromMapCase(Map<String, V> map, V sampleValue) {
-		return mapValueCase(map, MapValue.fromOrderedMap(map), sampleValue);
+		return mapValueCase(map, MapValue.copyOf(map), sampleValue);
 	}
 
 	private static <V> Arguments fromFunctionCase(Iterable<String> keys, Function<String, V> function, V sampleValue) {
@@ -99,14 +99,14 @@ class MapValueTest extends AbstractBoskTest {
 	@ParameterizedTest
 	@MethodSource("mapArguments")
 	<V> void testEquals(Map<String,V> map, MapValue<V> mapValue, V sampleValue) {
-		assertEquals(MapValue.fromOrderedMap(map), mapValue);
+		assertEquals(MapValue.copyOf(map), mapValue);
 	}
 
 	@ParameterizedTest
 	@MethodSource("mapArguments")
 	<V> void testHashCode(Map<String,V> map, MapValue<V> mapValue, V sampleValue) {
 		try {
-			int expected = MapValue.fromOrderedMap(map).hashCode();
+			int expected = MapValue.copyOf(map).hashCode();
 			assertEquals(expected, mapValue.hashCode());
 		} catch (UnsupportedOperationException e) {
 			assertThrows(e.getClass(), mapValue::hashCode);
@@ -335,13 +335,13 @@ class MapValueTest extends AbstractBoskTest {
 	@Test
 	void testBad_nullKeyFromMap() {
 		Map<String, ?> map = singletonMap(null, "value");
-		assertThrows(NullPointerException.class, () -> MapValue.fromOrderedMap(map));
+		assertThrows(NullPointerException.class, () -> MapValue.copyOf(map));
 	}
 
 	@Test
 	void testBad_nullValueFromMap() {
 		Map<String, ?> map = singletonMap("key", null);
-		assertThrows(NullPointerException.class, () -> MapValue.fromOrderedMap(map));
+		assertThrows(NullPointerException.class, () -> MapValue.copyOf(map));
 	}
 
 	private void assertUnsupportedForAllKeys(Iterable<String> keys, Consumer<String> action) {

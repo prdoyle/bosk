@@ -331,7 +331,7 @@ public final class BsonPlugin extends SerializationPlugin {
 					}
 				}
 				reader.readEndDocument();
-				return MapValue.fromOrderedMap(entries);
+				return MapValue.copyOf(entries);
 			}
 
 		};
@@ -542,7 +542,7 @@ public final class BsonPlugin extends SerializationPlugin {
 
 				reader.readEndDocument();
 
-				return SideTable.fromOrderedMap(domain, valuesById);
+				return SideTable.copyOf(domain, valuesById);
 			}
 
 			private MethodHandle sideTableWriterHandle(Type valueType, CodecRegistry codecRegistry) {

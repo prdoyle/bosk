@@ -70,8 +70,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 	private Refs refs;
 
 	public interface Refs {
-		@ReferencePath("/entities")
-		CatalogReference<TestEntity> entities();
+		@ReferencePath("/entities") CatalogReference<TestEntity> entities();
 		@ReferencePath("/entities/-entity-") Reference<TestEntity> entity(Identifier entity);
 		@ReferencePath("/entities/-entity-/children") CatalogReference<TestChild> children(Identifier entity);
 		@ReferencePath("/entities/parent/implicitRefs") Reference<ImplicitRefs> parentImplicitRefs();
@@ -166,7 +165,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 	@ParameterizedTest
 	@MethodSource("sideTableArguments")
 	void sideTable_works(List<String> keys, Map<String,String> valuesByString, Map<Identifier, String> valuesById) {
-		SideTable<TestEntity, String> sideTable = SideTable.fromOrderedMap(refs.entities(), valuesById);
+		SideTable<TestEntity, String> sideTable = SideTable.copyOf(refs.entities(), valuesById);
 
 		List<Map<String, Object>> expectedList = new ArrayList<>();
 		valuesByString.forEach((key, value) -> expectedList.add(singletonMap(key, value)));
@@ -299,7 +298,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 	@ParameterizedTest
 	@MethodSource("mapValueArguments")
 	void mapValue_serializationWorks(Map<String,?> map, JavaType type) throws JsonProcessingException {
-		MapValue<?> mapValue = MapValue.fromOrderedMap(map);
+		MapValue<?> mapValue = MapValue.copyOf(map);
 		String expected = plainMapper.writeValueAsString(map);
 		assertEquals(expected, boskMapper.writeValueAsString(mapValue));
 	}
@@ -307,7 +306,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 	@ParameterizedTest
 	@MethodSource("mapValueArguments")
 	void mapValue_deserializationWorks(Map<String,?> map, JavaType type) throws JsonProcessingException {
-		MapValue<?> expected = MapValue.fromOrderedMap(map);
+		MapValue<?> expected = MapValue.copyOf(map);
 		String json = plainMapper.writeValueAsString(map);
 		Object actual = boskMapper.readerFor(type).readValue(json);
 		assertEquals(expected, actual);

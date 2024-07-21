@@ -2,6 +2,7 @@ package works.bosk;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -82,7 +83,7 @@ class SideTableTest extends AbstractBoskTest {
 		expected.put(id3, "value3");
 		expected.put(id4, "value4");
 
-		assertEqualsOrderedMap(expected, SideTable.fromOrderedMap(refs.entities(), expected));
+		assertEqualsOrderedMap(expected, SideTable.copyOf(refs.entities(), expected));
 		assertEqualsOrderedMap(expected, SideTable.fromFunction(refs.entities(), expected.keySet().stream(), expected::get));
 		assertEqualsOrderedMap(expected, SideTable.fromEntries(refs.entities(), expected.entrySet().stream()));
 	}
@@ -95,6 +96,18 @@ class SideTableTest extends AbstractBoskTest {
 		assertThrows(IllegalArgumentException.class, ()-> {
 			SideTable.fromEntries(refs.entities(), Stream.of("dup", "dup").map(v -> new SimpleEntry<>(Identifier.from(v), v)));
 		});
+	}
+
+	@Test
+	void nulls_disallowed() {
+		Map<Identifier, TestEntity> contents = new HashMap<>();
+
+		contents.put(null, firstEntity);
+		assertThrows(NullPointerException.class, ()-> SideTable.copyOf(refs.entities(), contents));
+
+		contents.clear();
+		contents.put(firstEntity.id(), null);
+		assertThrows(NullPointerException.class, ()-> SideTable.copyOf(refs.entities(), contents));
 	}
 
 	@Test

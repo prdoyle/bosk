@@ -422,7 +422,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 					} else if (valuesById == null) {
 						throw new JsonParseException(p, "Missing 'valuesById' field");
 					} else {
-						return SideTable.fromOrderedMap(domain, valuesById);
+						return SideTable.copyOf(domain, valuesById);
 					}
 				}
 			};
@@ -470,7 +470,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 						}
 					}
 					expect(END_OBJECT, p);
-					return MapValue.fromOrderedMap(result1);
+					return MapValue.copyOf(result1);
 				}
 			};
 		}

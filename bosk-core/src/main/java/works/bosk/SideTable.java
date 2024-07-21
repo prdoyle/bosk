@@ -21,6 +21,7 @@ import org.pcollections.OrderedPMap;
 import org.pcollections.OrderedPSet;
 
 import static java.util.Collections.unmodifiableList;
+import static java.util.Objects.requireNonNull;
 
 @EqualsAndHashCode
 @RequiredArgsConstructor(access=AccessLevel.PRIVATE)
@@ -113,8 +114,21 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 		return of(domain, key.id(), value);
 	}
 
+	/**
+	 * Use {@link #copyOf}.
+	 */
+	@Deprecated(forRemoval = true)
 	public static <KK extends Entity,VV> SideTable<KK,VV> fromOrderedMap(Reference<Catalog<KK>> domain, Map<Identifier, VV> contents) {
-		return new SideTable<>(CatalogReference.from(domain), OrderedPMap.from(new LinkedHashMap<>(contents)));
+		return copyOf(domain, contents);
+	}
+
+	public static <KK extends Entity,VV> SideTable<KK,VV> copyOf(Reference<Catalog<KK>> domain, Map<Identifier, VV> contents) {
+		OrderedPMap<Identifier, VV> map = OrderedPMap.from(contents);
+		map.forEach((k,v) -> {
+			requireNonNull(k);
+			requireNonNull(v);
+		});
+		return new SideTable<>(CatalogReference.from(domain), map);
 	}
 
 	public static <KK extends Entity,VV> SideTable<KK,VV> fromFunction(Reference<Catalog<KK>> domain, Stream<Identifier> keyIDs, Function<Identifier, VV> function) {
