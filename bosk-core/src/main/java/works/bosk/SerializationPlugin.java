@@ -18,7 +18,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.pcollections.ConsPStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.annotations.DeserializationPath;
@@ -244,11 +246,29 @@ public abstract class SerializationPlugin {
 		return infoFor(nodeClass).annotatedParameters_DeserializationPath().containsKey(parameter.getName());
 	}
 
-	@Nullable
-	public static MapValue<Type> getVariantCaseMapIfAny(Class<?> nodeClass) {
-		if (nodeClass.isInterface()) {
-			return infoFor(nodeClass).variantCaseMap();
+	/**
+	 * @throws InvalidTypeException if the given class has no unique variant case map
+	 */
+	@NotNull
+	public static MapValue<Type> getVariantCaseMap(Class<?> nodeClass) throws InvalidTypeException {
+		var result = getVariantCaseMapIfAny(nodeClass);
+		if (result == null) {
+			throw new InvalidTypeException(nodeClass + " has no variant case map");
 		} else {
+			return result;
+		}
+	}
+
+	/**
+	 * @return null if the class has no variant case map
+	 * @throws InvalidTypeException if the given class has no unique variant case map
+	 */
+	@Nullable
+	public static MapValue<Type> getVariantCaseMapIfAny(Class<?> nodeClass) throws InvalidTypeException {
+		if (VariantNode.class.isAssignableFrom(nodeClass)) {
+			return infoFor(nodeClass).variantCaseMap().ifAny();
+		} else {
+			// We don't want to even call infoFor on types that aren't StateTreeNodes
 			return null;
 		}
 	}
@@ -344,12 +364,12 @@ public abstract class SerializationPlugin {
 		Set<String> enclosingParameters = new HashSet<>();
 		Map<String, DeserializationPath> deserializationPathParameters = new HashMap<>();
 		Map<String, Object> polyfills = new HashMap<>();
-		AtomicReference<MapValue<Type>> variantCaseMap = new AtomicReference<>(null);
+		AtomicReference<VariantCaseMapInfo> variantCaseMap = new AtomicReference<>(new NoVariantCaseMap(nodeClass));
 
 		if (!nodeClass.isInterface()) { // Avoid for @VariantCaseMap classes
 			for (Parameter parameter: ReferenceUtils.theOnlyConstructorFor(nodeClass).getParameters()) {
 				scanForInfo(parameter, parameter.getName(),
-					selfParameters, enclosingParameters, deserializationPathParameters, polyfills, variantCaseMap);
+					selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
 			}
 		}
 
@@ -364,14 +384,58 @@ public abstract class SerializationPlugin {
 		for (Class<?> c = nodeClass; c != Object.class && c != null; c = c.getSuperclass()) {
 			for (Field field: c.getDeclaredFields()) {
 				scanForInfo(field, field.getName(),
-					selfParameters, enclosingParameters, deserializationPathParameters, polyfills, variantCaseMap);
+					selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
 			}
 		}
+
+		if (VariantNode.class.isAssignableFrom(nodeClass)) {
+			scanForVariantCaseMap(nodeClass, variantCaseMap);
+		}
+
 		return new ParameterInfo(selfParameters, enclosingParameters, deserializationPathParameters, polyfills, variantCaseMap.get());
 	}
 
 	@SuppressWarnings({"rawtypes","unchecked"})
-	private static void scanForInfo(AnnotatedElement thing, String name, Set<String> selfParameters, Set<String> enclosingParameters, Map<String, DeserializationPath> deserializationPathParameters, Map<String, Object> polyfills, AtomicReference<MapValue<Type>> variantCaseMap) {
+	private static void scanForVariantCaseMap(Class<?> nodeClass, AtomicReference<VariantCaseMapInfo> variantCaseMap) {
+		if (!VariantNode.class.isAssignableFrom(nodeClass)) {
+			return;
+		}
+
+		for (Class<?> c = nodeClass; c != Object.class && c != null; c = c.getSuperclass()) {
+			for (Field f: c.getDeclaredFields()) {
+				if (isStatic(f.getModifiers()) && !isPrivate(f.getModifiers())) {
+					f.setAccessible(true);
+					var annotations = f.getAnnotationsByType(VariantCaseMap.class);
+					if (annotations.length >= 2) {
+						throw new IllegalStateException("Multiple variant case maps for the same class: " + f);
+					}
+					MapValue value;
+					try {
+						value = (MapValue) f.get(null);
+					} catch (IllegalAccessException e) {
+						throw new AssertionError("Field should not be inaccessible: " + f, e);
+					}
+					if (value == null) {
+						throw new NullPointerException("VariantCaseMap cannot be null: " + f);
+					}
+					var old = variantCaseMap.get();
+					boolean success = variantCaseMap.compareAndSet(old, old.plus(nodeClass, value, c));
+					assert success: "Hey who's messing with our AtomicReference?";
+				}
+			}
+		}
+
+		// Recurse to look for inherited variant case maps
+		for (var i : nodeClass.getInterfaces()) {
+			scanForVariantCaseMap(i, variantCaseMap);
+		}
+		Class<?> superclass = nodeClass.getSuperclass();
+		if (superclass != null && superclass != Object.class) {
+			scanForVariantCaseMap(superclass, variantCaseMap);
+		}
+	}
+
+	private static void scanForInfo(AnnotatedElement thing, String name, Set<String> selfParameters, Set<String> enclosingParameters, Map<String, DeserializationPath> deserializationPathParameters, Map<String, Object> polyfills) {
 		if (thing.isAnnotationPresent(Self.class)) {
 			selfParameters.add(name);
 		} else if (thing.isAnnotationPresent(Enclosing.class)) {
@@ -404,25 +468,6 @@ public abstract class SerializationPlugin {
 			} else {
 				throw new IllegalStateException("@Polyfill annotation is only valid on non-private static fields; found on " + thing);
 			}
-		} else if (thing.isAnnotationPresent(VariantCaseMap.class)) {
-			// TODO: Lots of code duplication with Polyfill
-			if (thing instanceof Field f && isStatic(f.getModifiers()) && !isPrivate(f.getModifiers())) {
-				f.setAccessible(true);
-				var annotations = thing.getAnnotationsByType(VariantCaseMap.class);
-				if (annotations.length >= 2) {
-					throw new IllegalStateException("Multiple variant case maps for the same class: " + f);
-				}
-				MapValue value;
-				try {
-					value = (MapValue) f.get(null);
-				} catch (IllegalAccessException e) {
-					throw new AssertionError("Field should not be inaccessible: " + f, e);
-				}
-				if (value == null) {
-					throw new NullPointerException("VariantCaseMap cannot be null: " + f);
-				}
-				variantCaseMap.set(value);
-			}
 		}
 	}
 
@@ -431,8 +476,53 @@ public abstract class SerializationPlugin {
 		Set<String> annotatedParameters_Enclosing,
 		Map<String, DeserializationPath> annotatedParameters_DeserializationPath,
 		Map<String, Object> polyfills,
-		@Nullable MapValue<Type> variantCaseMap
+		VariantCaseMapInfo variantCaseMap
 	) { }
+
+	private sealed interface VariantCaseMapInfo {
+		/**
+		 * We're just scanning for info here, not throwing exceptions.
+		 * Hence, we simply record what we discovered, and then when anyone asks for the variant case map, <em>then</em> we throw.
+		 */
+		@Nullable MapValue<Type> ifAny() throws InvalidTypeException;
+
+		/**
+		 * @param nodeClass the class whose variant case map we're looking for
+		 * @param map the variant case map we found
+		 * @param origin the class in which we found it
+		 */
+		VariantCaseMapInfo plus(Class<?> nodeClass, MapValue<Type> map, Class<?> origin);
+	}
+
+	private record NoVariantCaseMap(Class<?> nodeClass) implements VariantCaseMapInfo {
+		@Override public MapValue<Type> ifAny() { return null; }
+
+		@Override
+		public VariantCaseMapInfo plus(Class<?> nodeClass, MapValue<Type> map, Class<?> origin) {
+			return new OneVariantCaseMap(map, origin);
+		}
+	}
+
+	private record OneVariantCaseMap(MapValue<Type> map, Class<?> origin) implements VariantCaseMapInfo {
+		@Override public MapValue<Type> ifAny() { return map; }
+
+		@Override
+		public VariantCaseMapInfo plus(Class<?> nodeClass, MapValue<Type> map, Class<?> origin) {
+			return new AmbiguousVariantCaseMap(nodeClass, ConsPStack.<Class<?>>singleton(this.origin).plus(origin));
+		}
+	}
+
+	private record AmbiguousVariantCaseMap(Class<?> nodeClass, ConsPStack<Class<?>> origins) implements VariantCaseMapInfo {
+		@Override
+		public MapValue<Type> ifAny() throws InvalidTypeException {
+			throw new InvalidTypeException(nodeClass.getSimpleName() + " has multiple variant case maps in " + origins);
+		}
+
+		@Override
+		public VariantCaseMapInfo plus(Class<?> nodeClass, MapValue<Type> map, Class<?> origin) {
+			return new AmbiguousVariantCaseMap(nodeClass, this.origins.plus(origin));
+		}
+	}
 
 	private static final Map<Class<?>, ParameterInfo> PARAMETER_INFO_MAP = new ConcurrentHashMap<>();
 	private static final AtomicBoolean ANY_POLYFILLS = new AtomicBoolean(false);

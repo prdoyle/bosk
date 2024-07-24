@@ -472,8 +472,14 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		testBosk.driver().flush();
 
 		Refs refs = testBosk.buildReferences(Refs.class);
-		TestEntity expected2 = TestEntity.empty(Identifier.from("optionalEntity"), refs.catalog())
-			.withString("stringValue");
+		TestEntity expected2;
+		try (var __ = setupBosk.readContext()) {
+			// (Note that we don't bother flushing setupBosk because we don't need the latest value;
+			// the variant field hasn't changed since it was initialized.)
+			expected2 = TestEntity.empty(Identifier.from("optionalEntity"), refs.catalog())
+				.withString("stringValue")
+				.withVariant(setupBosk.rootReference().value().variant());
+		}
 
 		TestEntity actual2;
 		try (var __ = testBosk.readContext()) {
@@ -718,10 +724,11 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		Catalog<TestEntity> catalog,
 		Listing<TestEntity> listing,
 		SideTable<TestEntity, TestEntity> sideTable,
+		TestEntity.Variant variant,
 		TestValues values
 	) implements Entity {
 		@Polyfill("values")
-		static final TestValues DEFAULT_VALUES = TestValues.blank();
+		static final TestValues DEFAULT_VALUES = works.bosk.drivers.state.TestValues.blank();
 	}
 
 	/**
@@ -735,6 +742,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		Optional<Catalog<TestEntity>> catalog,
 		Optional<Listing<TestEntity>> listing,
 		Optional<SideTable<TestEntity, TestEntity>> sideTable,
+		TestEntity.Variant variant,
 		Optional<TestValues> values
 	) implements Entity {
 		static OptionalEntity withString(Optional<String> string, Bosk<OptionalEntity> bosk) throws InvalidTypeException {
@@ -745,7 +753,8 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 				Optional.of(Catalog.empty()),
 				Optional.of(Listing.empty(domain)),
 				Optional.of(SideTable.empty(domain)),
-				Optional.empty());
+				new TestEntity.StringCase("stringCase"),
+				java.util.Optional.empty());
 		}
 	}
 

@@ -157,6 +157,8 @@ public final class BsonPlugin extends SerializationPlugin {
 			return enumCodec(targetClass);
 		} else if (Listing.class.isAssignableFrom(targetClass)) {
 			return listingCodec(targetClass, registry);
+		} else if (VariantNode.class.isAssignableFrom(targetClass)) {
+			return variantNodeCodec(targetClass, registry, boskInfo);
 		} else if (StateTreeNode.class.isAssignableFrom(targetClass)) {
 			// TODO: What about generic node classes?
 			return stateTreeNodeCodec(targetClass, registry, boskInfo);
@@ -402,15 +404,6 @@ public final class BsonPlugin extends SerializationPlugin {
 	}
 
 	private <T extends StateTreeNode, R extends StateTreeNode> Codec<T> stateTreeNodeCodec(Class<T> nodeClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
-		var variantCaseMap = getVariantCaseMapIfAny(nodeClass);
-		if (variantCaseMap == null) {
-			return ordinaryStateTreeNodeCodec(nodeClass, registry, boskInfo);
-		} else {
-			return variantNodeCodec(nodeClass, variantCaseMap, registry, boskInfo);
-		}
-	}
-
-	private <T extends StateTreeNode, R extends StateTreeNode> Codec<T> ordinaryStateTreeNodeCodec(Class<T> nodeClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
 		// Pre-compute some reflection-based stuff
 		//
 		Constructor<?> constructor = theOnlyConstructorFor(nodeClass);
@@ -452,19 +445,33 @@ public final class BsonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private <T extends StateTreeNode, R extends StateTreeNode> Codec<T> variantNodeCodec(Class<T> nodeClass, Map<String, Type> variantCaseMap, CodecRegistry registry, BoskInfo<R> boskInfo) {
+	private <T extends VariantNode, R extends StateTreeNode> Codec<T> variantNodeCodec(Class<T> nodeClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
+		MapValue<Type> variantCaseMap;
+		try {
+			variantCaseMap = SerializationPlugin.getVariantCaseMap(nodeClass);
+		} catch (InvalidTypeException e) {
+			throw new IllegalArgumentException(e);
+		}
+		var codecs = variantCaseMap.entrySet().stream().collect(toMap(Entry::getKey, e -> {
+			@SuppressWarnings("unchecked")
+			Class<? extends StateTreeNode> caseClass = (Class<? extends StateTreeNode>) rawClass(e.getValue());
+			return stateTreeNodeCodec(caseClass, registry, boskInfo);
+		}));
 		return new Codec<>() {
 			@Override
-			public void encode(BsonWriter writer, T stateTreeNode, EncoderContext encoderContext) {
-				VariantNode value = (VariantNode) stateTreeNode;
+			public void encode(BsonWriter writer, T value, EncoderContext encoderContext) {
 				String tag = value.tag();
-				Type targetType = variantCaseMap.get(tag);
 				@SuppressWarnings("unchecked")
-				Codec<T> caseCodec = (Codec<T>) getCodec(targetType, rawClass(targetType), registry, boskInfo);
+				Codec<T> caseCodec = (Codec<T>) codecs.get(tag);
+				if (caseCodec == null) {
+					throw new IllegalStateException(value.getClass().getSimpleName() + " has unexpected variant tag field \"" + tag
+						+ "\" for " + nodeClass.getSimpleName()
+						+ "; expected one of " + variantCaseMap.keySet());
+				}
 				writer.writeStartDocument();
 				try {
 					writer.writeName(tag);
-					caseCodec.encode(writer, stateTreeNode, encoderContext);
+					caseCodec.encode(writer, value, encoderContext);
 				} catch (Throwable e) {
 					throw new IllegalStateException("Error encoding " + nodeClass + ": " + e.getMessage(), e);
 				}
@@ -475,12 +482,13 @@ public final class BsonPlugin extends SerializationPlugin {
 			public T decode(BsonReader reader, DecoderContext decoderContext) {
 				reader.readStartDocument();
 				String tag = reader.readName();
-				Type caseType = variantCaseMap.get(tag);
-				if (caseType == null) {
-					throw new IllegalStateException("Unexpected tag \"" + tag + "\"");
-				}
 				@SuppressWarnings("unchecked")
-				Codec<T> caseCodec = (Codec<T>) getCodec(caseType, rawClass(caseType), registry, boskInfo);
+				Codec<T> caseCodec = (Codec<T>) codecs.get(tag);
+				if (caseCodec == null) {
+					throw new IllegalStateException("Input has unexpected variant tag field \"" + tag
+						+ "\" for " + nodeClass.getSimpleName()
+						+ "; expected one of " + variantCaseMap.keySet());
+				}
 				T result = caseCodec.decode(reader, decoderContext);
 				reader.readEndDocument();
 				return result;

@@ -121,6 +121,7 @@ abstract class AbstractMongoDriverTest {
 			Catalog.empty(),
 			Listing.of(refs.catalog(), entity123),
 			SideTable.empty(refs.catalog()),
+			new TestEntity.StringCase(rootID.toString()),
 			Optional.empty()
 		);
 	}
@@ -150,11 +151,9 @@ abstract class AbstractMongoDriverTest {
 	}
 
 	public interface Refs {
-		@ReferencePath("/catalog")
-		CatalogReference<TestEntity> catalog();
+		@ReferencePath("/catalog") CatalogReference<TestEntity> catalog();
 		@ReferencePath("/catalog/-child-/catalog") CatalogReference<TestEntity> childCatalog(Identifier child);
-		@ReferencePath("/listing")
-		ListingReference<TestEntity> listing();
+		@ReferencePath("/listing") ListingReference<TestEntity> listing();
 		@ReferencePath("/listing/-entity-") Reference<ListingEntry> listingEntry(Identifier entity);
 		@ReferencePath("/values") Reference<TestValues> values();
 		@ReferencePath("/values/string") Reference<String> valuesString();
