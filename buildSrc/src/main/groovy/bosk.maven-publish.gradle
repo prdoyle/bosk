@@ -55,7 +55,7 @@ publishing {
 					developer {
 						id = 'gjohnson'
 						name = 'Grady Johnson'
-						email = 'gjohnson@venacorp.com'
+						email = 'gradycsjohnson@gmail.com'
 					}
 				}
 				scm {
