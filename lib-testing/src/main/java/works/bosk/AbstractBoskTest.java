@@ -1,5 +1,6 @@
 package works.bosk;
 
+import java.lang.reflect.Type;
 import java.util.Optional;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
@@ -7,6 +8,7 @@ import lombok.With;
 import lombok.experimental.FieldNameConstants;
 import works.bosk.annotations.Enclosing;
 import works.bosk.annotations.Self;
+import works.bosk.annotations.VariantCaseMap;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Arrays.asList;
@@ -39,7 +41,8 @@ public abstract class AbstractBoskTest {
 		SideTable<TestChild, String> stringSideTable,
 		Phantoms phantoms,
 		Optionals optionals,
-		ImplicitRefs implicitRefs
+		ImplicitRefs implicitRefs,
+		Variant variant
 	) implements Entity {
 		public TestEntity withChild(TestChild child) {
 			return this.withChildren(children.with(child));
@@ -54,6 +57,11 @@ public abstract class AbstractBoskTest {
 		TestEnum testEnum,
 		Catalog<TestChild> recursiveChildren
 	) implements Entity { }
+
+	public enum TestEnum {
+		OK,
+		NOT_SO_OK
+	}
 
 	@With
 	@FieldNameConstants
@@ -121,10 +129,16 @@ public abstract class AbstractBoskTest {
 		}
 	}
 
-	public enum TestEnum {
-		OK,
-		NOT_SO_OK
+	public interface Variant extends VariantNode {
+		@Override default String tag() {
+			return "variant1";
+		}
+
+		@VariantCaseMap
+		MapValue<Type> CASES = MapValue.singleton("variant1", VariantCase1.class);
 	}
+
+	public record VariantCase1(String stringField) implements Variant { }
 
 	protected static Bosk<TestRoot> setUpBosk(DriverFactory<TestRoot> driverFactory) {
 		return new Bosk<TestRoot>(boskName(1), TestRoot.class, AbstractRoundTripTest::initialRoot, driverFactory);
@@ -161,7 +175,8 @@ public abstract class AbstractBoskTest {
 			),
 			new ImplicitRefs(Identifier.from("parent_implicitRefs"),
 				teb.implicitRefsRef(parentID), parentRef,
-				teb.implicitRefsRef(parentID), parentRef));
+				teb.implicitRefsRef(parentID), parentRef),
+			new VariantCase1("variantCase1String"));
 		return new TestRoot(
 			Identifier.from("root"),
 			Catalog.of(entity),

@@ -159,7 +159,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 						if (!StateTreeNode.class.isAssignableFrom(nodeClass)) {
 							return;
 						}
-						if (SerializationPlugin.getVariantCaseMapIfAny(nodeClass) != null) {
+						if (VariantNode.class.isAssignableFrom(nodeClass)) {
 							return;
 						}
 						Map<String, Parameter> parametersByName = new LinkedHashMap<>();

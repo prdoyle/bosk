@@ -22,10 +22,10 @@ import works.bosk.Reference;
 import works.bosk.SideTable;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.state.TestEntity;
+import works.bosk.drivers.state.TestEntity.IdentifierCase;
+import works.bosk.drivers.state.TestEntity.StringCase;
+import works.bosk.drivers.state.TestEntity.Variant;
 import works.bosk.drivers.state.TestValues;
-import works.bosk.drivers.state.TestValues.IdentifierCase;
-import works.bosk.drivers.state.TestValues.StringCase;
-import works.bosk.drivers.state.TestValues.Variant;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
 
@@ -333,7 +333,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		assertCorrectBoskContents();
 
-		Reference<Variant> variantRef = ref.then(Variant.class, TestValues.Fields.variant);
+		Reference<Variant> variantRef = bosk.rootReference().then(Variant.class, TestEntity.Fields.variant);
 		driver.submitReplacement(variantRef, new StringCase("value1"));
 		assertCorrectBoskContents();
 		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(variantRef));

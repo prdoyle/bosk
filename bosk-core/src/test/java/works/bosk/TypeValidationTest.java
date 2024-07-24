@@ -1,5 +1,6 @@
 package works.bosk;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Optional;
 import lombok.AccessLevel;
@@ -15,6 +16,7 @@ import works.bosk.annotations.DerivedRecord;
 import works.bosk.annotations.DeserializationPath;
 import works.bosk.annotations.Enclosing;
 import works.bosk.annotations.Self;
+import works.bosk.annotations.VariantCaseMap;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -45,6 +47,7 @@ class TypeValidationTest {
 	@ValueSource(classes = {
 			String.class,
 			//MissingConstructorArgument.class, // TODO: Currently doesn't work because Bosk is constructor-driven. Figure out what's the system of record here
+			AmbiguousVariantCaseMap.class,
 			ArrayField.class,
 			BooleanPrimitive.class,
 			BytePrimitive.class,
@@ -806,6 +809,18 @@ class TypeValidationTest {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ValidThenInvalidOfTheSameClass.bad"));
 		}
+	}
+
+	public interface Variant1 extends VariantNode {
+		@VariantCaseMap MapValue<Type> MAP1 = MapValue.empty();
+	}
+
+	public interface Variant2 extends VariantNode {
+		@VariantCaseMap MapValue<Type> MAP2 = MapValue.empty();
+	}
+
+	public record AmbiguousVariantCaseMap() implements Variant1, Variant2 {
+		@Override public String tag() { return ""; }
 	}
 
 }

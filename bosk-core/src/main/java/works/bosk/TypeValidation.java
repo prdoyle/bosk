@@ -28,6 +28,7 @@ import static java.lang.reflect.Modifier.isStatic;
 import static java.util.Arrays.asList;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
+import static works.bosk.ReferenceUtils.rawClass;
 import static works.bosk.SerializationPlugin.hasDeserializationPath;
 import static works.bosk.SerializationPlugin.isEnclosingReference;
 import static works.bosk.SerializationPlugin.isSelfReference;
@@ -38,7 +39,7 @@ import static works.bosk.SerializationPlugin.isSelfReference;
 public final class TypeValidation {
 
 	public static void validateType(Type rootType) throws InvalidTypeException {
-		Class<?> rootClass = ReferenceUtils.rawClass(rootType);
+		Class<?> rootClass = rawClass(rootType);
 		if (!StateTreeNode.class.isAssignableFrom(rootClass)) {
 			throw new InvalidTypeException("Bosk root type must be a StateTreeNode; " + rootClass.getSimpleName() + " is not");
 		}
@@ -47,7 +48,7 @@ public final class TypeValidation {
 
 	private static void validateType(Type theType, Set<Type> alreadyValidated) throws InvalidTypeException {
 		if (alreadyValidated.add(theType)) {
-			Class<?> theClass = ReferenceUtils.rawClass(theType);
+			Class<?> theClass = rawClass(theType);
 			if (!isPublic(theClass.getModifiers())) {
 				throw new InvalidTypeException("Class is not public: " + theClass.getName());
 			} else if (theClass.isPrimitive()) {
@@ -61,7 +62,7 @@ public final class TypeValidation {
 			} else if (Reference.class.isAssignableFrom(theClass)) {
 				validateFieldsAreFinal(theClass);
 				Type targetType = ReferenceUtils.parameterType(theType, Reference.class, 0);
-				Class<?> targetClass = ReferenceUtils.rawClass(targetType);
+				Class<?> targetClass = rawClass(targetType);
 				if (Reference.class.isAssignableFrom(targetClass)) {
 					throw new InvalidTypeException("Reference to Reference is not allowed: " + theType);
 				}
@@ -84,7 +85,7 @@ public final class TypeValidation {
 				validateFieldsAreFinal(theClass);
 				Class<?> genericClass = ListValue.class.isAssignableFrom(theClass) ? ListValue.class : MapValue.class;
 				Type entryType = ReferenceUtils.parameterType(theType, genericClass, 0);
-				Class<?> entryClass = ReferenceUtils.rawClass(entryType);
+				Class<?> entryClass = rawClass(entryType);
 				// Exclude specific anti-patterns
 				if (Optional.class.isAssignableFrom(entryClass)) {
 					throw new InvalidTypeException("Optional is not allowed in a " + ListValue.class.getSimpleName());
@@ -142,11 +143,10 @@ public final class TypeValidation {
 	}
 
 	private static void validateStateTreeNodeClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
-		var variantCaseMap = SerializationPlugin.getVariantCaseMapIfAny(nodeClass);
-		if (variantCaseMap == null) {
-			validateOrdinaryStateTreeNodeClass(nodeClass, alreadyValidated);
+		if (VariantNode.class.isAssignableFrom(nodeClass)) {
+			validateVariantNodeClass(nodeClass, alreadyValidated);
 		} else {
-			validateVariantNodeClass(nodeClass, variantCaseMap, alreadyValidated);
+			validateOrdinaryStateTreeNodeClass(nodeClass, alreadyValidated);
 		}
 	}
 
@@ -175,17 +175,15 @@ public final class TypeValidation {
 		validateFieldsAreFinal(nodeClass);
 	}
 
-	private static void validateVariantNodeClass(Class<?> nodeClass, Map<String, Type> variantCaseMap, Set<Type> alreadyValidated) throws InvalidTypeException {
-		if (!nodeClass.isInterface()) {
-			throw new InvalidTypeException("Variant node class " + nodeClass.getSimpleName() + " must be an interface");
-		}
-		if (!VariantNode.class.isAssignableFrom(nodeClass)) {
-			throw new InvalidTypeException("Variant node class " + nodeClass.getSimpleName() + " must implement " + VariantNode.class.getSimpleName());
-		}
-
-		for (Map.Entry<String, Type> entry : variantCaseMap.entrySet()) {
-			validateFieldName(nodeClass, requireNonNull(entry.getKey())); // TODO: this produces confusing exception messages
-			validateType(requireNonNull(entry.getValue()), alreadyValidated);
+	private static void validateVariantNodeClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
+		for (Map.Entry<String, Type> entry : SerializationPlugin.getVariantCaseMap(nodeClass).entrySet()) {
+			String tag = requireNonNull(entry.getKey());
+			Type type = requireNonNull(entry.getValue());
+			validateFieldName(nodeClass, tag); // TODO: this produces confusing exception messages
+			validateType(type, alreadyValidated);
+			if (!VariantNode.class.isAssignableFrom(rawClass(type))) {
+				throw new InvalidTypeException("Variant case " + nodeClass.getSimpleName() + "." + tag + " maps to a type that doesn't inherit VariantNode: " + type);
+			}
 		}
 	}
 
@@ -230,22 +228,22 @@ public final class TypeValidation {
 			throw new InvalidFieldTypeException(containingClass, fieldName, "@" + DeserializationPath.class.getSimpleName() + " not valid inside the bosk");
 		} else if (isEnclosingReference(containingClass, parameter)) {
 			Type type = parameter.getParameterizedType();
-			if (!Reference.class.isAssignableFrom(ReferenceUtils.rawClass(type))) {
+			if (!Reference.class.isAssignableFrom(rawClass(type))) {
 				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Enclosing.class.getSimpleName() + " applies only to Reference parameters");
 			}
 			Type referencedType = ReferenceUtils.parameterType(type, Reference.class, 0);
-			if (!Entity.class.isAssignableFrom(ReferenceUtils.rawClass(referencedType))) {
+			if (!Entity.class.isAssignableFrom(rawClass(referencedType))) {
 				// Not certain this needs to be so strict
 				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Enclosing.class.getSimpleName() + " applies only to References to Entities");
 			}
 		} else if (isSelfReference(containingClass, parameter)) {
 			Type type = parameter.getParameterizedType();
-			if (!Reference.class.isAssignableFrom(ReferenceUtils.rawClass(type))) {
+			if (!Reference.class.isAssignableFrom(rawClass(type))) {
 				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Self.class.getSimpleName() + " applies only to References");
 			}
 			Type referencedType = ReferenceUtils.parameterType(type, Reference.class, 0);
-			if (!ReferenceUtils.rawClass(referencedType).isAssignableFrom(containingClass)) {
-				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Self.class.getSimpleName() + " reference to " + ReferenceUtils.rawClass(referencedType).getSimpleName() + " incompatible with containing class " + containingClass.getSimpleName());
+			if (!rawClass(referencedType).isAssignableFrom(containingClass)) {
+				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Self.class.getSimpleName() + " reference to " + rawClass(referencedType).getSimpleName() + " incompatible with containing class " + containingClass.getSimpleName());
 			}
 		}
 		return List.of(parameter.getParameterizedType());

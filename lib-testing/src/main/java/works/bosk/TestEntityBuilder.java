@@ -35,7 +35,8 @@ public class TestEntityBuilder {
 			AbstractBoskTest.Optionals.empty(Identifier.from(id + "_optionals")),
 			new AbstractBoskTest.ImplicitRefs(Identifier.from(id + "_implicitRefs"),
 				implicitRefsRef(id), entityRef(id),
-				implicitRefsRef(id), entityRef(id)));
+				implicitRefsRef(id), entityRef(id)),
+			new AbstractBoskTest.VariantCase1("variantCase1String"));
 	}
 
 }

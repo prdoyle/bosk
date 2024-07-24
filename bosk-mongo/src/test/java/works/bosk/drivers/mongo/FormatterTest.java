@@ -69,6 +69,9 @@ class FormatterTest extends AbstractBoskTest {
 			.append("implicitRefs", new BsonDocument()
 				.append("id", new BsonString(WEIRD_ID + "_implicitRefs"))
 			)
+			.append("variant", new BsonDocument()
+				.append("variant1", new BsonDocument("stringField", new BsonString("variantCase1String")))
+			)
 			;
 
 		ArrayList<String> dottedName = Formatter.dottedFieldNameSegments(weirdRef, weirdRef.path().length(), bosk.rootReference());

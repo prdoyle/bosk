@@ -63,6 +63,7 @@ import static com.fasterxml.jackson.core.JsonToken.END_OBJECT;
 import static com.fasterxml.jackson.core.JsonToken.START_ARRAY;
 import static com.fasterxml.jackson.core.JsonToken.START_OBJECT;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.ReferenceUtils.rawClass;
 import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
@@ -109,6 +110,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return listingEntrySerializer(config, beanDesc);
 			} else if (SideTable.class.isAssignableFrom(theClass)) {
 				return sideTableSerializer(config, beanDesc);
+			} else if (VariantNode.class.isAssignableFrom(theClass)) {
+				return variantNodeSerializer(config, type, beanDesc);
 			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
 				return stateTreeNodeSerializer(config, type, beanDesc);
 			} else if (Optional.class.isAssignableFrom(theClass)) {
@@ -210,34 +213,42 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonSerializer<StateTreeNode> stateTreeNodeSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
-			var variantCaseMap = getVariantCaseMapIfAny(type.getRawClass());
-			if (variantCaseMap == null) {
-				StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
-				return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).serializer(config);
-			} else {
-				return new JsonSerializer<>() {
-					@Override
-					public void serialize(StateTreeNode stateTreeNode, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-						VariantNode value = (VariantNode) stateTreeNode;
-						String tag = value.tag();
-						Type caseType = variantCaseMap.get(tag);
-						if (caseType == null) {
-							throw new JsonParseException("Object has unexpected variant tag field; expected one of " + variantCaseMap.keySet());
-						}
-						Class<?> caseClass = rawClass(caseType);
-						if (!caseClass.isInstance(value)) {
-							throw new JsonParseException("Object type " + value.getClass().getSimpleName() + " doesn't match type for tag " + tag + " " + caseType);
-						}
-						JsonSerializer<Object> valueSerializer = serializers.findValueSerializer(caseClass);
-
-						gen.writeStartObject();
-						gen.writeFieldName(requireNonNull(tag));
-						valueSerializer.serialize(value, gen, serializers);
-						gen.writeEndObject();
-					}
-				};
+		@SuppressWarnings("unchecked")
+		private <T> JsonSerializer<VariantNode> variantNodeSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
+			Class<?> nodeClass = type.getRawClass();
+			MapValue<Type> variantCaseMap;
+			try {
+				variantCaseMap = SerializationPlugin.getVariantCaseMap(nodeClass);
+			} catch (InvalidTypeException e) {
+				throw new IllegalArgumentException(e);
 			}
+			Map<String, JsonSerializer<?>> caseSerializers = variantCaseMap.entrySet().stream().collect(toMap(Entry::getKey, e ->
+				stateTreeNodeSerializer(config, TypeFactory.defaultInstance().constructType(e.getValue()), beanDesc)));
+			return new JsonSerializer<>() {
+				@Override
+				public void serialize(VariantNode value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+					gen.writeStartObject();
+					String tag = requireNonNull(value.tag());
+					gen.writeFieldName(tag);
+					JsonSerializer<T> caseSerializer = (JsonSerializer<T>) caseSerializers.get(tag);
+					if (caseSerializer == null) {
+						throw new IllegalStateException(value.getClass().getSimpleName() + " has unexpected variant tag field \"" + tag
+							+ "\" for " + nodeClass.getSimpleName()
+							+ "; expected one of " + variantCaseMap.keySet());
+					}
+					try {
+						caseSerializer.serialize((T) rawClass(variantCaseMap.get(tag)).cast(value), gen, serializers);
+					} catch (ClassCastException e) {
+						throw new IllegalStateException(value.getClass().getSimpleName() + " has tag field \"" + tag + "\" corresponding to incompatible type: " + variantCaseMap.get(tag));
+					}
+					gen.writeEndObject();
+				}
+			};
+		}
+
+		private JsonSerializer<StateTreeNode> stateTreeNodeSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
+			StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
+			return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).serializer(config);
 		}
 
 		private JsonSerializer<MapValue<Object>> mapValueSerializer(SerializationConfig config, BeanDescription beanDesc) {
@@ -294,6 +305,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return listingEntryDeserializer(type, config, beanDesc);
 			} else if (SideTable.class.isAssignableFrom(theClass)) {
 				return sideTableDeserializer(type, config, beanDesc);
+			} else if (VariantNode.class.isAssignableFrom(theClass)) {
+				return variantNodeDeserializer(type, config, beanDesc);
 			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
 				return stateTreeNodeDeserializer(type, config, beanDesc);
 			} else if (Optional.class.isAssignableFrom(theClass)) {
@@ -456,16 +469,19 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		private JsonDeserializer<? extends StateTreeNode> stateTreeNodeDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
-			var variantCaseMap = getVariantCaseMapIfAny(type.getRawClass());
-			if (variantCaseMap == null) {
-				StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
-				return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).deserializer(config);
-			} else {
-				return variantNodeDeserializer(variantCaseMap);
-			}
+			StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
+			return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).deserializer(config);
 		}
 
-		private static JsonDeserializer<VariantNode> variantNodeDeserializer(Map<String, Type> variantCaseMap) {
+		private JsonDeserializer<VariantNode> variantNodeDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+			MapValue<Type> variantCaseMap;
+			try {
+				variantCaseMap = SerializationPlugin.getVariantCaseMap(type.getRawClass());
+			} catch (InvalidTypeException e) {
+				throw new IllegalArgumentException(e);
+			}
+			Map<String, JsonDeserializer<?>> deserializers = variantCaseMap.entrySet().stream().collect(toMap(Entry::getKey, e ->
+				stateTreeNodeDeserializer(TypeFactory.defaultInstance().constructType(e.getValue()), config, beanDesc)));
 			return new JsonDeserializer<>() {
 				@Override
 				public VariantNode deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
@@ -474,15 +490,17 @@ public final class JacksonPlugin extends SerializationPlugin {
 						throw new JsonParseException(p, "Input is missing variant tag field; expected one of " + variantCaseMap.keySet());
 					}
 					p.nextValue();
+
 					String tag = p.currentName();
-					Type caseType = variantCaseMap.get(tag);
-					if (caseType == null) {
-						throw new JsonParseException(p, "Input has unexpected variant tag field; expected one of " + variantCaseMap.keySet());
+					JsonDeserializer<?> deserializer = deserializers.get(tag);
+					if (deserializer == null) {
+						throw new JsonParseException(p, "Input has unexpected variant tag field \"" + tag + "\"; expected one of " + variantCaseMap.keySet());
 					}
-					JavaType type = TypeFactory.defaultInstance().constructType(caseType);
-					Object nested = ctxt.findContextualValueDeserializer(type, null).deserialize(p, ctxt);
+					VariantNode result = (VariantNode) deserializer.deserialize(p, ctxt);
+
+					p.nextToken();
 					expect(END_OBJECT, p);
-					return (VariantNode) type.getRawClass().cast(nested);
+					return result;
 				}
 			};
 		}
@@ -825,7 +843,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 	public static void expect(JsonToken expected, JsonParser p) throws IOException {
 		if (p.currentToken() != expected) {
-			throw new JsonParseException(p, "Expected " + expected);
+			throw new JsonParseException(p, "Expected " + expected + "; found " + p.currentToken());
 		}
 	}
 
