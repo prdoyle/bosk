@@ -49,18 +49,18 @@ dependencies {
 
 // Developer aids
 dependencies {
-	annotationProcessor "org.projectlombok:lombok:1.18.30"
-	compileOnly "org.projectlombok:lombok:1.18.30"
-	testAnnotationProcessor "org.projectlombok:lombok:1.18.30"
-	testCompileOnly "org.projectlombok:lombok:1.18.30"
+	annotationProcessor "org.projectlombok:lombok:1.18.34"
+	compileOnly "org.projectlombok:lombok:1.18.34"
+	testAnnotationProcessor "org.projectlombok:lombok:1.18.34"
+	testCompileOnly "org.projectlombok:lombok:1.18.34"
 
 	testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.3"
 	testImplementation "org.junit.jupiter:junit-jupiter-params:5.10.3"
 	testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.3"
 
-	testImplementation "org.testcontainers:testcontainers:1.19.3"
-	testImplementation "org.testcontainers:junit-jupiter:1.19.3"
-	testImplementation "org.testcontainers:toxiproxy:1.19.3"
+	testImplementation "org.testcontainers:testcontainers:1.20.0"
+	testImplementation "org.testcontainers:junit-jupiter:1.20.0"
+	testImplementation "org.testcontainers:toxiproxy:1.20.0"
 
 	testImplementation "org.hamcrest:hamcrest:2.2"
 	testImplementation "org.hamcrest:hamcrest-library:2.2"
