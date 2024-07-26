@@ -318,6 +318,14 @@ class MapValueTest extends AbstractBoskTest {
 	}
 
 	@Test
+	void mapOfSubtype_works() {
+		Map<String, String> map = Map.of("key", "value");
+		MapValue<CharSequence> actual = MapValue.copyOf(map);
+		MapValue<CharSequence> expected = MapValue.singleton("key", "value");
+		assertEquals(expected, actual);
+	}
+
+	@Test
 	void testBad_duplicateKeysFromFunction() {
 		assertThrows(IllegalArgumentException.class, () -> MapValue.fromFunction(asList("dup", "dup"), Identifier::unique));
 	}
