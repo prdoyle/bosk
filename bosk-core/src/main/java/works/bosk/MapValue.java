@@ -63,7 +63,7 @@ public final class MapValue<V> implements Map<String, V> {
 	/**
 	 * Preserves the order, if any, of the entries in <code>map</code>.
 	 */
-	public static <VV> MapValue<VV> copyOf(Map<String, VV> contents) {
+	public static <VV> MapValue<VV> copyOf(Map<String, ? extends VV> contents) {
 		OrderedPMap<String, VV> map = OrderedPMap.from(contents);
 		map.forEach((k,v) -> {
 			requireNonNull(k);

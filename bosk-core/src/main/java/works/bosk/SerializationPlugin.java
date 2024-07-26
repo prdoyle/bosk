@@ -403,25 +403,29 @@ public abstract class SerializationPlugin {
 
 		for (Class<?> c = nodeClass; c != Object.class && c != null; c = c.getSuperclass()) {
 			for (Field f: c.getDeclaredFields()) {
-				if (isStatic(f.getModifiers()) && !isPrivate(f.getModifiers())) {
-					f.setAccessible(true);
-					var annotations = f.getAnnotationsByType(VariantCaseMap.class);
-					if (annotations.length >= 2) {
-						throw new IllegalStateException("Multiple variant case maps for the same class: " + f);
-					}
-					MapValue value;
-					try {
-						value = (MapValue) f.get(null);
-					} catch (IllegalAccessException e) {
-						throw new AssertionError("Field should not be inaccessible: " + f, e);
-					}
-					if (value == null) {
-						throw new NullPointerException("VariantCaseMap cannot be null: " + f);
-					}
-					var old = variantCaseMap.get();
-					boolean success = variantCaseMap.compareAndSet(old, old.plus(nodeClass, value, c));
-					assert success: "Hey who's messing with our AtomicReference?";
+				var annotations = f.getAnnotationsByType(VariantCaseMap.class);
+				if (annotations.length == 0) {
+					// This is not the droid you're looking for
+					continue;
+				} else if (annotations.length >= 2) {
+					throw new IllegalStateException("Multiple variant case maps for the same class: " + f);
 				}
+				if (!isStatic(f.getModifiers()) || isPrivate(f.getModifiers())) {
+					throw new IllegalStateException("The variant case map must be static and final: " + f);
+				}
+				f.setAccessible(true);
+				MapValue value;
+				try {
+					value = (MapValue) f.get(null);
+				} catch (IllegalAccessException e) {
+					throw new AssertionError("Field should not be inaccessible: " + f, e);
+				}
+				if (value == null) {
+					throw new NullPointerException("VariantCaseMap cannot be null: " + f);
+				}
+				var old = variantCaseMap.get();
+				boolean success = variantCaseMap.compareAndSet(old, old.plus(nodeClass, value, c));
+				assert success: "Hey who's messing with our AtomicReference?";
 			}
 		}
 

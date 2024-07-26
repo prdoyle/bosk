@@ -2,6 +2,7 @@ package works.bosk;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -38,6 +39,7 @@ class TypeValidationTest {
 			AllowedFieldNames.class,
 			ImplicitReferences_onConstructorParameters.class,
 			ImplicitReferences_onFields.class,
+			ExtraStaticField.class
 			})
 	void testValidRootClasses(Class<?> rootClass) throws InvalidTypeException {
 		TypeValidation.validateType(rootClass);
@@ -259,6 +261,20 @@ class TypeValidationTest {
 		@Self Reference<ImplicitReferences_onFields> selfRef;
 		@Self Reference<StateTreeNode> selfSupertype;
 		@Enclosing Reference<ImplicitReferences_onFields> enclosingRef;
+	}
+
+	public interface ExtraStaticField extends VariantNode {
+		record Subtype() implements ExtraStaticField {}
+		@Override default String tag() { return ""; }
+
+		@VariantCaseMap MapValue<Class<? extends ExtraStaticField>> CASE_MAP = MapValue.copyOf(Map.of(
+			"subtype", Subtype.class
+		));
+
+		/**
+		 * This is not annotated with @VariantCaseMap so we expect it to be ignored by the scan.
+		 */
+		String EXTRA_FIELD = "ignore me";
 	}
 
 	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
