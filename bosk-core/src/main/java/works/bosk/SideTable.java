@@ -12,6 +12,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collector;
 import java.util.stream.Stream;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -140,6 +141,25 @@ public final class SideTable<K extends Entity, V> implements EnumerableByIdentif
 			}
 		});
 		return new SideTable<>(CatalogReference.from(domain), OrderedPMap.from(map));
+	}
+
+	public static <T, KK extends Entity, VV> Collector<T, ?, SideTable<KK, VV>> toSideTable(
+		Reference<Catalog<KK>> domain,
+		Function<? super T, Identifier> idMapper,
+		Function<? super T, ? extends VV> valueMapper
+	) {
+		class Accumulator {
+			OrderedPMap<Identifier, VV> map = OrderedPMap.empty();
+			void accumulate(T item) { map = map.plus(idMapper.apply(item), valueMapper.apply(item)); }
+			Accumulator combine(Accumulator other) { map = map.plusAll(other.map); return this; }
+			SideTable<KK, VV> finish() { return SideTable.copyOf(domain, map); }
+		}
+		return Collector.of(
+			Accumulator::new,
+			Accumulator::accumulate,
+			Accumulator::combine,
+			Accumulator::finish
+		);
 	}
 
 	public static <KK extends Entity,VV> SideTable<KK,VV> fromEntries(Reference<Catalog<KK>> domain, Stream<Entry<Identifier, VV>> entries) {
