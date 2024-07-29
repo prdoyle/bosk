@@ -2,6 +2,7 @@
 plugins {
 	id 'java'
 	id "com.diffplug.spotless" version "6.20.0"
+	id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
 }
 
 repositories {
@@ -35,4 +36,15 @@ spotless {
 allprojects {
 	group = 'works.bosk'
 	// version should be set as a property with -Pversion
+}
+
+nexusPublishing {
+	repositories {
+		sonatype {
+			nexusUrl = uri('https://s01.oss.sonatype.org/service/local/')
+			snapshotRepositoryUrl = uri('https://s01.oss.sonatype.org/content/repositories/snapshots/')
+			username = project.properties['ossrhUsername'] ?: 'bogusUser'
+			password = project.properties['ossrhPassword'] ?: 'bogusPassword'
+		}
+	}
 }

@@ -30,7 +30,7 @@ jobs:
 
       - name: Run Gradle Publish
         run: |
-          ./gradlew :bosk-core:test publish \
+          ./gradlew :bosk-core:test publishToSonatype closeSonatypeStagingRepository \
             -Pversion="${{github.event.release.tag_name}}" \
             --info
         env:
@@ -38,4 +38,3 @@ jobs:
           ORG_GRADLE_PROJECT_ossrhPassword: ${{secrets.OSSRH_TOKEN}}
           ORG_GRADLE_PROJECT_signingKey: ${{secrets.GPG_PRIVATE_KEY}}
           ORG_GRADLE_PROJECT_signingPassword: ${{secrets.GPG_PASSWORD}}
-
