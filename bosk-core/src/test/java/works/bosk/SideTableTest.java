@@ -4,6 +4,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static works.bosk.SideTable.toSideTable;
 
 class SideTableTest extends AbstractBoskTest {
 	Bosk<TestRoot> bosk;
@@ -126,6 +128,21 @@ class SideTableTest extends AbstractBoskTest {
 		}
 
 		assertEquals(expected, actual);
+	}
+
+	@Test
+	void collector_works() throws InvalidTypeException {
+		var builder = new TestEntityBuilder(bosk);
+		var items = List.of("a", "b", "c", "d", "e"); // Enough to make accidental correct ordering unlikely
+		SideTable<TestEntity, TestEntity> sideTable = items.stream()
+			.collect(toSideTable(refs.entities(),
+				Identifier::from,
+				s -> builder.blankEntity(Identifier.from(s), TestEnum.OK)));
+
+		assertEquals(items.stream().map(Identifier::from).toList(), List.copyOf(sideTable.ids()));
+		sideTable.forEachID((id,value) -> {
+			assertEquals(id, value.id());
+		});
 	}
 
 	private <V> void assertEqualsOrderedMap(Map<Identifier,V> expected, SideTable<TestEntity,V> actual) {
