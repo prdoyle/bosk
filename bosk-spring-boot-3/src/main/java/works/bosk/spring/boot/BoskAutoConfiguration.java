@@ -1,7 +1,6 @@
 package works.bosk.spring.boot;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -32,10 +31,9 @@ public class BoskAutoConfiguration {
 	ServiceEndpoints serviceEndpoints(
 		Bosk<?> bosk,
 		ObjectMapper mapper,
-		JacksonPlugin plugin,
-		@Value("${bosk.web.service-path}") String contextPath
+		JacksonPlugin plugin
 	) {
-		return new ServiceEndpoints(bosk, mapper, plugin, contextPath);
+		return new ServiceEndpoints(bosk, mapper, plugin);
 	}
 
 	@Bean
