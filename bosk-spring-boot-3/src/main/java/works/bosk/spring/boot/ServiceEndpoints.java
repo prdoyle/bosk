@@ -11,8 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import works.bosk.Bosk;
@@ -27,12 +27,10 @@ import works.bosk.exceptions.NonexistentReferenceException;
 import works.bosk.jackson.JacksonPlugin;
 
 @RestController
-@RequestMapping("${bosk.web.service-path}")
 public class ServiceEndpoints {
 	private final Bosk<?> bosk;
 	private final ObjectMapper mapper;
 	private final JacksonPlugin plugin;
-	private final int prefixLength;
 
 	public ServiceEndpoints(
 		Bosk<?> bosk,
@@ -43,13 +41,17 @@ public class ServiceEndpoints {
 		this.bosk = bosk;
 		this.mapper = mapper;
 		this.plugin = plugin;
-		this.prefixLength = contextPath.length();
 	}
 
-	@GetMapping(path = "/**", produces = MediaType.APPLICATION_JSON_VALUE)
-	Object getAny(HttpServletRequest req) {
+	@GetMapping(produces = MediaType.APPLICATION_JSON_VALUE, path = {
+		"${bosk.web.service-path}",
+		"${bosk.web.service-path}/",
+		"${bosk.web.service-path}/{path:.+}"
+	})
+	Object getAny(HttpServletRequest req, HttpServletResponse rsp, @PathVariable(value="path", required = false) String path) {
 		LOGGER.debug("{} {}", req.getMethod(), req.getRequestURI());
-		Reference<Object> ref = referenceForPath(req);
+		rsp.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		Reference<?> ref = referenceForPath(path);
 		try {
 			return ref.value();
 		} catch (NonexistentReferenceException e) {
@@ -57,11 +59,16 @@ public class ServiceEndpoints {
 		}
 	}
 
-	@PutMapping(path = "/**")
-	void putAny(HttpServletRequest req, HttpServletResponse rsp) throws IOException, InvalidTypeException {
+	@PutMapping(path = {
+		"${bosk.web.service-path}",
+		"${bosk.web.service-path}/",
+		"${bosk.web.service-path}/{path:.+}"
+	})
+	<T> void putAny(HttpServletRequest req, HttpServletResponse rsp, @PathVariable("path") String path) throws IOException, InvalidTypeException {
 		LOGGER.debug("{} {}", req.getMethod(), req.getRequestURI());
-		Reference<Object> ref = referenceForPath(req);
-		Object newValue;
+		@SuppressWarnings("unchecked")
+		Reference<T> ref = (Reference<T>) referenceForPath(path);
+		T newValue;
 		try (@SuppressWarnings("unused") SerializationPlugin.DeserializationScope scope = plugin.newDeserializationScope(ref)) {
 			newValue = mapper
 				.readerFor(mapper.constructType(ref.targetType()))
@@ -89,10 +96,14 @@ public class ServiceEndpoints {
 		rsp.setStatus(HttpStatus.ACCEPTED.value());
 	}
 
-	@DeleteMapping(path = "/**")
-	void deleteAny(HttpServletRequest req, HttpServletResponse rsp) {
+	@DeleteMapping(path = {
+		"${bosk.web.service-path}",
+		"${bosk.web.service-path}/",
+		"${bosk.web.service-path}/{path:.+}"
+	})
+	void deleteAny(HttpServletRequest req, HttpServletResponse rsp, @PathVariable("path") String path) {
 		LOGGER.debug("{} {}", req.getMethod(), req.getRequestURI());
-		Reference<Object> ref = referenceForPath(req);
+		Reference<?> ref = referenceForPath(path);
 		discriminatePreconditionCases(req, new PreconditionDiscriminator() {
 			@Override
 			public void ifUnconditional() {
@@ -113,14 +124,12 @@ public class ServiceEndpoints {
 		rsp.setStatus(HttpStatus.ACCEPTED.value());
 	}
 
-	private Reference<Object> referenceForPath(HttpServletRequest req) {
-		String path = req.getServletPath();
-		String boskPath = path.substring(prefixLength);
-		if (boskPath.isBlank()) {
-			boskPath = "/";
+	private Reference<?> referenceForPath(String path) {
+		if (path == null) {
+			return bosk.rootReference();
 		}
 		try {
-			return bosk.rootReference().then(Object.class, Path.parse(boskPath));
+			return bosk.rootReference().then(Object.class, Path.parse("/" + path));
 		} catch (InvalidTypeException e) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid path: " + path, e);
 		}
@@ -130,7 +139,7 @@ public class ServiceEndpoints {
 		try {
 			return ref.then(Identifier.class, "revision");
 		} catch (InvalidTypeException e) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Preconditions not supported for object with no  suitable revision field: " + ref, e);
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Preconditions not supported for object with no suitable revision field: " + ref, e);
 		}
 	}
 
@@ -188,7 +197,7 @@ public class ServiceEndpoints {
 		return value;
 	}
 
-	private void checkForMismatchedID(Reference<Object> ref, Object newValue) throws InvalidTypeException {
+	private void checkForMismatchedID(Reference<?> ref, Object newValue) throws InvalidTypeException {
 		if (newValue instanceof Entity e && !ref.path().isEmpty()) {
 			Reference<?> enclosingRef = ref.enclosingReference(Object.class);
 			if (EnumerableByIdentifier.class.isAssignableFrom(enclosingRef.targetClass())) {
