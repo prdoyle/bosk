@@ -563,7 +563,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		assertEquals(Optional.empty(), before); // Not there yet
 
 		LOGGER.debug("Call refurbish");
-		((MongoDriver<?>)upgradeableBosk.driver()).refurbish();
+		upgradeableBosk.getDriver(MongoDriver.class).refurbish();
 		originalBosk.driver().flush(); // Not the bosk that did refurbish!
 
 		LOGGER.debug("Check state after");
@@ -621,7 +621,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		);
 
 		// (Close this so it doesn't crash when we delete the "path" field)
-		((MongoDriver<TestEntity>)initialBosk.driver()).close();
+		initialBosk.getDriver(MongoDriver.class).close();
 
 		// Delete some metadata fields
 		MongoCollection<Document> collection = mongoService.client()
@@ -655,7 +655,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		}
 
 		// Refurbish
-		((MongoDriver<?>)bosk.driver()).refurbish();
+		bosk.getDriver(MongoDriver.class).refurbish();
 
 		// Verify the fields are all now there
 		try (MongoCursor<Document> cursor = collection.find(filterDoc).cursor()) {

@@ -29,6 +29,7 @@ import works.bosk.dereferencers.PathCompiler;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NoReadContextException;
 import works.bosk.exceptions.NonexistentReferenceException;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.exceptions.ReferenceBindingException;
 import works.bosk.util.Classes;
 
@@ -79,6 +80,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	@Getter private final Identifier instanceID = Identifier.from(randomUUID().toString());
 	@Getter private final BoskDriver<R> driver;
 	@Getter private final BoskDiagnosticContext diagnosticContext = new BoskDiagnosticContext();
+	private final BoskDriver<R> userSuppliedDriver;
 	private final LocalDriver localDriver;
 	private final RootRef rootRef;
 	private final ThreadLocal<R> rootSnapshot = new ThreadLocal<>();
@@ -97,7 +99,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 *    other state.
 	 * @param driverFactory Will be applied to this Bosk's local driver during
 	 * the Bosk's constructor, and the resulting {@link BoskDriver} will be the
-	 * one returned by {@link #driver}.
+	 * one returned by {@link #getDriver}.
 	 *
 	 * @see DriverStack
 	 */
@@ -124,7 +126,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		// to do such things as create References, so it needs the rest of the
 		// initialization to have completed already.
 		//
-		this.driver = driverFactory.build(boskInfo, this.localDriver);
+		this.userSuppliedDriver = driverFactory.build(boskInfo, this.localDriver);
+		this.driver = new ValidatingDriver(userSuppliedDriver);
 
 		try {
 			this.currentRoot = requireNonNull(driver.initialRoot(rootType));
@@ -169,6 +172,90 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	}
 
 	/**
+	 * <strong>Evolution note</strong>: we need better handling of the driver stack.
+	 * For now, we just provide access to the topmost driver, but code should be able
+	 * to look up any driver on the stack. We need to think carefully about how we
+	 * want this to work.
+	 *
+	 * @return the driver from the driver stack having the given type.
+	 * @throws IllegalArgumentException if there is no unique driver of the given type
+	 */
+	@SuppressWarnings("unchecked")
+	public <D extends BoskDriver<R>> D getDriver(Class<? super D> driverType) {
+		if (driverType.isInstance(userSuppliedDriver)) {
+			return (D)driverType.cast(userSuppliedDriver);
+		} else {
+			throw new NotYetImplementedException("Can't look up driver of type " + driverType);
+		}
+	}
+
+	/**
+	 * We wrap the user-supplied driver with one of these to ensure the error-checking
+	 * requirements of the {@link BoskDriver} are enforced.
+	 */
+	@RequiredArgsConstructor
+	final class ValidatingDriver implements BoskDriver<R> {
+		final BoskDriver<R> downstream;
+
+		@Override
+		public <T> void submitReplacement(Reference<T> target, T newValue) {
+			assertCorrectBosk(target);
+			downstream.submitReplacement(target, newValue);
+		}
+
+		@Override
+		public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
+			assertCorrectBosk(target);
+			assertCorrectBosk(precondition);
+			downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue);
+		}
+
+		@Override
+		public <T> void submitInitialization(Reference<T> target, T newValue) {
+			assertCorrectBosk(target);
+			downstream.submitInitialization(target, newValue);
+		}
+
+		@Override
+		public <T> void submitDeletion(Reference<T> target) {
+			if (target.path().isEmpty()) {
+				// TODO: Augment dereferencer so it can tell us this for all references, not just the root
+				throw new IllegalArgumentException("Cannot delete root object");
+			}
+			assertCorrectBosk(target);
+			downstream.submitDeletion(target);
+		}
+
+		@Override
+		public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
+			assertCorrectBosk(target);
+			assertCorrectBosk(precondition);
+			downstream.submitConditionalDeletion(target, precondition, requiredValue);
+		}
+
+		@Override
+		public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+			return downstream.initialRoot(rootType);
+		}
+
+		@Override
+		public void flush() throws IOException, InterruptedException {
+			downstream.flush();
+		}
+
+		private <T> void assertCorrectBosk(Reference<T> target) {
+			// TODO: Do we need to be this strict?
+			// On the one hand, we could write conditional updates in a way that don't require the
+			// reference to point to the right bosk.
+			// On the other hand, there's a certain symmetry to requiring the references to have the right
+			// bosk for both reads and writes, and forcing this discipline on users might help them avoid
+			// some pretty confusing mistakes.
+			assert ((Bosk<?>.RootRef)target.root()).bosk() == Bosk.this: "Reference supplied to driver operation must refer to the correct bosk";
+		}
+
+	}
+
+	/**
 	 * {@link BoskDriver} that writes directly to this {@link Bosk}.
 	 *
 	 * <p>
@@ -210,7 +297,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		@Override
 		public <T> void submitReplacement(Reference<T> target, T newValue) {
-			assertCorrectBosk(target);
 			synchronized (this) {
 				R priorRoot = currentRoot;
 				if (!tryGraftReplacement(target, newValue)) {
@@ -223,7 +309,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		@Override
 		public <T> void submitInitialization(Reference<T> target, T newValue) {
-			assertCorrectBosk(target);
 			synchronized (this) {
 				boolean preconditionsSatisfied;
 				try (@SuppressWarnings("unused") ReadContext executionContext = supersedingReadContext()) {
@@ -242,7 +327,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		@Override
 		public <T> void submitDeletion(Reference<T> target) {
-			assertCorrectBosk(target);
 			synchronized (this) {
 				R priorRoot = currentRoot;
 				if (!tryGraftDeletion(target)) {
@@ -261,8 +345,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		@Override
 		public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-			assertCorrectBosk(target);
-			assertCorrectBosk(precondition);
 			synchronized (this) {
 				boolean preconditionsSatisfied;
 				try (@SuppressWarnings("unused") ReadContext executionContext = supersedingReadContext()) {
@@ -281,8 +363,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		@Override
 		public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-			assertCorrectBosk(target);
-			assertCorrectBosk(precondition);
 			synchronized (this) {
 				boolean preconditionsSatisfied;
 				try (@SuppressWarnings("unused") ReadContext executionContext = supersedingReadContext()) {
@@ -307,16 +387,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				triggerQueueingOfHooks(rootReference(), null, currentRoot, reg);
 			}
 			drainQueueIfAllowed();
-		}
-
-		private <T> void assertCorrectBosk(Reference<T> target) {
-			// TODO: Do we need to be this strict?
-			// On the one hand, we could write conditional updates in a way that don't require the
-			// reference to point to the right bosk.
-			// On the other hand, there's a certain symmetry to requiring the references to have the right
-			// bosk for both reads and writes, and forcing this discipline on users might help them avoid
-			// some pretty confusing mistakes.
-			assert ((Bosk<?>.RootRef)target.root()).bosk() == Bosk.this: "Reference supplied to driver operation must refer to the correct bosk";
 		}
 
 		/**
@@ -348,9 +418,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 */
 		private synchronized <T> boolean tryGraftDeletion(Reference<T> target) {
 			Path targetPath = target.path();
-			if (targetPath.isEmpty()) {
-				throw new IllegalArgumentException("Cannot delete root object");
-			}
+			assert !targetPath.isEmpty();
 			Dereferencer dereferencer = dereferencerFor(target);
 			try {
 				LOGGER.debug("Applying deletion at {}", target);

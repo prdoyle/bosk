@@ -48,7 +48,7 @@ public class BoskConstructorTest {
 
 		// The driver object and root node should be exactly the same object passed in
 
-		assertSame(driver.get(), bosk.driver());
+		assertSame(driver.get(), bosk.getDriver(ForwardingDriver.class));
 
 		try (val __ = bosk.readContext()) {
 			assertSame(root, bosk.rootReference().value());
