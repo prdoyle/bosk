@@ -8,7 +8,6 @@ import java.io.Reader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +28,7 @@ import works.bosk.jackson.JacksonPlugin;
 import static org.springframework.http.HttpStatus.ACCEPTED;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 @RestController
 public class ServiceEndpoints {
@@ -46,7 +46,7 @@ public class ServiceEndpoints {
 		this.plugin = plugin;
 	}
 
-	@GetMapping(produces = MediaType.APPLICATION_JSON_VALUE, path = {
+	@GetMapping(produces = APPLICATION_JSON_VALUE, path = {
 		"${bosk.web.service-path}",
 		"${bosk.web.service-path}/{*path}"
 	})
@@ -63,7 +63,7 @@ public class ServiceEndpoints {
 		}
 	}
 
-	@PutMapping(path = {
+	@PutMapping(consumes = APPLICATION_JSON_VALUE, path = {
 		"${bosk.web.service-path}",
 		"${bosk.web.service-path}/{*path}"
 	})
