@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import works.bosk.Bosk;
@@ -31,6 +32,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 @RestController
+@RequestMapping("${bosk.web.service-path}")
 public class ServiceEndpoints {
 	private final Bosk<?> bosk;
 	private final ObjectMapper mapper;
@@ -46,10 +48,7 @@ public class ServiceEndpoints {
 		this.plugin = plugin;
 	}
 
-	@GetMapping(produces = APPLICATION_JSON_VALUE, path = {
-		"${bosk.web.service-path}",
-		"${bosk.web.service-path}/{*path}"
-	})
+	@GetMapping(produces = APPLICATION_JSON_VALUE, path = {"", "{*path}"})
 	Object getAny(
 		@PathVariable(value="path", required = false) String path,
 		HttpServletRequest req
@@ -63,10 +62,7 @@ public class ServiceEndpoints {
 		}
 	}
 
-	@PutMapping(consumes = APPLICATION_JSON_VALUE, path = {
-		"${bosk.web.service-path}",
-		"${bosk.web.service-path}/{*path}"
-	})
+	@PutMapping(consumes = APPLICATION_JSON_VALUE, path = {"", "{*path}"})
 	<T> void putAny(
 		@PathVariable(value = "path", required = false) String path,
 		Reader body,
@@ -104,10 +100,7 @@ public class ServiceEndpoints {
 		rsp.setStatus(ACCEPTED.value());
 	}
 
-	@DeleteMapping(path = {
-		"${bosk.web.service-path}",
-		"${bosk.web.service-path}/{*path}"
-	})
+	@DeleteMapping(path = {"", "{*path}"})
 	void deleteAny(
 		@PathVariable(value = "path", required = false) String path,
 		HttpServletRequest req,
