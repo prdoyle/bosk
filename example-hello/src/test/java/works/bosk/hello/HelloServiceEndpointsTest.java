@@ -17,6 +17,8 @@ import works.bosk.Identifier;
 import works.bosk.hello.state.BoskState;
 import works.bosk.hello.state.Target;
 
+import static org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -57,7 +59,9 @@ public class HelloServiceEndpointsTest {
 		var newValue = new BoskState(
 			INITIAL_STATE.targets().with(new Target(Identifier.from("everybody")))
 		);
-		mvc.perform(put(uri).content(mapper.writeValueAsString(newValue)))
+		mvc.perform(put(uri)
+				.contentType(APPLICATION_JSON)
+				.content(mapper.writeValueAsString(newValue)))
 			.andExpect(status().isAccepted());
 		assertGetReturns(newValue, uri);
 		assertHello("world", "everybody");
@@ -79,7 +83,9 @@ public class HelloServiceEndpointsTest {
 	@Test
 	void put_targets_works() throws Exception {
 		var newTargets = INITIAL_STATE.targets().with(new Target(Identifier.from("new target")));
-		mvc.perform(put("/bosk/targets").content(mapper.writeValueAsString(newTargets)))
+		mvc.perform(put("/bosk/targets")
+				.contentType(APPLICATION_JSON)
+				.content(mapper.writeValueAsString(newTargets)))
 			.andExpect(status().isAccepted());
 		assertGetReturns(newTargets, "/bosk/targets");
 		assertHello("world", "new target");
@@ -110,7 +116,9 @@ public class HelloServiceEndpointsTest {
 	@Test
 	void put_existingTarget_works() throws Exception {
 		String uri = "/bosk/targets/" + INITIAL_TARGET.id();
-		mvc.perform(put(uri).content(mapper.writeValueAsString(INITIAL_TARGET)))
+		mvc.perform(put(uri)
+				.contentType(APPLICATION_JSON)
+				.content(mapper.writeValueAsString(INITIAL_TARGET)))
 			.andExpect(status().isAccepted());
 		assertGetReturns(INITIAL_TARGET, uri);
 		assertHello("world");
@@ -120,10 +128,20 @@ public class HelloServiceEndpointsTest {
 	void put_newTarget_works() throws Exception {
 		var newTarget = new Target(Identifier.from("new target"));
 		String uri = "/bosk/targets/" + newTarget.id();
-		mvc.perform(put(uri).content(mapper.writeValueAsString(newTarget)))
+		mvc.perform(put(uri)
+				.contentType(APPLICATION_JSON)
+				.content(mapper.writeValueAsString(newTarget)))
 			.andExpect(status().isAccepted());
 		assertGetReturns(newTarget, uri);
 		assertHello("world", "new target");
+	}
+
+	@Test
+	void put_wrongContentType_reportsError() throws Exception {
+		mvc.perform(put("/bosk/targets/" + INITIAL_TARGET.id())
+				.contentType(APPLICATION_FORM_URLENCODED)
+				.content(mapper.writeValueAsString(INITIAL_TARGET)))
+			.andExpect(status().isUnsupportedMediaType());
 	}
 
 	@Test
@@ -148,6 +166,7 @@ public class HelloServiceEndpointsTest {
 			.map(t -> "Hello, " + t + "!").toList());
 		mvc.perform(get("/api/hello"))
 			.andExpect(status().isOk())
+			.andExpect(content().contentType(APPLICATION_JSON))
 			.andExpect(content().json(mapper.writeValueAsString(expected)));
 	}
 }
