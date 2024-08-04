@@ -33,6 +33,8 @@ import static works.bosk.spring.boot.TestBosk.INITIAL_STATE;
 
 /**
  * Only a partial test because I can't seem to coax Jackson to work.
+ * <p>
+ * More complete testing can be found in <code>HelloServiceEndpointsTest</code>.
  */
 @SpringBootTest(classes={Config.class, ServiceEndpoints.class, ReadContextFilter.class})
 @AutoConfigureMockMvc
