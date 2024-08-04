@@ -8,7 +8,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -275,18 +274,6 @@ class BoskLocalReferenceTest {
 		}
 		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), InvalidRoot.class, new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
 		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), String.class, new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
-	}
-
-	@Test
-	void testDriver() {
-		// This doesn't test the operation of the driver; merely that the right driver is returned
-		AtomicReference<BoskDriver<Root>> driver = new AtomicReference<>();
-		Bosk<Root> myBosk = new Bosk<>(boskName(), Root.class, new Root(123, Catalog.empty()), (b,d) -> {
-			BoskDriver<Root> bd = new ProxyDriver(d);
-			driver.set(bd);
-			return bd;
-		});
-		assertSame(driver.get(), myBosk.driver());
 	}
 
 	@RequiredArgsConstructor

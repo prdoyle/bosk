@@ -91,7 +91,8 @@ public class SchemaEvolutionTest {
 		}
 
 		LOGGER.debug("Refurbish");
-		((MongoDriver<?>)toBosk.driver()).refurbish();
+		MongoDriver<TestEntity> driver = toBosk.getDriver(MongoDriver.class);
+		driver.refurbish();
 
 		LOGGER.debug("Perform fromBosk read");
 		try (var __ = fromBosk.readContext()) {
@@ -117,7 +118,8 @@ public class SchemaEvolutionTest {
 		Refs toRefs = toBosk.buildReferences(Refs.class);
 
 		LOGGER.debug("Refurbish toBosk ({})", toBosk.name());
-		((MongoDriver<?>)toBosk.driver()).refurbish();
+		MongoDriver<TestEntity> driver = toBosk.getDriver(MongoDriver.class);
+		driver.refurbish();
 
 		flushIfLiveRefurbishIsNotSupported(fromBosk, fromHelper, toHelper);
 
