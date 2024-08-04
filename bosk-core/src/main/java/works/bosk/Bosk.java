@@ -78,9 +78,9 @@ import static works.bosk.TypeValidation.validateType;
 public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	@Getter private final String name;
 	@Getter private final Identifier instanceID = Identifier.from(randomUUID().toString());
-	@Getter private final BoskDriver<R> driver;
 	@Getter private final BoskDiagnosticContext diagnosticContext = new BoskDiagnosticContext();
-	private final BoskDriver<R> userSuppliedDriver;
+
+	private final ValidatingDriver driver;
 	private final LocalDriver localDriver;
 	private final RootRef rootRef;
 	private final ThreadLocal<R> rootSnapshot = new ThreadLocal<>();
@@ -126,8 +126,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		// to do such things as create References, so it needs the rest of the
 		// initialization to have completed already.
 		//
-		this.userSuppliedDriver = driverFactory.build(boskInfo, this.localDriver);
-		this.driver = new ValidatingDriver(userSuppliedDriver);
+		this.driver = new ValidatingDriver(driverFactory.build(boskInfo, this.localDriver));
 
 		try {
 			this.currentRoot = requireNonNull(driver.initialRoot(rootType));
@@ -171,6 +170,10 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		return downstream;
 	}
 
+	public BoskDriver<R> driver() {
+		return driver;
+	}
+
 	/**
 	 * <strong>Evolution note</strong>: we need better handling of the driver stack.
 	 * For now, we just provide access to the topmost driver, but code should be able
@@ -182,6 +185,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 */
 	@SuppressWarnings("unchecked")
 	public <D extends BoskDriver<R>> D getDriver(Class<? super D> driverType) {
+		var userSuppliedDriver = driver.downstream;
 		if (driverType.isInstance(userSuppliedDriver)) {
 			return (D)driverType.cast(userSuppliedDriver);
 		} else {
