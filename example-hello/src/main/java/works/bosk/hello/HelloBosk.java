@@ -9,11 +9,13 @@ import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.hello.state.BoskState;
 import works.bosk.hello.state.Target;
+import works.bosk.logback.BoskLogFilter;
+import works.bosk.logback.BoskLogFilter.LogController;
 
 @Component
 public class HelloBosk extends Bosk<BoskState> {
-	public HelloBosk() throws InvalidTypeException {
-		super("Hello", BoskState.class, HelloBosk::defaultRoot, Bosk::simpleDriver);
+	public HelloBosk(LogController logController) throws InvalidTypeException {
+		super("Hello", BoskState.class, HelloBosk::defaultRoot, BoskLogFilter.withController(logController));
 	}
 
 	public final Refs refs = buildReferences(Refs.class);

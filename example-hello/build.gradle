@@ -25,6 +25,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	implementation project(':bosk-logback')
 
 	// A real project would pull this like any other library
 	implementation project(':bosk-spring-boot-3')
