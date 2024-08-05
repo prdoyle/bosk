@@ -28,6 +28,7 @@ import static org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -174,6 +175,13 @@ public class HelloServiceEndpointsTest {
 		mvc.perform(get("/bosk/targets/" + INITIAL_TARGET.id()))
 			.andExpect(status().isNotFound());
 		assertHello();
+	}
+
+	@Test
+	void postWithoutReadContext_reportsError() throws Exception {
+		logController.setLogging(OFF, ReadContextFilter.class);
+		mvc.perform(post("/api/noReadContext"))
+			.andExpect(status().isInternalServerError());
 	}
 
 	private void assertGetReturns(Object object, String uri) throws Exception {
