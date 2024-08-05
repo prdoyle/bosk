@@ -4,19 +4,26 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.mvc.support.DefaultHandlerExceptionResolver;
 import works.bosk.Catalog;
 import works.bosk.Identifier;
 import works.bosk.hello.state.BoskState;
 import works.bosk.hello.state.Target;
+import works.bosk.logback.BoskLogFilter;
+import works.bosk.spring.boot.ReadContextFilter;
 
+import static ch.qos.logback.classic.Level.ERROR;
+import static ch.qos.logback.classic.Level.OFF;
 import static org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -24,6 +31,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static works.bosk.logging.MdcKeys.BOSK_INSTANCE_ID;
 
 @SpringBootTest(classes = HelloApplication.class)
 @AutoConfigureMockMvc
@@ -40,10 +48,23 @@ public class HelloServiceEndpointsTest {
 	@Autowired
 	HelloBosk bosk;
 
+	@Autowired
+	BoskLogFilter.LogController logController;
+
 	@BeforeEach
 	void setupBosk() throws IOException, InterruptedException {
 		bosk.driver().submitReplacement(bosk.rootReference(), INITIAL_STATE);
 		bosk.driver().flush();
+
+		// So LogController works even outside driver operations.
+		// We do this after resetting the bosk because any oddities before that point
+		// are more likely to be caused by a prior test.
+		MDC.put(BOSK_INSTANCE_ID, bosk.instanceID().toString());
+	}
+
+	@AfterEach
+	void cleanup() {
+		MDC.remove(BOSK_INSTANCE_ID);
 	}
 
 	@ParameterizedTest
@@ -105,6 +126,7 @@ public class HelloServiceEndpointsTest {
 
 	@Test
 	void get_nonexistentTarget_reportsError() throws Exception {
+		logController.setLogging(OFF, ReadContextFilter.class);
 		mvc.perform(get("/bosk/targets/nonexistent"))
 			.andExpect(status().isNotFound());
 	}
@@ -138,6 +160,7 @@ public class HelloServiceEndpointsTest {
 
 	@Test
 	void put_wrongContentType_reportsError() throws Exception {
+		logController.setLogging(ERROR, DefaultHandlerExceptionResolver.class);
 		mvc.perform(put("/bosk/targets/" + INITIAL_TARGET.id())
 				.contentType(APPLICATION_FORM_URLENCODED)
 				.content(mapper.writeValueAsString(INITIAL_TARGET)))
