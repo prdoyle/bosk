@@ -1,6 +1,7 @@
 package works.bosk.hello;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,5 +21,13 @@ public record APIEndpoints (
 	@GetMapping("/targets")
 	Object getTargets() {
 		return bosk.refs.targets().value();
+	}
+
+	/**
+	 * This should throw a 500. Useful for testing.
+	 */
+	@PostMapping("/noReadContext")
+	void noReadContext() {
+		bosk.rootReference().value();
 	}
 }
