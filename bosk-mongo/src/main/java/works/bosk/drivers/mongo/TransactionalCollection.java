@@ -14,6 +14,7 @@ import com.mongodb.client.ClientSession;
 import com.mongodb.client.DistinctIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.ListIndexesIterable;
+import com.mongodb.client.ListSearchIndexesIterable;
 import com.mongodb.client.MapReduceIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
@@ -21,6 +22,7 @@ import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.CountOptions;
 import com.mongodb.client.model.CreateIndexOptions;
 import com.mongodb.client.model.DeleteOptions;
+import com.mongodb.client.model.DropCollectionOptions;
 import com.mongodb.client.model.DropIndexOptions;
 import com.mongodb.client.model.EstimatedDocumentCountOptions;
 import com.mongodb.client.model.FindOneAndDeleteOptions;
@@ -32,6 +34,7 @@ import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.InsertOneOptions;
 import com.mongodb.client.model.RenameCollectionOptions;
 import com.mongodb.client.model.ReplaceOptions;
+import com.mongodb.client.model.SearchIndexModel;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.WriteModel;
 import com.mongodb.client.result.DeleteResult;
@@ -623,6 +626,51 @@ class TransactionalCollection<TDocument> implements MongoCollection<TDocument> {
 
 	public void drop(ClientSession clientSession) {
 		this.downstream.drop(clientSession);
+	}
+
+	@Override
+	public void drop(DropCollectionOptions dropCollectionOptions) {
+		this.downstream.drop(dropCollectionOptions);
+	}
+
+	@Override
+	public void drop(ClientSession clientSession, DropCollectionOptions dropCollectionOptions) {
+		this.downstream.drop(clientSession, dropCollectionOptions);
+	}
+
+	@Override
+	public String createSearchIndex(String indexName, Bson definition) {
+		return downstream.createSearchIndex(indexName, definition);
+	}
+
+	@Override
+	public String createSearchIndex(Bson definition) {
+		return downstream.createSearchIndex(definition);
+	}
+
+	@Override
+	public List<String> createSearchIndexes(List<SearchIndexModel> searchIndexModels) {
+		return downstream.createSearchIndexes(searchIndexModels);
+	}
+
+	@Override
+	public void updateSearchIndex(String indexName, Bson definition) {
+		downstream.updateSearchIndex(indexName, definition);
+	}
+
+	@Override
+	public void dropSearchIndex(String indexName) {
+		downstream.dropSearchIndex(indexName);
+	}
+
+	@Override
+	public ListSearchIndexesIterable<Document> listSearchIndexes() {
+		return downstream.listSearchIndexes();
+	}
+
+	@Override
+	public <TResult> ListSearchIndexesIterable<TResult> listSearchIndexes(Class<TResult> tResultClass) {
+		return downstream.listSearchIndexes(tResultClass);
 	}
 
 	public String createIndex(Bson keys) {
