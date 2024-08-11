@@ -65,9 +65,10 @@ public class MongoService implements Closeable {
 	}
 
 	private static GenericContainer<?> mongoContainer() {
+		// For some reason, creating a MongoDBContainer makes the Hanoi test WAY slower, like 100x
 		GenericContainer<?> result = new GenericContainer<>(
 			new ImageFromDockerfile().withDockerfileFromBuilder(builder -> builder
-				.from("mongo:4.4")
+				.from("mongo:7.0")
 				.run("echo \"rs.initiate()\" > /docker-entrypoint-initdb.d/rs-initiate.js")
 				.cmd("mongod", "--replSet", "rsLonesome", "--port", "27017", "--bind_ip_all")
 				.build()))
