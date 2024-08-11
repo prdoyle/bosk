@@ -103,12 +103,12 @@ class DemultiplexerTest {
 			.append("coll", new BsonString("collection"))
 			.append("db", new BsonString("database"));
 		return new ChangeStreamDocument<>(
-			OperationType.OTHER,
+			OperationType.OTHER.getValue(),
 			new BsonDocument("_id", new BsonString("resumeToken")),
 			ns, ns,
-			null, null, null, null,
+			null, null, null, null, null,
 			new BsonInt64(txnNumber),
-			lsid
-		);
+			lsid,
+			null, null, null);
 	}
 }

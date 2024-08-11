@@ -380,18 +380,22 @@ class TransactionalCollection<TDocument> implements MongoCollection<TDocument> {
 		return this.downstream.watch(clientSession, pipeline, resultClass);
 	}
 
+	@SuppressWarnings("deprecation")
 	public MapReduceIterable<TDocument> mapReduce(String mapFunction, String reduceFunction) {
 		return this.downstream.mapReduce(currentSession(), mapFunction, reduceFunction);
 	}
 
+	@SuppressWarnings("deprecation")
 	public <TResult> MapReduceIterable<TResult> mapReduce(String mapFunction, String reduceFunction, Class<TResult> resultClass) {
 		return this.downstream.mapReduce(currentSession(), mapFunction, reduceFunction, resultClass);
 	}
 
+	@SuppressWarnings("deprecation")
 	public MapReduceIterable<TDocument> mapReduce(ClientSession clientSession, String mapFunction, String reduceFunction) {
 		return this.downstream.mapReduce(clientSession, mapFunction, reduceFunction);
 	}
 
+	@SuppressWarnings("deprecation")
 	public <TResult> MapReduceIterable<TResult> mapReduce(ClientSession clientSession, String mapFunction, String reduceFunction, Class<TResult> resultClass) {
 		return this.downstream.mapReduce(clientSession, mapFunction, reduceFunction, resultClass);
 	}
