@@ -1,0 +1,29 @@
+
+plugins {
+	id 'bosk.development'
+	id 'bosk.maven-publish'
+	id 'info.solidsoft.pitest' version '1.15.0'
+	id 'com.github.spotbugs' version '5.1.5'
+}
+
+base {
+	archivesName = 'bosk-mongo'
+}
+
+java {
+	sourceCompatibility = '17'
+	targetCompatibility = '17'
+}
+
+dependencies {
+	api project(":bosk-core")
+	implementation 'org.postgresql:postgresql:42.7.3'
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+
+	testImplementation project(":bosk-jackson")
+	testImplementation project(":bosk-logback")
+	testImplementation project(":bosk-testing")
+	testImplementation project(":lib-testing")
+	testImplementation "org.testcontainers:postgresql:1.20.1"
+
+}
