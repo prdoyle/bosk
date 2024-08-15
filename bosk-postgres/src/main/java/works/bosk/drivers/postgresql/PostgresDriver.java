@@ -118,8 +118,8 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
+		// TODO: check for updates from Postgres
 		downstream.flush();
-		throw new NotYetImplementedException();
 	}
 
 	String quotedIdentifier(String raw) {

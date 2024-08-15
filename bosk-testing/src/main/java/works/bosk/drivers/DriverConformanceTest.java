@@ -60,7 +60,13 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
-	void initialState(Path enclosingCatalogPath) {
+	void initialState() {
+		setupBosksAndReferences(driverFactory);
+		assertCorrectBoskContents();
+	}
+
+	@ParametersByName
+	void initializedState(Path enclosingCatalogPath) {
 		initializeBoskWithCatalog(enclosingCatalogPath);
 		assertCorrectBoskContents();
 	}
