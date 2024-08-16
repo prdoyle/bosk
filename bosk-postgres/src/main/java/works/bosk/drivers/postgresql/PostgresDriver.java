@@ -9,12 +9,17 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import org.postgresql.PGConnection;
+import org.postgresql.PGNotification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskDriver;
@@ -26,10 +31,11 @@ import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 
 import static com.fasterxml.jackson.databind.type.TypeFactory.rawClass;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.stream.Collectors.joining;
 import static works.bosk.util.Classes.mapValue;
 
 public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
@@ -37,24 +43,66 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	final RootReference<R> rootRef;
 	final PostgresDriverSettings settings;
 	final Connection connection;
+	final PGConnection listenerConnection;
 	final ObjectMapper mapper;
+
+	final AtomicBoolean isOpen = new AtomicBoolean(true);
+
+	final Statements S;
 
 	/**
 	 * This is a way of mimicking a proper change-listening setup until we get LISTEN/NOTIFY working.
 	 */
 	final ExecutorService background = Executors.newFixedThreadPool(1);
 
-	public PostgresDriver(
-		BoskDriver<R> downstream,
+	/**
+	 * The thread that does the Postgres LISTEN
+	 */
+	final ScheduledExecutorService listener = Executors.newScheduledThreadPool(1);
+
+	PostgresDriver(
+		PostgresDriverSettings settings,
 		RootReference<R> rootRef,
 		ObjectMapper mapper,
-		PostgresDriverSettings settings
+		BoskDriver<R> downstream
 	) {
 		this.downstream = requireNonNull(downstream);
 		this.rootRef = requireNonNull(rootRef);
 		this.mapper = requireNonNull(mapper);
 		this.settings = requireNonNull(settings);
-		this.connection = getConnection();
+		try {
+			this.connection = DriverManager.getConnection(this.settings.url(), new Properties());
+			Connection listenerConnection = DriverManager.getConnection(this.settings.url(), new Properties());
+			this.listenerConnection = listenerConnection.unwrap(PGConnection.class);
+			try (
+				var stmt = listenerConnection.createStatement()
+			) {
+				stmt.execute("LISTEN bosk_changed");
+			}
+			this.S = Statements.create(connection, mapper);
+		} catch (SQLException e) {
+			throw new IllegalStateException("Unable to access PGConnection", e);
+		}
+		this.listener.scheduleWithFixedDelay(this::listenerLoop, 0, 5, SECONDS);
+	}
+
+	private void listenerLoop() {
+		try {
+			while (isOpen.get()) {
+				var notifications = listenerConnection.getNotifications();
+				if (notifications != null) {
+					for (PGNotification n : notifications) {
+						processNotification(Notification.from(n));
+					}
+				}
+			}
+		} catch (SQLException e) {
+			LOGGER.error("Listener loop aborted; will wait and restart", e);
+		}
+	}
+
+	private void processNotification(Notification n) {
+		System.err.println("Hey hey! Notification: " + n);
 	}
 
 	/**
@@ -65,19 +113,18 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
 	) {
 		return (b, d) -> new PostgresDriver<>(
-			d,
-			b.rootReference(),
-			objectMapperFactory.apply(b),
-			settings
+			settings, b.rootReference(), objectMapperFactory.apply(b), d
 		);
 	}
 
 	public void close() {
-		try {
-			connection.close();
-		} catch (SQLException e) {
-			LOGGER.warn("Unable to close connection", e);
-			// This is a best-effort thing. Just continue.
+		if (isOpen.getAndSet(false)) {
+			try {
+				connection.close();
+			} catch (SQLException e) {
+				LOGGER.warn("Unable to close connection", e);
+				// This is a best-effort thing. Just continue.
+			}
 		}
 	}
 
@@ -93,34 +140,50 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 			var stmt = connection.createStatement()
 		) {
 			stmt.execute("""
-				CREATE TABLE IF NOT EXISTS bosk_table (
-					id char(7) PRIMARY KEY NOT NULL,
-					state jsonb NOT NULL,
+				CREATE TABLE IF NOT EXISTS bosk_changes (
+					id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY NOT NULL,
+					ref varchar NOT NULL,
+					new_state jsonb NULL,
 					diagnostics jsonb NOT NULL
 				);
-			""");
+				""");
+
 			stmt.execute("""
-				BEGIN TRANSACTION;
-			""");
+				CREATE TABLE IF NOT EXISTS bosk_table (
+					id char(7) PRIMARY KEY NOT NULL,
+					state jsonb NOT NULL
+				);
+				""");
+
+			stmt.execute("""
+				CREATE OR REPLACE FUNCTION notify_bosk_changed()
+					RETURNS trigger AS $$
+					BEGIN
+						PERFORM pg_notify('bosk_changed', NEW.id::text);
+						RETURN NEW;
+					END;
+					$$ LANGUAGE plpgsql;
+				""");
+			stmt.execute("""
+				CREATE OR REPLACE TRIGGER bosk_changed
+					AFTER UPDATE ON bosk_table
+					  FOR EACH ROW EXECUTE FUNCTION notify_bosk_changed();
+				""");
+			S.beginTransaction.execute();
 			try (var resultSet = stmt.executeQuery("SELECT state FROM bosk_table WHERE id='current'")) {
 				if (resultSet.next()) {
 					json = resultSet.getString("state");
-					stmt.execute("COMMIT TRANSACTION");
+					S.commitTransaction.execute();
 					JavaType valueType = TypeFactory.defaultInstance().constructType(rootType);
 					return mapper.readValue(json, valueType);
 				} else {
 					R root = downstream.initialRoot(rootType);
-					var insertStmt = connection.prepareStatement("""
-							INSERT INTO bosk_table (id, state, diagnostics) VALUES ('current', ?::jsonb, ?::jsonb)
-							ON CONFLICT DO NOTHING;
+					String stateJson = mapper.writerFor(rawClass(rootType)).writeValueAsString( root);
 
-							COMMIT TRANSACTION
-						""");
-					insertStmt.setString(1, mapper.writerFor(rawClass(rootType)).writeValueAsString(
-						root));
-					insertStmt.setString(2, mapper.writerFor(mapValue(String.class)).writeValueAsString(
-						rootRef.diagnosticContext().getAttributes()));
-					insertStmt.executeUpdate();
+					S.initializeState.execute(stateJson);
+					S.insertChange.execute(rootRef, stateJson);
+					S.commitTransaction.execute();
+
 					return root;
 				}
 			}
@@ -129,31 +192,33 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 		}
 	}
 
-	private Connection getConnection() {
-		try {
-			return DriverManager.getConnection(settings.url(), new Properties());
-		} catch (SQLException e) {
-			throw new NotYetImplementedException(e);
-		}
-	}
-
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		try {
+			String fieldPath = target.path().segmentStream()
+				.map(PostgresDriver::stringLiteral)
+				.collect(joining(",", "{", "}"));
+			String newValueJson = writerFor(target.targetType())
+				.writeValueAsString(newValue);
+			S.beginTransaction.execute();
 			executeCommand("""
 					UPDATE bosk_table
-					   SET state = ?::jsonb, diagnostics = ?::jsonb
+					   SET
+						state = jsonb_set(state, '%s', ?::jsonb, false)
 					 WHERE id = 'current'
-					""",
-				writerFor(target.targetType())
-					.writeValueAsString(newValue),
-				writerFor(mapValue(String.class))
-					.writeValueAsString(rootRef.diagnosticContext().getAttributes())
+					""".formatted(fieldPath),
+				newValueJson
 			);
-		} catch (JsonProcessingException e) {
+			S.insertChange.execute(rootRef, newValueJson);
+			S.commitTransaction.execute();
+		} catch (JsonProcessingException | SQLException e) {
 			throw new IllegalStateException(e);
 		}
 		runInBackground(() -> downstream.submitReplacement(target, newValue));
+	}
+
+	private static String stringLiteral(String raw) {
+		return '"' + raw.replace("\"", "\"\"") + '"';
 	}
 
 	@Override
@@ -216,4 +281,71 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDriver.class);
+
+	private record Notification(
+		String name,
+		String parameter
+	) {
+		static Notification from(PGNotification pg) {
+			return new Notification(pg.getName(), pg.getParameter());
+		}
+	}
+
+	record Statements(
+		PreparedStatement beginTransaction,
+		PreparedStatement commitTransaction,
+		InitializeState initializeState,
+		InsertChange insertChange
+	){
+		static Statements create(Connection c, ObjectMapper mapper) throws SQLException {
+			return new Statements(
+				c.prepareStatement("BEGIN TRANSACTION"),
+				c.prepareStatement("COMMIT TRANSACTION"),
+				new InitializeState(c),
+				new InsertChange(c, mapper)
+			);
+		}
+
+		static final class InitializeState {
+			final PreparedStatement stmt;
+
+			InitializeState(Connection c) throws SQLException {
+				stmt = c.prepareStatement("""
+				INSERT INTO bosk_table (id, state) VALUES ('current', ?::jsonb)
+				ON CONFLICT DO NOTHING;
+				""");
+			}
+
+			void execute(String newValue) throws SQLException {
+				stmt.setString(1, newValue);
+				stmt.execute();
+			}
+		}
+
+		static final class InsertChange {
+			final PreparedStatement stmt;
+			final ObjectMapper mapper;
+
+			InsertChange(Connection c, ObjectMapper mapper) throws SQLException {
+				stmt = c.prepareStatement("""
+				INSERT INTO bosk_changes (ref, new_state, diagnostics) VALUES (?, ?::jsonb, ?::jsonb)
+				RETURNING id;
+				""");
+				this.mapper = mapper;
+			}
+
+			int execute(Reference<?> ref, String newValue) throws SQLException, JsonProcessingException {
+				stmt.setString(1, ref.pathString());
+				stmt.setString(2, newValue);
+				stmt.setString(3, mapper.writerFor(mapValue(String.class)).writeValueAsString(
+					ref.root().diagnosticContext().getAttributes()));
+				try (var result = stmt.executeQuery()) {
+					result.next();
+					int id = result.getInt(1);
+					return id;
+				}
+			}
+		}
+	}
+
 }
