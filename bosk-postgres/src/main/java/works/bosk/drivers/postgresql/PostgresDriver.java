@@ -51,7 +51,7 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	/**
 	 * Note that all drivers from this factory will share a {@link Connection}.
 	 */
-	public static <RR extends StateTreeNode> DriverFactory<RR> factory(
+	public static <RR extends StateTreeNode> PostgresDriverFactory<RR> factory(
 		PostgresDriverSettings settings,
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
 	) {
@@ -62,6 +62,20 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 			objectMapperFactory.apply(b),
 			settings
 		);
+	}
+
+	public void close() {
+		try {
+			connection.close();
+		} catch (SQLException e) {
+			LOGGER.warn("Unable to close connection", e);
+			// This is a best-effort thing. Just continue.
+		}
+	}
+
+	public interface PostgresDriverFactory<RR extends StateTreeNode> extends DriverFactory<RR> {
+		@Override
+		PostgresDriver<RR> build(BoskInfo<RR> boskInfo, BoskDriver<RR> downstream);
 	}
 
 	@Override
@@ -83,8 +97,8 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 			""");
 			try (var resultSet = stmt.executeQuery("SELECT state FROM bosk_table WHERE id='current'")) {
 				if (resultSet.next()) {
-					stmt.execute("COMMIT TRANSACTION");
 					json = resultSet.getString("state");
+					stmt.execute("COMMIT TRANSACTION");
 					JavaType valueType = TypeFactory.defaultInstance().constructType(rootType);
 					return mapper.readValue(json, valueType);
 				} else {
@@ -109,9 +123,8 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	}
 
 	private Connection getConnection() {
-		// TODO: Paste these strings more safely
 		try {
-			return DriverManager.getConnection(settings.url() + "/" + settings.database(), new Properties());
+			return DriverManager.getConnection(settings.url(), new Properties());
 		} catch (SQLException e) {
 			throw new NotYetImplementedException(e);
 		}
