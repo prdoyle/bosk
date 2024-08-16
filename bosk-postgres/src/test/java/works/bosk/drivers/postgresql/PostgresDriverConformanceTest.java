@@ -7,15 +7,11 @@ import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Properties;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 import works.bosk.drivers.DriverConformanceTest;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.jackson.JacksonPlugin;
@@ -23,11 +19,8 @@ import works.bosk.jackson.JacksonPlugin;
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 
 class PostgresDriverConformanceTest extends DriverConformanceTest {
-	static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(DockerImageName.parse("postgres:latest"));
 	public static final String DATABASE = "bosk_test_database";
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
-
-	final AtomicInteger schemaCounter = new AtomicInteger(0);
 
 	@BeforeAll
 	static void setupDatabase() {
@@ -41,27 +34,14 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 		}
 	}
 
-	@AfterAll
-	static void cleanupDatabase() {
-		try (
-			var connection = getConnection();
-			var stmt = connection.createStatement()
-		) {
-			stmt.execute("DROP DATABASE IF EXISTS " + quoted(DATABASE));
-		} catch (SQLException e) {
-			throw new AssertionError("Unexpected error cleaning up database", e);
-		}
-	}
-
 	@BeforeEach
 	void setupDriverFactory() {
 		driverFactory = (boskInfo, downstream) -> {
 			PostgresDriverSettings settings = new PostgresDriverSettings(
-				"jdbc:tc:postgresql://localhost:5432",
-				DATABASE,
-				"bosk_test_schema_" + schemaCounter.incrementAndGet()
+				"jdbc:tc:postgresql:16://localhost:5432",
+				DATABASE
 			);
-			tearDownActions.addFirst(() -> cleanupSchema(settings));
+			tearDownActions.addFirst(this::cleanupTable);
 			return PostgresDriver.<TestEntity>factory(
 				settings,
 				b -> new ObjectMapper()
@@ -76,14 +56,14 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 		tearDownActions.forEach(Runnable::run);
 	}
 
-	private void cleanupSchema(PostgresDriverSettings settings) {
+	private void cleanupTable() {
 		try (
 			var connection = getConnection();
 			var stmt = connection.createStatement()
 		) {
-			stmt.execute("DROP SCHEMA IF EXISTS " + quoted(settings.schema()));
+			stmt.execute("DROP TABLE IF EXISTS bosk_table");
 		} catch (SQLException e) {
-			throw new AssertionError("Unexpected error cleaning up schema", e);
+			throw new AssertionError("Unexpected error cleaning up table", e);
 		}
 	}
 
