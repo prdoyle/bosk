@@ -7,9 +7,7 @@ import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Properties;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,27 +20,8 @@ import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 
 @Testcontainers
 class PostgresDriverConformanceTest extends DriverConformanceTest {
-//	static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 	public static final String JDBC_URL = "jdbc:tc:postgresql:16:///?TC_DAEMON=true";
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
-
-	@BeforeAll
-	static void setupDatabase() {
-//		POSTGRES.start();
-//		try (
-//			var connection = getInitialConnection();
-//			var stmt = connection.createStatement()
-//		) {
-//			stmt.execute("CREATE DATABASE " + quoted(DATABASE));
-//		} catch (SQLException e) {
-//			throw new AssertionError("Unexpected error setting up database", e);
-//		}
-	}
-
-	@AfterAll
-	static void shutdown() {
-//		POSTGRES.stop();;
-	}
 
 	@BeforeEach
 	void setupDriverFactory() {
@@ -57,7 +36,7 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 					.enable(INDENT_OUTPUT)
 					.registerModule(new JacksonPlugin().moduleFor(b))
 			).build(boskInfo, downstream);
-			tearDownActions.addLast(driver::close);
+			tearDownActions.addFirst(driver::close);
 			return driver;
 		};
 	}
