@@ -11,6 +11,9 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +24,7 @@ import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
+import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
 
@@ -34,6 +38,11 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	final PostgresDriverSettings settings;
 	final Connection connection;
 	final ObjectMapper mapper;
+
+	/**
+	 * This is a way of mimicking a proper change-listening setup until we get LISTEN/NOTIFY working.
+	 */
+	final ExecutorService background = Executors.newFixedThreadPool(1);
 
 	public PostgresDriver(
 		BoskDriver<R> downstream,
@@ -55,7 +64,6 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 		PostgresDriverSettings settings,
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
 	) {
-		// TODO: Validate host and database names
 		return (b, d) -> new PostgresDriver<>(
 			d,
 			b.rootReference(),
@@ -74,8 +82,7 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	}
 
 	public interface PostgresDriverFactory<RR extends StateTreeNode> extends DriverFactory<RR> {
-		@Override
-		PostgresDriver<RR> build(BoskInfo<RR> boskInfo, BoskDriver<RR> downstream);
+		@Override PostgresDriver<RR> build(BoskInfo<RR> boskInfo, BoskDriver<RR> downstream);
 	}
 
 	@Override
@@ -146,42 +153,47 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 		} catch (JsonProcessingException e) {
 			throw new IllegalStateException(e);
 		}
-		// TODO: listen for updates
-		downstream.submitReplacement(target, newValue);
+		runInBackground(() -> downstream.submitReplacement(target, newValue));
 	}
 
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
-		// TODO: listen for updates
-		downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue);
+		runInBackground(() -> downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue));
 	}
 
 	@Override
 	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		// TODO: listen for updates
-		downstream.submitInitialization(target, newValue);
+		runInBackground(() -> downstream.submitInitialization(target, newValue));
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
-		// TODO: listen for updates
-		downstream.submitDeletion(target);
+		runInBackground(() -> downstream.submitDeletion(target));
 	}
 
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
-		// TODO: listen for updates
-		downstream.submitConditionalDeletion(target, precondition, requiredValue);
+		runInBackground(() -> downstream.submitConditionalDeletion(target, precondition, requiredValue));
 	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-		// TODO: check for updates from Postgres
+		try {
+			// Wait for any background tasks to finish
+			background.submit(()->{}).get();
+		} catch (ExecutionException e) {
+			throw new FlushFailureException(e);
+		}
 		downstream.flush();
 	}
 
-	String quotedIdentifier(String raw) {
-		return '"' + raw.replace("\"", "\"\"") + '"';
+	private void runInBackground(Runnable runnable) {
+		var attributes = rootRef.diagnosticContext().getAttributes();
+		background.submit(() -> {
+			try (var __ = rootRef.diagnosticContext().withOnly(attributes)) {
+				runnable.run();
+			}
+		});
 	}
 
 	private ObjectWriter writerFor(Type type) {
