@@ -19,12 +19,10 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: '17'
           distribution: temurin
-          server-id: ossrh
-          server-username: ${{ secrets.OSSRH_USERNAME }}
-          server-password: ${{ secrets.OSSRH_TOKEN }}
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          java-version: |
+            22
+            17
 
       - uses: gradle/actions/setup-gradle@v3
 

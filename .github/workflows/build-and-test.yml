@@ -23,8 +23,10 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: '17'
           distribution: temurin
+          java-version: |
+            22
+            17
 
       - uses: gradle/actions/setup-gradle@v3
         with:
