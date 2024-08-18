@@ -28,7 +28,6 @@ import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.SerializationPlugin.DeserializationScope;
 import works.bosk.drivers.mongo.BsonPlugin;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JacksonPlugin;
@@ -82,7 +81,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 					try {
 						JavaType targetType = javaType(reference.targetType());
 						String json = objectMapper.writerFor(targetType).writeValueAsString(newValue);
-						try (DeserializationScope scope = jp.newDeserializationScope(reference)) {
+						try (var _ = jp.newDeserializationScope(reference)) {
 							return objectMapper.readerFor(targetType).readValue(json);
 						}
 					} catch (JsonProcessingException e) {
@@ -139,7 +138,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 						reader.readStartDocument();
 						reader.readName("value");
 						T result;
-						try (DeserializationScope scope = bp.newDeserializationScope(reference)) {
+						try (var _ = bp.newDeserializationScope(reference)) {
 							result = codec.decode(reader, DecoderContext.builder().build());
 						}
 						reader.readEndDocument();

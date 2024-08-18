@@ -49,13 +49,13 @@ class VariantTest extends AbstractBoskTest {
 		String stringValue = "test";
 		var bosk = new Bosk<>(boskName(), BoskState.class, new BoskState(new StringCase(stringValue)), Bosk::simpleDriver);
 		var refs = bosk.rootReference().buildReferences(Refs.class);
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(stringValue, refs.stringValue().value());
 		}
 		IDCase idCase = new IDCase(Identifier.from("test2"));
 		bosk.driver().submitReplacement(refs.idCase(), idCase);
 		bosk.driver().flush();
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(idCase, refs.v().value());
 			assertEquals(idCase, refs.idCase().value());
 			assertEquals(idCase.value(), refs.idValue().value());

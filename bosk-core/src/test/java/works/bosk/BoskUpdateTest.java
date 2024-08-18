@@ -47,7 +47,7 @@ public class BoskUpdateTest extends AbstractBoskTest {
 			Bosk::simpleDriver
 		);
 		refs = bosk.buildReferences(Refs.class);
-		try (val __ = bosk.readContext()) {
+		try (val _ = bosk.readContext()) {
 			originalRoot = bosk.rootReference().value();
 			originalParent = refs.entity(PARENT_ID).value();
 			originalChild1 = refs.child(PARENT_ID, CHILD_1_ID).value();
@@ -153,7 +153,7 @@ public class BoskUpdateTest extends AbstractBoskTest {
 
 	<T> void assertValueEquals(T expected, Reference<T> ref) throws IOException, InterruptedException {
 		bosk.driver().flush();
-		try (val __ = bosk.readContext()) {
+		try (val _ = bosk.readContext()) {
 			assertEquals(expected, ref.valueIfExists());
 		}
 	}

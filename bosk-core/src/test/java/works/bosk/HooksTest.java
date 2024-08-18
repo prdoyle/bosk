@@ -49,7 +49,7 @@ public class HooksTest extends AbstractBoskTest {
 	void setupBosk() throws InvalidTypeException {
 		bosk = setUpBosk(Bosk::simpleDriver);
 		refs = bosk.rootReference().buildReferences(Refs.class);
-		try (val __ = bosk.readContext()) {
+		try (val _ = bosk.readContext()) {
 			originalRoot = bosk.rootReference().value();
 			originalParent = refs.parent().value();
 			originalChild1 = refs.child(child1).value();
@@ -449,7 +449,7 @@ public class HooksTest extends AbstractBoskTest {
 			recorder.events(),
 			"All hooks for an update should be called before any hooks for subsequent updates");
 
-		try (val __ = bosk.readContext()) {
+		try (val _ = bosk.readContext()) {
 			assertEquals(expectedParent, refs.parent().value());
 		}
 	}
@@ -461,7 +461,7 @@ public class HooksTest extends AbstractBoskTest {
 		recorder.restart();
 		String expectedString = "expected string";
 
-		try (val __ = bosk.readContext()) {
+		try (val _ = bosk.readContext()) {
 			bosk.driver().submitReplacement(refs.childString(child2), expectedString);
 			// If the hook were to run accidentally in this ReadContext, it would
 			// see originalChild2.string() instead of expectedString.
@@ -473,7 +473,7 @@ public class HooksTest extends AbstractBoskTest {
 			"Hooks run in the right ReadContext regardless of active read scope at submission or execution time");
 
 
-		try (val __ = bosk.readContext()) {
+		try (val _ = bosk.readContext()) {
 			assertEquals(expectedString, refs.childString(child2).value(), "Correct value got copied");
 		}
 	}

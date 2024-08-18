@@ -40,7 +40,7 @@ class BoskDiagnosticContextTest extends AbstractDriverTest {
 	void hookRegistration_propagatesDiagnosticContext() throws IOException, InterruptedException {
 		Semaphore diagnosticsVerified = new Semaphore(0);
 		bosk.driver().flush();
-		try (var __ = bosk.diagnosticContext().withAttribute("attributeName", "attributeValue")) {
+		try (var _ = bosk.diagnosticContext().withAttribute("attributeName", "attributeValue")) {
 			bosk.registerHook("contextPropagatesToHook", bosk.rootReference(), ref -> {
 				assertEquals("attributeValue", bosk.diagnosticContext().getAttribute("attributeName"));
 				assertEquals(MapValue.singleton("attributeName", "attributeValue"), bosk.diagnosticContext().getAttributes());
