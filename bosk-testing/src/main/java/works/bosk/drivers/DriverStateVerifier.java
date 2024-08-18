@@ -58,7 +58,7 @@ public class DriverStateVerifier<R extends StateTreeNode> {
 		);
 		DriverStateVerifier<RR> verifier = new DriverStateVerifier<>(
 			stateTrackingBosk,
-			MirroringDriver.redirectingTo(stateTrackingBosk)
+			ReplicaSet.redirectingTo(stateTrackingBosk)
 		);
 		return DriverStack.of(
 			DiagnosticScopeDriver.factory(dc -> dc.withAttribute(THREAD_NAME, currentThread().getName())),

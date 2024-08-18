@@ -10,10 +10,9 @@ import works.bosk.TypeValidationTest.BoxedPrimitives;
 import works.bosk.TypeValidationTest.MutableField;
 import works.bosk.TypeValidationTest.SimpleTypes;
 import works.bosk.drivers.ForwardingDriver;
+import works.bosk.drivers.NoOpDriver;
 import works.bosk.exceptions.InvalidTypeException;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singleton;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -37,8 +36,8 @@ public class BoskConstructorTest {
 			name,
 			rootType,
 			_ -> root,
-			(b,d)-> {
-				driver.set(new ForwardingDriver<>(singleton(d)));
+			(_, d)-> {
+				driver.set(new ForwardingDriver<>(d));
 				return driver.get();
 			});
 
@@ -153,7 +152,7 @@ public class BoskConstructorTest {
 
 	@NotNull
 	private static DriverFactory<StateTreeNode> initialRootDriver(InitialRootFunction initialRootFunction) {
-		return (b,d) -> new ForwardingDriver<StateTreeNode>(emptyList()) {
+		return (_, _) -> new NoOpDriver<>() {
 			@Override
 			public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 				return initialRootFunction.get();

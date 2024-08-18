@@ -2,14 +2,13 @@ package works.bosk;
 
 import org.junit.jupiter.api.Test;
 import works.bosk.drivers.ForwardingDriver;
+import works.bosk.drivers.NoOpDriver;
 
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singletonList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 class DriverStackTest {
-	final BoskDriver<AbstractBoskTest.TestEntity> baseDriver = new ForwardingDriver<>(emptySet());
+	final BoskDriver<AbstractBoskTest.TestEntity> baseDriver = new NoOpDriver<>();
 
 	@Test
 	void emptyStack_returnsDownstream() {
@@ -25,8 +24,8 @@ class DriverStackTest {
 		);
 
 		TestDriver<AbstractBoskTest.TestEntity> firstDriver = (TestDriver<AbstractBoskTest.TestEntity>) stack.build(null, baseDriver);
-		TestDriver<AbstractBoskTest.TestEntity> secondDriver = (TestDriver<AbstractBoskTest.TestEntity>) firstDriver.downstream;
-		BoskDriver<AbstractBoskTest.TestEntity> thirdDriver = secondDriver.downstream;
+		TestDriver<AbstractBoskTest.TestEntity> secondDriver = (TestDriver<AbstractBoskTest.TestEntity>) firstDriver.downstream();
+		BoskDriver<AbstractBoskTest.TestEntity> thirdDriver = secondDriver.downstream();
 
 		assertEquals("first", firstDriver.name);
 		assertEquals("second", secondDriver.name);
@@ -35,12 +34,14 @@ class DriverStackTest {
 
 	static class TestDriver<R extends Entity> extends ForwardingDriver<R> {
 		final String name;
-		final BoskDriver<R> downstream;
 
 		public TestDriver(String name, BoskDriver<R> downstream) {
-			super(singletonList(downstream));
+			super(downstream);
 			this.name = name;
-			this.downstream = downstream;
+		}
+
+		BoskDriver<R> downstream() {
+			return downstream;
 		}
 
 		@Override
