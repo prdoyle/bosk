@@ -2,13 +2,15 @@ package works.bosk;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -33,7 +35,7 @@ import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.exceptions.ReferenceBindingException;
 import works.bosk.util.Classes;
 
-import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableCollection;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
 import static lombok.AccessLevel.NONE;
@@ -84,7 +86,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	private final LocalDriver localDriver;
 	private final RootRef rootRef;
 	private final ThreadLocal<R> rootSnapshot = new ThreadLocal<>();
-	private final List<HookRegistration<?>> hooks = new ArrayList<>();
+	private final Queue<HookRegistration<?>> hooks = new ConcurrentLinkedQueue<>();
 	private final PathCompiler pathCompiler;
 
 	// Mutable state
@@ -474,7 +476,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 							LOGGER.debug("Hook: RUN {}({})", reg.name, changedRef);
 							reg.hook.onChanged(changedRef);
 						} catch (Exception e) {
-							LOGGER.error("Bosk hook \"" + reg.name() + "\" terminated with an exception, which usually indicates a bug. State updates may have been lost", e);
+							LOGGER.error("Bosk hook \"{}\" terminated with an exception, which usually indicates a bug. State updates may have been lost", reg.name(), e);
 
 							// Note that we don't catch Error. The practical reason is to allow users to write
 							// unit tests that throw AssertionError from hooks, but the bigger reason is that
@@ -603,8 +605,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		HookRegistrar.registerHooks(receiver, this);
 	}
 
-	public List<HookRegistration<?>> allRegisteredHooks() {
-		return unmodifiableList(hooks);
+	public Collection<HookRegistration<?>> allRegisteredHooks() {
+		return unmodifiableCollection(hooks);
 	}
 
 	@Value // Inner class can't be a record
