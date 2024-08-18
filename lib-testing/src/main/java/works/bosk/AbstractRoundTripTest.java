@@ -156,7 +156,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 					}
 					if (alreadyPruned.add(document)) {
 						Class<?> nodeClass = ReferenceUtils.rawClass(nodeType);
-						if (!StateTreeNode.class.isAssignableFrom(nodeClass)) {
+						if (!(nodeClass.isRecord() || StateTreeNode.class.isAssignableFrom(nodeClass))) {
 							return;
 						}
 						if (VariantNode.class.isAssignableFrom(nodeClass)) {

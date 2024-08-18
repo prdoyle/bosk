@@ -40,7 +40,10 @@ public final class TypeValidation {
 
 	public static void validateType(Type rootType) throws InvalidTypeException {
 		Class<?> rootClass = rawClass(rootType);
-		if (!StateTreeNode.class.isAssignableFrom(rootClass)) {
+		if (!(StateTreeNode.class.isAssignableFrom(rootClass))) {
+			// Note: it's not enough to be a record, because we use the bosk root type as a generic
+			// parameter in a lot of places, and there's no such thing as a "record or StateTreeNode"
+			// type bound.
 			throw new InvalidTypeException("Bosk root type must be a StateTreeNode; " + rootClass.getSimpleName() + " is not");
 		}
 		validateType(rootType, newSetFromMap(new IdentityHashMap<>()));

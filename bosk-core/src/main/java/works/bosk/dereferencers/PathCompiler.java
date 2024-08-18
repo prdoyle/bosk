@@ -236,7 +236,7 @@ public final class PathCompiler {
 				return new SideTableEntryStep(keyType, targetType, segmentNum);
 			} else if (priorStep instanceof VariantFieldStep v) {
 				return new VariantCaseStep(segment, v.caseType(segment));
-			} else if (StateTreeNode.class.isAssignableFrom(currentClass)) {
+			} else if (currentClass.isRecord() || StateTreeNode.class.isAssignableFrom(currentClass)) {
 				if (isParameterSegment(segment)) {
 					throw new InvalidTypeException("Invalid parameter location: expected a field of " + currentClass.getSimpleName());
 				}

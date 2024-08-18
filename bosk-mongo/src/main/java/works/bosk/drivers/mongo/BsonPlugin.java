@@ -159,7 +159,7 @@ public final class BsonPlugin extends SerializationPlugin {
 			return listingCodec(targetClass, registry);
 		} else if (VariantNode.class.isAssignableFrom(targetClass)) {
 			return variantNodeCodec(targetClass, registry, boskInfo);
-		} else if (StateTreeNode.class.isAssignableFrom(targetClass)) {
+		} else if (targetClass.isRecord() || StateTreeNode.class.isAssignableFrom(targetClass)) {
 			// TODO: What about generic node classes?
 			return stateTreeNodeCodec(targetClass, registry, boskInfo);
 		} else if (Catalog.class.isAssignableFrom(targetClass)) {

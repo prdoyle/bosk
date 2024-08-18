@@ -112,7 +112,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return sideTableSerializer(config, beanDesc);
 			} else if (VariantNode.class.isAssignableFrom(theClass)) {
 				return variantNodeSerializer(config, type, beanDesc);
-			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
+			} else if (theClass.isRecord() || StateTreeNode.class.isAssignableFrom(theClass)) {
 				return stateTreeNodeSerializer(config, type, beanDesc);
 			} else if (Optional.class.isAssignableFrom(theClass)) {
 				// Optional.empty() can't be serialized on its own because the field name itself must also be omitted

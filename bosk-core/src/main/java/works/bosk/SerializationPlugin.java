@@ -305,7 +305,7 @@ public abstract class SerializationPlugin {
 			} catch (InvalidTypeException e) {
 				throw new AssertionError("Every non-root reference must have an enclosing reference: " + ref);
 			}
-			if (StateTreeNode.class.isAssignableFrom(enclosing)) {
+			if (enclosing.isRecord() || StateTreeNode.class.isAssignableFrom(enclosing)) {
 				Object result = infoFor(enclosing).polyfills().get(ref.path().lastSegment());
 				if (result != null) {
 					driver.submitInitialization(ref, ref.targetClass().cast(result));
