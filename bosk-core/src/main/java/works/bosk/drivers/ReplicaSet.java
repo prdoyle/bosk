@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.DriverFactory;
 import works.bosk.Identifier;
@@ -21,11 +22,21 @@ import works.bosk.exceptions.InvalidTypeException;
  * Note that this isn't used for true distributed replica sets with one bosk in each JVM process,
  * but rather for constructing a local replica set within a single JVM process.
  * <p>
- * <em>Evolution note</em>: This kind of subsumes the functionality of both {@link ForwardingDriver}
- * and {@link MirroringDriver}. Seems like this class could either use or replace those.
- * Perhaps {@link ForwardingDriver} should do the {@link Replica#correspondingReference} logic that
- * {@link MirroringDriver} does, making the latter unnecessary; and then this class could
- * simply be a {@link ForwardingDriver} whose list of downstream drivers is mutable.
+ * The primary way to use this class is to instantiate a {@code new ReplicaSet()},
+ * then construct any number of bosks using {@link #driverFactory()}.
+ * All the resulting bosks will be in the replica set, and more can be added dynamically.
+ * <p>
+ * There are also some factory methods that simplify some special use cases.
+ *
+ * <ol>
+ *     <li>
+ *         Use {@link #mirroringTo} to mirror changes from a primary bosk to some number
+ *         of secondary ones.
+ *     </li>
+ *     <li>
+ *         Use {@link #redirectingTo} just to get a driver that can accept references to the wrong bosk.
+ *     </li>
+ * </ol>
  */
 public class ReplicaSet<R extends StateTreeNode> {
 	final Queue<Replica<R>> replicas = new ConcurrentLinkedQueue<>();
@@ -43,8 +54,52 @@ public class ReplicaSet<R extends StateTreeNode> {
 		};
 	}
 
+	/**
+	 * Causes updates to be applied to {@code mirrors} and to the downstream driver.
+	 * <p>
+	 * Assuming the returned factory is only used once, this has the effect of creating
+	 * a fixed replica set to which new replicas can't be added dynamically;
+	 * but the returned factory can be used multiple times.
+	 */
+	@SafeVarargs
+	public static <RR extends StateTreeNode> DriverFactory<RR> mirroringTo(Bosk<RR>... mirrors) {
+		var replicaSet = new ReplicaSet<RR>();
+		for (var m: mirrors) {
+			BoskDriver<RR> downstream = m.driver();
+			replicaSet.replicas.add(new Replica<>(
+				m.rootReference(),
+				new ForwardingDriver<>(downstream) {
+					@Override
+					public RR initialRoot(Type rootType) {
+						throw new UnsupportedOperationException("Don't use initialRoot from " + m);
+					}
+
+					@Override
+					public String toString() {
+						return downstream.toString() + " (minus initial state)";
+					}
+				}
+			));
+		}
+		return replicaSet.driverFactory();
+	}
+
+	/**
+	 * Causes updates to be applied only to <code>other</code>.
+	 */
+	public static <RR extends StateTreeNode> BoskDriver<RR> redirectingTo(Bosk<RR> other) {
+		// A ReplicaSet with only the one replica
+		return new ReplicaSet<RR>()
+			.driverFactory().build(
+				other,
+				other.driver()
+			);
+	}
+
 	final class BroadcastShim implements BoskDriver<R> {
 		/**
+		 * TODO: should return the current state somehow. For now, I guess it's best to attach all the bosks before submitting any updates.
+		 *
 		 * @return The result of calling <code>initialRoot</code> on the first downstream driver
 		 * that doesn't throw {@link UnsupportedOperationException}. Other exceptions are propagated as-is,
 		 * and abort the initialization immediately.

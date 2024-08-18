@@ -2,7 +2,6 @@ package works.bosk.drivers.mongo;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.UpdateDescription;
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -300,11 +299,7 @@ final class Formatter {
 		if (fullDocument == null) {
 			return null;
 		}
-		BsonDocument diagnostics = fullDocument.getDocument(DocumentFields.diagnostics.name(), null);
-		if (diagnostics == null) {
-			return null;
-		}
-		return diagnostics;
+		return fullDocument.getDocument(DocumentFields.diagnostics.name(), null);
 	}
 
 	@NonNull private MapValue<String> getOrSetEventDiagnosticAttributes(MapValue<String> fromEvent) {
@@ -432,11 +427,7 @@ final class Formatter {
 
 	static {
 		DECODER = s->{
-			try {
-				return URLDecoder.decode(s, StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-				throw new AssertionError(e);
-			}
+			return URLDecoder.decode(s, StandardCharsets.UTF_8);
 		};
 
 		ENCODER = s->{

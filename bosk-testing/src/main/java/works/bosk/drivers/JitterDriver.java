@@ -25,8 +25,8 @@ public final class JitterDriver<R extends StateTreeNode> implements BoskDriver<R
 		this.downstream = downstream;
 		Random random = new Random(seed);
 
-		https://en.wikipedia.org/wiki/Exponential_distribution#Random_variate_generation
-		jitter = ()-> Double.min(limitMillis,
+		//http://en.wikipedia.org/wiki/Exponential_distribution#Random_variate_generation
+		jitter = () -> Double.min(limitMillis,
 			-Math.log(random.nextDouble()) * meanMillis
 		);
 	}
