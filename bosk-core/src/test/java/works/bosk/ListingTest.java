@@ -17,7 +17,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.FieldNameConstants;
-import lombok.val;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -107,7 +106,7 @@ class ListingTest {
 	@ParameterizedTest
 	@ArgumentsSource(ListingArgumentProvider.class)
 	void testGet(Listing<TestEntity> listing, List<TestEntity> children, Bosk<TestEntity> bosk) throws InvalidTypeException {
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			for (TestEntity child: children) {
 				TestEntity actual = listing.getValue(child.id());
 				assertSame(child, actual, "All expected entities should be present in the Listing");
@@ -129,7 +128,7 @@ class ListingTest {
 	void testValueIterator(Listing<TestEntity> listing, List<TestEntity> children, Bosk<TestEntity> bosk) {
 		Iterator<TestEntity> expected = children.iterator();
 		Iterator<TestEntity> actual;
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			// ReadContext is needed only when creating the iterator
 			actual = listing.valueIterator();
 		}
@@ -169,7 +168,7 @@ class ListingTest {
 	void testStream(Listing<TestEntity> listing, List<TestEntity> children, Bosk<TestEntity> bosk) {
 		Iterator<TestEntity> expected = children.iterator();
 		Stream<TestEntity> stream;
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			// ReadContext is needed only when creating the stream
 			stream = listing.valueStream();
 		}
@@ -180,7 +179,7 @@ class ListingTest {
 	@ArgumentsSource(ListingArgumentProvider.class)
 	void testAsCollection(Listing<TestEntity> listing, List<TestEntity> children, Bosk<TestEntity> bosk) {
 		Collection<TestEntity> actual;
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			// ReadContext is needed only when creating the collection
 			actual = listing.valueList();
 		}
@@ -208,7 +207,7 @@ class ListingTest {
 		}
 
 		Spliterator<TestEntity> newSplit;
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			newSplit = listing.values().spliterator();
 		}
 
@@ -257,7 +256,7 @@ class ListingTest {
 		assertEquals(0, actual.size());
 
 		Iterator<TestEntity> iterator;
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			// iterator() needs a ReadContext at creation time
 			iterator = actual.valueIterator();
 		}

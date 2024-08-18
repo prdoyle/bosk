@@ -18,7 +18,6 @@ import lombok.With;
 import lombok.experimental.Delegate;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.FieldNameConstants;
-import lombok.val;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import works.bosk.annotations.ReferencePath;
@@ -163,7 +162,7 @@ class BoskLocalReferenceTest {
 				// Check references to the Listing contents
 				Listing<TestEntity> listing;
 				Map<Identifier, TestEntity> entries;
-				try (val _ = bosk.readContext()) {
+				try (var _ = bosk.readContext()) {
 					listing = listingRef.value();
 					entries = listing.valueMap();
 				}
@@ -206,7 +205,7 @@ class BoskLocalReferenceTest {
 				} catch (AssertionError e) {
 					throw new AssertionError("Failed checkRefence on id " + id + ", sideTableRef " + sideTableRef);
 				}
-				try (val _ = bosk.readContext()) {
+				try (var _ = bosk.readContext()) {
 					for (Entry<Identifier, String> entry: sideTable.idEntrySet()) {
 						Identifier key = entry.getKey();
 						Reference<String> entryRef = sideTableRef.then(key);
@@ -290,7 +289,7 @@ class BoskLocalReferenceTest {
 		assertEquals(expectedPath.urlEncoded(), ref.pathString());
 
 		assertThrows(IllegalStateException.class, ref::value, "Can't read before ReadContext");
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			T actualValue = ref.valueIfExists();
 			assertSame(expectedValue, actualValue);
 
@@ -322,7 +321,7 @@ class BoskLocalReferenceTest {
 		assertEquals(expectedPath.then(TestEntity.Fields.listing), ref.then(Listing.class, TestEntity.Fields.listing).path());
 		assertEquals(expectedPath.then(TestEntity.Fields.sideTable), ref.then(SideTable.class, TestEntity.Fields.sideTable).path());
 
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			if (expectedValue == null) {
 				assertNull(ref.then(Catalog.class, TestEntity.Fields.catalog).valueIfExists());
 				assertNull(ref.then(Listing.class, TestEntity.Fields.listing).valueIfExists());
@@ -339,7 +338,7 @@ class BoskLocalReferenceTest {
 		Root originalRoot;
 		T firstValue;
 		assertThrows(IllegalStateException.class, ref::value, "Can't read from Bosk before ReadContext");
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			originalRoot = bosk.rootReference().value();
 			firstValue = ref.value();
 		}
@@ -347,25 +346,25 @@ class BoskLocalReferenceTest {
 
 		T secondValue = updater.apply(firstValue);
 		T thirdValue = updater.apply(secondValue);
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertSame(firstValue, ref.value(), "New ReadContext sees same value as before");
 			bosk.driver().submitReplacement(ref, secondValue);
 			assertSame(firstValue, ref.value(), "Bosk updates not visible during the same ReadContext");
 
-			try (val _ = bosk.supersedingReadContext()) {
+			try (var _ = bosk.supersedingReadContext()) {
 				assertSame(secondValue, ref.value(), "Superseding context sees the latest state");
-				try (val _ = bosk.readContext()) {
+				try (var _ = bosk.readContext()) {
 					assertSame(secondValue, ref.value(), "Nested context matches outer context");
 				}
 			}
 
-			try (val _ = bosk.readContext()) {
+			try (var _ = bosk.readContext()) {
 				assertSame(firstValue, ref.value(), "Nested context matches original outer context");
 			}
 		}
 
 		try (
-			val context = bosk.readContext();
+			var context = bosk.readContext();
 		) {
 			assertSame(secondValue, ref.value(), "New value is visible in next ReadContext");
 			bosk.driver().submitReplacement(ref, thirdValue);
@@ -382,13 +381,13 @@ class BoskLocalReferenceTest {
 						fail("Unexpected exception: ", e);
 					}
 					assertNotNull(caught, "New thread should not have any scope by default, so an exception should be thrown");
-					try (val unrelatedContext = bosk.readContext()) {
+					try (var _ = bosk.readContext()) {
 						assertSame(thirdValue, ref.value(), "Separate thread should see the latest state");
 					}
-					try (val inheritedContext = context.adopt()) {
+					try (var inheritedContext = context.adopt()) {
 						assertSame(secondValue, ref.value(), "Inherited scope should see the same state");
 
-						try (val reinheritedContext = inheritedContext.adopt()) {
+						try (var _ = inheritedContext.adopt()) {
 							// Harmless to re-assert a scope you're already in
 							assertSame(secondValue, ref.value(), "Inner scope should see the same state");
 						}
@@ -408,13 +407,13 @@ class BoskLocalReferenceTest {
 
 	private <T> void checkDeletion(Reference<T> ref, T expectedValue) {
 		Root originalRoot;
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			originalRoot = bosk.rootReference().value();
 			assertSame(expectedValue, ref.valueIfExists(), "Value is present before deletion");
 			bosk.driver().submitDeletion(ref);
 			assertSame(expectedValue, ref.valueIfExists(), "Bosk deletions not visible during the same ReadContext");
 		}
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertThrows(NonexistentReferenceException.class, ref::value);
 			if (expectedValue != null) {
 				bosk.driver().submitReplacement(ref, expectedValue);

@@ -3,7 +3,6 @@ package works.bosk;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import works.bosk.Bosk.DefaultRootFunction;
@@ -50,7 +49,7 @@ public class BoskConstructorTest {
 
 		assertSame(driver.get(), bosk.getDriver(ForwardingDriver.class));
 
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertSame(root, bosk.rootReference().value());
 		}
 	}
@@ -106,7 +105,7 @@ public class BoskConstructorTest {
 			SimpleTypes.class,
 			_ -> {throw new AssertionError("Shouldn't be called");},
 			initialRootDriver(()->root));
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertSame(root, bosk.rootReference().value());
 		}
 	}
@@ -116,14 +115,14 @@ public class BoskConstructorTest {
 		SimpleTypes root = newEntity();
 		{
 			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, root, Bosk::simpleDriver);
-			try (val _ = valueBosk.readContext()) {
+			try (var _ = valueBosk.readContext()) {
 				assertSame(root, valueBosk.rootReference().value());
 			}
 		}
 
 		{
 			Bosk<StateTreeNode> functionBosk = new Bosk<StateTreeNode>(boskName(), SimpleTypes.class, _ -> root, Bosk::simpleDriver);
-			try (val _ = functionBosk.readContext()) {
+			try (var _ = functionBosk.readContext()) {
 				assertSame(root, functionBosk.rootReference().value());
 			}
 		}

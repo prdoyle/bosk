@@ -1,7 +1,6 @@
 package works.bosk;
 
 import java.io.IOException;
-import lombok.val;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import works.bosk.annotations.ReferencePath;
@@ -47,7 +46,7 @@ public class BoskUpdateTest extends AbstractBoskTest {
 			Bosk::simpleDriver
 		);
 		refs = bosk.buildReferences(Refs.class);
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			originalRoot = bosk.rootReference().value();
 			originalParent = refs.entity(PARENT_ID).value();
 			originalChild1 = refs.child(PARENT_ID, CHILD_1_ID).value();
@@ -153,7 +152,7 @@ public class BoskUpdateTest extends AbstractBoskTest {
 
 	<T> void assertValueEquals(T expected, Reference<T> ref) throws IOException, InterruptedException {
 		bosk.driver().flush();
-		try (val _ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(expected, ref.valueIfExists());
 		}
 	}
