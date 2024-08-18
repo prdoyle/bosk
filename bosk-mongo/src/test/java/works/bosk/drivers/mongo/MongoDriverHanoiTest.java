@@ -16,7 +16,7 @@ import static works.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 @UsesMongoService
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;
-	private Queue<Runnable> shutdownOperations = new ConcurrentLinkedDeque<>();
+	private final Queue<Runnable> shutdownOperations = new ConcurrentLinkedDeque<>();
 
 	@ParametersByName
 	public MongoDriverHanoiTest(TestParameters.ParameterSet parameters) {

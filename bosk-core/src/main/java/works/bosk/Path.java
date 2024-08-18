@@ -1,6 +1,5 @@
 package works.bosk;
 
-import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -335,13 +334,7 @@ public abstract class Path implements Iterable<String> {
 	 * Eclipse has an annoying bug: if I put these lambdas right in the declarations of ENCODER and DECODER, Eclipse keeps deleting the semicolons.
 	 */
 	static {
-		DECODER = s->{
-			try {
-				return URLDecoder.decode(s, StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-				throw new AssertionError(e);
-			}
-		};
+		DECODER = s-> URLDecoder.decode(s, StandardCharsets.UTF_8);
 
 		ENCODER = s->{
 			// Wow, this code sucks.
@@ -350,12 +343,8 @@ public abstract class Path implements Iterable<String> {
 			// This does not technically make the result equivalent to actual URL
 			// encoding, but the differences (like normalization of newlines)
 			// seem either desirable or irrelevant.
-			try {
-				String formEncoded = URLEncoder.encode(s, StandardCharsets.UTF_8.name());
-				return formEncoded.replace("+", "%20");
-			} catch (UnsupportedEncodingException e) {
-				throw new AssertionError(e);
-			}
+			String formEncoded = URLEncoder.encode(s, StandardCharsets.UTF_8);
+			return formEncoded.replace("+", "%20");
 		};
 	}
 

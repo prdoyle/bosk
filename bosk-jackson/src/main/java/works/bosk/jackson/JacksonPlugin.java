@@ -484,7 +484,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				stateTreeNodeDeserializer(TypeFactory.defaultInstance().constructType(e.getValue()), config, beanDesc)));
 			return new JsonDeserializer<>() {
 				@Override
-				public VariantNode deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JacksonException {
+				public VariantNode deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 					expect(START_OBJECT, p);
 					if (p.nextToken() == END_OBJECT) {
 						throw new JsonParseException(p, "Input is missing variant tag field; expected one of " + variantCaseMap.keySet());

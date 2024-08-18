@@ -30,7 +30,7 @@ public class BsonComparator {
 				if (differences.size() >= MAX_DIFFERENCES) {
 					break;
 				}
-			};
+			}
 			for (Map.Entry<String, BsonValue> entry : actualDoc.entrySet()) {
 				var expectedValue = expectedDoc.get(entry.getKey());
 				if (expectedValue == null) {

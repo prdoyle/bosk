@@ -364,7 +364,7 @@ class BoskLocalReferenceTest {
 		}
 
 		try (
-			var context = bosk.readContext();
+			var context = bosk.readContext()
 		) {
 			assertSame(secondValue, ref.value(), "New value is visible in next ReadContext");
 			bosk.driver().submitReplacement(ref, thirdValue);
