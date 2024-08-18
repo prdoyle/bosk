@@ -6,8 +6,17 @@ plugins {
 }
 
 java {
-	sourceCompatibility = '17'
-	targetCompatibility = '17'
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(22)
+	}
+}
+
+compileJava {
+	options.release = 17
+}
+
+compileTestJava {
+	options.release = null
 }
 
 repositories {

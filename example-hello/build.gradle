@@ -8,7 +8,17 @@ group = 'works.bosk'
 version = '0.0.1-SNAPSHOT'
 
 java {
-	sourceCompatibility = '17'
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(22)
+	}
+}
+
+compileJava {
+	options.release = 17
+}
+
+compileTestJava {
+	options.release = 22
 }
 
 configurations {
