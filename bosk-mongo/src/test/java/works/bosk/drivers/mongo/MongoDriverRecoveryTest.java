@@ -85,7 +85,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		BoskDriver<TestEntity> driver = bosk.driver();
 		TestEntity defaultState = initialRoot(bosk);
 
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(defaultState, bosk.rootReference().value(),
 				"Uses default state if database is unavailable");
 		}
@@ -101,7 +101,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		LOGGER.debug("Flush and check that the state updates");
 		waitFor(driver);
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(initialState, bosk.rootReference().value(),
 				"Updates to database state once it reconnects");
 		}
@@ -211,7 +211,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName(getClass().getSimpleName()), TestEntity.class, this::initialRoot, driverFactory);
 
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
 
@@ -226,7 +226,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		LOGGER.debug("Ensure flush works");
 		waitFor(bosk.driver());
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
 
@@ -235,7 +235,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		LOGGER.debug("Ensure flush works again");
 		waitFor(bosk.driver());
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
 	}
@@ -278,7 +278,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName(getClass().getSimpleName()), TestEntity.class, this::initialRoot, driverFactory);
 
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
 
@@ -287,7 +287,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		LOGGER.debug("Ensure flush throws");
 		assertThrows(FlushFailureException.class, () -> bosk.driver().flush());
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
 
@@ -296,7 +296,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		LOGGER.debug("Ensure flush works");
 		waitFor(bosk.driver());
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(afterState, bosk.rootReference().value());
 		}
 	}

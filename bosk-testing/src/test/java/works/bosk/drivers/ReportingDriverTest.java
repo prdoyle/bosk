@@ -149,7 +149,7 @@ class ReportingDriverTest extends AbstractDriverTest {
 	}
 
 	private <T> void assertNodeEquals(T expectedValue, Reference<T> location) {
-		try (var __  = bosk.readContext()) {
+		try (var _  = bosk.readContext()) {
 			assertEquals(expectedValue, location.valueIfExists());
 		}
 	}

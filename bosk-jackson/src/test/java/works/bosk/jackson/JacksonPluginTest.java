@@ -364,7 +364,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 	@Test
 	void derivedRecord_basic_works() throws JsonProcessingException {
 		ImplicitRefs reflectiveEntity;
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			reflectiveEntity = refs.parentImplicitRefs().value();
 		}
 
@@ -386,7 +386,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		assertEquals(expectedJSON, actualJSON);
 
 		ActualBasic deserialized;
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			deserialized = boskMapper.readerFor(ActualBasic.class).readValue(expectedJSON);
 		}
 
@@ -416,7 +416,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 	@Test
 	void derivedRecord_list_works() throws JsonProcessingException {
 		ImplicitRefs reflectiveEntity;
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			reflectiveEntity = refs.parentImplicitRefs().value();
 		}
 
@@ -426,7 +426,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		assertEquals(expectedJSON, actualJSON);
 
 		ActualList deserialized;
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			deserialized = boskMapper.readerFor(ActualList.class).readValue(expectedJSON);
 		}
 
@@ -467,7 +467,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 			.bind("entity1", Identifier.from("123"))
 			.bind("entity2", Identifier.from("456"))
 			.build();
-		try (var __ = jacksonPlugin.overlayScope(env)) {
+		try (var _ = jacksonPlugin.overlayScope(env)) {
 			assertJacksonWorks(plainObject, boskObject, new TypeReference<DeserializationPathContainer>() {}, Path.empty());
 		}
 	}
@@ -492,7 +492,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 		BindingEnvironment env = BindingEnvironment.empty().builder()
 			.bind("entity", expected.entity.id())
 			.build();
-		try (var __ = jacksonPlugin.overlayScope(env)) {
+		try (var _ = jacksonPlugin.overlayScope(env)) {
 			Object actual = boskObjectFor(plainObject, new TypeReference<DeserializationPathMissingID>() {}, Path.empty());
 			assertEquals(expected, actual, "Object should deserialize without \"id\" field");
 		}
@@ -569,7 +569,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskObjectTypeRef);
 			JavaType mapJavaType = TypeFactory.defaultInstance().constructParametricType(Map.class, String.class, Object.class);
 			String json = plainMapper.writerFor(mapJavaType).writeValueAsString(plainObject);
-			try (var __ = jacksonPlugin.newDeserializationScope(path)) {
+			try (var _ = jacksonPlugin.newDeserializationScope(path)) {
 				return boskMapper.readerFor(boskJavaType).readValue(json);
 			}
 		} catch (JsonProcessingException e) {
@@ -582,7 +582,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 			JavaType boskJavaType = TypeFactory.defaultInstance().constructType(boskListType);
 			JavaType listJavaType = TypeFactory.defaultInstance().constructParametricType(List.class, Object.class);
 			String json = plainMapper.writerFor(listJavaType).writeValueAsString(plainList);
-			try (var __ = jacksonPlugin.newDeserializationScope(path)) {
+			try (var _ = jacksonPlugin.newDeserializationScope(path)) {
 				return boskMapper.readerFor(boskJavaType).readValue(json);
 			}
 		} catch (JsonProcessingException e) {

@@ -116,7 +116,7 @@ class SideTableTest extends AbstractBoskTest {
 	void forEachValue_expectedResults() {
 		Map<TestChild, String> expected = new LinkedHashMap<>();
 		Map<TestChild, String> actual = new LinkedHashMap<>();
-		try (var __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			SideTable<TestChild, String> sideTable = refs.sideTable().value();
 
 			// Record everything that forEachValue produces

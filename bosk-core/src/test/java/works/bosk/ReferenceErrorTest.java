@@ -4,7 +4,6 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import lombok.experimental.FieldNameConstants;
-import lombok.val;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import works.bosk.exceptions.InvalidTypeException;
@@ -27,7 +26,7 @@ public class ReferenceErrorTest {
 	@Test
 	void referenceGet_brokenGetter_propagatesException() throws InvalidTypeException {
 		Reference<Identifier> idRef = bosk.rootReference().then(Identifier.class, Path.just("id"));
-		try (val __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertThrows(UnsupportedOperationException.class, idRef::value,
 				"Reference.value() should propagate the exception as-is");
 		}

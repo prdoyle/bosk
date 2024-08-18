@@ -6,7 +6,6 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import lombok.val;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -122,15 +121,15 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		V value = valueFactory.createFrom(bosk);
 		@SuppressWarnings("unchecked")
 		Reference<V> optionalRef = bosk.rootReference().then((Class<V>)value.getClass(), "field");
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertNull(optionalRef.valueIfExists());
 		}
 		bosk.driver().submitReplacement(optionalRef, value);
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertEquals(value, optionalRef.valueIfExists());
 		}
 		bosk.driver().submitDeletion(optionalRef);
-		try (val context = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertNull(optionalRef.valueIfExists());
 		}
 

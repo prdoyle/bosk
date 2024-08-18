@@ -3,7 +3,6 @@ package works.bosk;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import works.bosk.Bosk.DefaultRootFunction;
@@ -37,7 +36,7 @@ public class BoskConstructorTest {
 		Bosk<StateTreeNode> bosk = new Bosk<StateTreeNode>(
 			name,
 			rootType,
-			__ -> root,
+			_ -> root,
 			(b,d)-> {
 				driver.set(new ForwardingDriver<>(singleton(d)));
 				return driver.get();
@@ -50,7 +49,7 @@ public class BoskConstructorTest {
 
 		assertSame(driver.get(), bosk.getDriver(ForwardingDriver.class));
 
-		try (val __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertSame(root, bosk.rootReference().value());
 		}
 	}
@@ -81,9 +80,9 @@ public class BoskConstructorTest {
 
 	@Test
 	void badDefaultRootFunction_throws() {
-		assertDefaultRootThrows(NullPointerException.class, __ -> null);
-		assertDefaultRootThrows(ClassCastException.class, __ -> new TypeValidationTest.CatalogOfInvalidType(Identifier.from("whoops"), Catalog.empty()));
-		assertDefaultRootThrows(IllegalArgumentException.class, __ -> { throw new InvalidTypeException("Whoopsie"); });
+		assertDefaultRootThrows(NullPointerException.class, _ -> null);
+		assertDefaultRootThrows(ClassCastException.class, _ -> new TypeValidationTest.CatalogOfInvalidType(Identifier.from("whoops"), Catalog.empty()));
+		assertDefaultRootThrows(IllegalArgumentException.class, _ -> { throw new InvalidTypeException("Whoopsie"); });
 	}
 
 	@Test
@@ -104,9 +103,9 @@ public class BoskConstructorTest {
 		Bosk<StateTreeNode> bosk = new Bosk<StateTreeNode>(
 			boskName(),
 			SimpleTypes.class,
-			__ -> {throw new AssertionError("Shouldn't be called");},
+			_ -> {throw new AssertionError("Shouldn't be called");},
 			initialRootDriver(()->root));
-		try (val __ = bosk.readContext()) {
+		try (var _ = bosk.readContext()) {
 			assertSame(root, bosk.rootReference().value());
 		}
 	}
@@ -116,14 +115,14 @@ public class BoskConstructorTest {
 		SimpleTypes root = newEntity();
 		{
 			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, root, Bosk::simpleDriver);
-			try (val __ = valueBosk.readContext()) {
+			try (var _ = valueBosk.readContext()) {
 				assertSame(root, valueBosk.rootReference().value());
 			}
 		}
 
 		{
-			Bosk<StateTreeNode> functionBosk = new Bosk<StateTreeNode>(boskName(), SimpleTypes.class, __ -> root, Bosk::simpleDriver);
-			try (val __ = functionBosk.readContext()) {
+			Bosk<StateTreeNode> functionBosk = new Bosk<StateTreeNode>(boskName(), SimpleTypes.class, _ -> root, Bosk::simpleDriver);
+			try (var _ = functionBosk.readContext()) {
 				assertSame(root, functionBosk.rootReference().value());
 			}
 		}
