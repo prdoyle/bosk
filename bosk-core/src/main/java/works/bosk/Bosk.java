@@ -144,10 +144,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		RR apply(Bosk<RR> bosk) throws InvalidTypeException;
 	}
 
-	public Bosk(String name, Type rootType, R defaultRoot, DriverFactory<R> driverFactory) {
-		this(name, rootType, b->defaultRoot, driverFactory);
-	}
-
 	record UnderConstruction<RR extends StateTreeNode>(
 		String name,
 		Identifier instanceID,

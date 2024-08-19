@@ -15,7 +15,7 @@ public class ExampleBosk extends Bosk<ExampleState> {
 		super(
 			"ExampleBosk",
 			ExampleState.class,
-			defaultRoot(),
+			_ -> defaultRoot(),
 			driverFactory());
 	}
 
