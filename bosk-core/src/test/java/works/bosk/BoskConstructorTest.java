@@ -113,7 +113,7 @@ public class BoskConstructorTest {
 	void defaultRoot_matches() {
 		SimpleTypes root = newEntity();
 		{
-			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, root, Bosk::simpleDriver);
+			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, _ -> root, Bosk::simpleDriver);
 			try (var _ = valueBosk.readContext()) {
 				assertSame(root, valueBosk.rootReference().value());
 			}
@@ -132,15 +132,21 @@ public class BoskConstructorTest {
 	//  Helpers
 	//
 
+	/**
+	 * The "initial root" is the one returned from the driver.
+	 */
 	private static void assertInitialRootThrows(Class<? extends Throwable> expectedType, InitialRootFunction initialRootFunction) {
 		assertThrows(expectedType, () -> new Bosk<>(
 			boskName(),
 			SimpleTypes.class,
-			newEntity(),
+			_ -> newEntity(),
 			initialRootDriver(initialRootFunction)
 		));
 	}
 
+	/**
+	 * The "default root" is the one passed to the bosk constructor.
+	 */
 	private static void assertDefaultRootThrows(Class<? extends Throwable> expectedType, DefaultRootFunction<StateTreeNode> defaultRootFunction) {
 		assertThrows(expectedType, () -> new Bosk<>(
 			boskName(),

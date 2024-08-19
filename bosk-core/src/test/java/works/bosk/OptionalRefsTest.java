@@ -23,7 +23,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 
 	@Test
 	void testReferenceOptionalNotAllowed() {
-		Bosk<OptionalString> bosk = new Bosk<>(boskName(), OptionalString.class, new OptionalString(ID, Optional.empty()), Bosk::simpleDriver);
+		Bosk<OptionalString> bosk = new Bosk<>(boskName(), OptionalString.class, _ -> new OptionalString(ID, Optional.empty()), Bosk::simpleDriver);
 		InvalidTypeException e = assertThrows(InvalidTypeException.class, () -> bosk.rootReference().then(Optional.class, Path.just("field")));
 		assertThat(e.getMessage(), containsString("not supported"));
 	}
@@ -117,7 +117,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 	}
 
 	private <E extends Entity, V> void doTest(E initialRoot, ValueFactory<E, V> valueFactory, DriverFactory<E> driverFactory) throws InvalidTypeException {
-		Bosk<E> bosk = new Bosk<>(boskName(), initialRoot.getClass(), initialRoot, driverFactory);
+		Bosk<E> bosk = new Bosk<>(boskName(), initialRoot.getClass(), _ -> initialRoot, driverFactory);
 		V value = valueFactory.createFrom(bosk);
 		@SuppressWarnings("unchecked")
 		Reference<V> optionalRef = bosk.rootReference().then((Class<V>)value.getClass(), "field");

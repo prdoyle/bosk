@@ -12,6 +12,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import lombok.Getter;
@@ -116,13 +117,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			throw new IllegalArgumentException("Invalid root type " + rootType + ": " + e.getMessage(), e);
 		}
 
-		// Rather than pass `this` while it's still under construction,
-		// pass another object that contains the things that are available
-		// at this point.
-		//
 		UnderConstruction<R> boskInfo = new UnderConstruction<>(
-			name, instanceID, rootRef, this::registerHooks
-		);
+			name, instanceID, rootRef, this::registerHooks, new AtomicReference<>());
 
 		// We do this as late as possible because the driver factory is allowed
 		// to do such things as create References, so it needs the rest of the
@@ -138,25 +134,35 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		// Type check
 		rawClass(rootType).cast(this.currentRoot);
+
+		// Ok, we're done initializing
+		boskInfo.boskRef().set(this);
 	}
 
 	public interface DefaultRootFunction<RR extends StateTreeNode> {
 		RR apply(Bosk<RR> bosk) throws InvalidTypeException;
 	}
 
-	public Bosk(String name, Type rootType, R defaultRoot, DriverFactory<R> driverFactory) {
-		this(name, rootType, b->defaultRoot, driverFactory);
-	}
-
 	record UnderConstruction<RR extends StateTreeNode>(
 		String name,
 		Identifier instanceID,
 		RootReference<RR> rootReference,
-		RegisterHooksMethod m
+		RegisterHooksMethod m,
+		AtomicReference<Bosk<RR>> boskRef
 	) implements BoskInfo<RR> {
 		@Override
 		public void registerHooks(Object receiver) throws InvalidTypeException {
 			m.registerHooks(receiver);
+		}
+
+		@Override
+		public Bosk<RR> bosk() {
+			var result = boskRef.get();
+			if (result == null) {
+				throw new IllegalStateException("Bosk is not yet initialized");
+			} else {
+				return result;
+			}
 		}
 	}
 
@@ -603,6 +609,11 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	@Override
 	public void registerHooks(Object receiver) throws InvalidTypeException {
 		HookRegistrar.registerHooks(receiver, this);
+	}
+
+	@Override
+	public Bosk<R> bosk() {
+		return this;
 	}
 
 	public Collection<HookRegistration<?>> allRegisteredHooks() {

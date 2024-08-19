@@ -19,7 +19,7 @@ public class ReferenceErrorTest {
 		bosk = new Bosk<>(
 			boskName(),
 			BadGetters.class,
-			new BadGetters(Identifier.from("test"), new NestedObject(Optional.of("stringValue"))),
+			_ -> new BadGetters(Identifier.from("test"), new NestedObject(Optional.of("stringValue"))),
 			Bosk::simpleDriver);
 	}
 

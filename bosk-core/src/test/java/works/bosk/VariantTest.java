@@ -47,7 +47,7 @@ class VariantTest extends AbstractBoskTest {
 	@Test
 	void test() throws InvalidTypeException, IOException, InterruptedException {
 		String stringValue = "test";
-		var bosk = new Bosk<>(boskName(), BoskState.class, new BoskState(new StringCase(stringValue)), Bosk::simpleDriver);
+		var bosk = new Bosk<>(boskName(), BoskState.class, _ -> new BoskState(new StringCase(stringValue)), Bosk::simpleDriver);
 		var refs = bosk.rootReference().buildReferences(Refs.class);
 		try (var _ = bosk.readContext()) {
 			assertEquals(stringValue, refs.stringValue().value());
