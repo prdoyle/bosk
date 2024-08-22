@@ -68,6 +68,13 @@ public class ReplicaSet<R extends StateTreeNode> {
 			replicas.add(replica);
 			return broadcastDriver;
 		};
+
+		/*
+		 * Note: there's a subtle and interesting thing going on here.
+		 * Most driver factories can accept a bosk and a driver of any matching root type,
+		 * but this one requires a root type of R specifically. This enforces the rule that
+		 * all the bosks in a replica set must have the same root type.
+		 */
 	}
 
 	/**
