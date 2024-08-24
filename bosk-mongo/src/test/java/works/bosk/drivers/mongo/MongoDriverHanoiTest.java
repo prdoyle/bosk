@@ -22,7 +22,7 @@ public class MongoDriverHanoiTest extends HanoiTest {
 	public MongoDriverHanoiTest(TestParameters.ParameterSet parameters) {
 		MongoDriverSettings settings = parameters.driverSettingsBuilder().build();
 		this.driverFactory = DriverStack.of(
-			(b,d) -> { shutdownOperations.add(((MongoDriver<?>)d)::close); return d;},
+			(_,d) -> { shutdownOperations.add(((MongoDriver)d)::close); return d;},
 			MongoDriver.factory(
 				mongoService.clientSettings(),
 				settings,

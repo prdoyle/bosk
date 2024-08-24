@@ -28,8 +28,8 @@ public interface DriverStack<R extends StateTreeNode> extends DriverFactory<R> {
 	static <RR extends StateTreeNode> DriverStack<RR> of(List<DriverFactory<RR>> factories) {
 		return new DriverStack<>() {
 			@Override
-			public BoskDriver<RR> build(BoskInfo<RR> boskInfo, BoskDriver<RR> downstream) {
-				BoskDriver<RR> result = downstream;
+			public BoskDriver build(BoskInfo<RR> boskInfo, BoskDriver downstream) {
+				BoskDriver result = downstream;
 				for (int i = factories.size() - 1; i >= 0; i--) {
 					result = factories.get(i).build(boskInfo, result);
 				}

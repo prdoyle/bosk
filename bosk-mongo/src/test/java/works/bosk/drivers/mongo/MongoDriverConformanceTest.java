@@ -57,7 +57,7 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 
 	private <R extends StateTreeNode> DriverFactory<R> createDriverFactory() {
 		return (boskInfo, downstream) -> {
-			MongoDriver<R> driver = MongoDriver.<R>factory(
+			MongoDriver driver = MongoDriver.<R>factory(
 				mongoService.clientSettings(), driverSettings, new BsonPlugin()
 			).build(boskInfo, downstream);
 			tearDownActions.addFirst(()->{

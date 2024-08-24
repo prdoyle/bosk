@@ -9,13 +9,13 @@ import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
 
-public class NoOpDriver<R extends StateTreeNode> implements BoskDriver<R> {
+public class NoOpDriver implements BoskDriver {
 	public static <RR extends StateTreeNode> DriverFactory<RR> factory() {
-		return (b,d) -> new NoOpDriver<>();
+		return (b,d) -> new NoOpDriver();
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		throw new UnsupportedOperationException();
 	}
 

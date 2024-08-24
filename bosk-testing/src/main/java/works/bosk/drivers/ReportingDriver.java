@@ -26,18 +26,18 @@ import works.bosk.exceptions.InvalidTypeException;
  * so that the ordinary {@link DriverConformanceTest} suite also tests all the {@link UpdateOperation} objects.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class ReportingDriver<R extends StateTreeNode> implements BoskDriver<R> {
-	final BoskDriver<R> downstream;
+public class ReportingDriver implements BoskDriver {
+	final BoskDriver downstream;
 	final BoskDiagnosticContext diagnosticContext;
 	final Consumer<UpdateOperation> updateListener;
 	final Runnable flushListener;
 
 	public static <RR extends StateTreeNode> DriverFactory<RR> factory(Consumer<UpdateOperation> listener, Runnable flushListener) {
-		return (b,d) -> new ReportingDriver<>(d, b.rootReference().diagnosticContext(), listener, flushListener);
+		return (b,d) -> new ReportingDriver(d, b.rootReference().diagnosticContext(), listener, flushListener);
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		return downstream.initialRoot(rootType);
 	}
 

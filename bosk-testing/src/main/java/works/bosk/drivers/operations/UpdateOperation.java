@@ -25,5 +25,5 @@ public sealed interface UpdateOperation permits
 	 * Any {@link BoskDiagnosticContext diagnostic context} is <em>not</em> propagated;
 	 * if that behaviour is desired, the caller must do it.
 	 */
-	void submitTo(BoskDriver<?> driver);
+	void submitTo(BoskDriver driver);
 }

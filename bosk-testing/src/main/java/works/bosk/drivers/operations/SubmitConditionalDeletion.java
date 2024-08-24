@@ -24,7 +24,7 @@ public record SubmitConditionalDeletion<T>(
 	}
 
 	@Override
-	public void submitTo(BoskDriver<?> driver) {
+	public void submitTo(BoskDriver driver) {
 		driver.submitConditionalDeletion(target, precondition, requiredValue);
 	}
 

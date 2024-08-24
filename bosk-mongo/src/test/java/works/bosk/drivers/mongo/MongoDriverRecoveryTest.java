@@ -82,7 +82,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(getClass().getSimpleName() + boskCounter.incrementAndGet(), TestEntity.class, this::initialRoot, driverFactory);
 
 		MongoDriverSpecialTest.Refs refs = bosk.buildReferences(MongoDriverSpecialTest.Refs.class);
-		BoskDriver<TestEntity> driver = bosk.driver();
+		BoskDriver driver = bosk.driver();
 		TestEntity defaultState = initialRoot(bosk);
 
 		try (var _ = bosk.readContext()) {
@@ -119,7 +119,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		}
 	}
 
-	private void waitFor(BoskDriver<TestEntity> driver) throws IOException, InterruptedException {
+	private void waitFor(BoskDriver driver) throws IOException, InterruptedException {
 		switch (flushOrWait) {
 			case FLUSH:
 				driver.flush();
@@ -252,13 +252,13 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 	private TestEntity initializeDatabase(String distinctiveString) {
 		try {
-			AtomicReference<MongoDriver<TestEntity>> driverRef = new AtomicReference<>();
-			Bosk<TestEntity> prepBosk = new Bosk<TestEntity>(
+			AtomicReference<MongoDriver> driverRef = new AtomicReference<>();
+			Bosk<TestEntity> prepBosk = new Bosk<>(
 				boskName("Prep " + getClass().getSimpleName()),
 				TestEntity.class,
 				bosk -> initialRoot(bosk).withString(distinctiveString),
-				(b,d) -> {
-					var mongoDriver = (MongoDriver<TestEntity>) driverFactory.build(b, d);
+				(b, d) -> {
+					var mongoDriver = (MongoDriver) driverFactory.build(b, d);
 					driverRef.set(mongoDriver);
 					return mongoDriver;
 				});

@@ -19,9 +19,9 @@ import works.bosk.exceptions.InvalidTypeException;
 import static lombok.AccessLevel.PRIVATE;
 
 @RequiredArgsConstructor(access = PRIVATE)
-public class AsyncDriver<R extends StateTreeNode> implements BoskDriver<R> {
-	private final BoskInfo<R> bosk;
-	private final BoskDriver<R> downstream;
+public class AsyncDriver implements BoskDriver {
+	private final BoskInfo<?> bosk;
+	private final BoskDriver downstream;
 	private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
 	public static <RR extends StateTreeNode> DriverFactory<RR> factory() {
@@ -29,7 +29,7 @@ public class AsyncDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		return downstream.initialRoot(rootType);
 	}
 

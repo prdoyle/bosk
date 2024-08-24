@@ -27,7 +27,7 @@ public abstract class AbstractDriverTest {
 	protected final Identifier child2ID = Identifier.from("child2");
 	protected Bosk<TestEntity> canonicalBosk;
 	protected Bosk<TestEntity> bosk;
-	protected BoskDriver<TestEntity> driver;
+	protected BoskDriver driver;
 
 	@BeforeEach
 	void logStart(TestInfo testInfo) {

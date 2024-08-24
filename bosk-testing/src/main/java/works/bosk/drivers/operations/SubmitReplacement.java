@@ -17,7 +17,7 @@ public record SubmitReplacement<T>(
 	}
 
 	@Override
-	public void submitTo(BoskDriver<?> driver) {
+	public void submitTo(BoskDriver driver) {
 		driver.submitReplacement(target, newValue);
 	}
 

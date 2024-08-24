@@ -100,7 +100,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		// have tight control over all the comings and goings from MongoDriver.
 		BlockingQueue<Reference<?>> replacementsSeen = new LinkedBlockingDeque<>();
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName(), TestEntity.class, this::initialRoot,
-			(b,d) -> driverFactory.build(b, new BufferingDriver<>(d) {
+			(b,d) -> driverFactory.build(b, new BufferingDriver(d) {
 				@Override
 				public <T> void submitReplacement(Reference<T> target, T newValue) {
 					super.submitReplacement(target, newValue);
@@ -152,7 +152,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	@UsesMongoService
 	void listing_stateMatches() throws InvalidTypeException, InterruptedException, IOException {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName(), TestEntity.class, this::initialRoot, driverFactory);
-		BoskDriver<TestEntity> driver = bosk.driver();
+		BoskDriver driver = bosk.driver();
 		CatalogReference<TestEntity> catalogRef = bosk.rootReference().thenCatalog(TestEntity.class,
 			TestEntity.Fields.catalog);
 		ListingReference<TestEntity> listingRef = bosk.rootReference().thenListing(TestEntity.class,
@@ -193,7 +193,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName("Main"), TestEntity.class, this::initialRoot, driverFactory);
 		Refs refs = bosk.buildReferences(Refs.class);
-		BoskDriver<TestEntity> driver = bosk.driver();
+		BoskDriver driver = bosk.driver();
 
 		LOGGER.debug("Wait till MongoDB is up and running");
 		driver.flush();
@@ -239,7 +239,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName(), TestEntity.class, this::initialRoot, driverFactory);
 		Refs refs = bosk.buildReferences(Refs.class);
-		BoskDriver<TestEntity> driver = bosk.driver();
+		BoskDriver driver = bosk.driver();
 		CountDownLatch listingEntry124Exists = new CountDownLatch(1);
 
 		bosk.registerHook("notice 124", refs.listingEntry(entity124), ref -> {

@@ -69,8 +69,8 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		private final JacksonPlugin jp = new JacksonPlugin();
 
 		@Override
-		public BoskDriver<R> build(BoskInfo<R> boskInfo, BoskDriver<R> driver) {
-			return new PreprocessingDriver<>(driver) {
+		public BoskDriver build(BoskInfo<R> boskInfo, BoskDriver driver) {
+			return new PreprocessingDriver(driver) {
 				final Module module = jp.moduleFor(boskInfo);
 				final ObjectMapper objectMapper = new ObjectMapper()
 					.registerModule(module)
@@ -108,9 +108,9 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 	@RequiredArgsConstructor
 	private static class BsonRoundTripDriverFactory<R extends Entity> implements DriverFactory<R> {
 		@Override
-		public BoskDriver<R> build(BoskInfo<R> boskInfo, BoskDriver<R> driver) {
+		public BoskDriver build(BoskInfo<R> boskInfo, BoskDriver driver) {
 			final BsonPlugin bp = new BsonPlugin();
-			return new PreprocessingDriver<>(driver) {
+			return new PreprocessingDriver(driver) {
 				final CodecRegistry codecRegistry = CodecRegistries.fromProviders(bp.codecProviderFor(boskInfo));
 
 				/**
@@ -204,10 +204,10 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		}
 	}
 
-	private static abstract class PreprocessingDriver<R extends StateTreeNode> implements BoskDriver<R> {
-		private final BoskDriver<R> downstream;
+	private static abstract class PreprocessingDriver implements BoskDriver {
+		private final BoskDriver downstream;
 
-		private PreprocessingDriver(BoskDriver<R> downstream) {
+		private PreprocessingDriver(BoskDriver downstream) {
 			this.downstream = downstream;
 		}
 
@@ -234,7 +234,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		abstract <T> T preprocess(Reference<T> reference, T newValue);
 
 		@Override
-		public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+		public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 			return downstream.initialRoot(rootType);
 		}
 

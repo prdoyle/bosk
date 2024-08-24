@@ -35,7 +35,7 @@ import works.bosk.exceptions.InitializationFailureException;
  * </li></ol>
  */
 sealed interface FormatDriver<R extends StateTreeNode>
-	extends MongoDriver<R>
+	extends MongoDriver
 	permits AbstractFormatDriver, DisconnectedDriver {
 	void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException;
 
@@ -68,7 +68,7 @@ sealed interface FormatDriver<R extends StateTreeNode>
 	void initializeCollection(StateAndMetadata<R> priorContents) throws InitializationFailureException;
 
 	@Override
-	default R initialRoot(Type rootType) {
+	default StateTreeNode initialRoot(Type rootType) {
 		throw new UnsupportedOperationException(
 			"FormatDriver doesn't need to implement initialRoot: MainDriver derives it from loadAllState");
 	}

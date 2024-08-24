@@ -8,11 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 class DriverStackTest {
-	final BoskDriver<AbstractBoskTest.TestEntity> baseDriver = new NoOpDriver<>();
+	final BoskDriver baseDriver = new NoOpDriver();
 
 	@Test
 	void emptyStack_returnsDownstream() {
-		BoskDriver<AbstractBoskTest.TestEntity> actual = DriverStack.<AbstractBoskTest.TestEntity>of().build(null, baseDriver);
+		BoskDriver actual = DriverStack.<AbstractBoskTest.TestEntity>of().build(null, baseDriver);
 		assertSame(baseDriver, actual);
 	}
 
@@ -25,22 +25,22 @@ class DriverStackTest {
 
 		TestDriver<AbstractBoskTest.TestEntity> firstDriver = (TestDriver<AbstractBoskTest.TestEntity>) stack.build(null, baseDriver);
 		TestDriver<AbstractBoskTest.TestEntity> secondDriver = (TestDriver<AbstractBoskTest.TestEntity>) firstDriver.downstream();
-		BoskDriver<AbstractBoskTest.TestEntity> thirdDriver = secondDriver.downstream();
+		BoskDriver thirdDriver = secondDriver.downstream();
 
 		assertEquals("first", firstDriver.name);
 		assertEquals("second", secondDriver.name);
 		assertSame(baseDriver, thirdDriver);
 	}
 
-	static class TestDriver<R extends Entity> extends ForwardingDriver<R> {
+	static class TestDriver<R extends Entity> extends ForwardingDriver {
 		final String name;
 
-		public TestDriver(String name, BoskDriver<R> downstream) {
+		public TestDriver(String name, BoskDriver downstream) {
 			super(downstream);
 			this.name = name;
 		}
 
-		BoskDriver<R> downstream() {
+		BoskDriver downstream() {
 			return downstream;
 		}
 

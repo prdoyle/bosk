@@ -15,7 +15,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.With;
-import lombok.experimental.Delegate;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.FieldNameConstants;
 import org.junit.jupiter.api.BeforeEach;
@@ -273,11 +272,6 @@ class BoskLocalReferenceTest {
 		}
 		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), InvalidRoot.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
 		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), String.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
-	}
-
-	@RequiredArgsConstructor
-	private static final class ProxyDriver implements BoskDriver<Root> {
-		@Delegate final BoskDriver<Root> delegate;
 	}
 
 	private <T> void checkReferenceProperties(Reference<T> ref, Path expectedPath, T expectedValue) throws InvalidTypeException {
