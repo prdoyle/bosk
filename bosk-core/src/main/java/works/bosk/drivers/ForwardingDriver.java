@@ -18,11 +18,11 @@ import works.bosk.exceptions.InvalidTypeException;
  * point to the right bosk. The references must already be from the downstream bosk.
  */
 @RequiredArgsConstructor
-public class ForwardingDriver<R extends StateTreeNode> implements BoskDriver {
+public class ForwardingDriver implements BoskDriver {
 	protected final BoskDriver downstream;
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		return downstream.initialRoot(rootType);
 	}
 

@@ -127,7 +127,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		this.driver = new ValidatingDriver(driverFactory.build(boskInfo, this.localDriver));
 
 		try {
-			this.currentRoot = requireNonNull(driver.initialRoot(rootType));
+			this.currentRoot = rootRef.targetClass().cast(requireNonNull(driver.initialRoot(rootType)));
 		} catch (InvalidTypeException | IOException | InterruptedException e) {
 			throw new IllegalArgumentException("Error computing initial root: " + e.getMessage(), e);
 		}
@@ -246,8 +246,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
-		public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
-			return downstream.initialRoot(rootType);
+		public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+			return rootRef.targetClass().cast(downstream.initialRoot(rootType));
 		}
 
 		@Override
@@ -301,7 +301,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		final Semaphore hookExecutionPermit = new Semaphore(1);
 
 		@Override
-		public R initialRoot(Type rootType) throws InvalidTypeException {
+		public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException {
 			R initialRoot = requireNonNull(initialRootFunction.apply(Bosk.this));
 			rawClass(rootType).cast(initialRoot);
 			return initialRoot;

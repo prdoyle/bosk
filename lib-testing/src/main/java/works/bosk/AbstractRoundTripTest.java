@@ -70,7 +70,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 
 		@Override
 		public BoskDriver build(BoskInfo<R> boskInfo, BoskDriver driver) {
-			return new PreprocessingDriver<>(driver) {
+			return new PreprocessingDriver(driver) {
 				final Module module = jp.moduleFor(boskInfo);
 				final ObjectMapper objectMapper = new ObjectMapper()
 					.registerModule(module)
@@ -110,7 +110,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		@Override
 		public BoskDriver build(BoskInfo<R> boskInfo, BoskDriver driver) {
 			final BsonPlugin bp = new BsonPlugin();
-			return new PreprocessingDriver<>(driver) {
+			return new PreprocessingDriver(driver) {
 				final CodecRegistry codecRegistry = CodecRegistries.fromProviders(bp.codecProviderFor(boskInfo));
 
 				/**
@@ -204,7 +204,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		}
 	}
 
-	private static abstract class PreprocessingDriver<R extends StateTreeNode> implements BoskDriver {
+	private static abstract class PreprocessingDriver implements BoskDriver {
 		private final BoskDriver downstream;
 
 		private PreprocessingDriver(BoskDriver downstream) {
@@ -234,7 +234,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		abstract <T> T preprocess(Reference<T> reference, T newValue);
 
 		@Override
-		public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+		public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 			return downstream.initialRoot(rootType);
 		}
 

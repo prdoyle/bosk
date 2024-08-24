@@ -252,13 +252,13 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 	private TestEntity initializeDatabase(String distinctiveString) {
 		try {
-			AtomicReference<MongoDriver<TestEntity>> driverRef = new AtomicReference<>();
-			Bosk<TestEntity> prepBosk = new Bosk<TestEntity>(
+			AtomicReference<MongoDriver> driverRef = new AtomicReference<>();
+			Bosk<TestEntity> prepBosk = new Bosk<>(
 				boskName("Prep " + getClass().getSimpleName()),
 				TestEntity.class,
 				bosk -> initialRoot(bosk).withString(distinctiveString),
-				(b,d) -> {
-					var mongoDriver = (MongoDriver<TestEntity>) driverFactory.build(b, d);
+				(b, d) -> {
+					var mongoDriver = (MongoDriver) driverFactory.build(b, d);
 					driverRef.set(mongoDriver);
 					return mongoDriver;
 				});

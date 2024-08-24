@@ -38,6 +38,7 @@ public interface BoskDriver {
 	 * that creates {@link Reference References} (which is very common) so that implementations
 	 * do not need to catch that exception and wrap it or otherwise deal with it:
 	 * the caller of this method is expected to know how to deal with that exception.
+	 * @return an instance of {@code rootType}
 	 * @throws UnsupportedOperationException if this driver is unable to provide
 	 * an initial root. Such a driver cannot be used on its own to initialize a Bosk,
 	 * but it can be used downstream of a {@link ForwardingDriver} provided there is

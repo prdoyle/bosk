@@ -32,20 +32,20 @@ import static lombok.AccessLevel.PROTECTED;
  * @author pdoyle
  */
 @RequiredArgsConstructor(access = PROTECTED)
-public class BufferingDriver<R extends StateTreeNode> implements BoskDriver {
+public class BufferingDriver implements BoskDriver {
 	private final BoskDriver downstream;
 	private final Deque<Consumer<BoskDriver>> updateQueue = new ConcurrentLinkedDeque<>();
 
-	public static <RR extends StateTreeNode> BufferingDriver<RR> writingTo(BoskDriver downstream) {
-		return new BufferingDriver<>(downstream);
+	public static BufferingDriver writingTo(BoskDriver downstream) {
+		return new BufferingDriver(downstream);
 	}
 
 	public static <RR extends StateTreeNode> DriverFactory<RR> factory() {
-		return (b,d) -> new BufferingDriver<>(d);
+		return (b,d) -> new BufferingDriver(d);
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		return downstream.initialRoot(rootType);
 	}
 

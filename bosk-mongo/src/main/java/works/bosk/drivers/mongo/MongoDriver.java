@@ -20,7 +20,7 @@ import works.bosk.drivers.mongo.status.MongoStatus;
  * this driver will create it and populate it with the state returned by calling
  * {@link BoskDriver#initialRoot} on the downstream driver.
  */
-public sealed interface MongoDriver<R extends StateTreeNode>
+public sealed interface MongoDriver
 	extends BoskDriver
 	permits MainDriver, FormatDriver {
 
@@ -74,6 +74,6 @@ public sealed interface MongoDriver<R extends StateTreeNode>
 	}
 
 	interface MongoDriverFactory<RR extends StateTreeNode> extends DriverFactory<RR> {
-		@Override MongoDriver<RR> build(BoskInfo<RR> boskInfo, BoskDriver downstream);
+		@Override MongoDriver build(BoskInfo<RR> boskInfo, BoskDriver downstream);
 	}
 }

@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 class DriverStackTest {
-	final BoskDriver baseDriver = new NoOpDriver<>();
+	final BoskDriver baseDriver = new NoOpDriver();
 
 	@Test
 	void emptyStack_returnsDownstream() {
@@ -32,7 +32,7 @@ class DriverStackTest {
 		assertSame(baseDriver, thirdDriver);
 	}
 
-	static class TestDriver<R extends Entity> extends ForwardingDriver<R> {
+	static class TestDriver<R extends Entity> extends ForwardingDriver {
 		final String name;
 
 		public TestDriver(String name, BoskDriver downstream) {

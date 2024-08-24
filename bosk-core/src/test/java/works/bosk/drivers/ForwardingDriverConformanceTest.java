@@ -6,7 +6,7 @@ public class ForwardingDriverConformanceTest extends DriverConformanceTest {
 
 	@BeforeEach
 	void setupDriverFactory() {
-		driverFactory = (_, d)-> new ForwardingDriver<>(d);
+		driverFactory = (_, d)-> new ForwardingDriver(d);
 	}
 
 }

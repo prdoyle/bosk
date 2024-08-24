@@ -37,7 +37,7 @@ public class BoskConstructorTest {
 			rootType,
 			_ -> root,
 			(_, d)-> {
-				driver.set(new ForwardingDriver<>(d));
+				driver.set(new ForwardingDriver(d));
 				return driver.get();
 			});
 
@@ -158,7 +158,7 @@ public class BoskConstructorTest {
 
 	@NotNull
 	private static DriverFactory<StateTreeNode> initialRootDriver(InitialRootFunction initialRootFunction) {
-		return (_, _) -> new NoOpDriver<>() {
+		return (_, _) -> new NoOpDriver() {
 			@Override
 			public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 				return initialRootFunction.get();

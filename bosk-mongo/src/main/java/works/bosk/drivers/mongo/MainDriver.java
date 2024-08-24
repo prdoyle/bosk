@@ -39,6 +39,7 @@ import works.bosk.exceptions.InvalidTypeException;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static works.bosk.ReferenceUtils.rawClass;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ONE;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.MappedDiagnosticContext.setupMDC;
@@ -54,7 +55,7 @@ import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.USE_IF_E
  * are delegated to a {@link FormatDriver} object that can be swapped out dynamically
  * as the database evolves.
  */
-final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
+final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private final BoskInfo<R> boskInfo;
 	private final ChangeReceiver receiver;
 	private final MongoDriverSettings driverSettings;
@@ -111,7 +112,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, InterruptedException, IOException {
+	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, InterruptedException, IOException {
 		try (MDCScope __ = beginDriverOperation("initialRoot({})", rootType)) {
 			// The actual loading of the initial state happens on the ChangeReceiver thread.
 			// Here, we just wait for that to finish and deal with the consequences.
@@ -219,10 +220,11 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 	/**
 	 * @throws DownstreamInitialRootException only
 	 */
+	@SuppressWarnings("unchecked")
 	private R callDownstreamInitialRoot(Type rootType) {
 		R root;
 		try {
-			root = downstream.initialRoot(rootType);
+			root = (R)rawClass(rootType).cast(downstream.initialRoot(rootType));
 		} catch (RuntimeException | Error | InvalidTypeException | IOException | InterruptedException e) {
 			LOGGER.error("Downstream driver failed to compute initial root", e);
 			throw new DownstreamInitialRootException("Fatal error: downstream driver failed to compute initial root", e);

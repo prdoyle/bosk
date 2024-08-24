@@ -20,17 +20,17 @@ import static lombok.AccessLevel.PRIVATE;
  * Allows diagnostic context to be supplied automatically to every operation.
  */
 @RequiredArgsConstructor(access = PRIVATE)
-public class DiagnosticScopeDriver<R extends StateTreeNode> implements BoskDriver {
+public class DiagnosticScopeDriver implements BoskDriver {
 	final BoskDriver downstream;
 	final BoskDiagnosticContext diagnosticContext;
 	final Function<BoskDiagnosticContext, DiagnosticScope> scopeSupplier;
 
 	public static <RR extends StateTreeNode> DriverFactory<RR> factory(Function<BoskDiagnosticContext, DiagnosticScope> scopeSupplier) {
-		return (b,d) -> new DiagnosticScopeDriver<>(d, b.rootReference().diagnosticContext(), scopeSupplier);
+		return (b,d) -> new DiagnosticScopeDriver(d, b.rootReference().diagnosticContext(), scopeSupplier);
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		try (var __ = scopeSupplier.apply(diagnosticContext)) {
 			return downstream.initialRoot(rootType);
 		}
