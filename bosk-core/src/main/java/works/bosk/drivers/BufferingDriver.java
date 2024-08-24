@@ -32,11 +32,11 @@ import static lombok.AccessLevel.PROTECTED;
  * @author pdoyle
  */
 @RequiredArgsConstructor(access = PROTECTED)
-public class BufferingDriver<R extends StateTreeNode> implements BoskDriver<R> {
-	private final BoskDriver<R> downstream;
-	private final Deque<Consumer<BoskDriver<R>>> updateQueue = new ConcurrentLinkedDeque<>();
+public class BufferingDriver<R extends StateTreeNode> implements BoskDriver {
+	private final BoskDriver downstream;
+	private final Deque<Consumer<BoskDriver>> updateQueue = new ConcurrentLinkedDeque<>();
 
-	public static <RR extends StateTreeNode> BufferingDriver<RR> writingTo(BoskDriver<RR> downstream) {
+	public static <RR extends StateTreeNode> BufferingDriver<RR> writingTo(BoskDriver downstream) {
 		return new BufferingDriver<>(downstream);
 	}
 
@@ -76,13 +76,13 @@ public class BufferingDriver<R extends StateTreeNode> implements BoskDriver<R> {
 
 	@Override
 	public void flush() throws InterruptedException, IOException {
-		for (Consumer<BoskDriver<R>> update = updateQueue.pollFirst(); update != null; update = updateQueue.pollFirst()) {
+		for (Consumer<BoskDriver> update = updateQueue.pollFirst(); update != null; update = updateQueue.pollFirst()) {
 			update.accept(downstream);
 		}
 		downstream.flush();
 	}
 
-	private void enqueue(Consumer<BoskDriver<R>> action, BoskDiagnosticContext diagnosticContext) {
+	private void enqueue(Consumer<BoskDriver> action, BoskDiagnosticContext diagnosticContext) {
 		MapValue<String> capturedAttributes = diagnosticContext.getAttributes();
 		updateQueue.add(d -> {
 			try (var __ = diagnosticContext.withOnly(capturedAttributes)) {

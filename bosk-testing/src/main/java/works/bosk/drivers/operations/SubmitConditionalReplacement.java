@@ -25,7 +25,7 @@ public record SubmitConditionalReplacement<T>(
 	}
 
 	@Override
-	public void submitTo(BoskDriver<?> driver) {
+	public void submitTo(BoskDriver driver) {
 		driver.submitConditionalReplacement(target, newValue, precondition, requiredValue);
 	}
 

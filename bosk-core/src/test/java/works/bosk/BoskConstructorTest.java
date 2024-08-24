@@ -31,7 +31,7 @@ public class BoskConstructorTest {
 		Type rootType = SimpleTypes.class;
 		StateTreeNode root = newEntity();
 
-		AtomicReference<BoskDriver<StateTreeNode>> driver = new AtomicReference<>();
+		AtomicReference<BoskDriver> driver = new AtomicReference<>();
 		Bosk<StateTreeNode> bosk = new Bosk<StateTreeNode>(
 			name,
 			rootType,

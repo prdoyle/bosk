@@ -13,15 +13,15 @@ import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
 
-public final class JitterDriver<R extends StateTreeNode> implements BoskDriver<R> {
-	private final BoskDriver<R> downstream;
+public final class JitterDriver<R extends StateTreeNode> implements BoskDriver {
+	private final BoskDriver downstream;
 	private final DoubleSupplier jitter;
 
 	public static <RR extends StateTreeNode> DriverFactory<RR> factory(double meanMillis, double limitMillis, long seed) {
 		return (b,d) -> new JitterDriver<>(d, meanMillis, limitMillis, seed);
 	}
 
-	private JitterDriver(BoskDriver<R> downstream, double meanMillis, double limitMillis, long seed) {
+	private JitterDriver(BoskDriver downstream, double meanMillis, double limitMillis, long seed) {
 		this.downstream = downstream;
 		Random random = new Random(seed);
 

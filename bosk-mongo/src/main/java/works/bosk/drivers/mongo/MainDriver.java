@@ -59,7 +59,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 	private final ChangeReceiver receiver;
 	private final MongoDriverSettings driverSettings;
 	private final BsonPlugin bsonPlugin;
-	private final BoskDriver<R> downstream;
+	private final BoskDriver downstream;
 	private final TransactionalCollection<BsonDocument> collection;
 	private final Listener listener;
 	final Formatter formatter;
@@ -83,7 +83,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver<R> {
 		MongoClientSettings clientSettings,
 		MongoDriverSettings driverSettings,
 		BsonPlugin bsonPlugin,
-		BoskDriver<R> downstream
+		BoskDriver downstream
 	) {
 		try (MDCScope __ = setupMDC(boskInfo.name(), boskInfo.instanceID())) {
 			this.boskInfo = boskInfo;

@@ -1,5 +1,5 @@
 package works.bosk;
 
 public interface DriverFactory<R extends StateTreeNode> {
-	BoskDriver<R> build(BoskInfo<R> boskInfo, BoskDriver<R> downstream);
+	BoskDriver build(BoskInfo<R> boskInfo, BoskDriver downstream);
 }

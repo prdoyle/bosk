@@ -12,7 +12,7 @@ import works.bosk.exceptions.InvalidTypeException;
  *
  * @author pdoyle
  */
-public interface BoskDriver<R extends StateTreeNode> {
+public interface BoskDriver {
 	/**
 	 * Returns the root object the {@link Bosk} should use as its initial state upon
 	 * returning from its constructor.
@@ -45,7 +45,7 @@ public interface BoskDriver<R extends StateTreeNode> {
 	 *
 	 * @see InitializationFailureException
 	 */
-	R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException;
+	StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException;
 
 	/**
 	 * Requests that the object referenced by <code>target</code> be changed to <code>newValue</code>.

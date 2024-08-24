@@ -174,11 +174,11 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * You can use <code>Bosk::simpleDriver</code> as the
 	 * <code>driverFactory</code> if you don't want any additional driver functionality.
 	 */
-	public static <RR extends StateTreeNode> BoskDriver<RR> simpleDriver(@SuppressWarnings("unused") BoskInfo<RR> boskInfo, BoskDriver<RR> downstream) {
+	public static <RR extends StateTreeNode> BoskDriver simpleDriver(@SuppressWarnings("unused") BoskInfo<RR> boskInfo, BoskDriver downstream) {
 		return downstream;
 	}
 
-	public BoskDriver<R> driver() {
+	public BoskDriver driver() {
 		return driver;
 	}
 
@@ -192,7 +192,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * @throws IllegalArgumentException if there is no unique driver of the given type
 	 */
 	@SuppressWarnings("unchecked")
-	public <D extends BoskDriver<R>> D getDriver(Class<? super D> driverType) {
+	public <D extends BoskDriver> D getDriver(Class<? super D> driverType) {
 		var userSuppliedDriver = driver.downstream;
 		if (driverType.isInstance(userSuppliedDriver)) {
 			return (D)driverType.cast(userSuppliedDriver);
@@ -206,8 +206,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * requirements of the {@link BoskDriver} are enforced.
 	 */
 	@RequiredArgsConstructor
-	final class ValidatingDriver implements BoskDriver<R> {
-		final BoskDriver<R> downstream;
+	final class ValidatingDriver implements BoskDriver {
+		final BoskDriver downstream;
 
 		@Override
 		public <T> void submitReplacement(Reference<T> target, T newValue) {
@@ -295,7 +295,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * @author pdoyle
 	 */
 	@RequiredArgsConstructor
-	private final class LocalDriver implements BoskDriver<R> {
+	private final class LocalDriver implements BoskDriver {
 		final DefaultRootFunction<R> initialRootFunction;
 		final Deque<Runnable> hookExecutionQueue = new ConcurrentLinkedDeque<>();
 		final Semaphore hookExecutionPermit = new Semaphore(1);

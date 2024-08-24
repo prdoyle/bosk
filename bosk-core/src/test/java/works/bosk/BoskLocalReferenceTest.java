@@ -276,8 +276,8 @@ class BoskLocalReferenceTest {
 	}
 
 	@RequiredArgsConstructor
-	private static final class ProxyDriver implements BoskDriver<Root> {
-		@Delegate final BoskDriver<Root> delegate;
+	private static final class ProxyDriver implements BoskDriver {
+		@Delegate final BoskDriver delegate;
 	}
 
 	private <T> void checkReferenceProperties(Reference<T> ref, Path expectedPath, T expectedValue) throws InvalidTypeException {

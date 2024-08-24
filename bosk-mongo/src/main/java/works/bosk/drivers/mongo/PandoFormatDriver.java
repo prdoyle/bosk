@@ -67,7 +67,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	private final PandoFormat format;
 	private final MongoDriverSettings settings;
 	private final TransactionalCollection<BsonDocument> collection;
-	private final BoskDriver<R> downstream;
+	private final BoskDriver downstream;
 	private final FlushLock flushLock;
 	private final BsonSurgeon bsonSurgeon;
 	private final Demultiplexer demultiplexer = new Demultiplexer();
@@ -82,7 +82,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		MongoDriverSettings driverSettings,
 		PandoFormat format, BsonPlugin bsonPlugin,
 		FlushLock flushLock,
-		BoskDriver<R> downstream
+		BoskDriver downstream
 	) {
 		super(boskInfo.rootReference(), new Formatter(boskInfo, bsonPlugin));
 		this.description = getClass().getSimpleName() + ": " + driverSettings;

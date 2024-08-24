@@ -9,7 +9,7 @@ import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
 
-public class NoOpDriver<R extends StateTreeNode> implements BoskDriver<R> {
+public class NoOpDriver<R extends StateTreeNode> implements BoskDriver {
 	public static <RR extends StateTreeNode> DriverFactory<RR> factory() {
 		return (b,d) -> new NoOpDriver<>();
 	}

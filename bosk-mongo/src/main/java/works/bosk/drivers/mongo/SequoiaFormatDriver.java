@@ -54,7 +54,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	private final String description;
 	private final MongoDriverSettings settings;
 	private final MongoCollection<BsonDocument> collection;
-	private final BoskDriver<R> downstream;
+	private final BoskDriver downstream;
 	private final FlushLock flushLock;
 
 	private volatile BsonInt64 revisionToSkip = null;
@@ -67,7 +67,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		MongoDriverSettings driverSettings,
 		BsonPlugin bsonPlugin,
 		FlushLock flushLock,
-		BoskDriver<R> downstream
+		BoskDriver downstream
 	) {
 		super(boskInfo.rootReference(), new Formatter(boskInfo, bsonPlugin));
 		this.description = getClass().getSimpleName() + ": " + driverSettings;

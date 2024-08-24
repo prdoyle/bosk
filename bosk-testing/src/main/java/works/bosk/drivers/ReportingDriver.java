@@ -26,8 +26,8 @@ import works.bosk.exceptions.InvalidTypeException;
  * so that the ordinary {@link DriverConformanceTest} suite also tests all the {@link UpdateOperation} objects.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class ReportingDriver<R extends StateTreeNode> implements BoskDriver<R> {
-	final BoskDriver<R> downstream;
+public class ReportingDriver<R extends StateTreeNode> implements BoskDriver {
+	final BoskDriver downstream;
 	final BoskDiagnosticContext diagnosticContext;
 	final Consumer<UpdateOperation> updateListener;
 	final Runnable flushListener;

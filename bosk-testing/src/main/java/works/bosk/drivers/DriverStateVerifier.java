@@ -45,7 +45,7 @@ public class DriverStateVerifier<R extends StateTreeNode> {
 	 * Unlike {@link #stateTrackingBosk}.{@link Bosk#driver() driver()},
 	 * this driver can accept updates with references pointing to a different bosk with the same root type.
 	 */
-	final BoskDriver<R> stateTrackingDriver;
+	final BoskDriver stateTrackingDriver;
 
 	final Map<String, Deque<UpdateOperation>> pendingOperationsByThreadName = new ConcurrentHashMap<>();
 	static final String THREAD_NAME = "thread.name";

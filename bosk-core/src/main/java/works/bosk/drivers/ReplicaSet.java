@@ -97,7 +97,7 @@ public class ReplicaSet<R extends StateTreeNode> {
 	public static <RR extends StateTreeNode> DriverFactory<RR> mirroringTo(Bosk<RR>... mirrors) {
 		var replicaSet = new ReplicaSet<RR>();
 		for (var m: mirrors) {
-			BoskDriver<RR> downstream = m.driver();
+			BoskDriver downstream = m.driver();
 			replicaSet.replicas.add(new Replica<>(m, downstream));
 		}
 		return replicaSet.driverFactory();
@@ -108,7 +108,7 @@ public class ReplicaSet<R extends StateTreeNode> {
 	 * The resulting driver can accept references to a different bosk
 	 * with the same root type.
 	 */
-	public static <RR extends StateTreeNode> BoskDriver<RR> redirectingTo(Bosk<RR> other) {
+	public static <RR extends StateTreeNode> BoskDriver redirectingTo(Bosk<RR> other) {
 		// A ReplicaSet with only the one replica
 		return new ReplicaSet<RR>()
 			.driverFactory().build(
@@ -117,7 +117,7 @@ public class ReplicaSet<R extends StateTreeNode> {
 			);
 	}
 
-	final class BroadcastDriver implements BoskDriver<R> {
+	final class BroadcastDriver implements BoskDriver {
 		/**
 		 * @return the <em>current state</em> of the replica set, which is the state of its primary
 		 * as obtained by {@link Bosk#supersedingReadContext()}.
@@ -208,7 +208,7 @@ public class ReplicaSet<R extends StateTreeNode> {
 	 */
 	record Replica<R extends StateTreeNode>(
 		BoskInfo<R> boskInfo,
-		BoskDriver<R> driver
+		BoskDriver driver
 	) {
 		public RootReference<R> rootReference() {
 			return boskInfo.rootReference();

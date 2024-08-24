@@ -82,7 +82,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(getClass().getSimpleName() + boskCounter.incrementAndGet(), TestEntity.class, this::initialRoot, driverFactory);
 
 		MongoDriverSpecialTest.Refs refs = bosk.buildReferences(MongoDriverSpecialTest.Refs.class);
-		BoskDriver<TestEntity> driver = bosk.driver();
+		BoskDriver driver = bosk.driver();
 		TestEntity defaultState = initialRoot(bosk);
 
 		try (var _ = bosk.readContext()) {
@@ -119,7 +119,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		}
 	}
 
-	private void waitFor(BoskDriver<TestEntity> driver) throws IOException, InterruptedException {
+	private void waitFor(BoskDriver driver) throws IOException, InterruptedException {
 		switch (flushOrWait) {
 			case FLUSH:
 				driver.flush();

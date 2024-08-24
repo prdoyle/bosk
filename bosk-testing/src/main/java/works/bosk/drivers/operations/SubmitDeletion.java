@@ -16,7 +16,7 @@ public record SubmitDeletion<T>(
 	}
 
 	@Override
-	public void submitTo(BoskDriver<?> driver) {
+	public void submitTo(BoskDriver driver) {
 		driver.submitDeletion(target);
 	}
 
