@@ -50,7 +50,7 @@ public class DriverStack {
 		BoskDriver currentDriver = downstream;
 		for (var iter = specs.listIterator(specs.size()); iter.hasPrevious();) {
 			var s = iter.previous();
-			currentDriver = s.build(boskInfo, currentDriver);
+			currentDriver = s.driverFactory().build(boskInfo, currentDriver);
 			result.addFirst(new DriverInstance(s, currentDriver));
 		}
 		return List.copyOf(result);

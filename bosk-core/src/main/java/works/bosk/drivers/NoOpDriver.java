@@ -3,15 +3,15 @@ package works.bosk.drivers;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import works.bosk.BoskDriver;
-import works.bosk.DriverFactory;
 import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
+import works.bosk.driver.DriverFactory;
 import works.bosk.exceptions.InvalidTypeException;
 
 public class NoOpDriver implements BoskDriver {
-	public static <RR extends StateTreeNode> DriverFactory<RR> factory() {
-		return (b,d) -> new NoOpDriver();
+	public static DriverFactory factory() {
+		return DriverFactory.ofInstance(INSTANCE);
 	}
 
 	@Override
@@ -25,4 +25,6 @@ public class NoOpDriver implements BoskDriver {
 	@Override public <T> void submitDeletion(Reference<T> target) { }
 	@Override public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) { }
 	@Override public void flush() throws IOException, InterruptedException { }
+
+	private static final NoOpDriver INSTANCE = new NoOpDriver();
 }

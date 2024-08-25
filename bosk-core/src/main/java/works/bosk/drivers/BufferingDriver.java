@@ -8,11 +8,11 @@ import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import works.bosk.BoskDiagnosticContext;
 import works.bosk.BoskDriver;
-import works.bosk.DriverFactory;
 import works.bosk.Identifier;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
+import works.bosk.driver.DriverFactory;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static lombok.AccessLevel.PROTECTED;
@@ -40,8 +40,8 @@ public class BufferingDriver implements BoskDriver {
 		return new BufferingDriver(downstream);
 	}
 
-	public static <RR extends StateTreeNode> DriverFactory<RR> factory() {
-		return (b,d) -> new BufferingDriver(d);
+	public static DriverFactory factory() {
+		return DriverFactory.of(BufferingDriver::new);
 	}
 
 	@Override

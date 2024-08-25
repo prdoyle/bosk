@@ -2,11 +2,11 @@ package works.bosk.driver;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.stream.Stream;
 import works.bosk.BoskDriver;
+import works.bosk.BoskInfo;
 
 import static java.util.Collections.emptyList;
 import static works.bosk.ReferenceUtils.rawClass;
@@ -28,23 +28,9 @@ public record DriverFactory(
 	}
 
 	/**
-	 * @param c must be public
-	 */
-	public static DriverFactory ofConstructor(Constructor<?> c) {
-		try {
-			return new DriverFactory(
-				MethodHandles.publicLookup().unreflectConstructor(c),
-				Stream.of(c.getParameters()).map(ParameterSpec::of).toList()
-			);
-		} catch (IllegalAccessException e) {
-			throw new IllegalArgumentException(e);
-		}
-	}
-
-	/**
 	 * @param m must be public
 	 */
-	public static DriverFactory ofVirtualMethod(Method m, Object receiver) {
+	static DriverFactory ofVirtualMethod(Method m, Object receiver) {
 		try {
 			return new DriverFactory(
 				MethodHandles.publicLookup().unreflect(m).bindTo(receiver),
@@ -58,6 +44,22 @@ public record DriverFactory(
 		return new DriverFactory(
 			MethodHandles.constant(driver.getClass(), driver),
 			emptyList());
+	}
+
+	public interface DriverAcceptingFunction {
+		BoskDriver accept(BoskDriver downstream);
+	}
+
+	public static DriverFactory of(DriverAcceptingFunction f) {
+		return new DriverFactory(ACCEPT_DRIVER.bindTo(f), ACCEPT_DRIVER_PARAMETERS);
+	}
+
+	public interface BoskInfoAcceptingFunction {
+		BoskDriver accept(BoskInfo<?> boskInfo);
+	}
+
+	public static DriverFactory of(BoskInfoAcceptingFunction f) {
+		return new DriverFactory(ACCEPT_BOSK_INFO.bindTo(f), ACCEPT_BOSK_INFO_PARAMETERS);
 	}
 
 	public DriverFactory {
@@ -86,6 +88,48 @@ public record DriverFactory(
 					+ specClass.getSimpleName()
 				);
 			}
+		}
+	}
+
+	public BoskDriver build(BoskInfo<?> boskInfo, BoskDriver downstream) {
+		List<Object> args = parameters.stream()
+			.map(t -> pickArgument(t, boskInfo, downstream))
+			.toList();
+		try {
+			return (BoskDriver) methodHandle.invokeWithArguments(args);
+		} catch (Error e) {
+			// Don't mess with errors
+			throw e;
+		} catch (Throwable e) {
+			throw new IllegalStateException("Unable to instantiate driver", e);
+		}
+	}
+
+	private Object pickArgument(ParameterSpec p, BoskInfo<?> boskInfo, BoskDriver downstream) {
+		var parameterClass = rawClass(p.type());
+		if (parameterClass == BoskInfo.class) {
+			return boskInfo;
+		} else if (parameterClass == BoskDriver.class) {
+			return downstream;
+		} else {
+			throw new AssertionError("Parameter types should already have been validated");
+		}
+	}
+
+	private static final MethodHandle ACCEPT_DRIVER, ACCEPT_BOSK_INFO;
+	private static final List<ParameterSpec> ACCEPT_DRIVER_PARAMETERS, ACCEPT_BOSK_INFO_PARAMETERS;
+
+	static {
+		try {
+			Method acceptDriver = DriverAcceptingFunction.class.getDeclaredMethod("accept", BoskDriver.class);
+			ACCEPT_DRIVER = MethodHandles.publicLookup().unreflect(acceptDriver);
+			ACCEPT_DRIVER_PARAMETERS = Stream.of(acceptDriver.getParameters()).map(ParameterSpec::of).toList();
+
+			Method acceptBosk = BoskInfoAcceptingFunction.class.getDeclaredMethod("accept", BoskInfo.class);
+			ACCEPT_BOSK_INFO = MethodHandles.publicLookup().unreflect(acceptBosk);
+			ACCEPT_BOSK_INFO_PARAMETERS = Stream.of(acceptBosk.getParameters()).map(ParameterSpec::of).toList();
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new AssertionError(e);
 		}
 	}
 }
