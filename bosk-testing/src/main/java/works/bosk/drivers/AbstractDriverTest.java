@@ -49,7 +49,7 @@ public abstract class AbstractDriverTest {
 
 	protected void setupBosksAndReferences(DriverFactory<TestEntity> driverFactory) {
 		// This is the bosk whose behaviour we'll consider to be correct by definition
-		canonicalBosk = new Bosk<TestEntity>(boskName("Canonical", 1), TestEntity.class, AbstractDriverTest::initialRoot, Bosk::simpleDriver);
+		canonicalBosk = new Bosk<TestEntity>(boskName("Canonical", 1), TestEntity.class, AbstractDriverTest::initialRoot, Bosk.simpleStack());
 
 		// This is the bosk we're testing
 		bosk = new Bosk<TestEntity>(boskName("Test", 1), TestEntity.class, AbstractDriverTest::initialRoot, DriverStack.of(

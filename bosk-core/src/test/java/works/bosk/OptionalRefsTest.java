@@ -23,7 +23,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 
 	@Test
 	void testReferenceOptionalNotAllowed() {
-		Bosk<OptionalString> bosk = new Bosk<>(boskName(), OptionalString.class, _ -> new OptionalString(ID, Optional.empty()), Bosk::simpleDriver);
+		Bosk<OptionalString> bosk = new Bosk<>(boskName(), OptionalString.class, _ -> new OptionalString(ID, Optional.empty()), Bosk.simpleStack());
 		InvalidTypeException e = assertThrows(InvalidTypeException.class, () -> bosk.rootReference().then(Optional.class, Path.just("field")));
 		assertThat(e.getMessage(), containsString("not supported"));
 	}
@@ -31,7 +31,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 	@ParameterizedTest
 	@MethodSource("driverFactories")
 	void testOptionalString(DriverFactory<OptionalString> driverFactory) throws InvalidTypeException {
-		doTest(new OptionalString(ID, Optional.empty()), b->"HERE I AM", driverFactory);
+		doTest(new OptionalString(ID, Optional.empty()), _->"HERE I AM", driverFactory);
 	}
 
 	@EqualsAndHashCode(callSuper = false)
@@ -45,7 +45,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 	@MethodSource("driverFactories")
 	void testOptionalEntity(DriverFactory<OptionalEntity> driverFactory) throws InvalidTypeException {
 		OptionalEntity empty = new OptionalEntity(ID, Optional.empty());
-		doTest(empty, b->empty, driverFactory);
+		doTest(empty, _->empty, driverFactory);
 	}
 
 	@EqualsAndHashCode(callSuper = false)
@@ -72,7 +72,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 	@MethodSource("driverFactories")
 	void testOptionalCatalog(DriverFactory<OptionalCatalog> driverFactory) throws InvalidTypeException {
 		OptionalCatalog empty = new OptionalCatalog(ID, Optional.empty());
-		doTest(empty, b->Catalog.of(empty), driverFactory);
+		doTest(empty, _->Catalog.of(empty), driverFactory);
 	}
 
 	@EqualsAndHashCode(callSuper = false)

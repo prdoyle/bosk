@@ -29,11 +29,11 @@ public class CatalogBenchmark {
 
 		@Setup(Level.Trial)
 		public void setup() throws InvalidTypeException {
-			Bosk<AbstractBoskTest.TestRoot> bosk = new Bosk<AbstractBoskTest.TestRoot>(
+			Bosk<AbstractBoskTest.TestRoot> bosk = new Bosk<>(
 				boskName(),
 				AbstractBoskTest.TestRoot.class,
 				AbstractBoskTest::initialRoot,
-				Bosk::simpleDriver
+				Bosk.simpleStack()
 			);
 			TestEntityBuilder teb = new TestEntityBuilder(bosk);
 			int initialSize = 100_000;

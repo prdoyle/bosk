@@ -24,7 +24,7 @@ class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
 
 	@BeforeEach
 	void setUpStuff() {
-		bosk = new Bosk<TestEntity>(boskName(), TestEntity.class, AbstractDriverTest::initialRoot, Bosk::simpleDriver);
+		bosk = new Bosk<>(boskName(), TestEntity.class, AbstractDriverTest::initialRoot, Bosk.simpleStack());
 	}
 
 	private CatalogReference<TestEntity> rootCatalogRef(Bosk<TestEntity> bosk) throws InvalidTypeException {

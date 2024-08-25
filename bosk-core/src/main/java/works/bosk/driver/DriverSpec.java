@@ -1,37 +1,24 @@
 package works.bosk.driver;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.List;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
-import works.bosk.DriverFactory;
+
+import static works.bosk.ReferenceUtils.rawClass;
 
 public record DriverSpec (
 	Collection<? extends Label> labels,
-	MethodHandle builderHandle
+	DriverFactory driverFactory
 ) {
 
 	public DriverSpec {
-		MethodType type = builderHandle.type();
-		if (!BoskDriver.class.isAssignableFrom(type.returnType())) {
-			throw new IllegalArgumentException("builderHandle must return a BoskDriver: " + type.returnType());
-		}
-		for (var p: type.parameterList()) {
-			boolean isBoskInfo = p == BoskInfo.class;
-			boolean isBoskDriver = p == BoskDriver.class;
-			if (!isBoskInfo && !isBoskDriver) {
-				throw new IllegalArgumentException("Invalid builderHandle parameter type: " + p);
-			}
-		}
 		for (var label: labels) {
-			if (!label.driverClass().isAssignableFrom(type.returnType())) {
+			if (!label.driverClass().isAssignableFrom(driverFactory.returnClass())) {
 				throw new IllegalArgumentException(
 					"Driver class "
-					+ type.returnType().getSimpleName()
+					+ driverFactory.returnClass().getSimpleName()
 					+ " does not conform to type "
 					+ label.driverClass().getSimpleName()
 					+ " of label: " + label);
@@ -39,16 +26,19 @@ public record DriverSpec (
 		}
 	}
 
-	public DriverSpec(Collection<? extends Label> labels, DriverFactory<?> factory) {
-		this(labels, BUILD_HANDLE.bindTo(factory));
+	public DriverSpec(Collection<? extends Label> labels, works.bosk.DriverFactory<?> factory) {
+		this(
+			labels,
+			DriverFactory.ofVirtualMethod(BUILD_METHOD, factory)
+		);
 	}
 
 	BoskDriver build(BoskInfo<?> boskInfo, BoskDriver downstream) {
-		List<Object> args = builderHandle.type().parameterList().stream()
+		List<Object> args = driverFactory.parameters().stream()
 			.map(t -> pickArgument(t, boskInfo, downstream))
 			.toList();
 		try {
-			return (BoskDriver) builderHandle.invokeWithArguments(args);
+			return (BoskDriver) driverFactory.methodHandle().invokeWithArguments(args);
 		} catch (Error e) {
 			// Don't mess with errors
 			throw e;
@@ -57,23 +47,23 @@ public record DriverSpec (
 		}
 	}
 
-	private Object pickArgument(Class<?> t, BoskInfo<?> boskInfo, BoskDriver downstream) {
-		if (t == BoskInfo.class) {
+	private Object pickArgument(ParameterSpec p, BoskInfo<?> boskInfo, BoskDriver downstream) {
+		var parameterClass = rawClass(p.type());
+		if (parameterClass == BoskInfo.class) {
 			return boskInfo;
-		} else if (t == BoskDriver.class) {
+		} else if (parameterClass == BoskDriver.class) {
 			return downstream;
 		} else {
 			throw new AssertionError("Parameter types should already have been validated");
 		}
 	}
 
-	private static final MethodHandle BUILD_HANDLE;
+	private static final Method BUILD_METHOD;
 
 	static {
 		try {
-			Method buildMethod = DriverFactory.class.getDeclaredMethod("build", BoskInfo.class, BoskDriver.class);
-			BUILD_HANDLE = MethodHandles.lookup().unreflect(buildMethod);
-		} catch (NoSuchMethodException | IllegalAccessException e) {
+			BUILD_METHOD = works.bosk.DriverFactory.class.getDeclaredMethod("build", BoskInfo.class, BoskDriver.class);
+		} catch (NoSuchMethodException e) {
 			throw new IllegalStateException(e);
 		}
 	}

@@ -1,7 +1,6 @@
 package works.bosk;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -67,7 +66,7 @@ class BoskLocalReferenceTest {
 	void initializeBosk() throws InvalidTypeException {
 		boskName = boskName();
 		Root initialRoot = new Root(1, Catalog.empty());
-		bosk = new Bosk<>(boskName, Root.class, _ -> initialRoot, Bosk::simpleDriver);
+		bosk = new Bosk<>(boskName, Root.class, _ -> initialRoot, Bosk.simpleStack());
 		refs = bosk.rootReference().buildReferences(Refs.class);
 		Identifier ernieID = Identifier.from("ernie");
 		Identifier bertID = Identifier.from("bert");
@@ -160,10 +159,8 @@ class BoskLocalReferenceTest {
 
 				// Check references to the Listing contents
 				Listing<TestEntity> listing;
-				Map<Identifier, TestEntity> entries;
 				try (var _ = bosk.readContext()) {
 					listing = listingRef.value();
-					entries = listing.valueMap();
 				}
 				for (Identifier entryID: listing.ids()) {
 					Reference<ListingEntry> entryRef = listingRef.then(entryID);
@@ -202,7 +199,7 @@ class BoskLocalReferenceTest {
 				try {
 					checkReferenceProperties(sideTableRef, sideTablePath, sideTable);
 				} catch (AssertionError e) {
-					throw new AssertionError("Failed checkRefence on id " + id + ", sideTableRef " + sideTableRef);
+					throw new AssertionError("Failed checkReference on id " + id + ", sideTableRef " + sideTableRef);
 				}
 				try (var _ = bosk.readContext()) {
 					for (Entry<Identifier, String> entry: sideTable.idEntrySet()) {
@@ -238,7 +235,7 @@ class BoskLocalReferenceTest {
 					checkUpdates(ref, this::refUpdater);
 					assertThrows(IllegalArgumentException.class, ()->bosk.driver().submitDeletion(ref));
 				} catch (AssertionError e) {
-					throw new AssertionError("Failed checkRefence on id " + id + ", referenceRef " + ref, e);
+					throw new AssertionError("Failed checkReference on id " + id + ", referenceRef " + ref, e);
 				}
 			}
 		}
@@ -270,11 +267,11 @@ class BoskLocalReferenceTest {
 				this.mutableString = str;
 			}
 		}
-		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), InvalidRoot.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
-		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), String.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
+		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), InvalidRoot.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk.simpleStack()));
+		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), String.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk.simpleStack()));
 	}
 
-	private <T> void checkReferenceProperties(Reference<T> ref, Path expectedPath, T expectedValue) throws InvalidTypeException {
+	private <T> void checkReferenceProperties(Reference<T> ref, Path expectedPath, T expectedValue) {
 		if (expectedValue != null) {
 			assertTrue(ref.targetClass().isAssignableFrom(expectedValue.getClass()));
 			assertSame(ref.targetClass(), rawClass(ref.targetType()));
@@ -363,8 +360,7 @@ class BoskLocalReferenceTest {
 			assertSame(secondValue, ref.value(), "New value is visible in next ReadContext");
 			bosk.driver().submitReplacement(ref, thirdValue);
 			assertSame(secondValue, ref.value(), "Bosk updates still not visible during the same ReadContext");
-			ExecutorService executor = Executors.newFixedThreadPool(1);
-			try {
+			try (ExecutorService executor = Executors.newFixedThreadPool(1)) {
 				Future<?> future = executor.submit(() -> {
 					IllegalStateException caught = null;
 					try {
@@ -388,8 +384,6 @@ class BoskLocalReferenceTest {
 					}
 				});
 				future.get();
-			} finally {
-				executor.shutdown();
 			}
 		}
 

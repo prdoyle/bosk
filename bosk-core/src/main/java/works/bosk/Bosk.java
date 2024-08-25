@@ -29,6 +29,7 @@ import works.bosk.ReferenceUtils.ListingRef;
 import works.bosk.ReferenceUtils.SideTableRef;
 import works.bosk.dereferencers.Dereferencer;
 import works.bosk.dereferencers.PathCompiler;
+import works.bosk.driver.DriverSpec;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NoReadContextException;
 import works.bosk.exceptions.NonexistentReferenceException;
@@ -36,6 +37,7 @@ import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.exceptions.ReferenceBindingException;
 import works.bosk.util.Classes;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
@@ -100,13 +102,10 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 *    and instead delegates {@link BoskDriver#initialRoot} all the way to the local driver.
 	 *    Note that this function may or may not be called, so don't use it as a means to initialize
 	 *    other state.
-	 * @param driverFactory Will be applied to this Bosk's local driver during
-	 * the Bosk's constructor, and the resulting {@link BoskDriver} will be the
-	 * one returned by {@link #getDriver}.
 	 *
 	 * @see DriverStack
 	 */
-	public Bosk(String name, Type rootType, DefaultRootFunction<R> defaultRootFunction, DriverFactory<R> driverFactory) {
+	public Bosk(String name, Type rootType, DefaultRootFunction<R> defaultRootFunction, works.bosk.driver.DriverStack driverStack) {
 		this.name = name;
 		this.localDriver = new LocalDriver(defaultRootFunction);
 		this.rootRef = new RootRef(rootType);
@@ -120,11 +119,12 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		UnderConstruction<R> boskInfo = new UnderConstruction<>(
 			name, instanceID, rootRef, this::registerHooks, new AtomicReference<>());
 
-		// We do this as late as possible because the driver factory is allowed
-		// to do such things as create References, so it needs the rest of the
+		// We do this as late as possible because the driver are allowed
+		// to do such things as create References, so they need the rest of the
 		// initialization to have completed already.
 		//
-		this.driver = new ValidatingDriver(driverFactory.build(boskInfo, this.localDriver));
+		List<works.bosk.driver.DriverStack.DriverInstance> drivers = driverStack.build(boskInfo, this.localDriver);
+		this.driver = new ValidatingDriver(drivers.get(0).driver());
 
 		try {
 			this.currentRoot = rootRef.targetClass().cast(requireNonNull(driver.initialRoot(rootType)));
@@ -137,6 +137,14 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		// Ok, we're done initializing
 		boskInfo.boskRef().set(this);
+	}
+
+	public Bosk(String name, Type rootType, DefaultRootFunction<R> defaultRootFunction, DriverFactory<R> driverFactory) {
+		this(
+			name,
+			rootType,
+			defaultRootFunction,
+			works.bosk.driver.DriverStack.of(new DriverSpec(emptyList(), driverFactory)));
 	}
 
 	public interface DefaultRootFunction<RR extends StateTreeNode> {
@@ -176,6 +184,14 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 */
 	public static <RR extends StateTreeNode> BoskDriver simpleDriver(@SuppressWarnings("unused") BoskInfo<RR> boskInfo, BoskDriver downstream) {
 		return downstream;
+	}
+
+	/**
+	 * @return a rudimentary {@link works.bosk.driver.DriverStack DriverStack}
+	 * with no special functionality.
+	 */
+	public static works.bosk.driver.DriverStack simpleStack() {
+		return works.bosk.driver.DriverStack.of();
 	}
 
 	public BoskDriver driver() {

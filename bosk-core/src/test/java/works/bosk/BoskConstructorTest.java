@@ -32,11 +32,11 @@ public class BoskConstructorTest {
 		StateTreeNode root = newEntity();
 
 		AtomicReference<BoskDriver> driver = new AtomicReference<>();
-		Bosk<StateTreeNode> bosk = new Bosk<StateTreeNode>(
+		Bosk<StateTreeNode> bosk = new Bosk<>(
 			name,
 			rootType,
 			_ -> root,
-			(_, d)-> {
+			(_, d) -> {
 				driver.set(new ForwardingDriver(d));
 				return driver.get();
 			});
@@ -64,8 +64,8 @@ public class BoskConstructorTest {
 			new Bosk<MutableField>(
 				boskName("Invalid root type"),
 				MutableField.class,
-				bosk -> new MutableField(),
-				Bosk::simpleDriver));
+				_ -> new MutableField(),
+				Bosk.simpleStack()));
 	}
 
 	@Test
@@ -90,8 +90,8 @@ public class BoskConstructorTest {
 			new Bosk<Entity> (
 				boskName("Mismatched root"),
 				BoxedPrimitives.class, // Valid but wrong
-				bosk -> newEntity(),
-				Bosk::simpleDriver
+				_ -> newEntity(),
+				Bosk.simpleStack()
 			)
 		);
 	}
@@ -99,7 +99,7 @@ public class BoskConstructorTest {
 	@Test
 	void driverInitialRoot_matches() {
 		SimpleTypes root = newEntity();
-		Bosk<StateTreeNode> bosk = new Bosk<StateTreeNode>(
+		Bosk<StateTreeNode> bosk = new Bosk<>(
 			boskName(),
 			SimpleTypes.class,
 			_ -> {throw new AssertionError("Shouldn't be called");},
@@ -113,14 +113,14 @@ public class BoskConstructorTest {
 	void defaultRoot_matches() {
 		SimpleTypes root = newEntity();
 		{
-			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, _ -> root, Bosk::simpleDriver);
+			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, _ -> root, Bosk.simpleStack());
 			try (var _ = valueBosk.readContext()) {
 				assertSame(root, valueBosk.rootReference().value());
 			}
 		}
 
 		{
-			Bosk<StateTreeNode> functionBosk = new Bosk<StateTreeNode>(boskName(), SimpleTypes.class, _ -> root, Bosk::simpleDriver);
+			Bosk<StateTreeNode> functionBosk = new Bosk<>(boskName(), SimpleTypes.class, _ -> root, Bosk.simpleStack());
 			try (var _ = functionBosk.readContext()) {
 				assertSame(root, functionBosk.rootReference().value());
 			}
@@ -152,7 +152,7 @@ public class BoskConstructorTest {
 			boskName(),
 			SimpleTypes.class,
 			defaultRootFunction,
-			Bosk::simpleDriver
+			Bosk.simpleStack()
 		));
 	}
 

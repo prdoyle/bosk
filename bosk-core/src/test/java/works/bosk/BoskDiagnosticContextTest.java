@@ -27,11 +27,11 @@ class BoskDiagnosticContextTest extends AbstractDriverTest {
 
 	@BeforeEach
 	void setupBosk() throws InvalidTypeException {
-		bosk = new Bosk<TestEntity>(
+		bosk = new Bosk<>(
 			boskName(),
 			TestEntity.class,
 			AbstractDriverTest::initialRoot,
-			Bosk::simpleDriver
+			Bosk.simpleStack()
 		);
 		refs = bosk.buildReferences(Refs.class);
 	}
@@ -41,7 +41,7 @@ class BoskDiagnosticContextTest extends AbstractDriverTest {
 		Semaphore diagnosticsVerified = new Semaphore(0);
 		bosk.driver().flush();
 		try (var _ = bosk.diagnosticContext().withAttribute("attributeName", "attributeValue")) {
-			bosk.registerHook("contextPropagatesToHook", bosk.rootReference(), ref -> {
+			bosk.registerHook("contextPropagatesToHook", bosk.rootReference(), _ -> {
 				assertEquals("attributeValue", bosk.diagnosticContext().getAttribute("attributeName"));
 				assertEquals(MapValue.singleton("attributeName", "attributeValue"), bosk.diagnosticContext().getAttributes());
 				diagnosticsVerified.release();

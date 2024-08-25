@@ -29,7 +29,7 @@ class BsonPluginTest {
 	@Test
 	void sideTableOfSideTables() {
 		BsonPlugin bp = new BsonPlugin();
-		Bosk<Root> bosk = new Bosk<Root>(boskName(), Root.class, this::defaultRoot, Bosk::simpleDriver);
+		Bosk<Root> bosk = new Bosk<>(boskName(), Root.class, this::defaultRoot, Bosk.simpleStack());
 		CodecRegistry registry = CodecRegistries.fromProviders(bp.codecProviderFor(bosk), new ValueCodecProvider());
 		Codec<Root> codec = registry.get(Root.class);
 		try (var _ = bosk.readContext()) {

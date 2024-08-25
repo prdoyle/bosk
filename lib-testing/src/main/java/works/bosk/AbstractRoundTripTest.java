@@ -40,17 +40,11 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 
 	static <R extends Entity> Stream<DriverFactory<R>> driverFactories() {
 		return Stream.of(
-				directFactory(),
-				factoryThatMakesAReference(),
-
-				jacksonRoundTripFactory(),
-
-				bsonRoundTripFactory()
+			Bosk::simpleDriver,
+			factoryThatMakesAReference(),
+			jacksonRoundTripFactory(),
+			bsonRoundTripFactory()
 		);
-	}
-
-	public static <R extends Entity> DriverFactory<R> directFactory() {
-		return Bosk::simpleDriver;
 	}
 
 	public static <R extends Entity> DriverFactory<R> factoryThatMakesAReference() {
