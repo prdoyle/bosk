@@ -7,12 +7,12 @@ plugins {
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(22)
+		languageVersion = JavaLanguageVersion.of(jdkVersion)
 	}
 }
 
 compileJava {
-	options.release = 17
+	options.release = prodJavaVersion
 }
 
 compileTestJava {
