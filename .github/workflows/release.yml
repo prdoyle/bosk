@@ -20,6 +20,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
+          # First version is for Bosk to use, and the second is for Gradle
           java-version: |
             22
             17

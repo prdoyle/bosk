@@ -7,7 +7,7 @@ plugins {
 
 ext {
 	prodJavaVersion = 21
-	jdkVersion = 22
+	jdkVersion = 22 // If you bump this, change the CI workflows too
 }
 
 repositories {
