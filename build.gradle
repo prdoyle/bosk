@@ -5,6 +5,11 @@ plugins {
 	id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
 }
 
+ext {
+	prodJavaVersion = 17
+	jdkVersion = 22
+}
+
 repositories {
 	maven {
 		url 'https://plugins.gradle.org/m2/'
