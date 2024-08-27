@@ -6,7 +6,7 @@ plugins {
 }
 
 ext {
-	prodJavaVersion = 17
+	prodJavaVersion = 21
 	jdkVersion = 22
 }
 
