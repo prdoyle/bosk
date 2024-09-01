@@ -33,7 +33,7 @@ public class CatalogBenchmark {
 				boskName(),
 				AbstractBoskTest.TestRoot.class,
 				AbstractBoskTest::initialRoot,
-				Bosk::simpleDriver
+				Bosk.simpleDriver()
 			);
 			TestEntityBuilder teb = new TestEntityBuilder(bosk);
 			int initialSize = 100_000;

@@ -13,7 +13,7 @@ public class BuildReferencesErrorTest extends AbstractBoskTest {
 
 	@BeforeAll
 	static void setup() throws InvalidTypeException {
-		bosk = setUpBosk(Bosk::simpleDriver);
+		bosk = setUpBosk(Bosk.simpleDriver());
 		teb = new TestEntityBuilder(bosk);
 	}
 

@@ -43,7 +43,7 @@ public class BoskUpdateTest extends AbstractBoskTest {
 			boskName(),
 			TestRoot.class,
 			AbstractBoskTest::initialRoot,
-			Bosk::simpleDriver
+			Bosk.simpleDriver()
 		);
 		refs = bosk.buildReferences(Refs.class);
 		try (var _ = bosk.readContext()) {

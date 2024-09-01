@@ -54,7 +54,7 @@ public class PathCompilerTest extends AbstractBoskTest {
 	@BeforeEach
 	void setup() throws InvalidTypeException, InterruptedException, IOException {
 		pathCompiler = PathCompiler.withSourceType(TestRoot.class);
-		bosk = setUpBosk(Bosk::simpleDriver);
+		bosk = setUpBosk(Bosk.simpleDriver());
 		teb = new TestEntityBuilder(bosk);
 		root = initialRoot(bosk);
 		bosk.driver().submitReplacement(bosk.rootReference(), root);
@@ -269,7 +269,7 @@ public class PathCompilerTest extends AbstractBoskTest {
 			.getConstructor(Identifier.class)
 			.newInstance(rootID);
 		Bosk<StateTreeNode> differentBosk = new Bosk<>(
-			boskName("Different"), differentRootClass, _ -> initialRoot, Bosk::simpleDriver
+			boskName("Different"), differentRootClass, _ -> initialRoot, Bosk.simpleDriver()
 		);
 		Reference<Identifier> idRef = differentBosk.rootReference().then(Identifier.class, Path.parse(
 			"/id" ));

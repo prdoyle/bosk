@@ -37,7 +37,7 @@ class SideTableTest extends AbstractBoskTest {
 
 	@BeforeEach
 	void setup() throws InvalidTypeException {
-		bosk = setUpBosk(Bosk::simpleDriver);
+		bosk = setUpBosk(Bosk.simpleDriver());
 		refs = bosk.buildReferences(Refs.class);
 
 		readContext = bosk.readContext();
