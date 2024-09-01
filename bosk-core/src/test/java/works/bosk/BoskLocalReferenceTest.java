@@ -67,7 +67,7 @@ class BoskLocalReferenceTest {
 	void initializeBosk() throws InvalidTypeException {
 		boskName = boskName();
 		Root initialRoot = new Root(1, Catalog.empty());
-		bosk = new Bosk<>(boskName, Root.class, _ -> initialRoot, Bosk::simpleDriver);
+		bosk = new Bosk<>(boskName, Root.class, _ -> initialRoot, Bosk.simpleDriver());
 		refs = bosk.rootReference().buildReferences(Refs.class);
 		Identifier ernieID = Identifier.from("ernie");
 		Identifier bertID = Identifier.from("bert");
@@ -270,8 +270,8 @@ class BoskLocalReferenceTest {
 				this.mutableString = str;
 			}
 		}
-		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), InvalidRoot.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
-		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), String.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk::simpleDriver));
+		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), InvalidRoot.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk.simpleDriver()));
+		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), String.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk.simpleDriver()));
 	}
 
 	private <T> void checkReferenceProperties(Reference<T> ref, Path expectedPath, T expectedValue) throws InvalidTypeException {

@@ -84,7 +84,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 
 	@BeforeEach
 	void setUpJackson() throws Exception {
-		bosk = setUpBosk(Bosk::simpleDriver);
+		bosk = setUpBosk(Bosk.simpleDriver());
 		teb = new TestEntityBuilder(bosk);
 		refs = bosk.buildReferences(Refs.class);
 

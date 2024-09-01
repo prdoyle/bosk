@@ -34,7 +34,7 @@ class FormatterTest extends AbstractBoskTest {
 
 	@BeforeEach
 	void setupFormatter() throws InvalidTypeException, IOException, InterruptedException {
-		bosk = setUpBosk(Bosk::simpleDriver);
+		bosk = setUpBosk(Bosk.simpleDriver());
 		TestEntityBuilder builder = new TestEntityBuilder(bosk);
 		entitiesRef = builder.entitiesRef();
 		weirdRef = builder.entityRef(Identifier.from(WEIRD_ID));

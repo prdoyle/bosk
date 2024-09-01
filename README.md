@@ -121,7 +121,7 @@ public class ExampleBosk extends Bosk<ExampleState> {
 
 	// Start off simple
 	private static DriverFactory<ExampleState> driverFactory() {
-		return Bosk::simpleDriver;
+		return Bosk.simpleDriver();
 	}
 }
 ```
@@ -164,7 +164,7 @@ Use the same version number for all packages.
 
 When you're ready to turn your standalone app into a replica set,
 add [bosk-mongo](bosk-mongo) as a dependency
-and change your Bosk `driverFactory` method to substitute `MongoDriver` in place of `Bosk::simpleDriver`:
+and change your Bosk `driverFactory` method to substitute `MongoDriver` in place of `Bosk.simpleDriver()`:
 
 ```
 import com.mongodb.MongoClientSettings;

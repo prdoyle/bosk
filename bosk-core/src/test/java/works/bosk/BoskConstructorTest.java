@@ -65,7 +65,7 @@ public class BoskConstructorTest {
 				boskName("Invalid root type"),
 				MutableField.class,
 				bosk -> new MutableField(),
-				Bosk::simpleDriver));
+				Bosk.simpleDriver()));
 	}
 
 	@Test
@@ -91,7 +91,7 @@ public class BoskConstructorTest {
 				boskName("Mismatched root"),
 				BoxedPrimitives.class, // Valid but wrong
 				bosk -> newEntity(),
-				Bosk::simpleDriver
+				Bosk.simpleDriver()
 			)
 		);
 	}
@@ -113,14 +113,14 @@ public class BoskConstructorTest {
 	void defaultRoot_matches() {
 		SimpleTypes root = newEntity();
 		{
-			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, _ -> root, Bosk::simpleDriver);
+			Bosk<StateTreeNode> valueBosk = new Bosk<>(boskName(), SimpleTypes.class, _ -> root, Bosk.simpleDriver());
 			try (var _ = valueBosk.readContext()) {
 				assertSame(root, valueBosk.rootReference().value());
 			}
 		}
 
 		{
-			Bosk<StateTreeNode> functionBosk = new Bosk<StateTreeNode>(boskName(), SimpleTypes.class, _ -> root, Bosk::simpleDriver);
+			Bosk<StateTreeNode> functionBosk = new Bosk<StateTreeNode>(boskName(), SimpleTypes.class, _ -> root, Bosk.simpleDriver());
 			try (var _ = functionBosk.readContext()) {
 				assertSame(root, functionBosk.rootReference().value());
 			}
@@ -152,7 +152,7 @@ public class BoskConstructorTest {
 			boskName(),
 			SimpleTypes.class,
 			defaultRootFunction,
-			Bosk::simpleDriver
+			Bosk.simpleDriver()
 		));
 	}
 

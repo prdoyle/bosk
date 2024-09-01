@@ -31,7 +31,7 @@ class BoskDiagnosticContextTest extends AbstractDriverTest {
 			boskName(),
 			TestEntity.class,
 			AbstractDriverTest::initialRoot,
-			Bosk::simpleDriver
+			Bosk.simpleDriver()
 		);
 		refs = bosk.buildReferences(Refs.class);
 	}

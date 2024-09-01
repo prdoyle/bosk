@@ -23,7 +23,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 
 	@Test
 	void testReferenceOptionalNotAllowed() {
-		Bosk<OptionalString> bosk = new Bosk<>(boskName(), OptionalString.class, _ -> new OptionalString(ID, Optional.empty()), Bosk::simpleDriver);
+		Bosk<OptionalString> bosk = new Bosk<>(boskName(), OptionalString.class, _ -> new OptionalString(ID, Optional.empty()), Bosk.simpleDriver());
 		InvalidTypeException e = assertThrows(InvalidTypeException.class, () -> bosk.rootReference().then(Optional.class, Path.just("field")));
 		assertThat(e.getMessage(), containsString("not supported"));
 	}

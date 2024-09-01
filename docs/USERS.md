@@ -549,7 +549,7 @@ and briefly describes the drivers that are built into the bosk library.
 #### Local driver
 
 Every bosk has a _local driver_, which applies changes directly to the in-memory state tree.
-If you use `Bosk::simpleDriver` as your driver factory when you initialize your `Bosk` object,
+If you use `Bosk.simpleDriver()` as your driver factory when you initialize your `Bosk` object,
 then the driver is _just_ the local driver.
 
 The local driver performs the grafting operations that create a new state tree containing specified changes applied to the existing tree.
@@ -563,7 +563,7 @@ The calling thread is used to trigger hooks, and even to run them (unless a hook
 `BoskDriver` itself is designed to permit stackable layers (the _Decorator_ design pattern),
 making drivers modular and composable.
 
-The simplest `DriverFactory` is `Bosk::simpleDriver`, which adds no driver layers at all, and simply returns the bosk's own local driver, which directly updates the Bosk's in-memory state tree.
+The simplest `DriverFactory` is `Bosk.simpleDriver()`, which adds no driver layers at all, and simply returns the bosk's own local driver, which directly updates the Bosk's in-memory state tree.
 More sophisticated driver layers can provide their own factories, which typically create an instance of the driver layer object configured to forward update requests to the downstream driver, forming a forwarding chain that ultimately ends with the bosk's local driver.
 
 For example, an application could create a `LoggingDriver` class to perform logging of update requests before forwarding them to a downstream driver that actually applies them to the bosk state.
@@ -968,7 +968,7 @@ public class ExampleBosk extends Bosk<ExampleState> {
 
 	// Start off simple
 	private static DriverFactory<ExampleState> driverFactory() {
-		return Bosk::simpleDriver;
+		return Bosk.simpleDriver();
 	}
 }
 ```

@@ -52,7 +52,7 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 
 	@BeforeEach
 	void setup() throws InvalidTypeException, IOException, InterruptedException {
-		setupBosksAndReferences(Bosk::simpleDriver);
+		setupBosksAndReferences(Bosk.simpleDriver());
 		bsonPlugin = new BsonPlugin();
 		formatter = new Formatter(bosk, bsonPlugin);
 

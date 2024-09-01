@@ -36,7 +36,7 @@ public class ReferenceBenchmark extends AbstractBoskTest {
 
 		@Setup(Level.Trial)
 		public void setup() throws InvalidTypeException {
-			this.bosk = setUpBosk(Bosk::simpleDriver);
+			this.bosk = setUpBosk(Bosk.simpleDriver());
 			context = bosk.readContext();
 			rootRef = bosk.rootReference();
 			TestRoot localRoot = root = rootRef.value();

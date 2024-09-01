@@ -11,7 +11,7 @@ public class ConformanceMetaTest extends DriverConformanceTest {
 
 	@BeforeEach
 	void setupDriverFactory() {
-		driverFactory = Bosk::simpleDriver;
+		driverFactory = Bosk.simpleDriver();
 	}
 
 }

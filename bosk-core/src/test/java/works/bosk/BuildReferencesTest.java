@@ -17,7 +17,7 @@ public class BuildReferencesTest extends AbstractBoskTest {
 
 	@BeforeAll
 	static void setup() throws InvalidTypeException {
-		bosk = setUpBosk(Bosk::simpleDriver);
+		bosk = setUpBosk(Bosk.simpleDriver());
 		refs = bosk.buildReferences(Refs.class);
 
 		teb = new TestEntityBuilder(bosk);

@@ -171,11 +171,10 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	}
 
 	/**
-	 * You can use <code>Bosk::simpleDriver</code> as the
-	 * <code>driverFactory</code> if you don't want any additional driver functionality.
+	 * @return a {@link DriverFactory} with only the basic functionality.
 	 */
-	public static <RR extends StateTreeNode> BoskDriver simpleDriver(@SuppressWarnings("unused") BoskInfo<RR> boskInfo, BoskDriver downstream) {
-		return downstream;
+	public static <RR extends StateTreeNode> DriverFactory<RR> simpleDriver() {
+		return (b,d) -> d;
 	}
 
 	public BoskDriver driver() {
