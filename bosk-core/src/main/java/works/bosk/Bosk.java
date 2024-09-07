@@ -106,6 +106,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 *
 	 * @see DriverStack
 	 */
+	@SuppressWarnings("this-escape")
 	public Bosk(String name, Type rootType, DefaultRootFunction<R> defaultRootFunction, DriverFactory<R> driverFactory) {
 		this.name = name;
 		this.localDriver = new LocalDriver(defaultRootFunction);
@@ -136,7 +137,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		rawClass(rootType).cast(this.currentRoot);
 
 		// Ok, we're done initializing
-		boskInfo.boskRef().set(this);
+		boskInfo.boskRef().set(this); // @SuppressWarnings("this-escape")
 	}
 
 	public interface DefaultRootFunction<RR extends StateTreeNode> {
