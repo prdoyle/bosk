@@ -627,11 +627,6 @@ class JacksonPluginTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void catalogFromEmptyMap_throws() {
-		assertJsonException("{}", Catalog.class, TestEntity.class);
-	}
-
-	@Test
 	void catalogWithContentsArray_throws() {
 		assertJsonException("{ \"contents\": [] }", Catalog.class, TestEntity.class);
 	}
@@ -679,11 +674,6 @@ class JacksonPluginTest extends AbstractBoskTest {
 	@Test
 	void sideTableWithTwoDomains_throws() {
 		assertJsonException("{ \"domain\": \"/entities\", \"domain\": \"/entities\", \"valuesById\": [] }", SideTable.class, TestEntity.class, String.class);
-	}
-
-	@Test
-	void sideTableWithValuesMap_throws() {
-		assertJsonException("{ \"domain\": \"/entities\", \"valuesById\": {} }", SideTable.class, TestEntity.class, String.class);
 	}
 
 	@Test

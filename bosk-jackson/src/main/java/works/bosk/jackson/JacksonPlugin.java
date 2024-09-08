@@ -1,6 +1,5 @@
 package works.bosk.jackson;
 
-import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
@@ -67,6 +66,7 @@ import static java.util.stream.Collectors.toMap;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.ReferenceUtils.rawClass;
 import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
+import static works.bosk.jackson.JacksonPluginConfiguration.defaultConfiguration;
 
 /**
  * Provides JSON serialization/deserialization using Jackson.
@@ -74,6 +74,15 @@ import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
  */
 public final class JacksonPlugin extends SerializationPlugin {
 	private final JacksonCompiler compiler = new JacksonCompiler(this);
+	private final JacksonPluginConfiguration config;
+
+	public JacksonPlugin() {
+		this(defaultConfiguration());
+	}
+
+	public JacksonPlugin(JacksonPluginConfiguration config) {
+		this.config = config;
+	}
 
 	public BoskJacksonModule moduleFor(BoskInfo<?> boskInfo) {
 		return new BoskJacksonModule() {
@@ -334,8 +343,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				@Override
 				@SuppressWarnings({"rawtypes", "unchecked"})
 				public Catalog<Entity> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-					JsonDeserializer valueDeserializer = ctxt.findContextualValueDeserializer(entryType, null);
-					LinkedHashMap<Identifier, Entity> entries = readMapEntries(p, valueDeserializer, ctxt);
+					LinkedHashMap<Identifier, Entity> entries = readMapEntries(p, entryType, ctxt);
 					return Catalog.of(entries.values());
 				}
 			};
@@ -429,15 +437,13 @@ public final class JacksonPlugin extends SerializationPlugin {
 					Reference<Catalog<Entity>> domain = null;
 					LinkedHashMap<Identifier, Object> valuesById = null;
 
-					JsonDeserializer<Object> valueDeserializer = ctxt.findContextualValueDeserializer(valueType, null);
-
 					expect(START_OBJECT, p);
 					while (p.nextToken() != END_OBJECT) {
 						p.nextValue();
 						switch (p.currentName()) {
 							case "valuesById":
 								if (valuesById == null) {
-									valuesById = readMapEntries(p, valueDeserializer, ctxt);
+									valuesById = readMapEntries(p, valueType, ctxt);
 								} else {
 									throw new JsonParseException(p, "'valuesById' field appears twice");
 								}
@@ -568,6 +574,13 @@ public final class JacksonPlugin extends SerializationPlugin {
 	}
 
 	private <V> void writeMapEntries(JsonGenerator gen, Set<Entry<Identifier,V>> entries, SerializerProvider serializers) throws IOException {
+		switch (config.mapShape()) {
+			case ARRAY -> writeEntriesAsArray(gen, entries, serializers);
+			case LINKED_MAP -> writeEntriesAsLinkedMap(gen, entries, serializers);
+		}
+	}
+
+	private static <V> void writeEntriesAsArray(JsonGenerator gen, Set<Entry<Identifier, V>> entries, SerializerProvider serializers) throws IOException {
 		gen.writeStartArray();
 		for (Entry<Identifier, V> entry: entries) {
 			gen.writeStartObject();
@@ -579,31 +592,127 @@ public final class JacksonPlugin extends SerializationPlugin {
 		gen.writeEndArray();
 	}
 
+	private static <V> void writeEntriesAsLinkedMap(JsonGenerator gen, Set<Entry<Identifier, V>> entries, SerializerProvider serializers) throws IOException {
+		gen.writeStartObject();
+		if (!entries.isEmpty()) {
+			if (entries.size() == 1) {
+				var entry = entries.iterator().next();
+				gen.writeStringField(FIRST, entry.getKey().toString());
+				gen.writeStringField(LAST, entry.getKey().toString());
+				writeEntryAsField(gen, Optional.empty(), entry, Optional.empty(), serializers);
+			} else {
+				// This will be so much easier with a list
+				List<Entry<Identifier, V>> list = List.copyOf(entries);
+				gen.writeStringField(FIRST, list.getFirst().getKey().toString());
+				gen.writeStringField(LAST, list.getLast().getKey().toString());
+				writeEntryAsField(gen,
+					Optional.empty(),
+					list.getFirst(),
+					Optional.of(list.get(1).getKey()),
+					serializers);
+				for (int i = 1; i < list.size()-1; i++) {
+					writeEntryAsField(gen,
+						Optional.of(list.get(i-1).getKey()),
+						list.get(i),
+						Optional.of(list.get(i+1).getKey()),
+						serializers);
+				}
+				writeEntryAsField(gen,
+					Optional.of(list.get(list.size()-2).getKey()),
+					list.getLast(),
+					Optional.empty(),
+					serializers);
+			}
+		}
+		gen.writeEndObject();
+	}
+
+	private static <V> void writeEntryAsField(JsonGenerator gen, Optional<Identifier> prev, Entry<Identifier, V> entry, Optional<Identifier> next, SerializerProvider serializers) throws IOException {
+		gen.writeFieldName(entry.getKey().toString());
+		JsonSerializer<Object> entryDeserializer = serializers.findContentValueSerializer(
+			TypeFactory.defaultInstance().constructParametricType(LinkedMapEntry.class, entry.getValue().getClass()),
+			null);
+		entryDeserializer.serialize(new LinkedMapEntry<>(prev.map(Object::toString), next.map(Object::toString), entry.getValue()), gen, serializers);
+	}
+
 	/**
 	 * Leaves the parser sitting on the END_ARRAY token. You could call nextToken() to continue with parsing.
 	 */
-	private <V> LinkedHashMap<Identifier, V> readMapEntries(JsonParser p, JsonDeserializer<V> valueDeserializer, DeserializationContext ctxt) throws IOException {
+	private <V> LinkedHashMap<Identifier, V> readMapEntries(JsonParser p, JavaType valueType, DeserializationContext ctxt) throws IOException {
+		JsonDeserializer<V> valueDeserializer = (JsonDeserializer<V>) ctxt.findContextualValueDeserializer(valueType, null);
 		LinkedHashMap<Identifier, V> result = new LinkedHashMap<>();
-		expect(START_ARRAY, p);
-		while (p.nextToken() != END_ARRAY) {
-			expect(START_OBJECT, p);
-			p.nextValue();
-			String fieldName = p.currentName();
-			Identifier entryID = Identifier.from(fieldName);
-			V value;
-			try (@SuppressWarnings("unused") DeserializationScope scope = entryDeserializationScope(entryID)) {
-				value = valueDeserializer.deserialize(p, ctxt);
+		if (p.currentToken() == START_OBJECT) {
+			JsonDeserializer<Object> entryDeserializer = ctxt.findContextualValueDeserializer(
+				TypeFactory.defaultInstance().constructParametricType(LinkedMapEntry.class, valueType),
+				null);
+			HashMap<String, LinkedMapEntry<V>> entries = new HashMap<>();
+			String first = null;
+			String last = null;
+			while (p.nextToken() != END_OBJECT) {
+				p.nextValue();
+				String fieldName = p.currentName();
+				switch (fieldName) {
+					case FIRST -> first = p.getText();
+					case LAST -> last = p.getText();
+					default -> {
+						Identifier entryID = Identifier.from(fieldName);
+						try (@SuppressWarnings("unused") DeserializationScope scope = entryDeserializationScope(entryID)) {
+							@SuppressWarnings("unchecked")
+							LinkedMapEntry<V> entry = (LinkedMapEntry<V>) entryDeserializer.deserialize(p, ctxt);
+							entries.put(fieldName, entry);
+//							p.nextToken();
+						}
+					}
+				}
 			}
-			p.nextToken();
-			expect(END_OBJECT, p);
+			String cur = first;
+			while (cur != null) {
+				LinkedMapEntry<V> entry = entries.get(cur);
+				if (entry == null) {
+					throw new JsonParseException(p, "No such entry: \"" + cur + "\"");
+				}
+				result.put(Identifier.from(cur), entry.value());
+				String next = entry.next().orElse(null);
+				if (next == null && !cur.equals(last)) {
+					throw new JsonParseException(p, "Entry \" + cur + \" has no next pointer but does not match last = \" + last + \"");
+				}
+				// TODO: Verify "prev" pointers
+				cur = next;
+			}
+		} else {
+			expect(START_ARRAY, p);
+			while (p.nextToken() != END_ARRAY) {
+				expect(START_OBJECT, p);
+				p.nextValue();
+				String fieldName = p.currentName();
+				Identifier entryID = Identifier.from(fieldName);
+				V value;
+				try (@SuppressWarnings("unused") DeserializationScope scope = entryDeserializationScope(entryID)) {
+					value = valueDeserializer.deserialize(p, ctxt);
+				}
+				p.nextToken();
+				expect(END_OBJECT, p);
 
-			V oldValue = result.put(entryID, value);
-			if (oldValue != null) {
-				throw new JsonParseException(p, "Duplicate sideTable entry '" + fieldName + "'");
+				V oldValue = result.put(entryID, value);
+				if (oldValue != null) {
+					throw new JsonParseException(p, "Duplicate sideTable entry '" + fieldName + "'");
+				}
 			}
 		}
 		return result;
 	}
+
+	/**
+	 * Structure of the field values used by the {@link JacksonPluginConfiguration.MapShape#LINKED_MAP LINKED_MAP} format.
+	 * @param prev the key corresponding to the previous map entry, or {@link Optional#empty() empty} if none.
+	 * @param next the key corresponding to the next map entry, or {@link Optional#empty() empty} if none.
+	 * @param value the actual map entry's value
+	 */
+	public record LinkedMapEntry<V>(
+		Optional<String> prev,
+		Optional<String> next,
+		V value
+	) implements StateTreeNode {}
 
 	private static final JavaType ID_LIST_TYPE = TypeFactory.defaultInstance().constructType(new TypeReference<
 		List<Identifier>>() {});
@@ -847,4 +956,6 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 	}
 
+	private static final String FIRST = "-first";
+	private static final String LAST = "-last";
 }
