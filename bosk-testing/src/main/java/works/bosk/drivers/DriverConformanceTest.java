@@ -389,7 +389,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		MapValue<String> originalMapValue = MapValue.fromFunction(asList("key.with.dots.1", "key.with.dots.2"), k -> k + "_originalValue");
 		driver.submitReplacement(mapRef, originalMapValue);
 		assertCorrectBoskContents();
-		MapValue<String> newMapValue = originalMapValue.with("key.with.dots.1", "newValue");
+		MapValue<String> newMapValue = originalMapValue.with("key.with.dots.1", "_newValue");
 		driver.submitReplacement(mapRef, newMapValue);
 		assertCorrectBoskContents();
 
@@ -527,6 +527,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 			"id.with.dots",
 			"id/with/slashes",
 			"$id$with$dollars$",
+			"id:with:colons:",
 			AWKWARD_ID,
 			"idWithEmojis\uD83C\uDF33\uD83E\uDDCA"
 		).map(Identifier::from);
@@ -535,7 +536,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	/**
 	 * Contains all kinds of special characters
 	 */
-	public static final String AWKWARD_ID = "$id.with%everything/ +\uD83D\uDE09";
+	public static final String AWKWARD_ID = "$id.with%everything:/ +\uD83D\uDE09";
 
 	@SuppressWarnings("unused")
 	static Stream<String> testEntityField() {

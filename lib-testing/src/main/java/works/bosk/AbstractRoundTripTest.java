@@ -31,10 +31,12 @@ import org.slf4j.LoggerFactory;
 import works.bosk.drivers.mongo.BsonPlugin;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JacksonPlugin;
+import works.bosk.jackson.JacksonPluginConfiguration;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static java.lang.System.identityHashCode;
 import static java.util.Collections.newSetFromMap;
+import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.LINKED_MAP;
 
 public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 
@@ -43,7 +45,8 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 				directFactory(),
 				factoryThatMakesAReference(),
 
-				jacksonRoundTripFactory(),
+				jacksonRoundTripFactory(JacksonPluginConfiguration.defaultConfiguration()),
+				jacksonRoundTripFactory(new JacksonPluginConfiguration(LINKED_MAP)),
 
 				bsonRoundTripFactory()
 		);
@@ -60,13 +63,18 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		};
 	}
 
-	public static <R extends Entity> DriverFactory<R> jacksonRoundTripFactory() {
-		return new JacksonRoundTripDriverFactory<>();
+	public static <R extends Entity> DriverFactory<R> jacksonRoundTripFactory(JacksonPluginConfiguration config) {
+		return new JacksonRoundTripDriverFactory<>(config);
 	}
 
-	@RequiredArgsConstructor
 	private static class JacksonRoundTripDriverFactory<R extends Entity> implements DriverFactory<R> {
-		private final JacksonPlugin jp = new JacksonPlugin();
+		private final JacksonPluginConfiguration config;
+		private final JacksonPlugin jp;
+
+		private JacksonRoundTripDriverFactory(JacksonPluginConfiguration config) {
+			this.config = config;
+			this.jp = new JacksonPlugin(config);
+		}
 
 		@Override
 		public BoskDriver build(BoskInfo<R> boskInfo, BoskDriver driver) {
