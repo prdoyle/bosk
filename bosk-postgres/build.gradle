@@ -11,8 +11,17 @@ base {
 }
 
 java {
-	sourceCompatibility = '17'
-	targetCompatibility = '17'
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(jdkVersion)
+	}
+}
+
+compileJava {
+	options.release = prodJavaVersion
+}
+
+compileTestJava {
+	options.release = null
 }
 
 dependencies {

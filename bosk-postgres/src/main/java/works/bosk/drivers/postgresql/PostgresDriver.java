@@ -38,9 +38,9 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.joining;
 import static works.bosk.util.Classes.mapValue;
 
-public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
-	final BoskDriver<R> downstream;
-	final RootReference<R> rootRef;
+public class PostgresDriver implements BoskDriver {
+	final BoskDriver downstream;
+	final RootReference<?> rootRef;
 	final PostgresDriverSettings settings;
 	final Connection connection;
 	final PGConnection listenerConnection;
@@ -62,9 +62,9 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 
 	PostgresDriver(
 		PostgresDriverSettings settings,
-		RootReference<R> rootRef,
+		RootReference<?> rootRef,
 		ObjectMapper mapper,
-		BoskDriver<R> downstream
+		BoskDriver downstream
 	) {
 		this.downstream = requireNonNull(downstream);
 		this.rootRef = requireNonNull(rootRef);
@@ -112,7 +112,7 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 		PostgresDriverSettings settings,
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
 	) {
-		return (b, d) -> new PostgresDriver<>(
+		return (b, d) -> new PostgresDriver(
 			settings, b.rootReference(), objectMapperFactory.apply(b), d
 		);
 	}
@@ -129,11 +129,11 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 	}
 
 	public interface PostgresDriverFactory<RR extends StateTreeNode> extends DriverFactory<RR> {
-		@Override PostgresDriver<RR> build(BoskInfo<RR> boskInfo, BoskDriver<RR> downstream);
+		@Override PostgresDriver build(BoskInfo<RR> boskInfo, BoskDriver downstream);
 	}
 
 	@Override
-	public R initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		// TODO: Consider a disconnected mode where we delegate downstream if something goes wrong
 		String json;
 		try (
@@ -177,8 +177,8 @@ public class PostgresDriver<R extends StateTreeNode> implements BoskDriver<R> {
 					JavaType valueType = TypeFactory.defaultInstance().constructType(rootType);
 					return mapper.readValue(json, valueType);
 				} else {
-					R root = downstream.initialRoot(rootType);
-					String stateJson = mapper.writerFor(rawClass(rootType)).writeValueAsString( root);
+					StateTreeNode root = downstream.initialRoot(rootType);
+					String stateJson = mapper.writerFor(rawClass(rootType)).writeValueAsString(root);
 
 					S.initializeState.execute(stateJson);
 					S.insertChange.execute(rootRef, stateJson);
