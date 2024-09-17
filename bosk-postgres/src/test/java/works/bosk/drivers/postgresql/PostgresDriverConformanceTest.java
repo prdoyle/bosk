@@ -15,8 +15,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import works.bosk.drivers.DriverConformanceTest;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.jackson.JacksonPlugin;
+import works.bosk.jackson.JacksonPluginConfiguration;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
+import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.LINKED_MAP;
 
 @Testcontainers
 class PostgresDriverConformanceTest extends DriverConformanceTest {
@@ -34,7 +36,7 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 				settings,
 				b -> new ObjectMapper()
 					.enable(INDENT_OUTPUT)
-					.registerModule(new JacksonPlugin().moduleFor(b))
+					.registerModule(new JacksonPlugin(new JacksonPluginConfiguration(LINKED_MAP)).moduleFor(b))
 			).build(boskInfo, downstream);
 			tearDownActions.addFirst(driver::close);
 			return driver;
