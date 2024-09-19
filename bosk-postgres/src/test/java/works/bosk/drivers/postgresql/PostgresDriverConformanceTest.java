@@ -20,6 +20,10 @@ import works.bosk.jackson.JacksonPluginConfiguration;
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.LINKED_MAP;
 
+/**
+ * Note that this doesn't actually exercise the driver much, other than to ensure
+ * it correctly forwards updates downstream and doesn't throw any errors.
+ */
 @Testcontainers
 class PostgresDriverConformanceTest extends DriverConformanceTest {
 	public static final String JDBC_URL = "jdbc:tc:postgresql:16:///?TC_DAEMON=true";
@@ -61,10 +65,6 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 
 	private static Connection getDBConnection() throws SQLException {
 		return DriverManager.getConnection(JDBC_URL, new Properties());
-	}
-
-	private static String quoted(String raw) {
-		return '"' + raw.replace("\"", "\"\"") + '"';
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDriverConformanceTest.class);
