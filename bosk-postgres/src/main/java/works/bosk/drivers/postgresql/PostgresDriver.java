@@ -5,13 +5,12 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.type.TypeFactory;
+import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,10 +39,10 @@ import static works.bosk.util.Classes.mapValue;
 
 public class PostgresDriver implements BoskDriver {
 	final BoskDriver downstream;
-	final RootReference<?> rootRef;
+	final ConnectionSource connectionSource;
 	final PostgresDriverSettings settings;
-	final Connection connection;
-	final PGConnection listenerConnection;
+	final RootReference<?> rootRef;
+	final Connection listenerConnection;
 	final ObjectMapper mapper;
 
 	final AtomicBoolean isOpen = new AtomicBoolean(true);
@@ -61,25 +60,26 @@ public class PostgresDriver implements BoskDriver {
 	final ScheduledExecutorService listener = Executors.newScheduledThreadPool(1);
 
 	PostgresDriver(
+		ConnectionSource connectionSource,
 		PostgresDriverSettings settings,
 		RootReference<?> rootRef,
 		ObjectMapper mapper,
 		BoskDriver downstream
 	) {
+		this.connectionSource = connectionSource;
 		this.downstream = requireNonNull(downstream);
 		this.rootRef = requireNonNull(rootRef);
 		this.mapper = requireNonNull(mapper);
 		this.settings = requireNonNull(settings);
 		try {
-			this.connection = DriverManager.getConnection(this.settings.url(), new Properties());
-			Connection listenerConnection = DriverManager.getConnection(this.settings.url(), new Properties());
-			this.listenerConnection = listenerConnection.unwrap(PGConnection.class);
+			this.listenerConnection = connectionSource.getConnection();
 			try (
-				var stmt = listenerConnection.createStatement()
+				var connection = connectionSource.getConnection();
+				var stmt = connection.createStatement()
 			) {
 				stmt.execute("LISTEN bosk_changed");
 			}
-			this.S = Statements.create(connection, mapper);
+			this.S = Statements.create(mapper);
 		} catch (SQLException e) {
 			throw new IllegalStateException("Unable to access PGConnection", e);
 		}
@@ -89,7 +89,7 @@ public class PostgresDriver implements BoskDriver {
 	private void listenerLoop() {
 		try {
 			while (isOpen.get()) {
-				var notifications = listenerConnection.getNotifications();
+				var notifications = listenerConnection.unwrap(PGConnection.class).getNotifications();
 				if (notifications != null) {
 					for (PGNotification n : notifications) {
 						processNotification(Notification.from(n));
@@ -109,18 +109,23 @@ public class PostgresDriver implements BoskDriver {
 	 * Note that all drivers from this factory will share a {@link Connection}.
 	 */
 	public static <RR extends StateTreeNode> PostgresDriverFactory<RR> factory(
+		ConnectionSource connectionSource,
 		PostgresDriverSettings settings,
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
 	) {
 		return (b, d) -> new PostgresDriver(
-			settings, b.rootReference(), objectMapperFactory.apply(b), d
+			connectionSource,
+			settings,
+			b.rootReference(),
+			objectMapperFactory.apply(b),
+			d
 		);
 	}
 
 	public void close() {
 		if (isOpen.getAndSet(false)) {
 			try {
-				connection.close();
+				listenerConnection.close();
 			} catch (SQLException e) {
 				LOGGER.warn("Unable to close connection", e);
 				// This is a best-effort thing. Just continue.
@@ -137,7 +142,8 @@ public class PostgresDriver implements BoskDriver {
 		// TODO: Consider a disconnected mode where we delegate downstream if something goes wrong
 		String json;
 		try (
-			var stmt = connection.createStatement()
+			var c = connectionSource.getConnection();
+			var stmt = c.createStatement()
 		) {
 			stmt.execute("""
 				CREATE TABLE IF NOT EXISTS bosk_changes (
@@ -169,20 +175,20 @@ public class PostgresDriver implements BoskDriver {
 					AFTER UPDATE ON bosk_table
 					  FOR EACH ROW EXECUTE FUNCTION notify_bosk_changed();
 				""");
-			S.beginTransaction.execute();
+			S.beginTransaction.execute(c);
 			try (var resultSet = stmt.executeQuery("SELECT state FROM bosk_table WHERE id='current'")) {
 				if (resultSet.next()) {
 					json = resultSet.getString("state");
-					S.commitTransaction.execute();
+					S.commitTransaction.execute(c);
 					JavaType valueType = TypeFactory.defaultInstance().constructType(rootType);
 					return mapper.readValue(json, valueType);
 				} else {
 					StateTreeNode root = downstream.initialRoot(rootType);
 					String stateJson = mapper.writerFor(rawClass(rootType)).writeValueAsString(root);
 
-					S.initializeState.execute(stateJson);
-					S.insertChange.execute(rootRef, stateJson);
-					S.commitTransaction.execute();
+					S.initializeState.execute(stateJson, c);
+					S.insertChange.execute(rootRef, stateJson, c);
+					S.commitTransaction.execute(c);
 
 					return root;
 				}
@@ -194,13 +200,15 @@ public class PostgresDriver implements BoskDriver {
 
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		try {
+		try (
+			var c = connectionSource.getConnection();
+		){
 			String fieldPath = target.path().segmentStream()
 				.map(PostgresDriver::stringLiteral)
 				.collect(joining(",", "{", "}"));
 			String newValueJson = writerFor(target.targetType())
 				.writeValueAsString(newValue);
-			S.beginTransaction.execute();
+			S.beginTransaction.execute(c);
 			executeCommand("""
 					UPDATE bosk_table
 					   SET
@@ -209,8 +217,8 @@ public class PostgresDriver implements BoskDriver {
 					""".formatted(fieldPath),
 				newValueJson
 			);
-			S.insertChange.execute(rootRef, newValueJson);
-			S.commitTransaction.execute();
+			S.insertChange.execute(rootRef, newValueJson, c);
+			S.commitTransaction.execute(c);
 		} catch (JsonProcessingException | SQLException e) {
 			throw new IllegalStateException(e);
 		}
@@ -268,6 +276,7 @@ public class PostgresDriver implements BoskDriver {
 
 	private void executeCommand(String query, String... parameters) {
 		try (
+			var connection = connectionSource.getConnection();
 			var stmt = connection.prepareStatement(query)
 		) {
 			int parameterCount = 0;
@@ -291,58 +300,67 @@ public class PostgresDriver implements BoskDriver {
 		}
 	}
 
+	interface SQLFunction<T extends AutoCloseable> {
+		T apply(Connection connection) throws SQLException;
+	}
+
 	record Statements(
-		PreparedStatement beginTransaction,
-		PreparedStatement commitTransaction,
+		Command beginTransaction,
+		Command commitTransaction,
 		InitializeState initializeState,
 		InsertChange insertChange
 	){
-		static Statements create(Connection c, ObjectMapper mapper) throws SQLException {
+		static Statements create(ObjectMapper mapper) throws SQLException {
 			return new Statements(
-				c.prepareStatement("BEGIN TRANSACTION"),
-				c.prepareStatement("COMMIT TRANSACTION"),
-				new InitializeState(c),
-				new InsertChange(c, mapper)
+				new Command("BEGIN TRANSACTION"),
+				new Command("COMMIT TRANSACTION"),
+				new InitializeState(),
+				new InsertChange(mapper)
 			);
 		}
 
-		static final class InitializeState {
-			final PreparedStatement stmt;
-
-			InitializeState(Connection c) throws SQLException {
-				stmt = c.prepareStatement("""
-				INSERT INTO bosk_table (id, state) VALUES ('current', ?::jsonb)
-				ON CONFLICT DO NOTHING;
-				""");
-			}
-
-			void execute(String newValue) throws SQLException {
-				stmt.setString(1, newValue);
-				stmt.execute();
+		record Command(String text) {
+			public void execute(Connection c) throws SQLException {
+				try (var s = c.prepareStatement(text)) {
+					s.execute();
+				}
 			}
 		}
 
-		static final class InsertChange {
-			final PreparedStatement stmt;
-			final ObjectMapper mapper;
-
-			InsertChange(Connection c, ObjectMapper mapper) throws SQLException {
-				stmt = c.prepareStatement("""
-				INSERT INTO bosk_changes (ref, new_state, diagnostics) VALUES (?, ?::jsonb, ?::jsonb)
-				RETURNING id;
-				""");
-				this.mapper = mapper;
+		record InitializeState() {
+			void execute(String newValue, Connection c) throws SQLException {
+				try (
+					var stmt = c.prepareStatement(
+						"""
+						INSERT INTO bosk_table (id, state) VALUES ('current', ?::jsonb)
+						ON CONFLICT DO NOTHING;
+						""");
+				){
+					stmt.setString(1, newValue);
+					stmt.execute();
+				}
 			}
+		}
 
-			int execute(Reference<?> ref, String newValue) throws SQLException, JsonProcessingException {
-				stmt.setString(1, ref.pathString());
-				stmt.setString(2, newValue);
-				stmt.setString(3, mapper.writerFor(mapValue(String.class)).writeValueAsString(
-					ref.root().diagnosticContext().getAttributes()));
-				try (var result = stmt.executeQuery()) {
-					result.next();
-					int id = result.getInt(1);
-					return id;
+		record InsertChange(ObjectMapper mapper) {
+			int execute(Reference<?> ref, String newValue, Connection c) throws SQLException, JsonProcessingException {
+				try (
+					var stmt = c.prepareStatement(
+						"""
+						INSERT INTO bosk_changes (ref, new_state, diagnostics) VALUES (?, ?::jsonb, ?::jsonb)
+						RETURNING id;
+						""");
+
+				) {
+					stmt.setString(1, ref.pathString());
+					stmt.setString(2, newValue);
+					stmt.setString(3, mapper.writerFor(mapValue(String.class)).writeValueAsString(
+						ref.root().diagnosticContext().getAttributes()));
+					try (var result = stmt.executeQuery()) {
+						result.next();
+						int id = result.getInt(1);
+						return id;
+					}
 				}
 			}
 		}
