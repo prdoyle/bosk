@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -75,7 +76,7 @@ public class PostgresDriver implements BoskDriver {
 			) {
 				stmt.execute("LISTEN bosk_changed");
 			}
-			this.S = Statements.create(connection, mapper);
+			this.S = new Statements(mapper);
 		} catch (SQLException e) {
 			throw new IllegalStateException("Unable to access PGConnection", e);
 		}
@@ -151,10 +152,8 @@ public class PostgresDriver implements BoskDriver {
 	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		// TODO: Consider a disconnected mode where we delegate downstream if something goes wrong
 		String json;
-		try (
-			var stmt = connection.createStatement()
-		) {
-			stmt.execute("""
+		try {
+			S.executeCommand(connection, """
 				CREATE TABLE IF NOT EXISTS bosk_changes (
 					id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY NOT NULL,
 					ref varchar NOT NULL,
@@ -163,14 +162,14 @@ public class PostgresDriver implements BoskDriver {
 				);
 				""");
 
-			stmt.execute("""
+			S.executeCommand(connection, """
 				CREATE TABLE IF NOT EXISTS bosk_table (
 					id char(7) PRIMARY KEY NOT NULL,
 					state jsonb NOT NULL
 				);
 				""");
 
-			stmt.execute("""
+			S.executeCommand(connection, """
 				CREATE OR REPLACE FUNCTION notify_bosk_changed()
 					RETURNS trigger AS $$
 					BEGIN
@@ -179,25 +178,28 @@ public class PostgresDriver implements BoskDriver {
 					END;
 					$$ LANGUAGE plpgsql;
 				""");
-			stmt.execute("""
+			S.executeCommand(connection, """
 				CREATE OR REPLACE TRIGGER bosk_changed
 					AFTER UPDATE ON bosk_table
 					  FOR EACH ROW EXECUTE FUNCTION notify_bosk_changed();
 				""");
-			S.beginTransaction.execute();
-			try (var resultSet = stmt.executeQuery("SELECT state FROM bosk_table WHERE id='current'")) {
+			S.beginTransaction(connection);
+			try (
+				var query = connection.prepareStatement("SELECT state FROM bosk_table WHERE id='current'");
+				var resultSet = S.executeQuery(connection, query)
+			) {
 				if (resultSet.next()) {
 					json = resultSet.getString("state");
-					S.commitTransaction.execute();
+					S.commitTransaction(connection);
 					JavaType valueType = TypeFactory.defaultInstance().constructType(rootType);
 					return mapper.readValue(json, valueType);
 				} else {
 					StateTreeNode root = downstream.initialRoot(rootType);
 					String stateJson = mapper.writerFor(rawClass(rootType)).writeValueAsString(root);
 
-					S.initializeState.execute(stateJson);
-					S.insertChange.execute(rootRef, stateJson);
-					S.commitTransaction.execute();
+					S.initializeState(connection, stateJson);
+					S.insertChange(connection, rootRef, stateJson);
+					S.commitTransaction(connection);
 
 					return root;
 				}
@@ -215,7 +217,7 @@ public class PostgresDriver implements BoskDriver {
 				.collect(joining(",", "{", "}"));
 			String newValueJson = writerFor(target.targetType())
 				.writeValueAsString(newValue);
-			S.beginTransaction.execute();
+			S.beginTransaction(connection);
 			executeCommand("""
 					UPDATE bosk_table
 					   SET
@@ -224,8 +226,8 @@ public class PostgresDriver implements BoskDriver {
 					""".formatted(fieldPath),
 				newValueJson
 			);
-			S.insertChange.execute(rootRef, newValueJson);
-			S.commitTransaction.execute();
+			S.insertChange(connection, rootRef, newValueJson);
+			S.commitTransaction(connection);
 		} catch (JsonProcessingException | SQLException e) {
 			throw new IllegalStateException(e);
 		}
@@ -307,59 +309,53 @@ public class PostgresDriver implements BoskDriver {
 	}
 
 	record Statements(
-		PreparedStatement beginTransaction,
-		PreparedStatement commitTransaction,
-		InitializeState initializeState,
-		InsertChange insertChange
-	){
-		static Statements create(Connection c, ObjectMapper mapper) throws SQLException {
-			return new Statements(
-				c.prepareStatement("BEGIN TRANSACTION"),
-				c.prepareStatement("COMMIT TRANSACTION"),
-				new InitializeState(c),
-				new InsertChange(c, mapper)
-			);
-		}
-
-		static final class InitializeState {
-			final PreparedStatement stmt;
-
-			InitializeState(Connection c) throws SQLException {
-				stmt = c.prepareStatement("""
-				INSERT INTO bosk_table (id, state) VALUES ('current', ?::jsonb)
-				ON CONFLICT DO NOTHING;
-				""");
-			}
-
-			void execute(String newValue) throws SQLException {
-				stmt.setString(1, newValue);
+		ObjectMapper mapper
+	) {
+		void executeCommand(Connection connection, String query, String... parameters) throws SQLException {
+			try (
+				var stmt = connection.prepareStatement(query)
+			) {
+				int parameterCount = 0;
+				for (String parameter : parameters) {
+					stmt.setString(++parameterCount, parameter);
+				}
 				stmt.execute();
 			}
 		}
 
-		static final class InsertChange {
-			final PreparedStatement stmt;
-			final ObjectMapper mapper;
+		ResultSet executeQuery(Connection connection, PreparedStatement query, String... parameters) throws SQLException {
+			int parameterCount = 0;
+			for (String parameter : parameters) {
+				query.setString(++parameterCount, parameter);
+			}
+			return query.executeQuery();
+		}
 
-			InsertChange(Connection c, ObjectMapper mapper) throws SQLException {
-				stmt = c.prepareStatement("""
+		void beginTransaction(Connection c) throws SQLException {
+			executeCommand(c, "BEGIN TRANSACTION");
+		}
+
+		void commitTransaction(Connection c) throws SQLException {
+			executeCommand(c, "COMMIT TRANSACTION");
+		}
+
+		void initializeState(Connection c, String newValue) throws SQLException {
+			executeCommand(c, """
+				INSERT INTO bosk_table (id, state) VALUES ('current', ?::jsonb)
+				ON CONFLICT DO NOTHING;
+				""", newValue);
+		}
+
+		void insertChange(Connection c, Reference<?> ref, String newValue) throws JsonProcessingException, SQLException {
+			executeCommand(c, """
 				INSERT INTO bosk_changes (ref, new_state, diagnostics) VALUES (?, ?::jsonb, ?::jsonb)
 				RETURNING id;
-				""");
-				this.mapper = mapper;
-			}
-
-			int execute(Reference<?> ref, String newValue) throws SQLException, JsonProcessingException {
-				stmt.setString(1, ref.pathString());
-				stmt.setString(2, newValue);
-				stmt.setString(3, mapper.writerFor(mapValue(String.class)).writeValueAsString(
-					ref.root().diagnosticContext().getAttributes()));
-				try (var result = stmt.executeQuery()) {
-					result.next();
-					int id = result.getInt(1);
-					return id;
-				}
-			}
+				""",
+				ref.pathString(),
+				newValue,
+				mapper.writerFor(mapValue(String.class)).writeValueAsString(
+					ref.root().diagnosticContext().getAttributes())
+			);
 		}
 	}
 
