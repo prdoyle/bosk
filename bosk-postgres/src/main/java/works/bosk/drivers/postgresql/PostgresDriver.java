@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
+import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskDriver;
@@ -40,7 +41,7 @@ public class PostgresDriver implements BoskDriver {
 	final BoskDriver downstream;
 	final RootReference<?> rootRef;
 	final Connection connection;
-	final PGConnection listenerConnection;
+	final Connection listenerConnection;
 	final ObjectMapper mapper;
 
 	final AtomicBoolean isOpen = new AtomicBoolean(true);
@@ -68,8 +69,7 @@ public class PostgresDriver implements BoskDriver {
 		this.mapper = requireNonNull(mapper);
 		try {
 			this.connection = cs.get();
-			Connection listenerConnection = cs.get();
-			this.listenerConnection = listenerConnection.unwrap(PGConnection.class);
+			this.listenerConnection = cs.get();
 			try (
 				var stmt = listenerConnection.createStatement()
 			) {
@@ -89,7 +89,16 @@ public class PostgresDriver implements BoskDriver {
 	private void listenerLoop() {
 		try {
 			while (isOpen.get()) {
-				var notifications = listenerConnection.getNotifications();
+				PGNotification[] notifications = null;
+				try {
+					notifications = listenerConnection.unwrap(PGConnection.class).getNotifications();
+				} catch (PSQLException e) {
+					if (isOpen.get()) {
+						throw e;
+					} else {
+						continue;
+					}
+				}
 				if (notifications != null) {
 					for (PGNotification n : notifications) {
 						processNotification(Notification.from(n));
@@ -117,10 +126,16 @@ public class PostgresDriver implements BoskDriver {
 		);
 	}
 
+	/**
+	 * Best-effort cleanup, mainly meant for testing.
+	 * The driver might still perform a small number of asynchronous actions after this method returns.
+	 */
 	public void close() {
 		if (isOpen.getAndSet(false)) {
+			listener.shutdown();
 			try {
 				connection.close();
+				listenerConnection.close();
 			} catch (SQLException e) {
 				LOGGER.warn("Unable to close connection", e);
 				// This is a best-effort thing. Just continue.
