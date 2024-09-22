@@ -39,7 +39,6 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 			tearDownActions.addFirst(this::cleanupTable);
 			var driver = PostgresDriver.<TestEntity>factory(
 				cs,
-				settings,
 				b -> new ObjectMapper()
 					.enable(INDENT_OUTPUT)
 					.registerModule(new JacksonPlugin(new JacksonPluginConfiguration(LINKED_MAP)).moduleFor(b))

@@ -39,7 +39,6 @@ import static works.bosk.util.Classes.mapValue;
 public class PostgresDriver implements BoskDriver {
 	final BoskDriver downstream;
 	final RootReference<?> rootRef;
-	final PostgresDriverSettings settings;
 	final Connection connection;
 	final PGConnection listenerConnection;
 	final ObjectMapper mapper;
@@ -60,7 +59,6 @@ public class PostgresDriver implements BoskDriver {
 
 	PostgresDriver(
 		ConnectionSource cs,
-		PostgresDriverSettings settings,
 		RootReference<?> rootRef,
 		ObjectMapper mapper,
 		BoskDriver downstream
@@ -68,7 +66,6 @@ public class PostgresDriver implements BoskDriver {
 		this.downstream = requireNonNull(downstream);
 		this.rootRef = requireNonNull(rootRef);
 		this.mapper = requireNonNull(mapper);
-		this.settings = requireNonNull(settings);
 		try {
 			this.connection = cs.get();
 			Connection listenerConnection = cs.get();
@@ -113,11 +110,10 @@ public class PostgresDriver implements BoskDriver {
 	 */
 	public static <RR extends StateTreeNode> PostgresDriverFactory<RR> factory(
 		ConnectionSource connectionSource,
-		PostgresDriverSettings settings,
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
 	) {
 		return (b, d) -> new PostgresDriver(
-			connectionSource, settings, b.rootReference(), objectMapperFactory.apply(b), d
+			connectionSource, b.rootReference(), objectMapperFactory.apply(b), d
 		);
 	}
 
