@@ -42,8 +42,12 @@ public class PostgresDriver implements BoskDriver {
 	final BoskDriver downstream;
 	final RootReference<?> rootRef;
 	final ConnectionSource connectionSource;
-	final Connection listenerConnection;
 	final ObjectMapper mapper;
+
+	/**
+	 * Long-lived connection for LISTEN / NOTIFY
+	 */
+	final Connection listenerConnection;
 
 	final AtomicBoolean isOpen = new AtomicBoolean(true);
 
