@@ -8,17 +8,14 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
 import org.slf4j.Logger;
@@ -62,6 +59,7 @@ public class PostgresDriver implements BoskDriver {
 	final ScheduledExecutorService listener = Executors.newScheduledThreadPool(1);
 
 	PostgresDriver(
+		ConnectionSource cs,
 		PostgresDriverSettings settings,
 		RootReference<?> rootRef,
 		ObjectMapper mapper,
@@ -72,7 +70,6 @@ public class PostgresDriver implements BoskDriver {
 		this.mapper = requireNonNull(mapper);
 		this.settings = requireNonNull(settings);
 		try {
-			ConnectionSource cs = () -> DriverManager.getConnection(this.settings.url(), new Properties());
 			this.connection = cs.get();
 			Connection listenerConnection = cs.get();
 			this.listenerConnection = listenerConnection.unwrap(PGConnection.class);
@@ -88,7 +85,7 @@ public class PostgresDriver implements BoskDriver {
 		this.listener.scheduleWithFixedDelay(this::listenerLoop, 0, 5, SECONDS);
 	}
 
-	interface ConnectionSource {
+	public interface ConnectionSource {
 		Connection get() throws SQLException;
 	}
 
@@ -115,11 +112,12 @@ public class PostgresDriver implements BoskDriver {
 	 * Note that all drivers from this factory will share a {@link Connection}.
 	 */
 	public static <RR extends StateTreeNode> PostgresDriverFactory<RR> factory(
+		ConnectionSource connectionSource,
 		PostgresDriverSettings settings,
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
 	) {
 		return (b, d) -> new PostgresDriver(
-			settings, b.rootReference(), objectMapperFactory.apply(b), d
+			connectionSource, settings, b.rootReference(), objectMapperFactory.apply(b), d
 		);
 	}
 

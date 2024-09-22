@@ -35,8 +35,10 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 			PostgresDriverSettings settings = new PostgresDriverSettings(
 				JDBC_URL
 			);
+			PostgresDriver.ConnectionSource cs = () -> DriverManager.getConnection(settings.url(), new Properties());
 			tearDownActions.addFirst(this::cleanupTable);
 			var driver = PostgresDriver.<TestEntity>factory(
+				cs,
 				settings,
 				b -> new ObjectMapper()
 					.enable(INDENT_OUTPUT)
