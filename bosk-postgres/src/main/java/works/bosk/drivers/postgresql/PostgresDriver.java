@@ -41,7 +41,7 @@ import static works.bosk.util.Classes.mapValue;
 public class PostgresDriver implements BoskDriver {
 	final BoskDriver downstream;
 	final RootReference<?> rootRef;
-	final Connection connection;
+	final ConnectionSource connectionSource;
 	final Connection listenerConnection;
 	final ObjectMapper mapper;
 
@@ -69,8 +69,8 @@ public class PostgresDriver implements BoskDriver {
 		this.rootRef = requireNonNull(rootRef);
 		this.mapper = requireNonNull(mapper);
 		try {
-			this.connection = cs.get();
-			this.listenerConnection = cs.get();
+			connectionSource = cs;
+			this.listenerConnection = connectionSource.get();
 			try (
 				var stmt = listenerConnection.createStatement()
 			) {
@@ -135,7 +135,6 @@ public class PostgresDriver implements BoskDriver {
 		if (isOpen.getAndSet(false)) {
 			listener.shutdown();
 			try {
-				connection.close();
 				listenerConnection.close();
 			} catch (SQLException e) {
 				LOGGER.warn("Unable to close connection", e);
@@ -152,7 +151,9 @@ public class PostgresDriver implements BoskDriver {
 	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		// TODO: Consider a disconnected mode where we delegate downstream if something goes wrong
 		String json;
-		try {
+		try (
+			var connection = connectionSource.get()
+		){
 			S.executeCommand(connection, """
 				CREATE TABLE IF NOT EXISTS bosk_changes (
 					id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -211,14 +212,16 @@ public class PostgresDriver implements BoskDriver {
 
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
-		try {
+		try (
+			var connection = connectionSource.get()
+		){
 			String fieldPath = target.path().segmentStream()
 				.map(PostgresDriver::stringLiteral)
 				.collect(joining(",", "{", "}"));
 			String newValueJson = writerFor(target.targetType())
 				.writeValueAsString(newValue);
 			S.beginTransaction(connection);
-			executeCommand("""
+			S.executeCommand(connection, """
 					UPDATE bosk_table
 					   SET
 						state = jsonb_set(state, '%s', ?::jsonb, false)
@@ -281,20 +284,6 @@ public class PostgresDriver implements BoskDriver {
 	private ObjectWriter writerFor(Type type) {
 		return mapper.writerFor(TypeFactory.defaultInstance()
 			.constructType(type));
-	}
-
-	private void executeCommand(String query, String... parameters) {
-		try (
-			var stmt = connection.prepareStatement(query)
-		) {
-			int parameterCount = 0;
-			for (String parameter : parameters) {
-				stmt.setString(++parameterCount, parameter);
-			}
-			stmt.execute();
-		} catch (SQLException e) {
-			throw new IllegalStateException(e);
-		}
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDriver.class);
