@@ -1,6 +1,8 @@
 package works.bosk.drivers.postgresql;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -8,6 +10,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Properties;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +31,14 @@ import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.LINKED_MAP;
 class PostgresDriverConformanceTest extends DriverConformanceTest {
 	public static final String JDBC_URL = "jdbc:tc:postgresql:16:///?TC_DAEMON=true";
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
+	private static HikariDataSource dataSource;
+
+	@BeforeAll
+	static void setupConnectionPool() {
+		HikariConfig config = new HikariConfig();
+		config.setJdbcUrl(JDBC_URL);
+		dataSource = new HikariDataSource(config);
+	}
 
 	@BeforeEach
 	void setupDriverFactory() {
@@ -35,10 +46,9 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 			PostgresDriverSettings settings = new PostgresDriverSettings(
 				JDBC_URL
 			);
-			PostgresDriver.ConnectionSource cs = () -> DriverManager.getConnection(settings.url(), new Properties());
 			tearDownActions.addFirst(this::cleanupTable);
 			var driver = PostgresDriver.<TestEntity>factory(
-				cs,
+				dataSource::getConnection,
 				b -> new ObjectMapper()
 					.enable(INDENT_OUTPUT)
 					.registerModule(new JacksonPlugin(new JacksonPluginConfiguration(LINKED_MAP)).moduleFor(b))
