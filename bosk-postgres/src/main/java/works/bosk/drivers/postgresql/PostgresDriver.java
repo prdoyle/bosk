@@ -18,6 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.postgresql.PGConnection;
 import org.postgresql.PGNotification;
 import org.slf4j.Logger;
@@ -71,8 +72,9 @@ public class PostgresDriver implements BoskDriver {
 		this.mapper = requireNonNull(mapper);
 		this.settings = requireNonNull(settings);
 		try {
-			this.connection = DriverManager.getConnection(this.settings.url(), new Properties());
-			Connection listenerConnection = DriverManager.getConnection(this.settings.url(), new Properties());
+			ConnectionSource cs = () -> DriverManager.getConnection(this.settings.url(), new Properties());
+			this.connection = cs.get();
+			Connection listenerConnection = cs.get();
 			this.listenerConnection = listenerConnection.unwrap(PGConnection.class);
 			try (
 				var stmt = listenerConnection.createStatement()
@@ -84,6 +86,10 @@ public class PostgresDriver implements BoskDriver {
 			throw new IllegalStateException("Unable to access PGConnection", e);
 		}
 		this.listener.scheduleWithFixedDelay(this::listenerLoop, 0, 5, SECONDS);
+	}
+
+	interface ConnectionSource {
+		Connection get() throws SQLException;
 	}
 
 	private void listenerLoop() {
