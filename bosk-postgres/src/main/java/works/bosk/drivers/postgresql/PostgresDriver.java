@@ -115,8 +115,22 @@ public class PostgresDriver implements BoskDriver {
 		}
 	}
 
-	private void processNotification(Notification n) {
-		System.err.println("Hey hey! Notification: " + n);
+	private void processNotification(Notification n) throws SQLException {
+		try (
+			var c = connectionSource.get();
+			var q = c.prepareStatement("SELECT ref, new_state, diagnostics FROM bosk_changes WHERE id = ?::int");
+			var rs = S.executeQuery(c, q, n.parameter)
+		) {
+			if (rs.next()) {
+				var ref = rs.getString(1);
+				var newState = rs.getString(2);
+				var diagnostics = rs.getString(3);
+				record Change(String ref, String newState, String diagnostics){}
+				System.err.println("Hey hey! Notification: " + new Change(ref, newState, diagnostics));
+			} else {
+				LOGGER.error("Hey, no such change: {}", n);
+			}
+		}
 	}
 
 	/**
@@ -185,7 +199,7 @@ public class PostgresDriver implements BoskDriver {
 				""");
 			S.executeCommand(connection, """
 				CREATE OR REPLACE TRIGGER bosk_changed
-					AFTER UPDATE ON bosk_table
+					AFTER INSERT ON bosk_changes
 					  FOR EACH ROW EXECUTE FUNCTION notify_bosk_changed();
 				""");
 			S.beginTransaction(connection);
@@ -233,7 +247,7 @@ public class PostgresDriver implements BoskDriver {
 					""".formatted(fieldPath),
 				newValueJson
 			);
-			S.insertChange(connection, rootRef, newValueJson);
+			S.insertChange(connection, target, newValueJson);
 			S.commitTransaction(connection);
 		} catch (JsonProcessingException | SQLException e) {
 			throw new IllegalStateException(e);
