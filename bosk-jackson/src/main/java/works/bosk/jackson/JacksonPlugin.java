@@ -966,8 +966,9 @@ public final class JacksonPlugin extends SerializationPlugin {
 	}
 
 	public static JavaType javaParameterType(JavaType parameterizedType, Class<?> expectedClass, int index) {
+		JavaType[] typeParameters = parameterizedType.findTypeParameters(expectedClass);
 		try {
-			return parameterizedType.findTypeParameters(expectedClass)[index];
+			return typeParameters[index];
 		} catch (IndexOutOfBoundsException e) {
 			throw new IllegalStateException("Error computing javaParameterType(" + parameterizedType + ", " + expectedClass + ", " + index + ")");
 		}

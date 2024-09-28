@@ -51,6 +51,7 @@ class PostgresDriverConformanceTest extends DriverConformanceTest {
 				dataSource::getConnection,
 				b -> new ObjectMapper()
 					.enable(INDENT_OUTPUT)
+					// TODO: PostgresDriver should add this, not the caller! It's required for correctness
 					.registerModule(new JacksonPlugin(new JacksonPluginConfiguration(LINKED_MAP)).moduleFor(b))
 			).build(boskInfo, downstream);
 			tearDownActions.addFirst(driver::close);

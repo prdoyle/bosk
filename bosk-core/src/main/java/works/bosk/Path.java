@@ -75,6 +75,8 @@ public abstract class Path implements Iterable<String> {
 	 *
 	 * @throws MalformedPathException if the given string contains any
 	 * segments that are invalid according to {@link #validParsedSegment(String)}.
+	 *
+	 * @see #parseParameterized
 	 */
 	public static Path parse(String urlEncoded) {
 		return parseAndValidateSegments(urlEncoded, Path::validParsedSegment);
@@ -82,6 +84,9 @@ public abstract class Path implements Iterable<String> {
 
 	/**
 	 * Like {@link #parse} but permits parameter segments.
+	 * <p>
+	 * If you're not sure whether you want this, you probably don't.
+	 * Use {@link #parse} until you're sure you want to allow parameter segments.
 	 */
 	public static Path parseParameterized(String urlEncoded) {
 		return parseAndValidateSegments(urlEncoded, Path::validSegment);
