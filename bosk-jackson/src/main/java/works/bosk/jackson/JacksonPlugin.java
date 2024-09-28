@@ -28,6 +28,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -148,16 +149,16 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonSerializer<Listing<Entity>> listingSerializer(SerializationConfig config, BeanDescription beanDesc) {
+		private JsonSerializer<Listing<Entity>> listingSerializer(SerializationConfig serializationConfig, BeanDescription beanDesc) {
 			return new JsonSerializer<Listing<Entity>>() {
 				@Override
 				public void serialize(Listing<Entity> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeStartObject();
 
-					gen.writeFieldName("ids");
-					serializers
-						.findContentValueSerializer(ID_LIST_TYPE, null)
-						.serialize(new ArrayList<>(value.ids()), gen, serializers);
+					switch (config.mapShape()) {
+						case ARRAY -> writeIDsAsArray(value.ids(), gen, serializers);
+						case LINKED_MAP -> writeIDsAsLinkedMap(value.ids(), gen, serializers);
+					}
 
 					gen.writeFieldName("domain");
 					serializers
@@ -165,6 +166,22 @@ public final class JacksonPlugin extends SerializationPlugin {
 						.serialize(value.domain(), gen, serializers);
 
 					gen.writeEndObject();
+				}
+
+				private static void writeIDsAsArray(Collection<Identifier> ids, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+					gen.writeFieldName("ids");
+					serializers
+						.findContentValueSerializer(ID_LIST_TYPE, null)
+						.serialize(new ArrayList<>(ids), gen, serializers);
+				}
+
+				private void writeIDsAsLinkedMap(Collection<Identifier> ids, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+					gen.writeFieldName("entriesById");
+					var effectiveMapEntries = ids.stream().collect(toMap(
+						id->id,
+						id->true
+					)).entrySet();
+					writeEntriesAsLinkedMap(gen, effectiveMapEntries, serializers);
 				}
 			};
 		}
@@ -363,11 +380,17 @@ public final class JacksonPlugin extends SerializationPlugin {
 						switch (p.currentName()) {
 							case "ids":
 								if (ids != null) {
-									throw new JsonParseException(p, "'ids' field appears twice");
+									throw new JsonParseException(p, "'ids': ids already appeared");
 								}
 								ids = (List<Identifier>) ctxt
 									.findContextualValueDeserializer(ID_LIST_TYPE, null)
 									.deserialize(p, ctxt);
+								break;
+							case "entriesById":
+								if (ids != null) {
+									throw new JsonParseException(p, "'entriesById': ids already appeared");
+								}
+								ids = List.copyOf(readMapEntries(p, TypeFactory.defaultInstance().constructType(Boolean.class), ctxt).keySet());
 								break;
 							case "domain":
 								if (domain != null) {
@@ -592,7 +615,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		gen.writeEndArray();
 	}
 
-	private static <V> void writeEntriesAsLinkedMap(JsonGenerator gen, Set<Entry<Identifier, V>> entries, SerializerProvider serializers) throws IOException {
+	private static <V> void writeEntriesAsLinkedMap(JsonGenerator gen, Collection<Entry<Identifier, V>> entries, SerializerProvider serializers) throws IOException {
 		gen.writeStartObject();
 		if (!entries.isEmpty()) {
 			if (entries.size() == 1) {
