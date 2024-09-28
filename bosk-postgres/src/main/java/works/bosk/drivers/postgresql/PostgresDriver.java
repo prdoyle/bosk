@@ -16,7 +16,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -27,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
+import works.bosk.Catalog;
 import works.bosk.DriverFactory;
 import works.bosk.Identifier;
 import works.bosk.Listing;
@@ -296,9 +296,7 @@ public class PostgresDriver implements BoskDriver {
 				.writeValueAsString(newValue);
 			S.beginTransaction(connection);
 			if (S.enclosingObjectExists(connection, target)) {
-				S.setField(connection, target, newValueJson);
-				S.insertChange(connection, target, newValueJson);
-				S.commitTransaction(connection);
+				setAndCommit(connection, target, newValueJson);
 			} else {
 				S.rollbackTransaction(connection);
 			}
@@ -306,6 +304,12 @@ public class PostgresDriver implements BoskDriver {
 			throw new IllegalStateException(e);
 		}
 //		runInBackground(() -> downstream.submitReplacement(target, newValue));
+	}
+
+	private <T> void setAndCommit(Connection connection, Reference<T> target, String newValueJson) throws SQLException, JsonProcessingException {
+		S.setField(connection, target, newValueJson);
+		S.insertChange(connection, target, newValueJson);
+		S.commitTransaction(connection);
 	}
 
 	@Override
@@ -318,9 +322,7 @@ public class PostgresDriver implements BoskDriver {
 			S.beginTransaction(connection);
 			Identifier preconditionValue = S.readState(connection, precondition);
 			if (requiredValue.equals(preconditionValue) && S.enclosingObjectExists(connection, target)) {
-				S.setField(connection, target, newValueJson);
-				S.insertChange(connection, target, newValueJson);
-				S.commitTransaction(connection);
+				setAndCommit(connection, target, newValueJson);
 			} else {
 				S.rollbackTransaction(connection);
 			}
@@ -341,9 +343,7 @@ public class PostgresDriver implements BoskDriver {
 			if (S.referenceExists(connection, target) && S.enclosingObjectExists(connection, target)) {
 				S.rollbackTransaction(connection);
 			} else {
-				S.setField(connection, target, newValueJson);
-				S.insertChange(connection, target, newValueJson);
-				S.commitTransaction(connection);
+				setAndCommit(connection, target, newValueJson);
 			}
 		} catch (JsonProcessingException | SQLException e) {
 			throw new IllegalStateException(e);
@@ -506,7 +506,7 @@ public class PostgresDriver implements BoskDriver {
 					   SET
 						state = jsonb_set(state, '%s', ?::jsonb)
 					 WHERE id = 'current'
-					""".formatted(fieldPath(ref)),
+					""".formatted(contentPath(ref)),
 				requireNonNull(newValueJson)
 			);
 		}
@@ -517,7 +517,7 @@ public class PostgresDriver implements BoskDriver {
 					   SET
 						state = state #- '%s'
 					 WHERE id = 'current'
-					""".formatted(fieldPath(ref))
+					""".formatted(entityPath(ref))
 			);
 		}
 
@@ -531,7 +531,7 @@ public class PostgresDriver implements BoskDriver {
 					SELECT state #>> '%s'
 					  FROM bosk_table
 					 WHERE id = 'current'
-					""".formatted(fieldPath(ref)));
+					""".formatted(contentPath(ref)));
 				var r = executeQuery(connection, q)
 			) {
 				if (r.next()) {
@@ -557,7 +557,7 @@ public class PostgresDriver implements BoskDriver {
 					SELECT (state #>> '%s') IS NOT NULL
 					  FROM bosk_table
 					 WHERE id = 'current'
-					""".formatted(fieldPath(ref.enclosingReference(Object.class))));
+					""".formatted(contentPath(ref.enclosingReference(Object.class))));
 				var r = executeQuery(connection, q)
 			) {
 				if (r.next()) {
@@ -577,7 +577,7 @@ public class PostgresDriver implements BoskDriver {
 					SELECT (state #>> '%s') IS NOT NULL
 					  FROM bosk_table
 					 WHERE id = 'current'
-					""".formatted(fieldPath(ref)));
+					""".formatted(contentPath(ref)));
 				var r = executeQuery(connection, q)
 			) {
 				if (r.next()) {
@@ -602,22 +602,45 @@ public class PostgresDriver implements BoskDriver {
 		}
 	}
 
-	private static String fieldPath(Reference<?> ref) {
+	/**
+	 * The object at this path deserializes into {@code ref.value()}.
+	 * Often the same as {@link #entityPath} but not necessarily always.
+	 * @return jsonb path pointing to where {@code ref.value()} would be stored in the JSON structure
+	 */
+	private static String contentPath(Reference<?> ref) {
 		ArrayList<String> steps = new ArrayList<>();
-		buildFieldPath(ref, steps);
+		buildFieldPath(ref, steps, true);
 		return "{" + String.join(",", steps) + "}";
 	}
 
-	private static void buildFieldPath(Reference<?> ref, ArrayList<String> steps) {
+	/**
+	 * Creating the object at this path causes {@code ref} to exist;
+	 * deleting it causes it not to exist.
+	 * Often the same as {@link #contentPath} but not necessarily always.
+	 * @return jsonb path pointing to the JSON object representing {@code ref}.
+	 */
+	private static String entityPath(Reference<?> ref) {
+		ArrayList<String> steps = new ArrayList<>();
+		buildFieldPath(ref, steps, false);
+		return "{" + String.join(",", steps) + "}";
+	}
+
+	/**
+	 * @param content if true, return the {@link #contentPath}; else return the {@link #entityPath}.
+	 */
+	private static void buildFieldPath(Reference<?> ref, ArrayList<String> steps, boolean content) {
 		if (!ref.path().isEmpty()) {
 			Reference<Object> enclosing = enclosingReference(ref);
-			buildFieldPath(enclosing, steps);
+			buildFieldPath(enclosing, steps, true);
 			if (Listing.class.isAssignableFrom(enclosing.targetClass())) {
-				steps.add(stringLiteral("ids"));
+				steps.add(stringLiteral("entriesById"));
 			} else if (SideTable.class.isAssignableFrom(enclosing.targetClass())) {
 				steps.add(stringLiteral("valuesById"));
 			}
 			steps.add(stringLiteral(ref.path().lastSegment()));
+			if (content && Catalog.class.isAssignableFrom(enclosing.targetClass())) {
+				steps.add(stringLiteral("value"));
+			}
 		}
 	}
 
