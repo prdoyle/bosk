@@ -278,9 +278,13 @@ public class PostgresDriver implements BoskDriver {
 			String newValueJson = writerFor(target.targetType())
 				.writeValueAsString(newValue);
 			S.beginTransaction(connection);
-			S.setField(connection, target, newValueJson);
-			S.insertChange(connection, target, newValueJson);
-			S.commitTransaction(connection);
+			if (S.enclosingObjectExists(connection, target)) {
+				S.setField(connection, target, newValueJson);
+				S.insertChange(connection, target, newValueJson);
+				S.commitTransaction(connection);
+			} else {
+				S.rollbackTransaction(connection);
+			}
 		} catch (JsonProcessingException | SQLException e) {
 			throw new IllegalStateException(e);
 		}
@@ -296,7 +300,7 @@ public class PostgresDriver implements BoskDriver {
 				.writeValueAsString(newValue);
 			S.beginTransaction(connection);
 			Identifier preconditionValue = S.readState(connection, precondition);
-			if (requiredValue.equals(preconditionValue)) {
+			if (requiredValue.equals(preconditionValue) && S.enclosingObjectExists(connection, target)) {
 				S.setField(connection, target, newValueJson);
 				S.insertChange(connection, target, newValueJson);
 				S.commitTransaction(connection);
@@ -317,7 +321,7 @@ public class PostgresDriver implements BoskDriver {
 			String newValueJson = writerFor(target.targetType())
 				.writeValueAsString(newValue);
 			S.beginTransaction(connection);
-			if (S.referenceExists(connection, target)) {
+			if (S.referenceExists(connection, target) && S.enclosingObjectExists(connection, target)) {
 				S.rollbackTransaction(connection);
 			} else {
 				S.setField(connection, target, newValueJson);
@@ -336,9 +340,13 @@ public class PostgresDriver implements BoskDriver {
 			var connection = connectionSource.get()
 		){
 			S.beginTransaction(connection);
-			S.deleteField(connection, target);
-			S.insertChange(connection, target, null);
-			S.commitTransaction(connection);
+			if (S.enclosingObjectExists(connection, target)) {
+				S.deleteField(connection, target);
+				S.insertChange(connection, target, null);
+				S.commitTransaction(connection);
+			} else {
+				S.rollbackTransaction(connection);
+			}
 		} catch (JsonProcessingException | SQLException e) {
 			throw new IllegalStateException(e);
 		}
@@ -352,7 +360,7 @@ public class PostgresDriver implements BoskDriver {
 		){
 			S.beginTransaction(connection);
 			Identifier preconditionValue = S.readState(connection, precondition);
-			if (requiredValue.equals(preconditionValue)) {
+			if (requiredValue.equals(preconditionValue) && S.enclosingObjectExists(connection, target)) {
 				S.deleteField(connection, target);
 				S.insertChange(connection, target, null);
 				S.commitTransaction(connection);
@@ -477,7 +485,7 @@ public class PostgresDriver implements BoskDriver {
 			executeCommand(connection, """
 					UPDATE bosk_table
 					   SET
-						state = jsonb_set(state, '%s', ?::jsonb, false)
+						state = jsonb_set(state, '%s', ?::jsonb)
 					 WHERE id = 'current'
 					""".formatted(fieldPath(ref)),
 				requireNonNull(newValueJson)
@@ -520,9 +528,29 @@ public class PostgresDriver implements BoskDriver {
 			}
 		}
 
-		/**
-		 * @return null if nonexistent
-		 */
+		boolean enclosingObjectExists(Connection connection, Reference<?> ref) throws SQLException {
+			if (ref.path().isEmpty()) {
+				return true;
+			}
+			try (
+				var q = connection.prepareStatement(
+					"""
+					SELECT (state #>> '%s') IS NOT NULL
+					  FROM bosk_table
+					 WHERE id = 'current'
+					""".formatted(fieldPath(ref.enclosingReference(Object.class))));
+				var r = executeQuery(connection, q)
+			) {
+				if (r.next()) {
+					return r.getBoolean(1);
+				} else {
+					throw new NotYetImplementedException("Row disappeared");
+				}
+			} catch (InvalidTypeException e) {
+				throw new AssertionError("Every non-root path must have a valid enclosing reference", e);
+			}
+		}
+
 		boolean referenceExists(Connection connection, Reference<?> ref) throws SQLException {
 			try (
 				var q = connection.prepareStatement(
@@ -534,7 +562,8 @@ public class PostgresDriver implements BoskDriver {
 				var r = executeQuery(connection, q)
 			) {
 				if (r.next()) {
-					return r.getBoolean(1);
+					boolean result = r.getBoolean(1);
+					return result;
 				} else {
 					throw new NotYetImplementedException("Row disappeared");
 				}
@@ -562,11 +591,12 @@ public class PostgresDriver implements BoskDriver {
 
 	private static void buildFieldPath(Reference<?> ref, ArrayList<String> steps) {
 		if (!ref.path().isEmpty()) {
-			buildFieldPath(enclosingReference(ref), steps);
-			if (Listing.class.isAssignableFrom(ref.targetClass())) {
-				steps.add("ids");
-			} else if (SideTable.class.isAssignableFrom(ref.targetClass())) {
-				steps.add("valuesById");
+			Reference<Object> enclosing = enclosingReference(ref);
+			buildFieldPath(enclosing, steps);
+			if (Listing.class.isAssignableFrom(enclosing.targetClass())) {
+				steps.add(stringLiteral("ids"));
+			} else if (SideTable.class.isAssignableFrom(enclosing.targetClass())) {
+				steps.add(stringLiteral("valuesById"));
 			}
 			steps.add(stringLiteral(ref.path().lastSegment()));
 		}
