@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -27,7 +28,9 @@ import org.slf4j.LoggerFactory;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
 import works.bosk.Catalog;
+import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
+import works.bosk.Entity;
 import works.bosk.Identifier;
 import works.bosk.Listing;
 import works.bosk.MapValue;
@@ -307,7 +310,25 @@ public class PostgresDriver implements BoskDriver {
 	}
 
 	private <T> void setAndCommit(Connection connection, Reference<T> target, String newValueJson) throws SQLException, JsonProcessingException {
-		S.setField(connection, target, newValueJson);
+		if (S.objectExists(connection, target)) {
+			// Just changing the content
+			S.setField(connection, target, newValueJson);
+		} else {
+			if (target.path().isEmpty()) {
+				throw new NotYetImplementedException("State disappeared");
+			}
+			var enclosing = enclosingReference(target);
+			if (Catalog.class.isAssignableFrom(enclosing.targetClass())) {
+				throw new NotYetImplementedException("Linked list logic for Catalog");
+			} else if (Listing.class.isAssignableFrom(enclosing.targetClass())) {
+				throw new NotYetImplementedException("Linked list logic for Listing");
+			} else if (SideTable.class.isAssignableFrom(enclosing.targetClass())) {
+				throw new NotYetImplementedException("Linked list logic for SideTable");
+			} else {
+				// Ordinary object; perhaps inside an Optional
+				S.setField(connection, target, newValueJson);
+			}
+		}
 		S.insertChange(connection, target, newValueJson);
 		S.commitTransaction(connection);
 	}
@@ -401,7 +422,7 @@ public class PostgresDriver implements BoskDriver {
 			// Wait for any pending notifications
 			while (lastChangeSubmittedDownstream.get() < currentChangeID) {
 				// TODO: Quit after a while
-				Thread.sleep(100);
+				Thread.sleep(50);
 			}
 		} catch (ExecutionException  | SQLException e) {
 			throw new FlushFailureException(e);
@@ -547,6 +568,27 @@ public class PostgresDriver implements BoskDriver {
 			}
 		}
 
+		boolean objectExists(Connection connection, Reference<?> ref) throws SQLException {
+			if (ref.path().isEmpty()) {
+				return true;
+			}
+			try (
+				var q = connection.prepareStatement(
+					"""
+					SELECT (state #>> '%s') IS NOT NULL
+					  FROM bosk_table
+					 WHERE id = 'current'
+					""".formatted(entityPath(ref)));
+				var r = executeQuery(connection, q)
+			) {
+				if (r.next()) {
+					return r.getBoolean(1);
+				} else {
+					throw new NotYetImplementedException("Row disappeared");
+				}
+			}
+		}
+
 		boolean enclosingObjectExists(Connection connection, Reference<?> ref) throws SQLException {
 			if (ref.path().isEmpty()) {
 				return true;
@@ -650,6 +692,22 @@ public class PostgresDriver implements BoskDriver {
 			return ref.enclosingReference(Object.class);
 		} catch (InvalidTypeException e) {
 			throw new AssertionError("Non-empty path should always have an enclosing path", e);
+		}
+	}
+
+	private static Optional<CatalogReference<?>> directlyEnclosingCatalog(Reference<?> ref) {
+		if (ref.path().isEmpty()) {
+			return Optional.empty();
+		}
+		var enclosing = enclosingReference(ref);
+		if (Catalog.class.isAssignableFrom(enclosing.targetClass())) {
+			try {
+				return Optional.of(enclosing.root().thenCatalog(Entity.class, enclosing.path()));
+			} catch (InvalidTypeException e) {
+				throw new AssertionError("Should be able to make a CatalogReference from a reference to a Catalog", e);
+			}
+		} else {
+			return Optional.empty();
 		}
 	}
 
