@@ -20,7 +20,7 @@ compileTestJava {
 }
 
 dependencies {
-	api 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+	api 'com.fasterxml.jackson.core:jackson-databind:2.18.1'
 	api project(":bosk-core")
 
 	testImplementation project(":bosk-testing")
