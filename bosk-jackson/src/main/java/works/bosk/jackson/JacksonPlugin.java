@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import works.bosk.BoskInfo;
 import works.bosk.Catalog;
 import works.bosk.Entity;
@@ -97,14 +98,19 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 	private final class BoskSerializers extends Serializers.Base {
 		private final BoskInfo<?> boskInfo;
+		private final Map<JavaType, JsonSerializer<?>> memo = new ConcurrentHashMap<>();
 
 		public BoskSerializers(BoskInfo<?> boskInfo) {
 			this.boskInfo = boskInfo;
 		}
 
 		@Override
-		@SuppressWarnings({ "unchecked", "rawtypes" })
 		public JsonSerializer<?> findSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
+			return memo.computeIfAbsent(type, __ -> getJsonSerializer(config, type, beanDesc));
+		}
+
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		private JsonSerializer<?> getJsonSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
 			Class theClass = type.getRawClass();
 			if (theClass.isAnnotationPresent(DerivedRecord.class)) {
 				return derivedRecordSerializer(config, type, beanDesc);
@@ -308,14 +314,19 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 	private final class BoskDeserializers extends Deserializers.Base {
 		private final BoskInfo<?> boskInfo;
+		private final Map<JavaType, JsonDeserializer<?>> memo = new ConcurrentHashMap<>();
 
 		public BoskDeserializers(BoskInfo<?> boskInfo) {
 			this.boskInfo = boskInfo;
 		}
 
 		@Override
-		@SuppressWarnings({ "unchecked", "rawtypes" })
 		public JsonDeserializer<?> findBeanDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+			return memo.computeIfAbsent(type, __ -> getJsonDeserializer(type, config, beanDesc));
+		}
+
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		private JsonDeserializer<?> getJsonDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
 			Class theClass = type.getRawClass();
 			if (theClass.isAnnotationPresent(DerivedRecord.class)) {
 				return derivedRecordDeserializer(type, config, beanDesc);
@@ -662,6 +673,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 	 * Leaves the parser sitting on the END_ARRAY token. You could call nextToken() to continue with parsing.
 	 */
 	private <V> LinkedHashMap<Identifier, V> readMapEntries(JsonParser p, JavaType valueType, DeserializationContext ctxt) throws IOException {
+		@SuppressWarnings("unchecked")
 		JsonDeserializer<V> valueDeserializer = (JsonDeserializer<V>) ctxt.findContextualValueDeserializer(valueType, null);
 		LinkedHashMap<Identifier, V> result = new LinkedHashMap<>();
 		if (p.currentToken() == START_OBJECT) {

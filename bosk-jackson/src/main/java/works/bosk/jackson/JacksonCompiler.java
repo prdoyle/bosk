@@ -66,6 +66,7 @@ final class JacksonCompiler {
 	 * @return a newly compiled {@link CompiledSerDes} for values of the given <code>nodeType</code>.
 	 */
 	public <T> CompiledSerDes<T> compiled(JavaType nodeType, BoskInfo<?> boskInfo, JacksonPlugin.FieldModerator moderator) {
+		LOGGER.debug("Compiling SerDes for node type {}", nodeType);
 		try {
 			// Record that we're compiling this one to avoid infinite recursion
 			compilationsInProgress.get().addLast(nodeType);
