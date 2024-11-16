@@ -36,6 +36,7 @@ import works.bosk.drivers.state.TestValues;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
+import works.bosk.junit.Slow;
 import works.bosk.util.Classes;
 
 import static ch.qos.logback.classic.Level.ERROR;
@@ -447,6 +448,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 
 	@ParametersByName
 	@UsesMongoService
+	@Slow
 	void databaseMissingField_fallsBackToDefaultState() throws InvalidTypeException, IOException, InterruptedException {
 		setLogging(ERROR, ChangeReceiver.class);
 
@@ -576,6 +578,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 
 	@ParametersByName
 	@UsesMongoService
+	@Slow
 	void manifestVersionBump_disconnects() throws IOException, InterruptedException {
 		setLogging(ERROR, MainDriver.class, ChangeReceiver.class);
 

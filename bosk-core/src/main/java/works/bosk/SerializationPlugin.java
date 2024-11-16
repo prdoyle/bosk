@@ -288,23 +288,14 @@ public abstract class SerializationPlugin {
 		datatypes, a reverse postorder walk over the ParameterInfo objects should converge in a single pass.
 		 */
 		if (!target.path().isEmpty()) {
-			try {
-				initializePolyfills(target.enclosingReference(Object.class), driver);
-			} catch (InvalidTypeException e) {
-				throw new AssertionError("Every non-root reference has an enclosing reference: " + target);
-			}
+			initializePolyfills(target.enclosingReference(Object.class), driver);
 		}
 	}
 
 	private <R extends StateTreeNode, T> void initializePolyfills(Reference<T> ref, BoskDriver driver) {
 		initializeEnclosingPolyfills(ref, driver);
 		if (!ref.path().isEmpty()) {
-			Class<?> enclosing;
-			try {
-				enclosing = ref.enclosingReference(Object.class).targetClass();
-			} catch (InvalidTypeException e) {
-				throw new AssertionError("Every non-root reference must have an enclosing reference: " + ref);
-			}
+			Class<?> enclosing = ref.enclosingReference(Object.class).targetClass();
 			if (StateTreeNode.class.isAssignableFrom(enclosing)) {
 				Object result = infoFor(enclosing).polyfills().get(ref.path().lastSegment());
 				if (result != null) {
@@ -323,7 +314,7 @@ public abstract class SerializationPlugin {
 			Reference<Object> selfRef = selfReference(Object.class, boskInfo);
 			try {
 				return selfRef.enclosingReference(targetClass);
-			} catch (InvalidTypeException e) {
+			} catch (IllegalArgumentException e) {
 				// TODO: Validation needs to check that every location
 				// where this type appears in the document tree is
 				// contained in a document of the target class.

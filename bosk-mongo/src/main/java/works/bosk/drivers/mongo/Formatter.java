@@ -353,7 +353,7 @@ final class Formatter {
 	 */
 	private static <T> void buildDottedFieldNameOf(Reference<T> ref, int startLength, int refLength, ArrayList<String> segments) {
 		if (ref.path().length() > startLength) {
-			Reference<?> enclosingReference = enclosingReference(ref);
+			Reference<?> enclosingReference = ref.enclosingReference(Object.class);
 			buildDottedFieldNameOf(enclosingReference, startLength, refLength, segments);
 			if (ref.path().length() <= refLength) {
 				if (Listing.class.isAssignableFrom(enclosingReference.targetClass())) {
@@ -406,19 +406,6 @@ final class Formatter {
 		}
 		if (!expectedName.equals(actualName)) {
 			throw new IllegalStateException("Expected '" + expectedName + "' for " + ref.targetClass().getSimpleName() + "; was: " + actualName);
-		}
-	}
-
-	/**
-	 * If the reference is not a root reference, it always has an enclosing reference
-	 * conforming to Object, so this can't throw. Eat the InvalidTypeException.
-	 */
-	static <T> Reference<?> enclosingReference(Reference<T> ref) {
-		assert !ref.path().isEmpty();
-		try {
-			return ref.enclosingReference(Object.class);
-		} catch (InvalidTypeException e) {
-			throw new AssertionError(format("Reference must have an enclosing Object: '%s'", ref), e);
 		}
 	}
 

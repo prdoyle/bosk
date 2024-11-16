@@ -29,7 +29,7 @@ jobs:
 
       - name: Run Gradle Publish
         run: |
-          ./gradlew :bosk-core:test publishToSonatype closeAndReleaseSonatypeStagingRepository \
+          ./gradlew smoke publishToSonatype closeAndReleaseSonatypeStagingRepository \
             -Pversion="${{github.event.release.tag_name}}" \
             --info
         env:

@@ -21,6 +21,7 @@ import works.bosk.drivers.state.TestEntity;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
+import works.bosk.junit.Slow;
 
 import static ch.qos.logback.classic.Level.ERROR;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,6 +33,7 @@ import static works.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 /**
  * Tests the kinds of recovery actions a human operator might take to try to get a busted service running again.
  */
+@Slow
 public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	FlushOrWait flushOrWait;
 
