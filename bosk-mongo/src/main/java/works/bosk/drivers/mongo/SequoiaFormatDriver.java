@@ -42,7 +42,6 @@ import static java.util.Objects.requireNonNull;
 import static org.bson.BsonBoolean.FALSE;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.Formatter.dottedFieldNameOf;
-import static works.bosk.drivers.mongo.Formatter.enclosingReference;
 import static works.bosk.drivers.mongo.Formatter.referenceTo;
 import static works.bosk.drivers.mongo.MainDriver.MANIFEST_ID;
 import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT;
@@ -328,7 +327,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	private <T> BsonDocument standardPreconditions(Reference<T> target) {
 		BsonDocument filter = documentFilter();
 		if (!target.path().isEmpty()) {
-			String enclosingObjectKey = dottedFieldNameOf(enclosingReference(target), rootRef);
+			String enclosingObjectKey = dottedFieldNameOf(target.enclosingReference(Object.class), rootRef);
 			BsonDocument condition = new BsonDocument("$type", new BsonString("object"));
 			filter.put(enclosingObjectKey, condition);
 			LOGGER.debug("| Precondition: {} {}", enclosingObjectKey, condition);

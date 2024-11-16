@@ -68,13 +68,7 @@ public abstract class AbstractDriverTest {
 			// Root always exists; nothing to do
 			return null;
 		} else {
-			Reference<TestEntity> outer;
-			try {
-				outer = ref.enclosingReference(TestEntity.class);
-			} catch (InvalidTypeException e) {
-				throw new AssertionError("Every entity besides the root should be inside another entity", e);
-			}
-			autoInitialize(outer);
+			autoInitialize(ref.enclosingReference(TestEntity.class));
 			TestEntity newEntity = emptyEntityAt(ref);
 			driver.submitInitialization(ref, newEntity);
 			return newEntity;

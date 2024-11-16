@@ -556,15 +556,11 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				LOGGER.debug("| Filter: {}", filter);
 				collection.updateOne(filter, update, new UpdateOptions().upsert(true));
 
-				try {
-					// Move up to the parent document to set the "true" stub
-					mainRef = mainRef(mainRef.enclosingReference(Object.class));
-					filter = documentFilter(mainRef);
-					value = TRUE;
-					LOGGER.debug("| Move up to enclosing main reference {}", mainRef);
-				} catch (InvalidTypeException e) {
-					throw new AssertionError("Every non-root reference has an enclosing reference");
-				}
+				// Move up to the parent document to set the "true" stub
+				mainRef = mainRef(mainRef.enclosingReference(Object.class));
+				filter = documentFilter(mainRef);
+				value = TRUE;
+				LOGGER.debug("| Move up to enclosing main reference {}", mainRef);
 			}
 
 			// Update part of the main doc (which must already exist)
@@ -594,13 +590,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			}
 
 			assert !mainRef.path().isEmpty(): "Can't delete the root reference";
-			try {
-				// Move up to the parent document to delete the "true" stub
-				mainRef = mainRef(mainRef.enclosingReference(Object.class));
-				LOGGER.debug("Move up to enclosing main reference {}", mainRef);
-			} catch (InvalidTypeException e) {
-				throw new AssertionError("Every non-root reference has an enclosing reference");
-			}
+			// Move up to the parent document to delete the "true" stub
+			mainRef = mainRef(mainRef.enclosingReference(Object.class));
+			LOGGER.debug("Move up to enclosing main reference {}", mainRef);
 		}
 		if (doUpdate(deletionDoc(target, mainRef), standardPreconditions(target, mainRef, documentFilter(mainRef)))) {
 			if (!rootRef.equals(mainRef)) {
@@ -713,7 +705,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 	private <T> BsonDocument standardPreconditions(Reference<T> target, Reference<?> startingRef, BsonDocument filter) {
 		if (!target.path().equals(startingRef.path())) {
-			String enclosingObjectKey = Formatter.dottedFieldNameOf(Formatter.enclosingReference(target), startingRef);
+			String enclosingObjectKey = Formatter.dottedFieldNameOf(target.enclosingReference(Object.class), startingRef);
 			BsonDocument condition = new BsonDocument("$type", new BsonString("object"));
 			filter.put(enclosingObjectKey, condition);
 			LOGGER.debug("| Precondition: {} {}", enclosingObjectKey, condition);

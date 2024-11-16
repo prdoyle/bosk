@@ -168,15 +168,22 @@ public sealed interface Reference<T> permits
 	<TT> Reference<TT> truncatedTo(Class<TT> targetClass, int remainingSegments) throws InvalidTypeException;
 
 	/**
+	 * Returns a {@link Reference} with the {@link Path#lastSegment() last segment} removed.
+	 *
+	 * <p>
+	 * <em>Design note</em>: we'd usually throw {@link InvalidTypeException} if the caller passes something invalid in here.
+	 * However, experience has shown that almost every single time this is called, the user knows the call will always succeed,
+	 * and just catches the {@link InvalidTypeException} and wraps it in an {@link AssertionError}.
 	 * @param targetClass Type constraint on the reference; the returned
 	 * reference will satisfy <code>targetClass.{@link Class#isAssignableFrom isAssignableFrom}(result.{@link
 	 * #targetClass()})</code>.
 	 * @return a {@link Reference} whose {@link #path()} is a proper prefix of
 	 * this.{@link #path()}, and whose {@link #targetClass()} conforms to
 	 * <code>targetClass</code>.
-	 * @throws InvalidTypeException if no suitable enclosing reference exists.
+	 * @throws IllegalArgumentException if the enclosing reference does not point to the specified {@code targetClass},
+	 * or if this reference is the root reference and therefore has no last segment to remove.
 	 */
-	<TT> Reference<TT> enclosingReference(Class<TT> targetClass) throws InvalidTypeException;
+	<TT> Reference<TT> enclosingReference(Class<TT> targetClass);
 
 	/**
 	 * @return <code>this.path().{@link Path#isPrefixOf isPrefixOf}(other.path())</code>

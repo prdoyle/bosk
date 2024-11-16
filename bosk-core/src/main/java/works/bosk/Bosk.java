@@ -1037,9 +1037,9 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 
 		@SuppressWarnings("unchecked")
 		@Override
-		public final <TT> Reference<TT> enclosingReference(Class<TT> targetClass) throws InvalidTypeException {
+		public final <TT> Reference<TT> enclosingReference(Class<TT> targetClass) {
 			if (path.isEmpty()) {
-				throw new InvalidTypeException("Root reference has no enclosing references");
+				throw new IllegalArgumentException("Root reference has no enclosing references");
 			}
 			for (Path p = this.path.truncatedBy(1); !p.isEmpty(); p = p.truncatedBy(1)) try {
 				Type targetType = pathCompiler.targetTypeOf(p);
@@ -1047,13 +1047,13 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 					return rootReference().then(targetClass, p);
 				}
 			} catch (InvalidTypeException e) {
-				throw new InvalidTypeException("Error looking up enclosing " + targetClass.getSimpleName() + " from " + path);
+				throw new IllegalArgumentException("Error looking up enclosing " + targetClass.getSimpleName() + " from " + path);
 			}
 			// Might be the root
 			if (targetClass.isAssignableFrom(rootRef.targetClass())) {
 				return (Reference<TT>) rootReference();
 			} else {
-				throw new InvalidTypeException("No enclosing " + targetClass.getSimpleName() + " from " + path);
+				throw new IllegalArgumentException("No enclosing " + targetClass.getSimpleName() + " from " + path);
 			}
 		}
 
