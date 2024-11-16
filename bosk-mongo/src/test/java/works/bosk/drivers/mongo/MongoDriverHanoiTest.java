@@ -10,10 +10,12 @@ import org.junit.jupiter.api.TestInfo;
 import works.bosk.DriverStack;
 import works.bosk.drivers.HanoiTest;
 import works.bosk.junit.ParametersByName;
+import works.bosk.junit.Slow;
 
 import static works.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 
 @UsesMongoService
+@Slow
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;
 	private final Queue<Runnable> shutdownOperations = new ConcurrentLinkedDeque<>();

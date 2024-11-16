@@ -12,10 +12,12 @@ import works.bosk.drivers.DriverConformanceTest;
 import works.bosk.drivers.mongo.TestParameters.EventTiming;
 import works.bosk.drivers.mongo.TestParameters.ParameterSet;
 import works.bosk.junit.ParametersByName;
+import works.bosk.junit.Slow;
 
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 
 @UsesMongoService
+@Slow
 class MongoDriverConformanceTest extends DriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
 	private static MongoService mongoService;

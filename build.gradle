@@ -41,6 +41,21 @@ spotless {
 allprojects {
 	group = 'works.bosk'
 	// version should be set as a property with -Pversion
+
+	tasks.register('smoke', Test) {
+		// A set of tests that should finish in under a minute or so.
+		// Used as a quick double-check before publishing, when we've already
+		// run the full test suite and so there's no need to run it again.
+		// If publishing takes longer than desired, tests can be annotated
+		// with @Slow to omit them from this suite.
+
+		group = 'verification'
+		description = 'Skips tests tagged as "slow" for a quick verification that basic functionality works.'
+
+		useJUnitPlatform {
+			excludeTags 'slow'
+		}
+	}
 }
 
 nexusPublishing {
