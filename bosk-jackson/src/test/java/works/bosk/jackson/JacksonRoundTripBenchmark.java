@@ -66,27 +66,31 @@ public class JacksonRoundTripBenchmark extends AbstractRoundTripTest {
 			this.jacksonPlugin = new JacksonPlugin();
 			this.mapper = new ObjectMapper().registerModule(jacksonPlugin.moduleFor(bosk));
 			rootRef = bosk.rootReference();
-			TestRoot localRoot = root1 = rootRef.value();
+			try (var _ = bosk.readContext()) {
+				root1 = rootRef.value();
+			}
 
 			// Make a separate identical state object, cloning via JSON
 			String json = mapper.writerFor(rootRef.targetClass()).writeValueAsString(root1);
 			root2 = mapper.readerFor(rootRef.targetClass()).readValue(json);
 		}
 
+		@Setup(Level.Invocation)
+		public void resetBoskState() {
+			bosk.driver().submitReplacement(rootRef, root1);
+		}
 	}
 
 	@Benchmark
 	@BenchmarkMode(AverageTime)
 	public void replacementOverhead(BenchmarkState state) {
 		state.downstreamDriver.submitReplacement(state.rootRef, state.root2);
-		state.downstreamDriver.submitReplacement(state.rootRef, state.root1);
 	}
 
 	@Benchmark
 	@BenchmarkMode(AverageTime)
 	public void replacement(BenchmarkState state) {
 		state.driver.submitReplacement(state.rootRef, state.root2);
-		state.driver.submitReplacement(state.rootRef, state.root1);
 	}
 
 }
