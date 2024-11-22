@@ -34,15 +34,13 @@ the `DriverFactory` allows this to be extended with additional functionality by 
 The `DriverFactory` function is invoked in the `Bosk` constructor as follows:
 
 ``` java
-this.driver = driverFactory.build(this, localDriver);
+this.driver = driverFactory.build(boskInfo, localDriver);
 ```
 
-The return value of this function is stored, and becomes the object returned by `Bosk.driver()`.
+...where `boskInfo` provides access to information about the `Bosk` object.
 
-Note that the factory accepts the `Bosk` object itself, even though this object is still under construction.
-The reason for this is to allow drivers to create `Reference` objects, which requires the `Bosk` (which behaves as a `Reference` factory).
-During the execution of `DriverFactory`, the bosk object can be used for anything that doesn't involve accessing the driver or the state tree, because neither of these is ready yet at the time the factory is called.
-Other operations, like creating references, or `Bosk.instanceID()`, work as expected.
+The return value of this function is stored, and can be retrieved later via `Bosk.driver()`
+(though the actual object returned by this method could have additional layers stacked on top).
 
 ##### State tree initialization
 
@@ -63,6 +61,7 @@ The `Bosk` object keeps track of the root node, and the other nodes can be reach
 A node is identified by the sequence of steps required to reach that node from the root node.
 The step sequence can be represented as a slash-delimited _path_ string;
 for example, the path `"/a/b"` represents the node reached by calling `root.a().b()`.
+All paths start with a slash.
 
 ##### Path objects
 
@@ -70,7 +69,7 @@ A `Path` object is the parsed form of a path string.
 They can be created in three ways:
 1. The `Path.parse` method accepts a slash-delimited path string. The segments of the path must be URL-encoded.
 2. The `Path.of` method accepts a sequence of segment strings. The segments are not URL-encoded.
-3. The `Path.then` method extends a path with additional trailing segments.
+3. The `Path.then` method extends a path with additional trailing segments, also not URL-encoded.
 
 For example, the following three `Path` objects are identical:
 - `Path.parse("/media/films/Star%20Wars")`
@@ -84,7 +83,7 @@ otherwise, a `MalformedPathException` is thrown.
 
 ##### Reference objects
 
-A `Reference` is a pointer to a node in the state tree, identified by its path.
+A `Reference` is a pointer to a node in the state tree for a particular bosk, identified by its path.
 
 `Reference` is one of the most important classes in Bosk. It is used in two primary ways:
 
@@ -98,7 +97,8 @@ but attempting to create a reference to an object that _cannot_ exist
 (such as a nonexistent field of an object) results in an `InvalidTypeException`.
 
 Two `Reference` objects are considered equal if they have the same path and the same root type.
-In particular, references from two different bosks can be equal.
+In particular, references from two different bosks can be equal,
+despite their `value()` methods returning different objects.
 
 #### Node types
 
@@ -245,8 +245,8 @@ potentially by simply adding a `tag` field to the class and returning that.
 
 ### Creating `Reference`s
 
-The `Bosk` object acts as a factory for `Reference` objects.
-You can call any of the `reference*` methods to generate references as desired.
+The `Bosk.rootReference()` object acts as a factory for `Reference` objects.
+You can call any of the `then*` methods to generate references as desired.
 The methods are type-safe, in that they require the caller to pass type information that is checked against what is actually found in the state tree.
 
 The `Bosk` object also offers a method called `buildReferences`
@@ -312,6 +312,10 @@ for dependency injection.
 Bosk is designed to provide stable, deterministic, repeatable reads, using the `Reference` class.
 `Reference` contains several related methods that provide access to the current state of the tree.
 
+The core of bosk's approach to deterministic, repeatable behaviour is to avoid race conditions by using immutable data structures to represent program state.
+To keep the state consistent over the course of an operation, bosk provides _snapshot-at-start_ behaviour:
+the same state tree object is used throughout the operation, so that all reads are consistent with each other.
+
 The most commonly used method is `Reference.value()`, which returns the current value of the reference's target node, or throws `NonexistentReferenceException` if the node does not exist.
 A referenced node does not _exist_ if any of the reference's path segments don't exist;
 for example, a reference to `/planets/tatooine/cities/anchorhead` doesn't exist if there is no planet `tatooine`.
@@ -319,18 +323,17 @@ for example, a reference to `/planets/tatooine/cities/anchorhead` doesn't exist 
 There are a variety of similar methods with slight variations in behaviour.
 For example, `Reference.valueIfExists()` is like `value()`, but returns `null` if the node does not exist.
 
-#### `ReadContext`
-
-The core of bosk's approach to deterministic, repeatable behaviour is to avoid race conditions by using immutable data structures to represent program state.
-To keep the state consistent over the course of an operation, bosk provides _snapshot-at-start_ behaviour:
-the same state tree object is used throughout the operation, so that all reads are consistent with each other.
+#### Read Context
 
 The `ReadContext` object defines the duration of a single "operation".
+Opening a read context captures the bosk state at that moment,
+and within a read context, all calls to `Reference.value()` return data taken from that snapshot.
+
 Without a `ReadContext`, a call to `Reference.value()` will throw `IllegalStateException`.
 `ReadContext` is an `AutoCloseable` object that uses `ThreadLocal` to establish the state snapshot to be used for the duration of the operation:
 
 ``` java
-try (var __ = bosk.readContext()) {
+try (var _ = bosk.readContext()) {
 	exampleRef.value(); // Returns the value from the snapshot
 }
 exampleRef.value(); // Throws IllegalStateException
@@ -340,7 +343,10 @@ By convention, in the bosk library, methods that require an active read context 
 
 The intent is to create a read context at the start of an operation and hold it open for the duration, so that the state is fixed and unchanging.
 For example, if you're using a servlet container, use one read context for the entirety of a single HTTP endpoint method.
-Creating many brief read contexts opens your application up to race conditions due to state changes from one context to the next.
+Creating many brief read contexts opens your application up to race conditions due to state changes from one context to the next,
+and should be done with care.
+(If you need to check whether some operation had an effect,
+consider using `Bosk.supersedingContext()` instead of many small contexts.)
 
 ##### Creation
 
@@ -353,7 +359,7 @@ Sometimes a program will use multiple threads to perform a single operation, and
 A snapshot from one thread can be used on another via `ReadContext.adopt`:
 
 ``` java
-try (var __ = inheritedContext.adopt()) {
+try (var _ = inheritedContext.adopt()) {
 	exampleRef.value(); // Returns the same value as the thread that created inheritedContext
 }
 ```
@@ -363,7 +369,7 @@ try (var __ = inheritedContext.adopt()) {
 A path can contain placeholders, called _parameters_, that can later be bound to `Identifier` values.
 A reference whose path contains one or more parameters is referred to as a _parameterized reference_ (or sometimes an _indefinite_ reference);
 a reference with no parameters is a _concrete_ (or sometimes _definite_) reference.
-Parameters are delimited by a hyphen character `-`, chosen because it survives URL encoding, meaning paths retain their readability even when URL-encoded.
+Parameters are delimited by a hyphen character `-`, chosen because it survives URL encoding, meaning parameterized paths retain their readability even when URL-encoded.
 
 An example:
 
@@ -372,7 +378,7 @@ Reference<City> anyCity = bosk.reference(City.class, Path.parseParameterized(
 	"/planets/-planet-/cities/-city-"));
 ```
 
-Parameter values can either be supplied by position or by name.
+Parameter values can be supplied either by position or by name.
 To supply parameters by position, use `Reference.boundTo`:
 
 ``` java
@@ -408,7 +414,7 @@ for example, changing a field of an object that has been deleted.
 Updates that can't be applied due to the contents of the bosk state are silently ignored.
 
 In contrast, updates that are impossible to apply regardless of the state tree contents will throw an exception at submission time;
-examples include an attempt to modify a nonexistent field in an existing object,
+examples include an attempt to modify a nonexistent field in an object,
 or an attempt to submit an update when an error has left the driver temporarily unable to accept updates.
 
 #### Replacement
@@ -475,6 +481,32 @@ since the read context continues using the state snapshot acquired when the read
 To wait for a particular hook to run, the hook and application code must cooperate using a synchronization mechanism such as a semaphore.
 (Be aware, though, that hooks can be called more than once, so make sure your semaphore code can cope with this case.)
 
+#### Conformance rules
+
+`BoskDriver` implementations typically take the form of a stackable layer that accepts update requests, performs some sort of processing, and forwards the (possibly modified) requests to the next driver in the chain (the _downstream_) driver.
+This is a powerful technique to add functionality to a Bosk instance.
+
+To retain compatibility with application code, however, driver implementations should obey the `BoskDriver` contract.
+The low-level details of that contract are well documented in the `BoskDriver` javadocs, and are tested in the `DriverConformanceTest` class.
+In addition, there there are also important higher-level rules governing the allowed differences between the updates a driver receives and those it forwards to the downstream driver.
+Breaking these rules might alter application behaviour in ways that the developers won't be expecting.
+
+Broadly, the validity of a sequence of updates can be understood in terms of the implied _sequence of states_ that exist between updates.
+The updates emitted downstream by a driver layer are allowed to differ from the operations it received,
+provided that the emitted updates have the same effect on the bosk state.
+For example, if the layer receives a conditional update whose precondition matches, it is allowed to submit an equivalent unconditional update downstream.
+Another example: if the layer receives an update that has no effect on the state, it is allowed to ignore that update and decline to submit it downstream.
+These rules are checked during the `DriverConformanceTest` suite via the `DriverStateVerifier` class.
+
+Taking advantage of these state-based rules require that the driver maintains an awareness of the current bosk state,
+which _most drivers do not_,
+and so most drivers are rarely able to exploit the flexibility provided
+because they can't generally determine what effect an update will have.
+However, for drivers that do track the bosk state,
+these rules allow flexibility that might otherwise make driver implementations tricky to write if they were required to emit the exact same sequence of updates they received;
+for instance, it means a queue system does not require exactly-once message delivery because
+a duplicated message is ok as long as messages arrive in order.
+
 ### Hooks
 
 The `Bosk.registerHook` method indicates that a particular call-back should occur any time a specified part of the state tree (the hook's _scope_) is updated.
@@ -486,7 +518,10 @@ bosk.registerHook("Name update", bosk.nameRef, ref -> {
 ```
 
 Hooks are also called at registration time for all matching nodes.
-They can also fire spontaneously; any application logic in a hook must be designed to accept additional calls even if the tree state didn't change.
+
+Hooks can also fire spontaneously; any application logic in a hook must be designed to accept additional calls even if the tree state didn't change.
+In particular, updating a counter from a hook might lead to over-counting,
+as could acquiring or releasing a semaphore.
 
 A hook's scope can be a parameterized reference, in which case it will be called any time _any_ matching node is updated.
 Suppose your bosk has a field declared as follows:
@@ -505,6 +540,7 @@ bosk.registerHook("Widget changed", bosk.anyWidget, ref -> {
 ```
 
 The hook call-back occurs inside a read context containing a state snapshot taken immediately after the triggering update occurred.
+This means there are no race conditions between bosk reads in a hook versus other bosk updates happening in parallel.
 
 If a single update triggers multiple hooks, the hooks will run in the order they were registered.
 
@@ -517,6 +553,8 @@ For example, if one update triggers two hooks A and B, and then A performs an up
 B will run before C. The hooks will reliably run in the order A, B, C.
 When C runs, its read context will reflect the updates performed by A and C but not B, _even though B ran first_[^ordering].
 
+See the `HooksTest` unit test for examples to illustrate the behaviour.
+
 [^ordering]: It might at first appear strange that hook C would not observe the effects of hook B, if B runs before C.
 However, recall that, though B's updates will be _submitted_ before C runs, there is no guarantee that they will be _applied_ before C runs.
 Suppose, for example, that we've chosen to deploy our application as a cluster that uses a queueing system
@@ -527,8 +565,6 @@ bosk heavily favours consistency, and employs a convention that can be implement
 updates from B are never visible in C's read scope.
 Whatever confusion this might cause, that confusion will be encountered during initial application development,
 rather than providing surprises when moving to a different environment for production.
-
-See the `HooksTest` unit test for examples to illustrate the behaviour.
 
 #### Exception handling
 
@@ -557,13 +593,22 @@ The local driver is also the component responsible for triggering and executing 
 
 Despite the `BoskDriver` interface's asynchronous design, the local driver actually operates synchronously, and does not use a background thread.
 The calling thread is used to trigger hooks, and even to run them (unless a hook is already running on another thread).
+This makes basic in-memory updates efficient and easily debuggable.
+
+Parallel updates from multiple threads, or recursive updates from bosk hooks,
+are handled using an algorithm we call "reactive breadth-first search"
+that still performs all updates on one of the application threads,
+coordinated using just `Semaphore`.
+In this case, updates are still highly efficient,
+though debuggability is a bit more challenging because updates from one thread may be applied by another.
+
 
 #### DriverStack and DriverFactory
 
 `BoskDriver` itself is designed to permit stackable layers (the _Decorator_ design pattern),
 making drivers modular and composable.
 
-The simplest `DriverFactory` is `Bosk.simpleDriver()`, which adds no driver layers at all, and simply returns the bosk's own local driver, which directly updates the Bosk's in-memory state tree.
+The simplest `DriverFactory` is `Bosk.simpleDriver()`, which just uses the bosk's local driver, which directly updates the Bosk's in-memory state tree.
 More sophisticated driver layers can provide their own factories, which typically create an instance of the driver layer object configured to forward update requests to the downstream driver, forming a forwarding chain that ultimately ends with the bosk's local driver.
 
 For example, an application could create a `LoggingDriver` class to perform logging of update requests before forwarding them to a downstream driver that actually applies them to the bosk state.
@@ -620,8 +665,8 @@ Some handy drivers ship with the `bosk-core` module.
 This can be useful in composing your own drivers, and in unit tests.
 
 - `BufferingDriver` queues all updates, and applies them only when `flush()` is called.
-- `ForwardingDriver` accepts a collection of zero or more downstream drivers, and forwards all updates to all of them.
-- `MirroringDriver` accepts updates to one bosk, and emits corresponding updates to another bosk with the same root type.
+- `ForwardingDriver` simply forwards updates to a downstream driver; subclasses can override the update methods to add additional functionality.
+- `ReplicaSet` allows bosks to join a group of bosks such that updates to any of the bosks are replicated to all the others.
 - `MongoDriver` enables persistence and replication, and is important enough that it deserves its own section.
 
 #### `MongoDriver` and `bosk-mongo`
@@ -795,28 +840,7 @@ be silently ignored. While refurbishing from Sequoia to a different format,
 ensure the bosk is quiescent (not performing any updates), or is performing a `flush()` before each update.
 This is a consequence of Sequoia's design simplicity; specifically, its avoidance of multi-document transactions.
 
-[^polyfill]: See [Issue #108](https://github.com/venasolutions/bosk/issues/108).
-
-#### Conformance rules
-
-`BoskDriver` implementations typically take the form of a stackable layer that accepts update requests, performs some sort of processing, and forwards the (possibly modified) requests to the next driver in the chain (the _downstream_) driver.
-This is a powerful technique to add functionality to a Bosk instance.
-
-To retain compatibility with application code, however, driver implementations must obey the `BoskDriver` contract.
-The low-level details of that contract are well documented in the `BoskDriver` javadocs, and are tested in the `DriverConformanceTest` class.
-In addition, there there are also important higher-level rules governing the allowed differences between the updates a driver receives and those it forwards to the downstream driver.
-Breaking these rules might alter application behaviour in ways that the developers won't be expecting.
-
-Broadly, the validity of a sequence of updates can be understood in terms of the implied _sequence of states_ that exist between updates.
-The updates emitted downstream by a driver layer are allowed to differ from the operations it received,
-provided that the emitted updates have the same effect on the bosk state.
-For example, if the layer receives a conditional update whose precondition matches, it is allowed to submit an equivalent unconditional update downstream.
-Another example: if the layer receives an update that has no effect on the state, it is allowed to ignore that update and decline to submit it downstream.
-These rules are checked during the `DriverConformanceTest` suite via the `DriverStateVerifier` class.
-
-(These state-based rules require that the driver maintains an awareness of the current bosk state, which _most drivers do not_,
-and so most drivers are rarely able to take advantage of these options,
-because they can't generally determine what effect an update will have.)
+[^polyfill]: See [Issue #34](https://github.com/boskworks/bosk/issues/34).
 
 ### Serialization: `bosk-jackson`
 
@@ -879,7 +903,8 @@ A field of type `Optional<T>` is simply serialized as a `T`, unless the optional
 
 A field of type `Phantom<T>` is not serialized (just like `Optional.empty()`).
 
-The `id` field of a Catalog entry or a SideTable key may be omitted,
+When supplying JSON for deserialization,
+the `id` field of a `Catalog` entry or a `SideTable` key may be omitted,
 and will be inferred during deserialization if possible from context,
 including any `@DeserializationPath` annotations.
 This inference process takes some time, though,
@@ -902,7 +927,7 @@ the deserialization must know the corresponding state tree location so it can co
 To deserialize just one node of the bosk state, use a try-with-resources statement to wrap the deserialization in a `DeserializationScope` object initialized with the path of the node being deserialized:
 
 ``` java
-try (var __ = jacksonPlugin.newDeserializationScope(ref)) {
+try (var _ = jacksonPlugin.newDeserializationScope(ref)) {
 	newValue = objectMapper.readValue(exampleJson, ref.targetType());
 }
 ```

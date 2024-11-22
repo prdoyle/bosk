@@ -1208,10 +1208,18 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 		}
 	}
 
+	/**
+	 * Equivalent to {@code rootReference().buildReferences(refsClass)}.
+	 *
+	 * @see RootReference#buildReferences
+	 */
 	public final <T> T buildReferences(Class<T> refsClass) throws InvalidTypeException {
 		return rootReference().buildReferences(refsClass);
 	}
 
+	/**
+	 * @return a {@link RootReference} whose {@link Reference#path path} is {@link Path#isEmpty empty}.
+	 */
 	public final RootReference<R> rootReference() {
 		return rootRef;
 	}
