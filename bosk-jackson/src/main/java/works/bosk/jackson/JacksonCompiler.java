@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -32,6 +33,7 @@ import works.bosk.Catalog;
 import works.bosk.Entity;
 import works.bosk.Phantom;
 import works.bosk.Reference;
+import works.bosk.ReferenceUtils;
 import works.bosk.ReflectiveEntity;
 import works.bosk.annotations.DerivedRecord;
 import works.bosk.bytecode.ClassBuilder;
@@ -41,7 +43,6 @@ import works.bosk.exceptions.NotYetImplementedException;
 
 import static java.util.Arrays.asList;
 import static works.bosk.ReferenceUtils.getterMethod;
-import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static works.bosk.SerializationPlugin.isImplicitParameter;
 import static works.bosk.bytecode.ClassBuilder.here;
 
@@ -74,22 +75,22 @@ final class JacksonCompiler {
 			// Grab some required info about the node class
 			@SuppressWarnings("unchecked")
 			Class<T> nodeClass = (Class<T>) nodeType.getRawClass();
-			Constructor<?> constructor = theOnlyConstructorFor(nodeClass);
-			List<Parameter> parameters = asList(constructor.getParameters());
+			Constructor<?> constructor = ReferenceUtils.getCanonicalConstructor(nodeClass);
+			List<RecordComponent> components = asList(nodeClass.getRecordComponents());
 
 			// Generate the Codec class and instantiate it
 			ClassBuilder<Codec> cb = new ClassBuilder<>("BOSK_JACKSON_" + nodeClass.getSimpleName(), JacksonCodecRuntime.class, nodeClass.getClassLoader(), here());
 			cb.beginClass();
 
-			generate_writeFields(nodeType, parameters, cb);
-			generate_instantiateFrom(constructor, parameters, cb);
+			generate_writeFields(nodeType, components, cb);
+			generate_instantiateFrom(constructor, components, cb);
 
 			Codec codec = cb.buildInstance();
 
 			// Return a CodecWrapper for the codec
-			LinkedHashMap<String, Parameter> parametersByName = new LinkedHashMap<>();
-			parameters.forEach(p -> parametersByName.put(p.getName(), p));
-			return new CodecWrapper<>(codec, boskInfo, nodeType, parametersByName, moderator);
+			LinkedHashMap<String, RecordComponent> componentsByName = new LinkedHashMap<>();
+			components.forEach(p -> componentsByName.put(p.getName(), p));
+			return new CodecWrapper<>(codec, boskInfo, nodeType, componentsByName, moderator);
 		} finally {
 			Type removed = compilationsInProgress.get().removeLast();
 			assert removed.equals(nodeType);
@@ -127,7 +128,7 @@ final class JacksonCompiler {
 	/**
 	 * Generates the body of the {@link Codec#writeFields} method.
 	 */
-	private void generate_writeFields(Type nodeType, List<Parameter> parameters, ClassBuilder<Codec> cb) {
+	private void generate_writeFields(Type nodeType, List<RecordComponent> components, ClassBuilder<Codec> cb) {
 		JavaType nodeJavaType = TypeFactory.defaultInstance().constructType(nodeType);
 		Class<?> nodeClass = nodeJavaType.getRawClass();
 		cb.beginMethod(CODEC_WRITE_FIELDS);
@@ -136,22 +137,22 @@ final class JacksonCompiler {
 		final LocalVariable jsonGenerator = cb.parameter(2);
 		final LocalVariable serializers = cb.parameter(3);
 
-		for (Parameter parameter : parameters) {
-			if (isImplicitParameter(nodeClass, parameter)) {
+		for (RecordComponent component : components) {
+			if (isImplicitParameter(nodeClass, component)) {
 				continue;
 			}
-			if (Phantom.class.isAssignableFrom(parameter.getType())) {
+			if (Phantom.class.isAssignableFrom(component.getType())) {
 				continue;
 			}
 
-			String name = parameter.getName();
+			String name = component.getName();
 
 			// Build a FieldWritePlan
 			// Maintenance note: resist the urge to put case-specific intelligence into
 			// building the plan. The plan should be straightforward and "obviously
 			// correct". The execution of the plan should contain the sophistication.
 			FieldWritePlan plan;
-			JavaType parameterType = TypeFactory.defaultInstance().resolveMemberType(parameter.getParameterizedType(), nodeJavaType.getBindings());
+			JavaType parameterType = TypeFactory.defaultInstance().resolveMemberType(component.getGenericType(), nodeJavaType.getBindings());
 			// TODO: Is the static optimization possible??
 //			if (compilationsInProgress.get().contains(parameterType)) {
 //				// Avoid infinite recursion - look up this field's adapter dynamically
@@ -163,7 +164,7 @@ final class JacksonCompiler {
 			if (nodeClass.isAnnotationPresent(DerivedRecord.class)) {
 				plan = new ReferencingFieldWritePlan(plan, nodeClass.getSimpleName());
 			}
-			if (Optional.class.isAssignableFrom(parameter.getType())) {
+			if (Optional.class.isAssignableFrom(component.getType())) {
 				plan = new OptionalFieldWritePlan(plan);
 			}
 
@@ -190,7 +191,7 @@ final class JacksonCompiler {
 	/**
 	 * Generates the body of the {@link Codec#instantiateFrom} method.
 	 */
-	private void generate_instantiateFrom(Constructor<?> constructor, List<Parameter> parameters, ClassBuilder<Codec> cb) {
+	private void generate_instantiateFrom(Constructor<?> constructor, List<RecordComponent> components, ClassBuilder<Codec> cb) {
 		cb.beginMethod(CODEC_INSTANTIATE_FROM);
 
 		// Save incoming operand to local variable
@@ -199,13 +200,13 @@ final class JacksonCompiler {
 		// New object
 		cb.instantiate(constructor.getDeclaringClass());
 
-		// Push parameters and invoke constructor
+		// Push components and invoke constructor
 		cb.dup();
-		for (int i = 0; i < parameters.size(); i++) {
+		for (int i = 0; i < components.size(); i++) {
 			cb.pushLocal(parameterValues);
 			cb.pushInt(i);
 			cb.invoke(LIST_GET);
-			cb.castTo(parameters.get(i).getType());
+			cb.castTo(components.get(i).getType());
 		}
 		cb.invoke(constructor);
 
@@ -386,7 +387,7 @@ final class JacksonCompiler {
 		Codec codec;
 		BoskInfo<?> boskInfo;
 		JavaType nodeJavaType;
-		LinkedHashMap<String, Parameter> parametersByName;
+		LinkedHashMap<String, RecordComponent> componentsByName;
 		JacksonPlugin.FieldModerator moderator;
 
 		@Override
@@ -409,9 +410,9 @@ final class JacksonCompiler {
 					// Performance-critical. Pre-compute as much as possible outside this method.
 					// Note: the reading side can't be as efficient as the writing side
 					// because we need to tolerate the fields arriving in arbitrary order.
-					Map<String, Object> valueMap = jacksonPlugin.gatherParameterValuesByName(nodeJavaType, parametersByName, moderator, p, ctxt);
+					Map<String, Object> valueMap = jacksonPlugin.gatherParameterValuesByName(nodeJavaType, componentsByName, moderator, p, ctxt);
 
-					List<Object> parameterValues = jacksonPlugin.parameterValueList(nodeJavaType.getRawClass(), valueMap, parametersByName, boskInfo);
+					List<Object> parameterValues = jacksonPlugin.parameterValueList(nodeJavaType.getRawClass(), valueMap, componentsByName, boskInfo);
 
 					@SuppressWarnings("unchecked")
 					T result = (T)codec.instantiateFrom(parameterValues);

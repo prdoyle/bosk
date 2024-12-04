@@ -354,10 +354,7 @@ public class PathCompilerTest extends AbstractBoskTest {
 		pathCompiler.compiled(p1); // just make sure this doesn't throw
 	}
 
-	@Value
-	public static class SimpleEntity implements Entity {
-		Identifier id;
-	}
+	public record SimpleEntity(Identifier id) implements Entity { }
 
 	private byte[] classBytes(Class<?> c) {
 		InputStream inputStream = c.getClassLoader().getResourceAsStream(

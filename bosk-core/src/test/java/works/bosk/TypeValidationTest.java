@@ -48,7 +48,6 @@ class TypeValidationTest {
 	@ParameterizedTest
 	@ValueSource(classes = {
 			String.class,
-			//MissingConstructorArgument.class, // TODO: Currently doesn't work because Bosk is constructor-driven. Figure out what's the system of record here
 			AmbiguousVariantCaseMap.class,
 			ArrayField.class,
 			BooleanPrimitive.class,
@@ -62,14 +61,8 @@ class TypeValidationTest {
 			EnclosingReferenceToCatalog.class,
 			EnclosingReferenceToOptional.class,
 			EnclosingReferenceToString.class,
-			ExtraConstructor.class,
-			ExtraConstructorArgument.class,
 			FieldNameWithDollarSign.class,
 			FloatPrimitive.class,
-			GetterHasParameter.class,
-			GetterReturnsSubtype.class,
-			GetterReturnsSupertype.class,
-			GetterReturnsWrongType.class,
 			HasDeserializationPath.class,
 			IntegerPrimitive.class,
 			ListingOfInvalidType.class,
@@ -87,12 +80,9 @@ class TypeValidationTest {
 			ReferenceToReference.class,
 			SelfNonReference.class,
 			SelfWrongType.class,
-			SelfSubtype.class,
 			ShortPrimitive.class,
 			SideTableWithInvalidKey.class,
 			SideTableWithInvalidValue.class,
-			MutableField.class,
-			MutableInheritedField.class,
 			NestedError.class,
 			OptionalOfInvalidType.class,
 			ReferenceToInvalidType.class,
@@ -187,35 +177,32 @@ class TypeValidationTest {
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class SimpleTypes implements Entity {
-		Identifier id;
-		String string;
-		MyEnum myEnum;
-
+	public record SimpleTypes(
+		Identifier id,
+		String string,
+		MyEnum myEnum
+	) implements Entity {
 		public enum MyEnum {
 			LEFT, RIGHT
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class BoskyTypes implements StateTreeNode {
-		Reference<SimpleTypes> ref;
-		Optional<SimpleTypes> optional;
-		Catalog<SimpleTypes> catalog;
-		Listing<SimpleTypes> listing;
-		SideTable<SimpleTypes, String> sideTableToString;
-		SideTable<SimpleTypes, SimpleTypes> sideTableToEntity;
-		ListValue<String> listValueOfStrings;
-		ListValue<ValueStruct> listValueOfStructs;
-		ListValueSubclass listValueSubclass;
-	}
+	public record BoskyTypes(
+		Reference<SimpleTypes> ref,
+		Optional<SimpleTypes> optional,
+		Catalog<SimpleTypes> catalog,
+		Listing<SimpleTypes> listing,
+		SideTable<SimpleTypes, String> sideTableToString,
+		SideTable<SimpleTypes, SimpleTypes> sideTableToEntity,
+		ListValue<String> listValueOfStrings,
+		ListValue<ValueStruct> listValueOfStructs,
+		ListValueSubclass listValueSubclass
+	) implements StateTreeNode { }
 
-	@Value
-	public static class ValueStruct implements StateTreeNode {
-		String string;
-		ListValue<String> innerList;
-	}
+	public record ValueStruct(
+		String string,
+		ListValue<String> innerList
+	) implements StateTreeNode { }
 
 	@EqualsAndHashCode(callSuper = true)
 	public static final class ListValueSubclass extends ListValue<String> {
@@ -227,20 +214,18 @@ class TypeValidationTest {
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class AllowedFieldNames implements StateTreeNode {
-		Integer justLetters;
-		Integer someNumbers4U2C;
-		Integer hereComesAnUnderscore_toldYouSo;
-	}
+	public record AllowedFieldNames(
+		Integer justLetters,
+		Integer someNumbers4U2C,
+		Integer hereComesAnUnderscore_toldYouSo
+	) implements StateTreeNode { }
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static final class ImplicitReferences_onConstructorParameters implements Entity {
-		Identifier id;
-		Reference<ImplicitReferences_onConstructorParameters> selfRef;
-		Reference<StateTreeNode> selfSupertype;
-		Reference<ImplicitReferences_onConstructorParameters> enclosingRef;
-
+	public record ImplicitReferences_onConstructorParameters(
+		Identifier id,
+		Reference<ImplicitReferences_onConstructorParameters> selfRef,
+		Reference<StateTreeNode> selfSupertype,
+		Reference<ImplicitReferences_onConstructorParameters> enclosingRef
+	) implements Entity {
 		public ImplicitReferences_onConstructorParameters(
 			Identifier id,
 			@Self Reference<ImplicitReferences_onConstructorParameters> selfRef,
@@ -254,14 +239,12 @@ class TypeValidationTest {
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ImplicitReferences_onFields implements Entity {
-		Identifier id;
-		@Self Reference<ImplicitReferences_onFields> selfRef;
-		@Self Reference<StateTreeNode> selfSupertype;
-		@Enclosing Reference<ImplicitReferences_onFields> enclosingRef;
-	}
+	public record ImplicitReferences_onFields(
+		Identifier id,
+		@Self Reference<ImplicitReferences_onFields> selfRef,
+		@Self Reference<StateTreeNode> selfSupertype,
+		@Enclosing Reference<ImplicitReferences_onFields> enclosingRef
+	) implements Entity { }
 
 	public interface ExtraStaticField extends VariantNode {
 		record Subtype() implements ExtraStaticField {}
@@ -277,199 +260,85 @@ class TypeValidationTest {
 		String EXTRA_FIELD = "ignore me";
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class MissingConstructorArgument implements Entity {
-		Identifier id;
-		String field = "fieldValue";
-	}
-
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class ExtraConstructor implements Entity {
-		Identifier id;
-
-		public ExtraConstructor(String extra) {
-			this.id = Identifier.from("dummy");
-		}
-
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString("must have one constructor"));
-		}
-	}
-
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static final class ExtraConstructorArgument implements Entity {
-		Identifier id;
-
-		public ExtraConstructorArgument(Identifier id, String extra) {
-			this.id = id;
-		}
-
-		ExtraConstructorArgument withId(Identifier id) {
-			return new ExtraConstructorArgument(id, "dummy");
-		}
-
-		public static void testException(InvalidTypeException e) {
-			// Actually detected as a missing getter
-			assertThat(e.getMessage(), containsString("No method"));
-		}
-	}
-
-	@FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class GetterHasParameter implements Entity {
-		Identifier id;
-		String field;
-
-		@Override public Identifier id() { return id; }
-		public String field(int wonkyParameter) { return field; }
-
-		public static void testException(InvalidTypeException e) {
-			// Actually detected as a missing getter
-			assertThat(e.getMessage(), containsString("No method"));
-		}
-	}
-
-	@FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class GetterReturnsWrongType implements Entity {
-		Identifier id;
-		String field;
-
-		@Override public Identifier id() { return id; }
-		public int field() { return 123; }
-
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString("Getter return type"));
-		}
-	}
-
-	@FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class GetterReturnsSupertype implements Entity {
-		Identifier id;
-		Integer field;
-
-		@Override public Identifier id() { return id; }
-		public Number field() { return field; }
-
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString("Getter return type"));
-		}
-	}
-
-	@FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class GetterReturnsSubtype implements Entity {
-		Identifier id;
-		Number field;
-
-		@Override public Identifier id() { return id; }
-		public Integer field() { return 123; }
-
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString("Getter return type"));
-		}
-	}
-
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE) @RequiredArgsConstructor
-	public static class MutableField implements Entity {
-		Identifier id;
-
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString("not final"));
-		}
-	}
-
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE) @RequiredArgsConstructor
-	public static final class MutableInheritedField extends MutableField {
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString("not final"));
-		}
-	}
-
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class NestedError implements Entity {
-		Identifier id;
-		GetterReturnsWrongType field;
-
+	public record NestedError(
+		Identifier id,
+		ReferenceToInvalidType field
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("NestedError.field"));
-			assertThat(e.getMessage(), containsString("GetterReturnsWrongType.field"));
+			assertThat(e.getMessage(), containsString("ReferenceToInvalidType.ref"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class ArrayField implements Entity {
-		Identifier id;
-		String[] strings;
-
+	public record ArrayField(
+		Identifier id,
+		String[] strings
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ArrayField.strings"));
 			assertThat(e.getMessage(), containsString("is not a"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class ReferenceToInvalidType implements Entity {
-		Identifier id;
-		Reference<ArrayField> ref;
-
+	public record ReferenceToInvalidType(
+		Identifier id,
+		Reference<ArrayField> ref
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ReferenceToInvalidType.ref"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class CatalogOfInvalidType implements Entity {
-		Identifier id;
-		Catalog<ArrayField> catalog;
+	public record CatalogOfInvalidType(
+		Identifier id,
+		Catalog<ArrayField> catalog
+	) implements Entity {
 
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("CatalogOfInvalidType.catalog"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class ListingOfInvalidType implements Entity {
-		Identifier id;
-		Listing<ArrayField> listing;
-
+	public record ListingOfInvalidType(
+		Identifier id,
+		Listing<ArrayField> listing
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ListingOfInvalidType.listing"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class OptionalOfInvalidType implements Entity {
-		Identifier id;
-		Optional<ArrayField> optional;
-
+	public record OptionalOfInvalidType(
+		Identifier id,
+		Optional<ArrayField> optional
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("OptionalOfInvalidType.optional"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class SideTableWithInvalidKey implements Entity {
-		Identifier id;
-		SideTable<ArrayField,String> sideTable;
-
+	public record SideTableWithInvalidKey(
+		Identifier id,
+		SideTable<ArrayField,String> sideTable
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("SideTableWithInvalidKey.sideTable"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class SideTableWithInvalidValue implements Entity {
-		Identifier id;
-		SideTable<SimpleTypes,ArrayField> sideTable;
-
+	public record SideTableWithInvalidValue(
+		Identifier id,
+		SideTable<SimpleTypes,ArrayField> sideTable
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("SideTableWithInvalidValue.sideTable"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class FieldNameWithDollarSign implements Entity {
-		Identifier id;
-		int weird$name;
-
+	public record FieldNameWithDollarSign(
+		Identifier id,
+		int weird$name
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("FieldNameWithDollarSign.weird$name"));
 		}
@@ -479,190 +348,119 @@ class TypeValidationTest {
 	 * According to JLS 3.1, Java identifiers comprise only ASCII characters.
 	 * https://docs.oracle.com/javase/specs/jls/se14/html/jls-3.html#jls-3.1
 	 *
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static final class FieldNameWithNonAsciiLetters implements Entity {
-		Identifier id;
-		int trèsCassé;
-
+	public record FieldNameWithNonAsciiLetters(
+		Identifier id,
+		int trèsCassé
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("FieldNameWithNonAsciiLetters.trèsCassé"));
 		}
 	}
 	 */
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static final class EnclosingNonReference implements Entity {
-		Identifier id;
-		String enclosingString;
-
-		public EnclosingNonReference(Identifier id, @Enclosing String enclosingString) {
-			this.id = id;
-			this.enclosingString = enclosingString;
-		}
-
+	public record EnclosingNonReference(
+		Identifier id,
+		@Enclosing String enclosingString
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("EnclosingNonReference.enclosingString"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static final class EnclosingReferenceToString implements Entity {
-		Identifier id;
-		Reference<String> enclosingStringReference;
-
-		public EnclosingReferenceToString(Identifier id, @Enclosing Reference<String> enclosingStringReference) {
-			this.id = id;
-			this.enclosingStringReference = enclosingStringReference;
-		}
-
+	public record EnclosingReferenceToString(
+		Identifier id,
+		@Enclosing Reference<String> enclosingStringReference
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("EnclosingReferenceToString.enclosingStringReference"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static final class EnclosingReferenceToCatalog implements Entity {
-		Identifier id;
-		Reference<Catalog<SimpleTypes>> enclosingCatalogReference;
-
-		public EnclosingReferenceToCatalog(Identifier id, @Enclosing Reference<Catalog<SimpleTypes>> enclosingCatalogReference) {
-			this.id = id;
-			this.enclosingCatalogReference = enclosingCatalogReference;
-		}
-
+	public record EnclosingReferenceToCatalog(
+		Identifier id,
+		@Enclosing Reference<Catalog<SimpleTypes>> enclosingCatalogReference
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("EnclosingReferenceToCatalog.enclosingCatalogReference"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static final class EnclosingReferenceToOptional implements Entity {
-		Identifier id;
-		Reference<Optional<SimpleTypes>> enclosingOptionalReference;
-
-		public EnclosingReferenceToOptional(Identifier id, @Enclosing Reference<Optional<SimpleTypes>> enclosingOptionalReference) {
-			this.id = id;
-			this.enclosingOptionalReference = enclosingOptionalReference;
-		}
-
+	public record EnclosingReferenceToOptional(
+		Identifier id,
+		@Enclosing Reference<Optional<SimpleTypes>> enclosingOptionalReference
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("EnclosingReferenceToOptional.enclosingOptionalReference"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static final class SelfNonReference implements Entity {
-		Identifier id;
-		String str;
-
-		public SelfNonReference(Identifier id, @Enclosing String str) {
-			this.id = id;
-			this.str = str;
-		}
-
+	public record SelfNonReference(
+		Identifier id,
+		@Self String str
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("SelfNonReference.str"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static final class SelfWrongType implements Entity {
-		Identifier id;
-		Reference<SimpleTypes> ref;
-
-		public SelfWrongType(Identifier id, @Self Reference<SimpleTypes> ref) {
-			this.id = id;
-			this.ref = ref;
-		}
-
+	public record SelfWrongType(
+		Identifier id,
+		@Self Reference<SimpleTypes> ref
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("SelfWrongType.ref"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	public static class SelfSubtype implements Entity {
-		Identifier id;
-		Reference<TheSubtype> ref;
-
-		public SelfSubtype(Identifier id, @Self Reference<TheSubtype> ref) {
-			this.id = id;
-			this.ref = ref;
-		}
-
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString("SelfSubtype.ref"));
-		}
-
-		public static class TheSubtype extends SelfSubtype {
-			public TheSubtype(Identifier id, Reference<TheSubtype> ref) {
-				super(id, ref);
-			}
-		}
-	}
-
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class HasDeserializationPath implements Entity {
-		Identifier id;
-		@DeserializationPath("")
-		SimpleTypes badField;
-
+	public record HasDeserializationPath(
+		Identifier id,
+		@DeserializationPath("") SimpleTypes badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("HasDeserializationPath.badField"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueOfIdentifier implements Entity {
-		Identifier id;
-		ListValue<Identifier> badField;
-
+	public record ListValueOfIdentifier(
+		Identifier id,
+		ListValue<Identifier> badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ListValueOfIdentifier.badField"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueOfReference implements Entity {
-		Identifier id;
-		ListValue<Reference<String>> badField;
-
+	public record ListValueOfReference(
+		Identifier id,
+		ListValue<Reference<String>> badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ListValueOfReference.badField"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueOfEntity implements Entity {
-		Identifier id;
-		ListValue<SimpleTypes> badField;
-
+	public record ListValueOfEntity(
+		Identifier id,
+		ListValue<SimpleTypes> badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ListValueOfEntity.badField"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueOfOptional implements Entity {
-		Identifier id;
-		ListValue<Optional<SimpleTypes>> badField;
-
+	public record ListValueOfOptional(
+		Identifier id,
+		ListValue<Optional<SimpleTypes>> badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ListValueOfOptional.badField"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueInvalidSubclass implements Entity {
-		Identifier id;
-		InvalidSubclass badField;
-
+	public record ListValueInvalidSubclass(
+		Identifier id,
+		InvalidSubclass badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ListValueInvalidSubclass.badField"));
 		}
@@ -675,12 +473,10 @@ class TypeValidationTest {
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueMutableSubclass implements Entity {
-		Identifier id;
-		MutableSubclass badField;
-
+	public record ListValueMutableSubclass(
+		Identifier id,
+		MutableSubclass badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ListValueMutableSubclass.badField"));
 			assertThat(e.getMessage(), containsString("MutableSubclass.mutableField"));
@@ -697,23 +493,19 @@ class TypeValidationTest {
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueOfInvalidType implements Entity {
-		Identifier id;
-		ListValue<ArrayList<Object>> badField;
-
+	public record ListValueOfInvalidType(
+		Identifier id,
+		ListValue<ArrayList<Object>> badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ListValueOfInvalidType.badField"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueSubclassWithMutableField implements Entity {
-		Identifier id;
-		Subclass badField;
-
+	public record ListValueSubclassWithMutableField(
+		Identifier id,
+		Subclass badField
+	) implements Entity {
 		@Getter @FieldDefaults(level=AccessLevel.PRIVATE)
 		@EqualsAndHashCode(callSuper = true)
 		public static final class Subclass extends ListValue<String> {
@@ -730,12 +522,10 @@ class TypeValidationTest {
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueSubclassWithTwoConstructors implements Entity {
-		Identifier id;
-		Subclass badField;
-
+	public record ListValueSubclassWithTwoConstructors(
+		Identifier id,
+		Subclass badField
+	) implements Entity {
 		@Getter @FieldDefaults(level=AccessLevel.PRIVATE)
 		@EqualsAndHashCode(callSuper = true)
 		public static final class Subclass extends ListValue<String> {
@@ -754,12 +544,10 @@ class TypeValidationTest {
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ListValueSubclassWithWrongConstructor implements Entity {
-		Identifier id;
-		Subclass badField;
-
+	public record ListValueSubclassWithWrongConstructor(
+		Identifier id,
+		Subclass badField
+	) implements Entity {
 		@Getter @FieldDefaults(level=AccessLevel.PRIVATE)
 		@EqualsAndHashCode(callSuper = true)
 		public static final class Subclass extends ListValue<String> {
@@ -775,35 +563,29 @@ class TypeValidationTest {
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
 	@DerivedRecord
-	public static final class DerivedRecordType implements Entity {
-		Identifier id;
-
+	public record DerivedRecordType(
+		Identifier id
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString(DerivedRecord.class.getSimpleName()));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class DerivedRecordField implements Entity {
-		Identifier id;
-		DerivedRecordType badField;
-
+	public record DerivedRecordField(
+		Identifier id,
+		DerivedRecordType badField
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString(DerivedRecord.class.getSimpleName()));
 			assertThat(e.getMessage(), containsString("DerivedRecordField.badField"));
 		}
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ReferenceToReference implements Entity {
-		Identifier id;
-		Reference<Reference<String>> ref;
-
+	public record ReferenceToReference(
+		Identifier id,
+		Reference<Reference<String>> ref
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ReferenceToReference.ref"));
 		}
@@ -815,13 +597,11 @@ class TypeValidationTest {
 	 *
 	 * @author Patrick Doyle
 	 */
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true)
-	@RequiredArgsConstructor
-	public static final class ValidThenInvalidOfTheSameClass implements Entity {
-		Identifier id;
-		ListValue<String> good;
-		ListValue<Identifier> bad;
-
+	public record ValidThenInvalidOfTheSameClass(
+		Identifier id,
+		ListValue<String> good,
+		ListValue<Identifier> bad
+	) implements Entity {
 		public static void testException(InvalidTypeException e) {
 			assertThat(e.getMessage(), containsString("ValidThenInvalidOfTheSameClass.bad"));
 		}

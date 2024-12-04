@@ -25,7 +25,7 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Parameter;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,6 +48,7 @@ import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Phantom;
 import works.bosk.Reference;
+import works.bosk.ReferenceUtils;
 import works.bosk.ReflectiveEntity;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
@@ -67,7 +68,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.ReferenceUtils.rawClass;
-import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static works.bosk.jackson.JacksonPluginConfiguration.defaultConfiguration;
 
 /**
@@ -546,7 +546,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		private JsonDeserializer<ListValue<Object>> listValueDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
-			Constructor<?> ctor = theOnlyConstructorFor(type.getRawClass());
+			Constructor<?> ctor = ReferenceUtils.theOnlyConstructorFor(type.getRawClass());
 			JavaType arrayType = listValueEquivalentArrayType(type);
 			return new BoskDeserializer<ListValue<Object>>() {
 				@Override
@@ -777,7 +777,12 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private <E extends ReflectiveEntity<E>, L extends ListValue<E>> CompiledSerDes derivedRecordListValueOfReflectiveEntitySerDes(JavaType objType, Class objClass, Class entryClass) {
-		Constructor<L> constructor = (Constructor<L>) theOnlyConstructorFor(objClass);
+		// Note: by calling theOnlyConstructorFor here, we're limited to objClass values with only
+		// one constructor, which rules out records having multiple constructors. However, if we
+		// use getCanonicalConstructor, we rule out using things that currently work as derived
+		// records, such as subclasses of ListValue, which can't be records. I'm not going to sweat
+		// this too much right now because I think derived records are likely to go away soon enough anyway.
+		Constructor<L> constructor = (Constructor<L>) (Constructor) ReferenceUtils.theOnlyConstructorFor(objClass);
 		Class<?>[] parameters = constructor.getParameterTypes();
 		if (parameters.length == 1 && parameters[0].getComponentType().equals(entryClass)) {
 			JavaType referenceType = TypeFactory.defaultInstance().constructParametricType(Reference.class, entryClass);
@@ -916,20 +921,20 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 	/**
 	 * Returns the fields present in the JSON, with value objects deserialized
-	 * using type information from <code>parametersByName</code>.
+	 * using type information from <code>componentsByName</code>.
 	 */
-	public Map<String, Object> gatherParameterValuesByName(JavaType nodeJavaType, Map<String, Parameter> parametersByName, FieldModerator moderator, JsonParser p, DeserializationContext ctxt) throws IOException {
+	public Map<String, Object> gatherParameterValuesByName(JavaType nodeJavaType, Map<String, RecordComponent> componentsByName, FieldModerator moderator, JsonParser p, DeserializationContext ctxt) throws IOException {
 		Class<?> nodeClass = nodeJavaType.getRawClass();
 		Map<String, Object> parameterValuesByName = new HashMap<>();
 		expect(START_OBJECT, p);
 		while (p.nextToken() != END_OBJECT) {
 			p.nextValue();
 			String name = p.currentName();
-			Parameter parameter = parametersByName.get(name);
-			if (parameter == null) {
-				throw new JsonParseException(p, "No such parameter in constructor for " + nodeClass.getSimpleName() + ": " + name);
+			RecordComponent component = componentsByName.get(name);
+			if (component == null) {
+				throw new JsonParseException(p, "No such component in record " + nodeClass.getSimpleName() + ": " + name);
 			} else {
-				JavaType parameterType = TypeFactory.defaultInstance().resolveMemberType(parameter.getParameterizedType(), nodeJavaType.getBindings());
+				JavaType parameterType = TypeFactory.defaultInstance().resolveMemberType(component.getGenericType(), nodeJavaType.getBindings());
 				Object deserializedValue;
 				try (@SuppressWarnings("unused") DeserializationScope scope = nodeFieldDeserializationScope(nodeClass, name)) {
 					deserializedValue = readField(name, p, ctxt, parameterType, moderator);

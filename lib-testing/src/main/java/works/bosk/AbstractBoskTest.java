@@ -109,17 +109,15 @@ public abstract class AbstractBoskTest {
 		}
 	}
 
-	@Value
-	@EqualsAndHashCode(callSuper=true)
 	@With
 	@FieldNameConstants
-	public static class ImplicitRefs extends ReflectiveEntity<ImplicitRefs> {
-		Identifier id;
-		Reference<ImplicitRefs> reference;
-		Reference<TestEntity> enclosingRef;
-		@Self Reference<ImplicitRefs> reference2;
-		@Enclosing Reference<TestEntity> enclosingRef2;
-
+	public record ImplicitRefs(
+		Identifier id,
+		Reference<ImplicitRefs> reference,
+		Reference<TestEntity> enclosingRef,
+		@Self Reference<ImplicitRefs> reference2,
+		@Enclosing Reference<TestEntity> enclosingRef2
+	) implements ReflectiveEntity<ImplicitRefs> {
 		public ImplicitRefs(Identifier id, @Self Reference<ImplicitRefs> reference, @Enclosing Reference<TestEntity> enclosingRef, Reference<ImplicitRefs> reference2, Reference<TestEntity> enclosingRef2) {
 			this.id = id;
 			this.reference = reference;

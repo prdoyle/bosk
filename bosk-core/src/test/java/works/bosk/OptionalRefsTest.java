@@ -34,12 +34,10 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		doTest(new OptionalString(ID, Optional.empty()), b->"HERE I AM", driverFactory);
 	}
 
-	@EqualsAndHashCode(callSuper = false)
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static class OptionalString implements Entity {
-		Identifier id;
-		Optional<String> field;
-	}
+	public record OptionalString(
+		Identifier id,
+		Optional<String> field
+	) implements Entity { }
 
 	@ParameterizedTest
 	@MethodSource("driverFactories")
@@ -48,12 +46,10 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		doTest(empty, b->empty, driverFactory);
 	}
 
-	@EqualsAndHashCode(callSuper = false)
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static class OptionalEntity implements Entity {
-		Identifier id;
-		Optional<OptionalEntity> field;
-	}
+	public record OptionalEntity(
+		Identifier id,
+		Optional<OptionalEntity> field
+	) implements Entity { }
 
 	//@ParameterizedTest // TODO: Reference<Reference<?>> is not yet supported
 	@MethodSource("driverFactories")
@@ -61,12 +57,10 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		doTest(new OptionalReference(ID, Optional.empty()), Bosk::rootReference, driverFactory);
 	}
 
-	@EqualsAndHashCode(callSuper = false)
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static class OptionalReference implements Entity {
-		Identifier id;
-		Optional<Reference<OptionalReference>> field;
-	}
+	public record OptionalReference(
+		Identifier id,
+		Optional<Reference<OptionalReference>> field
+	) implements Entity { }
 
 	@ParameterizedTest
 	@MethodSource("driverFactories")
@@ -75,12 +69,10 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		doTest(empty, b->Catalog.of(empty), driverFactory);
 	}
 
-	@EqualsAndHashCode(callSuper = false)
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static class OptionalCatalog implements Entity {
-		Identifier id;
-		Optional<Catalog<OptionalCatalog>> field;
-	}
+	public record OptionalCatalog(
+		Identifier id,
+		Optional<Catalog<OptionalCatalog>> field
+	) implements Entity { }
 
 	@ParameterizedTest
 	@MethodSource("driverFactories")
@@ -89,13 +81,11 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		doTest(empty, b->Listing.of(b.rootReference().thenCatalog(OptionalListing.class, "catalog"), ID), driverFactory);
 	}
 
-	@EqualsAndHashCode(callSuper = false)
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static class OptionalListing implements Entity {
-		Identifier id;
-		Catalog<OptionalListing> catalog;
-		Optional<Listing<OptionalListing>> field;
-	}
+	public record OptionalListing(
+		Identifier id,
+		Catalog<OptionalListing> catalog,
+		Optional<Listing<OptionalListing>> field
+	) implements Entity { }
 
 	@ParameterizedTest
 	@MethodSource("driverFactories")
@@ -104,13 +94,11 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		doTest(empty, b-> SideTable.of(b.rootReference().thenCatalog(OptionalSideTable.class, "catalog"), ID, "Howdy"), driverFactory);
 	}
 
-	@EqualsAndHashCode(callSuper = false)
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	public static class OptionalSideTable implements Entity {
-		Identifier id;
-		Catalog<OptionalSideTable> catalog;
-		Optional<SideTable<OptionalSideTable, String>> field;
-	}
+	public record OptionalSideTable(
+		Identifier id,
+		Catalog<OptionalSideTable> catalog,
+		Optional<SideTable<OptionalSideTable, String>> field
+	) implements Entity { }
 
 	private interface ValueFactory<R extends Entity, V> {
 		V createFrom(Bosk<R> bosk) throws InvalidTypeException;

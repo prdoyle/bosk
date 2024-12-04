@@ -89,25 +89,25 @@ class BoskLocalReferenceTest {
 		root = bosk.currentRoot();
 	}
 
-	@Getter @With @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	@EqualsAndHashCode(callSuper = false) @ToString @FieldNameConstants
-	public static class Root implements StateTreeNode {
-		Integer version;
-		Catalog<TestEntity> entities;
-	}
+	@FieldNameConstants
+	@With
+	public record Root (
+		Integer version,
+		Catalog<TestEntity> entities
+	) implements StateTreeNode { }
 
-	@Getter @With @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
-	@EqualsAndHashCode(callSuper = false) @ToString @FieldNameConstants
-	public static class TestEntity implements Entity {
-		Identifier id;
-		Integer version;
-		Reference<TestEntity> refField;
-		Catalog<TestEntity> catalog;
-		Listing<TestEntity> listing;
-		SideTable<TestEntity, String> sideTable;
-		ListValue<String> listValue;
-		Optional<TestEntity> optional;
-	}
+	@With
+	@FieldNameConstants
+	public record TestEntity(
+		Identifier id,
+		Integer version,
+		Reference<TestEntity> refField,
+		Catalog<TestEntity> catalog,
+		Listing<TestEntity> listing,
+		SideTable<TestEntity, String> sideTable,
+		ListValue<String> listValue,
+		Optional<TestEntity> optional
+	) implements Entity { }
 
 	@Test
 	void testRootReference() throws Exception {
@@ -256,22 +256,6 @@ class BoskLocalReferenceTest {
 	@Test
 	void testName() {
 		assertEquals(boskName, bosk.name());
-	}
-
-	@Test
-	void testValidation() {
-		@EqualsAndHashCode(callSuper = true)
-		class InvalidRoot extends Root {
-			@SuppressWarnings("unused")
-			final String mutableString;
-
-			public InvalidRoot(Identifier id, Catalog<TestEntity> entities, String str) {
-				super(0xdead, entities);
-				this.mutableString = str;
-			}
-		}
-		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), InvalidRoot.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk.simpleDriver()));
-		assertThrows(IllegalArgumentException.class, () -> new Bosk<>(boskName(), String.class, _ -> new InvalidRoot(Identifier.unique("yucky"), Catalog.empty(), "hello"), Bosk.simpleDriver()));
 	}
 
 	private <T> void checkReferenceProperties(Reference<T> ref, Path expectedPath, T expectedValue) throws InvalidTypeException {

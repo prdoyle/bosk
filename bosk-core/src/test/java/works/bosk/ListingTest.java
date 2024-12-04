@@ -95,13 +95,11 @@ class ListingTest {
 		);
 	}
 
-	@Getter @FieldDefaults(level=AccessLevel.PRIVATE, makeFinal=true) @RequiredArgsConstructor
 	@FieldNameConstants
-	@EqualsAndHashCode(callSuper = false) // handy for testing
-	public static class TestEntity implements Entity {
-		Identifier id;
-		@EqualsAndHashCode.Exclude Catalog<TestEntity> children;
-	}
+	public record TestEntity(
+		Identifier id,
+		@EqualsAndHashCode.Exclude Catalog<TestEntity> children
+	) implements Entity { }
 
 	@ParameterizedTest
 	@ArgumentsSource(ListingArgumentProvider.class)

@@ -10,15 +10,14 @@ import works.bosk.StateTreeNode;
 
 import static java.time.temporal.ChronoUnit.FOREVER;
 
-@Value
 @With
 @FieldNameConstants
-public class TestValues implements StateTreeNode {
-	String string;
-	ChronoUnit chronoUnit;
-	ListValue<String> list;
-	MapValue<String> map;
-
+public record TestValues(
+	String string,
+	ChronoUnit chronoUnit,
+	ListValue<String> list,
+	MapValue<String> map
+) implements StateTreeNode {
 	public static TestValues blank() {
 		return new TestValues("", FOREVER, ListValue.empty(), MapValue.empty());
 	}

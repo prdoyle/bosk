@@ -3,6 +3,7 @@ package works.bosk;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -172,23 +173,23 @@ public abstract class SerializationPlugin {
 	/**
 	 * Turns <code>parameterValuesByName</code> into a list suitable for
 	 * passing to a constructor, in the order indicated by
-	 * <code>parametersByName</code>.
+	 * <code>componentsByName</code>.
 	 *
 	 *
 	 * @param parameterValuesByName values read from the input. <em>Modified by this method.</em>
-	 * @param parametersByName ordered map of constructor {@link Parameter}s.
+	 * @param componentsByName ordered map of {@link RecordComponent}s
 	 * @return {@link List} of parameter values to pass to the constructor, in
-	 * the same order as in <code>parametersByName</code>. Missing values are
+	 * the same order as in <code>componentsByName</code>. Missing values are
 	 * supplied where possible, such as <code>Optional.empty()</code> and
 	 * {@link Enclosing} references.
 	 */
-	public final List<Object> parameterValueList(Class<?> nodeClass, Map<String, Object> parameterValuesByName, LinkedHashMap<String, Parameter> parametersByName, BoskInfo<?> boskInfo) {
+	public final List<Object> parameterValueList(Class<?> nodeClass, Map<String, Object> parameterValuesByName, LinkedHashMap<String, RecordComponent> componentsByName, BoskInfo<?> boskInfo) {
 		List<Object> parameterValues = new ArrayList<>();
-		for (Entry<String, Parameter> entry: parametersByName.entrySet()) {
+		for (Entry<String, RecordComponent> entry: componentsByName.entrySet()) {
 			String name = entry.getKey();
-			Parameter parameter = entry.getValue();
-			Class<?> type = parameter.getType();
-			Reference<?> implicitReference = findImplicitReferenceIfAny(nodeClass, parameter, boskInfo);
+			RecordComponent component = entry.getValue();
+			Class<?> type = component.getType();
+			Reference<?> implicitReference = findImplicitReferenceIfAny(nodeClass, component, boskInfo);
 
 			Object value = parameterValuesByName.remove(name);
 			if (value == null) {
@@ -234,16 +235,16 @@ public abstract class SerializationPlugin {
 		return parameterValues;
 	}
 
-	public static boolean isSelfReference(Class<?> nodeClass, Parameter parameter) {
-		return infoFor(nodeClass).annotatedParameters_Self().contains(parameter.getName());
+	public static boolean isSelfReference(Class<?> nodeClass, RecordComponent component) {
+		return infoFor(nodeClass).annotatedParameters_Self().contains(component.getName());
 	}
 
-	public static boolean isEnclosingReference(Class<?> nodeClass, Parameter parameter) {
-		return infoFor(nodeClass).annotatedParameters_Enclosing().contains(parameter.getName());
+	public static boolean isEnclosingReference(Class<?> nodeClass, RecordComponent component) {
+		return infoFor(nodeClass).annotatedParameters_Enclosing().contains(component.getName());
 	}
 
-	public static boolean hasDeserializationPath(Class<?> nodeClass, Parameter parameter) {
-		return infoFor(nodeClass).annotatedParameters_DeserializationPath().containsKey(parameter.getName());
+	public static boolean hasDeserializationPath(Class<?> nodeClass, RecordComponent component) {
+		return infoFor(nodeClass).annotatedParameters_DeserializationPath().containsKey(component.getName());
 	}
 
 	/**
@@ -305,12 +306,12 @@ public abstract class SerializationPlugin {
 		}
 	}
 
-	private Reference<?> findImplicitReferenceIfAny(Class<?> nodeClass, Parameter parameter, BoskInfo<?> boskInfo) {
+	private Reference<?> findImplicitReferenceIfAny(Class<?> nodeClass, RecordComponent parameter, BoskInfo<?> boskInfo) {
 		if (isSelfReference(nodeClass, parameter)) {
-			Class<?> targetClass = ReferenceUtils.rawClass(ReferenceUtils.parameterType(parameter.getParameterizedType(), Reference.class, 0));
+			Class<?> targetClass = ReferenceUtils.rawClass(ReferenceUtils.parameterType(parameter.getGenericType(), Reference.class, 0));
 			return selfReference(targetClass, boskInfo);
 		} else if (isEnclosingReference(nodeClass, parameter)) {
-			Class<?> targetClass = ReferenceUtils.rawClass(ReferenceUtils.parameterType(parameter.getParameterizedType(), Reference.class, 0));
+			Class<?> targetClass = ReferenceUtils.rawClass(ReferenceUtils.parameterType(parameter.getGenericType(), Reference.class, 0));
 			Reference<Object> selfRef = selfReference(Object.class, boskInfo);
 			try {
 				return selfRef.enclosingReference(targetClass);
@@ -335,11 +336,11 @@ public abstract class SerializationPlugin {
 	}
 
 	/**
-	 * @return true if the given parameter is computed automatically during
+	 * @return true if the given component is computed automatically during
 	 * deserialization, and therefore does not appear in the serialized output.
 	 */
-	public static boolean isImplicitParameter(Class<?> nodeClass, Parameter parameter) {
-		String name = parameter.getName();
+	public static boolean isImplicitParameter(Class<?> nodeClass, RecordComponent component) {
+		String name = component.getName();
 		ParameterInfo info = infoFor(nodeClass);
 		return info.annotatedParameters_Self.contains(name)
 			|| info.annotatedParameters_Enclosing.contains(name);
@@ -358,7 +359,7 @@ public abstract class SerializationPlugin {
 		AtomicReference<VariantCaseMapInfo> variantCaseMap = new AtomicReference<>(new NoVariantCaseMap(nodeClass));
 
 		if (!nodeClass.isInterface()) { // Avoid for @VariantCaseMap classes
-			for (Parameter parameter: ReferenceUtils.theOnlyConstructorFor(nodeClass).getParameters()) {
+			for (Parameter parameter: ReferenceUtils.getCanonicalConstructor(nodeClass).getParameters()) {
 				scanForInfo(parameter, parameter.getName(),
 					selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
 			}
