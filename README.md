@@ -29,40 +29,6 @@ all we do is send updates to MongoDB, and maintain the in-memory replica by foll
 
 ## Getting Started
 
-### Build settings
-
-First, be sure you're compiling Java with the `-parameters` argument.
-
-In Gradle:
-
-```
-dependencies {
-	compileJava {
-		options.compilerArgs << '-parameters'
-	}
-
-	compileTestJava {
-		options.compilerArgs << '-parameters'
-	}
-}
-```
-
-In Maven:
-
-```
-<plugin>
-		<groupId>org.apache.maven.plugins</groupId>
-		<artifactId>maven-compiler-plugin</artifactId>
-		<configuration>
-				<compilerArgs>
-						<arg>-parameters</arg>
-				</compilerArgs>
-		</configuration>
-</plugin>
-```
-
-### Standalone example
-
 The [bosk-core](bosk-core) library is enough to create a `Bosk` object and start writing your application.
 
 The library works particularly well with Java records.
@@ -76,17 +42,6 @@ public record ExampleState (
 	// Add fields here as you need them
 	String name
 ) implements StateTreeNode {}
-```
-
-You can also use classes, especially if you're using Lombok:
-
-```
-@Value
-@Accessors(fluent = true)
-public class ExampleState implements StateTreeNode {
-	// Add fields here as you need them
-	String name;
-}
 ```
 
 Now declare your singleton `Bosk` class to house and manage your application state:
@@ -198,7 +153,7 @@ To run this, you'll need a MongoDB replica set.
 You can run a single-node replica set using the following `Dockerfile`:
 
 ```
-FROM mongo:4.4
+FROM mongo:7.0
 RUN echo "rs.initiate()" > /docker-entrypoint-initdb.d/rs-initiate.js
 CMD [ "mongod", "--replSet", "rsLonesome", "--port", "27017", "--bind_ip_all" ]
 ```
@@ -214,21 +169,6 @@ The repo is structured as a collection of subprojects because we publish several
 provide integrations with other technologies.
 
 The subprojects are listed in [settings.gradle](settings.gradle), and each has its own `README.md` describing what it is.
-
-### Compiler flags
-
-Ensure `javac` is supplied the `-parameters` flag.
-
-This is required because,
-for each class you use to describe your Bosk state, the "system of record" for its structure is its constructor.
-For example, you might define a class with a constructor like this:
-
-```
-public Member(Identifier id, String name) {...}
-```
-
-Based on this, Bosk now knows the names and types of all the "properties" of your object.
-For this to work smoothly, the parameter names must be present in the compiled bytecode.
 
 ### Gradle setup
 
