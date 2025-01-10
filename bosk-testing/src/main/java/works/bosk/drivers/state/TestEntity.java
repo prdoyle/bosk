@@ -16,17 +16,17 @@ import works.bosk.SideTable;
 import works.bosk.VariantNode;
 import works.bosk.annotations.VariantCaseMap;
 
-@Value
 @With
 @FieldNameConstants
-public class TestEntity implements Entity {
-	Identifier id;
-	String string;
-	Catalog<TestEntity> catalog;
-	Listing<TestEntity> listing;
-	SideTable<TestEntity, TestEntity> sideTable;
-	Variant variant;
-	Optional<TestValues> values;
+public record TestEntity(
+	Identifier id,
+	String string,
+	Catalog<TestEntity> catalog,
+	Listing<TestEntity> listing,
+	SideTable<TestEntity, TestEntity> sideTable,
+	Variant variant,
+	Optional<TestValues> values
+) implements Entity {
 
 	public interface Variant extends VariantNode {
 		@Override

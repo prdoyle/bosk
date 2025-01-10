@@ -8,8 +8,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
-import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -151,24 +151,17 @@ public final class TypeValidation {
 	}
 
 	private static void validateOrdinaryStateTreeNodeClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
-		Constructor<?>[] constructors = nodeClass.getConstructors();
-		if (constructors.length != 1) {
-			throw new InvalidTypeException(nodeClass.getSimpleName() + " must have one constructor; found " + constructors.length + " constructors");
+		if (!Record.class.isAssignableFrom(nodeClass)) {
+			throw new InvalidTypeException(nodeClass + " must be a record because it is a " + StateTreeNode.class.getSimpleName());
 		}
-
-		// Every constructor parameter must have an appropriate getter and wither
-		for (Parameter p: constructors[0].getParameters()) {
-			var typesToValidate = validateConstructorParameter(nodeClass, p);
-			validateGetter(nodeClass, p);
-
-			for (Type type : typesToValidate) {// Recurse to check that the field type itself is valid.
-				// For troubleshooting reasons, wrap any thrown exception so the
-				// user is able to follow the reference chain.
-				try {
-					validateType(type, alreadyValidated);
-				} catch (InvalidTypeException e) {
-					throw new InvalidFieldTypeException(nodeClass, p.getName(), e.getMessage(), e);
-				}
+		for (var c: nodeClass.getRecordComponents()) {
+			// For troubleshooting reasons, wrap any thrown exception so the
+			// user is able to follow the reference chain.
+			try {
+				validateRecordComponent(nodeClass, c);
+				validateType(c.getGenericType(), alreadyValidated);
+			} catch (InvalidTypeException e) {
+				throw new InvalidFieldTypeException(nodeClass, c.getName(), e.getMessage(), e);
 			}
 		}
 
@@ -217,17 +210,13 @@ public final class TypeValidation {
 		}
 	}
 
-	/**
-	 * @return the set of types this <code>parameter</code> might use;
-	 * usually, that's just the declared parameterized type of the parameter.
-	 */
-	private static Collection<Type> validateConstructorParameter(Class<?> containingClass, Parameter parameter) throws InvalidFieldTypeException {
-		String fieldName = parameter.getName();
+	private static void validateRecordComponent(Class<?> containingClass, RecordComponent component) throws InvalidFieldTypeException {
+		String fieldName = component.getName();
 		validateFieldName(containingClass, fieldName);
-		if (hasDeserializationPath(containingClass, parameter)) {
+		if (hasDeserializationPath(containingClass, component)) {
 			throw new InvalidFieldTypeException(containingClass, fieldName, "@" + DeserializationPath.class.getSimpleName() + " not valid inside the bosk");
-		} else if (isEnclosingReference(containingClass, parameter)) {
-			Type type = parameter.getParameterizedType();
+		} else if (isEnclosingReference(containingClass, component)) {
+			Type type = component.getGenericType();
 			if (!Reference.class.isAssignableFrom(rawClass(type))) {
 				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Enclosing.class.getSimpleName() + " applies only to Reference parameters");
 			}
@@ -236,8 +225,8 @@ public final class TypeValidation {
 				// Not certain this needs to be so strict
 				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Enclosing.class.getSimpleName() + " applies only to References to Entities");
 			}
-		} else if (isSelfReference(containingClass, parameter)) {
-			Type type = parameter.getParameterizedType();
+		} else if (isSelfReference(containingClass, component)) {
+			Type type = component.getGenericType();
 			if (!Reference.class.isAssignableFrom(rawClass(type))) {
 				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Self.class.getSimpleName() + " applies only to References");
 			}
@@ -246,7 +235,6 @@ public final class TypeValidation {
 				throw new InvalidFieldTypeException(containingClass, fieldName, "@" + Self.class.getSimpleName() + " reference to " + rawClass(referencedType).getSimpleName() + " incompatible with containing class " + containingClass.getSimpleName());
 			}
 		}
-		return List.of(parameter.getParameterizedType());
 	}
 
 	private static void validateFieldName(Class<?> containingClass, String fieldName) throws InvalidFieldTypeException {

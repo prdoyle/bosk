@@ -415,13 +415,13 @@ class JacksonPluginTest extends AbstractBoskTest {
 
 	@Test
 	void derivedRecord_list_works() throws JsonProcessingException {
-		ImplicitRefs reflectiveEntity;
+		ImplicitRefs implicitRefs;
 		try (var _ = bosk.readContext()) {
-			reflectiveEntity = refs.parentImplicitRefs().value();
+			implicitRefs = refs.parentImplicitRefs().value();
 		}
 
 		String expectedJSON = boskMapper.writeValueAsString(singletonList(refs.parentImplicitRefs().path().urlEncoded()));
-		String actualJSON = boskMapper.writeValueAsString(new ActualList(reflectiveEntity));
+		String actualJSON = boskMapper.writeValueAsString(new ActualList(implicitRefs));
 
 		assertEquals(expectedJSON, actualJSON);
 
@@ -430,14 +430,14 @@ class JacksonPluginTest extends AbstractBoskTest {
 			deserialized = boskMapper.readerFor(ActualList.class).readValue(expectedJSON);
 		}
 
-		ListValue<ReflectiveEntity<?>> expected = ListValue.of(reflectiveEntity);
+		ListValue<ImplicitRefs> expected = ListValue.of(implicitRefs);
 		assertEquals(expected, deserialized);
 	}
 
 	@Getter
 	@DerivedRecord
-	private static class ActualList extends ListValue<ReflectiveEntity<?>> {
-		protected ActualList(ReflectiveEntity<?>... entries) {
+	private static class ActualList extends ListValue<ImplicitRefs> {
+		protected ActualList(ImplicitRefs... entries) {
 			super(entries);
 		}
 	}

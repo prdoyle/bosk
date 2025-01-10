@@ -41,12 +41,8 @@ public class ReferenceErrorTest {
 			bosk.driver().submitDeletion(stringRef));
 	}
 
-	@RequiredArgsConstructor
 	@FieldNameConstants
-	public static class BadGetters implements Entity {
-		final Identifier id;
-		final NestedObject nestedObject;
-
+	public record BadGetters(Identifier id, NestedObject nestedObject) implements Entity {
 		public Identifier id() {
 			throw new UnsupportedOperationException("Whoops");
 		}
@@ -56,9 +52,6 @@ public class ReferenceErrorTest {
 		}
 	}
 
-	@Value
 	@FieldNameConstants
-	public static class NestedObject implements StateTreeNode {
-		Optional<String> string;
-	}
+	public record NestedObject(Optional<String> string) implements StateTreeNode {}
 }

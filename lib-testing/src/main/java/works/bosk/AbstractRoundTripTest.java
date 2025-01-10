@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import java.io.IOException;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -169,22 +170,22 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 						if (VariantNode.class.isAssignableFrom(nodeClass)) {
 							return;
 						}
-						Map<String, Parameter> parametersByName = new LinkedHashMap<>();
-						for (Parameter p : ReferenceUtils.theOnlyConstructorFor(nodeClass).getParameters()) {
-							parametersByName.put(p.getName(), p);
+						Map<String, RecordComponent> componentsByName = new LinkedHashMap<>();
+						for (RecordComponent c: nodeClass.getRecordComponents()) {
+							componentsByName.put(c.getName(), c);
 						}
 						Iterator<Entry<String, BsonValue>> fieldIter = document.entrySet().iterator();
 						while (fieldIter.hasNext()) {
 							Entry<String, BsonValue> field = fieldIter.next();
 							String fieldName = field.getKey();
 							String qualifiedName = nodeClass.getSimpleName() + "." + fieldName;
-							Parameter p = parametersByName.get(fieldName);
-							if (p == null) {
+							RecordComponent component = componentsByName.get(fieldName);
+							if (component == null) {
 								LOGGER.warn("No parameter corresponding to field {}", qualifiedName);
 								continue;
 							}
-							Type pType = p.getParameterizedType();
-							if (Optional.class.isAssignableFrom(p.getType())) {
+							Type pType = component.getGenericType();
+							if (Optional.class.isAssignableFrom(component.getType())) {
 								if (field.getValue() == null) {
 									LOGGER.warn("Pruning Optional.empty() field {} included in BSON", qualifiedName);
 									fieldIter.remove();
@@ -192,7 +193,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 									pType = ReferenceUtils.parameterType(pType, Optional.class, 0);
 									pruneDocument(field.getValue(), pType, alreadyPruned);
 								}
-							} else if (SerializationPlugin.isEnclosingReference(nodeClass, p)) {
+							} else if (SerializationPlugin.isEnclosingReference(nodeClass, component)) {
 								LOGGER.warn("Pruning enclosing reference {} included in BSON", qualifiedName);
 								fieldIter.remove();
 							} else {

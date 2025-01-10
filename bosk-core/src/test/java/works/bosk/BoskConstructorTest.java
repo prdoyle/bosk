@@ -7,7 +7,6 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import works.bosk.Bosk.DefaultRootFunction;
 import works.bosk.TypeValidationTest.BoxedPrimitives;
-import works.bosk.TypeValidationTest.MutableField;
 import works.bosk.TypeValidationTest.SimpleTypes;
 import works.bosk.drivers.ForwardingDriver;
 import works.bosk.drivers.NoOpDriver;
@@ -61,10 +60,10 @@ public class BoskConstructorTest {
 	@Test
 	void invalidRootType_throws() {
 		assertThrows(IllegalArgumentException.class, ()->
-			new Bosk<MutableField>(
+			new Bosk<TypeValidationTest.ArrayField>(
 				boskName("Invalid root type"),
-				MutableField.class,
-				bosk -> new MutableField(),
+				TypeValidationTest.ArrayField.class,
+				bosk -> new TypeValidationTest.ArrayField(Identifier.from("test"), new String[0]),
 				Bosk.simpleDriver()));
 	}
 

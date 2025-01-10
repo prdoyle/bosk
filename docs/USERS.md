@@ -110,12 +110,7 @@ It has no functionality.
 `Entity` is a `StateTreeNode` that has a method `id()` returning an `Identifier`.
 This allows them to be stored in a `Catalog` (see below).
 
-A node's contents are defined by the names and types of its constructor's arguments.
-Each argument must have a corresponding getter method with the same name, taking no arguments, and returning the same type.
-(These conventions are compatible with `record` types, which are encouraged.)
-In the context of a bosk state tree, the constructor arguments and corresponding getters are referred to as "fields"
-regardless of whether they actually correspond to fields of the Java object (though they usually do).
-
+State tree node classes must be `record` types.
 A node is considered to _contain_ its fields, creating a whole/part parent/child relationship between them.
 Removing a node removes all its descendant nodes.
 Diamond relationships, where two nodes have the same child, are not _prevented_, but they are also not _preserved_:

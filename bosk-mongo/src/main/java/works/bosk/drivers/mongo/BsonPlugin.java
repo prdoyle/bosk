@@ -7,6 +7,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +43,7 @@ import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Phantom;
 import works.bosk.Reference;
+import works.bosk.ReferenceUtils;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
@@ -64,7 +66,6 @@ import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.ReferenceUtils.getterMethod;
 import static works.bosk.ReferenceUtils.parameterType;
 import static works.bosk.ReferenceUtils.rawClass;
-import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static works.bosk.drivers.mongo.Formatter.dottedFieldNameSegment;
 import static works.bosk.drivers.mongo.Formatter.undottedFieldNameSegment;
 
@@ -341,7 +342,7 @@ public final class BsonPlugin extends SerializationPlugin {
 	}
 
 	private <V> Codec<ListValue<V>> listValueCodec(Type listValueType, Class<ListValue<V>> targetClass, CodecRegistry registry, BoskInfo<?> boskInfo) {
-		Constructor<? extends ListValue<V>> ctor = theOnlyConstructorFor(targetClass);
+		Constructor<? extends ListValue<V>> ctor = ReferenceUtils.theOnlyConstructorFor(targetClass);
 		Type entryType = parameterType(listValueType, ListValue.class, 0);
 		@SuppressWarnings("unchecked")
 		Class<V> entryClass = (Class<V>) rawClass(entryType);
@@ -406,8 +407,8 @@ public final class BsonPlugin extends SerializationPlugin {
 	private <T extends StateTreeNode, R extends StateTreeNode> Codec<T> stateTreeNodeCodec(Class<T> nodeClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
 		// Pre-compute some reflection-based stuff
 		//
-		Constructor<?> constructor = theOnlyConstructorFor(nodeClass);
-		LinkedHashMap<String, Parameter> parametersByName = Stream.of(constructor.getParameters()).collect(toMap(Parameter::getName, p->p, (x,y)->{ throw new BsonFormatException("Two parameters with same name \"" + x.getName() + "\": " + x + "; " + y); }, LinkedHashMap::new));
+		Constructor<?> constructor = ReferenceUtils.getCanonicalConstructor(nodeClass);
+		LinkedHashMap<String, RecordComponent> parametersByName = Stream.of(nodeClass.getRecordComponents()).collect(toMap(RecordComponent::getName, p->p, (x, y)->{ throw new BsonFormatException("Two record components with same name \"" + x.getName() + "\": " + x + "; " + y); }, LinkedHashMap::new));
 
 		MethodHandle writerHandle = computeAllFieldsWriterHandle(nodeClass, parametersByName, registry, boskInfo);
 		MethodHandle factoryHandle = computeFactoryHandle(constructor);
@@ -620,12 +621,12 @@ public final class BsonPlugin extends SerializationPlugin {
 	/**
 	 * @return Map not necessarily in any particular order; caller is expected to apply any desired ordering.
 	 */
-	private <R extends StateTreeNode> Map<String, Object> gatherParameterValuesByName(Class<? extends StateTreeNode> nodeClass, Map<String, Parameter> parametersByName, BsonReader reader, DecoderContext decoderContext, CodecRegistry registry, BoskInfo<R> boskInfo) {
+	private <R extends StateTreeNode> Map<String, Object> gatherParameterValuesByName(Class<? extends StateTreeNode> nodeClass, Map<String, RecordComponent> componentsByName, BsonReader reader, DecoderContext decoderContext, CodecRegistry registry, BoskInfo<R> boskInfo) {
 		Map<String, Object> parameterValuesByName = new HashMap<>();
 		while (reader.readBsonType() != BsonType.END_OF_DOCUMENT) {
 			String fieldName = reader.readName();
-			Parameter parameter = parametersByName.get(fieldName);
-			if (parameter == null) {
+			RecordComponent component = componentsByName.get(fieldName);
+			if (component == null) {
 				if (LOGGER.isWarnEnabled() && ALREADY_WARNED.add(nodeClass.getName() + " " + fieldName)) {
 					LOGGER.warn("Ignoring unrecognized field \"{}\" in {}", fieldName, nodeClass.getSimpleName());
 				}
@@ -634,7 +635,7 @@ public final class BsonPlugin extends SerializationPlugin {
 			}
 			Object value;
 			try (@SuppressWarnings("unused") DeserializationScope s = nodeFieldDeserializationScope(nodeClass, fieldName)) {
-				value = decodeValue(parameter.getParameterizedType(), reader, decoderContext, registry, boskInfo);
+				value = decodeValue(component.getGenericType(), reader, decoderContext, registry, boskInfo);
 			}
 			Object old = parameterValuesByName.put(fieldName, value);
 			if (old != null) {
@@ -659,19 +660,19 @@ public final class BsonPlugin extends SerializationPlugin {
 		return value;
 	}
 
-	private <T extends StateTreeNode, R extends StateTreeNode> MethodHandle computeAllFieldsWriterHandle(Class<T> nodeClass, Map<String, Parameter> parametersByName, CodecRegistry codecRegistry, BoskInfo<R> boskInfo) {
+	private <T extends StateTreeNode, R extends StateTreeNode> MethodHandle computeAllFieldsWriterHandle(Class<T> nodeClass, Map<String, RecordComponent> componentsByName, CodecRegistry codecRegistry, BoskInfo<R> boskInfo) {
 		MethodHandle handleUnderConstruction = writeNothingHandle(nodeClass);
-		for (Entry<String, Parameter> e: parametersByName.entrySet()) {
+		for (Entry<String, RecordComponent> e: componentsByName.entrySet()) {
 			// Here, handleUnderConstruction has args (N,W,E)
 			String name = e.getKey();
-			Parameter parameter = e.getValue();
+			RecordComponent component = e.getValue();
 			MethodHandle getter;
 			try {
 				getter = LOOKUP.unreflect(getterMethod(nodeClass, name));
 			} catch (IllegalAccessException | InvalidTypeException e1) {
 				throw new IllegalStateException("Error in class " + nodeClass.getSimpleName() + ": " + e1.getMessage(), e1);
 			}
-			MethodHandle fieldWriter = parameterWriterHandle(nodeClass, name, parameter, codecRegistry, boskInfo); // (P,W,E)
+			MethodHandle fieldWriter = componentWriterHandle(nodeClass, name, component, codecRegistry, boskInfo); // (P,W,E)
 			MethodHandle writerCall = filterArguments(fieldWriter, 0, getter); // (N,W,E)
 			MethodHandle nestedCall = collectArguments(writerCall, 0, handleUnderConstruction); // (N,W,E,N,W,E)
 			handleUnderConstruction = permuteArguments(nestedCall, writerCall.type(), 0, 1, 2, 0, 1, 2); // (N,W,E)
@@ -679,11 +680,11 @@ public final class BsonPlugin extends SerializationPlugin {
 		return handleUnderConstruction;
 	}
 
-	private <R extends StateTreeNode> MethodHandle parameterWriterHandle(Class<?> nodeClass, String name, Parameter parameter, CodecRegistry codecRegistry, BoskInfo<R> boskInfo) {
-		if (isImplicitParameter(nodeClass, parameter)) {
-			return writeNothingHandle(parameter.getType());
+	private <R extends StateTreeNode> MethodHandle componentWriterHandle(Class<?> nodeClass, String name, RecordComponent component, CodecRegistry codecRegistry, BoskInfo<R> boskInfo) {
+		if (isImplicitParameter(nodeClass, component)) {
+			return writeNothingHandle(component.getType());
 		} else {
-			return valueWriterHandle(name, parameter.getParameterizedType(), codecRegistry, boskInfo);
+			return valueWriterHandle(name, component.getGenericType(), codecRegistry, boskInfo);
 		}
 	}
 

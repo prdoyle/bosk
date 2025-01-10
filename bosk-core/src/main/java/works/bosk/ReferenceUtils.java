@@ -5,6 +5,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.util.Arrays;
@@ -275,8 +276,8 @@ C&lt;String> someField;
 
 	public static <T> Constructor<T> theOnlyConstructorFor(Class<T> nodeClass) {
 		List<Constructor<?>> constructors = Stream.of(nodeClass.getDeclaredConstructors())
-				.filter(ctor -> !ctor.isSynthetic())
-				.toList();
+			.filter(ctor -> !ctor.isSynthetic())
+			.toList();
 		if (constructors.isEmpty()) {
 			throw new IllegalArgumentException("No suitable constructor for " + nodeClass.getSimpleName());
 		} else if (constructors.size() >= 2) {
@@ -287,9 +288,25 @@ C&lt;String> someField;
 		return ReflectionHelpers.setAccessible(theConstructor);
 	}
 
+	/**
+	 * @see Class#getRecordComponents()
+	 */
+	public static <T> Constructor<T> getCanonicalConstructor(Class<T> cls) {
+		assert Record.class.isAssignableFrom(cls): cls.getSimpleName() + " must be a record";
+		Class<?>[] paramTypes =
+			Arrays.stream(cls.getRecordComponents())
+				.map(RecordComponent::getType)
+				.toArray(Class<?>[]::new);
+		try {
+			return ReflectionHelpers.setAccessible(cls.getDeclaredConstructor(paramTypes));
+		} catch (NoSuchMethodException e) {
+			throw new AssertionError("Record class must have a canonical constructor; is " + cls.getSimpleName() + " a record class?", e);
+		}
+	}
+
 	public static Map<String, Method> gettersForConstructorParameters(Class<?> nodeClass) throws InvalidTypeException {
 		Iterable<String> names = Stream
-			.of(theOnlyConstructorFor(nodeClass).getParameters())
+			.of(getCanonicalConstructor(nodeClass).getParameters())
 			.map(Parameter::getName)
 			::iterator;
 		Map<String, Method> result = new LinkedHashMap<>();

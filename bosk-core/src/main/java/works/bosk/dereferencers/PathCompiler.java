@@ -32,6 +32,7 @@ import works.bosk.ListingEntry;
 import works.bosk.Path;
 import works.bosk.Phantom;
 import works.bosk.Reference;
+import works.bosk.ReferenceUtils;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
@@ -52,7 +53,6 @@ import static works.bosk.ReferenceUtils.getterMethod;
 import static works.bosk.ReferenceUtils.gettersForConstructorParameters;
 import static works.bosk.ReferenceUtils.parameterType;
 import static works.bosk.ReferenceUtils.rawClass;
-import static works.bosk.ReferenceUtils.theOnlyConstructorFor;
 import static works.bosk.bytecode.ClassBuilder.here;
 
 /**
@@ -248,7 +248,7 @@ public final class PathCompiler {
 				// InvalidTypeException here instead of adding the getter to the map. -pdoyle
 				getters.put(segment, getterMethod(currentClass, segment));
 
-				Step fieldStep = newFieldStep(segment, getters, theOnlyConstructorFor(currentClass));
+				Step fieldStep = newFieldStep(segment, getters, ReferenceUtils.getCanonicalConstructor(currentClass));
 				Class<?> fieldClass = rawClass(fieldStep.targetType());
 				Map<String, Type> typeMap = SerializationPlugin.getVariantCaseMapIfAny(fieldStep.targetClass());
 				if (typeMap != null) {
