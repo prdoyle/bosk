@@ -31,7 +31,6 @@ dependencies {
 
     testImplementation project(":bosk-logback")
     testImplementation project(":bosk-testing")
-    testImplementation project(":bosk-mongo") // No surprise that MongoDB is handy for testing BSON
     testImplementation project(":lib-testing")
 }
 

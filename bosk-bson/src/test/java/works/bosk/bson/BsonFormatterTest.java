@@ -7,18 +7,18 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class BsonSurgeonFormatterTest {
+class BsonFormatterTest {
 
 	@ParameterizedTest
 	@MethodSource("dottedNameCases")
 	void dottedFieldNameSegment(String plain, String dotted) {
-		assertEquals(dotted, BsonSurgeonFormatter.dottedFieldNameSegment(plain));
+		assertEquals(dotted, BsonFormatter.dottedFieldNameSegment(plain));
 	}
 
 	@ParameterizedTest
 	@MethodSource("dottedNameCases")
 	void undottedFieldNameSegment(String plain, String dotted) {
-		assertEquals(plain, BsonSurgeonFormatter.undottedFieldNameSegment(dotted));
+		assertEquals(plain, BsonFormatter.undottedFieldNameSegment(dotted));
 	}
 
 	static Stream<Arguments> dottedNameCases() {

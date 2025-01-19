@@ -65,8 +65,8 @@ import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.ReferenceUtils.getterMethod;
 import static works.bosk.ReferenceUtils.parameterType;
 import static works.bosk.ReferenceUtils.rawClass;
-import static works.bosk.bson.BsonSurgeonFormatter.dottedFieldNameSegment;
-import static works.bosk.bson.BsonSurgeonFormatter.undottedFieldNameSegment;
+import static works.bosk.bson.BsonFormatter.dottedFieldNameSegment;
+import static works.bosk.bson.BsonFormatter.undottedFieldNameSegment;
 
 public final class BsonPlugin extends SerializationPlugin {
 	private final ValueCodecProvider valueCodecProvider = new ValueCodecProvider();

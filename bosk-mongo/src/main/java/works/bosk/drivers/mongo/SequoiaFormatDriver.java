@@ -29,7 +29,7 @@ import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.bson.BsonPlugin;
-import works.bosk.bson.BsonSurgeonFormatter.DocumentFields;
+import works.bosk.bson.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 

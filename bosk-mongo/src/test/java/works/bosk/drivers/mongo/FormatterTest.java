@@ -15,7 +15,7 @@ import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.TestEntityBuilder;
 import works.bosk.bson.BsonPlugin;
-import works.bosk.bson.BsonSurgeonFormatter;
+import works.bosk.bson.BsonFormatter;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.util.Types;
 
@@ -72,7 +72,7 @@ class FormatterTest extends AbstractBoskTest {
 			)
 			;
 
-		ArrayList<String> dottedName = BsonSurgeonFormatter.dottedFieldNameSegments(weirdRef, weirdRef.path().length(), bosk.rootReference());
+		ArrayList<String> dottedName = BsonFormatter.dottedFieldNameSegments(weirdRef, weirdRef.path().length(), bosk.rootReference());
 		BsonDocument expected = new BsonDocument()
 			.append(dottedName.get(dottedName.size()-1), weirdDoc);
 		assertEquals(expected, actual);

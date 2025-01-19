@@ -11,26 +11,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import lombok.NonNull;
 import org.bson.BsonBinaryWriter;
 import org.bson.BsonDocument;
 import org.bson.BsonDocumentReader;
-import org.bson.BsonDocumentWriter;
 import org.bson.BsonInt32;
 import org.bson.BsonInt64;
-import org.bson.BsonReader;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.bson.codecs.BsonValueCodec;
 import org.bson.codecs.Codec;
 import org.bson.codecs.DecoderContext;
-import org.bson.codecs.DocumentCodecProvider;
 import org.bson.codecs.EncoderContext;
-import org.bson.codecs.ValueCodecProvider;
-import org.bson.codecs.configuration.CodecRegistries;
-import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.io.BasicOutputBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +34,7 @@ import works.bosk.Reference;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.bson.BsonPlugin;
-import works.bosk.bson.BsonSurgeonFormatter;
+import works.bosk.bson.BsonFormatter;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Arrays.asList;
@@ -53,10 +46,7 @@ import static works.bosk.ReferenceUtils.rawClass;
  *
  * @author pdoyle
  */
-public final class Formatter extends BsonSurgeonFormatter {
-	private final CodecRegistry simpleCodecs;
-	private final Function<Type, Codec<?>> preferredBoskCodecs;
-	private final Function<Reference<?>, SerializationPlugin.DeserializationScope> deserializationScopeFunction;
+public final class Formatter extends BsonFormatter {
 
 	/**
 	 * If the diagnostic attributes are identical from one update to the next,
@@ -66,12 +56,7 @@ public final class Formatter extends BsonSurgeonFormatter {
 	private volatile MapValue<String> lastEventDiagnosticAttributes = MapValue.empty();
 
 	public Formatter(BoskInfo<?> boskInfo, BsonPlugin bsonPlugin) {
-		this.simpleCodecs = CodecRegistries.fromProviders(
-			bsonPlugin.codecProviderFor(boskInfo),
-			new ValueCodecProvider(),
-			new DocumentCodecProvider());
-		this.preferredBoskCodecs = type -> bsonPlugin.getCodec(type, rawClass(type), simpleCodecs, boskInfo);
-		this.deserializationScopeFunction = bsonPlugin::newDeserializationScope;
+		super(boskInfo, bsonPlugin);
 	}
 
 	/**
@@ -102,19 +87,6 @@ public final class Formatter extends BsonSurgeonFormatter {
 	//
 	// Helpers to translate Bosk <-> MongoDB
 	//
-
-	Codec<?> codecFor(Type type) {
-		// BsonPlugin gives better codecs than CodecRegistry, because BsonPlugin is aware of generics,
-		// so we always try that first. The CodecSupplier protocol uses "null" to indicate that another
-		// CodecSupplier should be used, so we follow that protocol and fall back on the CodecRegistry.
-		// TODO: Should this logic be in BsonPlugin? It has nothing to do with MongoDriver really.
-		Codec<?> result = preferredBoskCodecs.apply(type);
-		if (result == null) {
-			return simpleCodecs.get(rawClass(type));
-		} else {
-			return result;
-		}
-	}
 
 	@SuppressWarnings("unchecked")
 	<T> T document2object(BsonDocument doc, Reference<T> target) {
@@ -185,42 +157,6 @@ public final class Formatter extends BsonSurgeonFormatter {
 			result = result.with(name, value);
 		}
 		return result;
-	}
-
-	/**
-	 * @see #bsonValue2object(BsonValue, Reference)
-	 */
-	@SuppressWarnings("unchecked")
-	public <T> BsonValue object2bsonValue(T object, Type type) {
-		rawClass(type).cast(object);
-		Codec<T> objectCodec = (Codec<T>) codecFor(type);
-		BsonDocument document = new BsonDocument();
-		try (BsonDocumentWriter writer = new BsonDocumentWriter(document)) {
-			// To support arbitrary values, not just whole documents, we put the result INSIDE a document.
-			writer.writeStartDocument();
-			writer.writeName("value");
-			objectCodec.encode(writer, object, EncoderContext.builder().build());
-			writer.writeEndDocument();
-		}
-		return document.get("value");
-	}
-
-	/**
-	 * @see #object2bsonValue(Object, Type)
-	 */
-	@SuppressWarnings("unchecked")
-	<T> T bsonValue2object(BsonValue bson, Reference<T> target) {
-		Codec<T> objectCodec = (Codec<T>) codecFor(target.targetType());
-		BsonDocument document = new BsonDocument();
-		document.append("value", bson);
-		try (
-			@SuppressWarnings("unused") SerializationPlugin.DeserializationScope scope = deserializationScopeFunction.apply(target);
-			BsonReader reader = document.asBsonReader()
-		) {
-			reader.readStartDocument();
-			reader.readName("value");
-			return objectCodec.decode(reader, DecoderContext.builder().build());
-		}
 	}
 
 	@SuppressWarnings("unchecked")

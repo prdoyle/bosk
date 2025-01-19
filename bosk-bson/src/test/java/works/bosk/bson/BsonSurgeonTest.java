@@ -21,7 +21,6 @@ import works.bosk.Reference;
 import works.bosk.SideTableReference;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.AbstractDriverTest;
-import works.bosk.drivers.mongo.Formatter;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.exceptions.InvalidTypeException;
 
@@ -33,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class BsonSurgeonTest extends AbstractDriverTest {
 	BsonSurgeon surgeon;
 	BsonPlugin bsonPlugin;
-	Formatter formatter;
+	BsonFormatter formatter;
 	private List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints;
 
 	Refs refs;
@@ -55,7 +54,7 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 	void setup() throws InvalidTypeException, IOException, InterruptedException {
 		setupBosksAndReferences(Bosk.simpleDriver());
 		bsonPlugin = new BsonPlugin();
-		formatter = new Formatter(bosk, bsonPlugin);
+		formatter = new BsonFormatter(bosk, bsonPlugin);
 
 		refs = bosk.buildReferences(Refs.class);
 

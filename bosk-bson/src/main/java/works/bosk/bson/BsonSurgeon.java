@@ -17,16 +17,16 @@ import works.bosk.Identifier;
 import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.SideTable;
-import works.bosk.bson.BsonSurgeonFormatter.DocumentFields;
+import works.bosk.bson.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
-import static works.bosk.bson.BsonSurgeonFormatter.containerSegments;
-import static works.bosk.bson.BsonSurgeonFormatter.dottedFieldNameSegments;
-import static works.bosk.bson.BsonSurgeonFormatter.undottedFieldNameSegment;
+import static works.bosk.bson.BsonFormatter.containerSegments;
+import static works.bosk.bson.BsonFormatter.dottedFieldNameSegments;
+import static works.bosk.bson.BsonFormatter.undottedFieldNameSegment;
 
 /**
  * Splits up a single large BSON document into multiple self-describing pieces,
