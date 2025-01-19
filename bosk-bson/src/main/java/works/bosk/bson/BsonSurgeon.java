@@ -1,4 +1,4 @@
-package works.bosk.drivers.mongo;
+package works.bosk.bson;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,14 +17,16 @@ import works.bosk.Identifier;
 import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.SideTable;
+import works.bosk.bson.BsonSurgeonFormatter.DocumentFields;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
-import static works.bosk.drivers.mongo.Formatter.containerSegments;
-import static works.bosk.drivers.mongo.Formatter.dottedFieldNameSegments;
-import static works.bosk.drivers.mongo.Formatter.undottedFieldNameSegment;
+import static works.bosk.bson.BsonSurgeonFormatter.containerSegments;
+import static works.bosk.bson.BsonSurgeonFormatter.dottedFieldNameSegments;
+import static works.bosk.bson.BsonSurgeonFormatter.undottedFieldNameSegment;
 
 /**
  * Splits up a single large BSON document into multiple self-describing pieces,
@@ -40,10 +42,10 @@ import static works.bosk.drivers.mongo.Formatter.undottedFieldNameSegment;
  *     <dd>BSON document corresponding to the part of the state tree being described</dd>
  * </dl>
  */
-class BsonSurgeon {
+public class BsonSurgeon {
 	final List<GraftPoint> graftPoints;
 
-	record GraftPoint (
+	public record GraftPoint (
 		Reference<? extends EnumerableByIdentifier<?>> containerRef,
 		Reference<?> entryPlaceholderRef
 	) {
@@ -59,14 +61,18 @@ class BsonSurgeon {
 		}
 	}
 
+	public List<GraftPoint> graftPoints() {
+		return unmodifiableList(graftPoints);
+	}
+
 	/**
 	 * We put the whole path in _id so that it will be present in change stream documents
 	 */
 	private static final String BSON_PATH_FIELD = "_id";
 
-	private static final String STATE_FIELD = Formatter.DocumentFields.state.name();
+	private static final String STATE_FIELD = DocumentFields.state.name();
 
-	BsonSurgeon(List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints) {
+	public BsonSurgeon(List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints) {
 		this.graftPoints = new ArrayList<>(graftPoints.size());
 		graftPoints.stream()
 			// Scatter bottom-up so we don't have to worry about scattering already-scattered documents
@@ -116,7 +122,7 @@ class BsonSurgeon {
 	 * @return list of field names suitable for {@link #lookup} to find the document corresponding
 	 * to <code>docRef</code> inside a document corresponding to <code>rootRef</code>
 	 */
-	static List<String> docSegments(Reference<?> docRef, Reference<?> rootRef) {
+	public static List<String> docSegments(Reference<?> docRef, Reference<?> rootRef) {
 		ArrayList<String> allSegments = dottedFieldNameSegments(docRef, docRef.path().length(), rootRef);
 		return allSegments
 			.subList(1, allSegments.size()); // Skip the "state" field

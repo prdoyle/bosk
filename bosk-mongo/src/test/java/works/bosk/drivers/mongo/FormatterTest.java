@@ -18,6 +18,7 @@ import works.bosk.CatalogReference;
 import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.TestEntityBuilder;
+import works.bosk.bson.BsonSurgeonFormatter;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.util.Types;
 
@@ -74,42 +75,10 @@ class FormatterTest extends AbstractBoskTest {
 			)
 			;
 
-		ArrayList<String> dottedName = Formatter.dottedFieldNameSegments(weirdRef, weirdRef.path().length(), bosk.rootReference());
+		ArrayList<String> dottedName = BsonSurgeonFormatter.dottedFieldNameSegments(weirdRef, weirdRef.path().length(), bosk.rootReference());
 		BsonDocument expected = new BsonDocument()
 			.append(dottedName.get(dottedName.size()-1), weirdDoc);
 		assertEquals(expected, actual);
-	}
-
-	@ParameterizedTest
-	@MethodSource("dottedNameCases")
-	void dottedFieldNameSegment(String plain, String dotted) {
-		assertEquals(dotted, Formatter.dottedFieldNameSegment(plain));
-	}
-
-	@ParameterizedTest
-	@MethodSource("dottedNameCases")
-	void undottedFieldNameSegment(String plain, String dotted) {
-		assertEquals(plain, Formatter.undottedFieldNameSegment(dotted));
-	}
-
-	static Stream<Arguments> dottedNameCases() {
-		return Stream.of(
-			dottedNameCase("%", "%25"),
-			dottedNameCase("$", "%24"),
-			dottedNameCase(".", "%2E"),
-			dottedNameCase("\0", "%00"),
-			dottedNameCase("|", "%7C"),
-			dottedNameCase("!", "%21"),
-			dottedNameCase("~", "%7E"),
-			dottedNameCase("[", "%5B"),
-			dottedNameCase("]", "%5D"),
-			dottedNameCase("+", "%2B"),
-			dottedNameCase(" ", "%20")
-		);
-	}
-
-	static Arguments dottedNameCase(String plain, String dotted) {
-		return Arguments.of(plain, dotted);
 	}
 
 	@Test

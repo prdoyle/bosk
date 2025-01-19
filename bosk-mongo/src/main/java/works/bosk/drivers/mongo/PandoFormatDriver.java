@@ -40,6 +40,7 @@ import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
+import works.bosk.bson.BsonSurgeon;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
@@ -634,7 +635,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		// graftPoints is in descending order of depth.
 		// TODO: This could be done more efficiently, perhaps using a trie
 		int targetPathLength = target.path().length();
-		for (BsonSurgeon.GraftPoint graftPoint: bsonSurgeon.graftPoints) {
+		for (var graftPoint: bsonSurgeon.graftPoints()) {
 			Reference<?> candidateContainer = graftPoint.containerRef();
 			int containerPathLength = candidateContainer.path().length();
 			if (containerPathLength <= targetPathLength - 1) {

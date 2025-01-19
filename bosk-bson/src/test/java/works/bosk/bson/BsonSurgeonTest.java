@@ -1,4 +1,4 @@
-package works.bosk.drivers.mongo;
+package works.bosk.bson;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
@@ -21,6 +21,8 @@ import works.bosk.Reference;
 import works.bosk.SideTableReference;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.AbstractDriverTest;
+import works.bosk.drivers.mongo.BsonPlugin;
+import works.bosk.drivers.mongo.Formatter;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.exceptions.InvalidTypeException;
 

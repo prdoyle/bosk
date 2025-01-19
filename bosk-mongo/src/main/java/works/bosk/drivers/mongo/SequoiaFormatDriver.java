@@ -28,7 +28,8 @@ import works.bosk.Identifier;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
-import works.bosk.drivers.mongo.Formatter.DocumentFields;
+import works.bosk.bson.BsonSurgeonFormatter;
+import works.bosk.bson.BsonSurgeonFormatter.DocumentFields;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 

@@ -26,6 +26,7 @@ compileTestJava {
 
 dependencies {
 	api project(":bosk-core")
+	implementation project(":bosk-bson")
 	api 'org.mongodb:mongodb-driver-sync:5.1.2'
 	implementation 'com.github.spotbugs:spotbugs-annotations:4.8.6' // To stop warnings about When from MongoDB driver
 
