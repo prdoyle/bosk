@@ -29,7 +29,7 @@ import works.bosk.BoskInfo;
 import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
-import works.bosk.bson.BsonSurgeonFormatter;
+import works.bosk.bson.BsonPlugin;
 import works.bosk.bson.BsonSurgeonFormatter.DocumentFields;
 import works.bosk.drivers.mongo.MappedDiagnosticContext.MDCScope;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;

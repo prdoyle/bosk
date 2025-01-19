@@ -3,8 +3,6 @@ package works.bosk.drivers.mongo;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.UpdateDescription;
 import java.lang.reflect.Type;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -42,6 +40,7 @@ import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
+import works.bosk.bson.BsonPlugin;
 import works.bosk.bson.BsonSurgeonFormatter;
 import works.bosk.exceptions.InvalidTypeException;
 
