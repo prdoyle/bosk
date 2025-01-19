@@ -5,7 +5,7 @@ import works.bosk.Bosk;
 import works.bosk.DriverFactory;
 import works.bosk.Reference;
 import works.bosk.annotations.ReferencePath;
-import works.bosk.drivers.mongo.BsonPlugin;
+import works.bosk.bson.BsonPlugin;
 import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.exceptions.InvalidTypeException;

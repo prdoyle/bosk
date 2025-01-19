@@ -1,4 +1,4 @@
-package works.bosk.drivers.mongo;
+package works.bosk.bson;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
@@ -28,33 +28,32 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.bson.BsonFormatter.docBsonPath;
 
 public class BsonSurgeonTest extends AbstractDriverTest {
 	BsonSurgeon surgeon;
 	BsonPlugin bsonPlugin;
-	Formatter formatter;
+	BsonFormatter formatter;
 	private List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints;
 
 	Refs refs;
 
 	public interface Refs {
-		@ReferencePath("/catalog")
-		CatalogReference<TestEntity> catalog();
+		@ReferencePath("/catalog") CatalogReference<TestEntity> catalog();
 		@ReferencePath("/catalog/-entity-") Reference<TestEntity> entity(Identifier entity);
 		@ReferencePath("/catalog/-entity-/catalog") CatalogReference<TestEntity> anyNestedCatalog();
 		@ReferencePath("/catalog/-entity-/catalog") CatalogReference<TestEntity> nestedCatalog(Identifier entity);
 		@ReferencePath("/catalog/-parent-/catalog/-child-") Reference<TestEntity> child(Identifier parent, Identifier child);
 		@ReferencePath("/catalog/-entity-/catalog/-child-/catalog") CatalogReference<TestEntity> doubleNestedCatalog();
 		@ReferencePath("/catalog/-parent-/catalog/-child-/catalog/-grandchild-") Reference<TestEntity> grandchild(Identifier parent, Identifier child, Identifier grandchild);
-		@ReferencePath("/sideTable")
-		SideTableReference<TestEntity, TestEntity> sideTable();
+		@ReferencePath("/sideTable") SideTableReference<TestEntity, TestEntity> sideTable();
 	}
 
 	@BeforeEach
 	void setup() throws InvalidTypeException, IOException, InterruptedException {
 		setupBosksAndReferences(Bosk.simpleDriver());
 		bsonPlugin = new BsonPlugin();
-		formatter = new Formatter(bosk, bsonPlugin);
+		formatter = new BsonFormatter(bosk, bsonPlugin);
 
 		refs = bosk.buildReferences(Refs.class);
 
@@ -124,7 +123,7 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 			entireDoc = (BsonDocument) formatter.object2bsonValue(rootRef.value(), rootRef.targetType());
 		}
 
-		List<BsonDocument> parts = surgeon.scatter(rootRef, entireDoc.clone(), bosk.rootReference());
+		List<BsonDocument> parts = surgeon.scatter(rootRef, entireDoc.clone());
 		List<String> partPaths = parts.stream()
 			.map(part -> part.getString("_id"))
 			.map(BsonString::getValue)
@@ -194,9 +193,9 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 			entireDoc = (BsonDocument) formatter.object2bsonValue(mainRef.value(), mainRef.targetType());
 		}
 
-		List<BsonDocument> parts = surgeon.scatter(mainRef, entireDoc.clone(), bosk.rootReference());
+		List<BsonDocument> parts = surgeon.scatter(mainRef, entireDoc.clone());
 
-		BsonString mainPath = new BsonString("|" + String.join("|", BsonSurgeon.docSegments(mainRef, bosk.rootReference())));
+		BsonString mainPath = new BsonString(docBsonPath(mainRef, bosk.rootReference()));
 		assertEquals(mainPath, parts.get(parts.size()-1).getString("_id"),
 			"Last part must correspond to the main doc");
 

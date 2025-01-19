@@ -30,6 +30,7 @@ import works.bosk.ListingReference;
 import works.bosk.Reference;
 import works.bosk.SideTable;
 import works.bosk.annotations.Polyfill;
+import works.bosk.bson.BsonPlugin;
 import works.bosk.drivers.BufferingDriver;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;

@@ -1,4 +1,4 @@
-package works.bosk.drivers.mongo;
+package works.bosk.bson;
 
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +19,7 @@ import works.bosk.exceptions.InvalidTypeException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.BoskTestUtils.boskName;
 
-class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
+class DottedFieldNameTest {
 	private Bosk<TestEntity> bosk;
 
 	@BeforeEach
@@ -58,7 +58,7 @@ class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
 	@ArgumentsSource(PathArgumentProvider.class)
 	void testDottedFieldNameOf(String boskPath, String dottedFieldName) throws InvalidTypeException {
 		Reference<?> reference = bosk.rootReference().then(Object.class, Path.parse(boskPath));
-		String actual = Formatter.dottedFieldNameOf(reference, bosk.rootReference());
+		String actual = BsonFormatter.dottedFieldNameOf(reference, bosk.rootReference());
 		assertEquals(dottedFieldName, actual);
 		//assertThrows(AssertionError.class, ()-> MongoDriver.dottedFieldNameOf(reference, catalogReference.then(Identifier.from("whoopsie"))));
 	}
@@ -67,7 +67,7 @@ class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
 	@ArgumentsSource(PathArgumentProvider.class)
 	void testReferenceTo(String boskPath, String dottedFieldName) throws InvalidTypeException {
 		Reference<?> expected = bosk.rootReference().then(Object.class, Path.parse(boskPath));
-		Reference<?> actual = Formatter.referenceTo(dottedFieldName, bosk.rootReference());
+		Reference<?> actual = BsonFormatter.referenceTo(dottedFieldName, bosk.rootReference());
 		assertEquals(expected, actual);
 		assertEquals(expected.path(), actual.path());
 		assertEquals(expected.targetType(), actual.targetType());
@@ -96,7 +96,7 @@ class MongoDriverDottedFieldNameTest extends AbstractDriverTest {
 
 	private String dotted(String path, int pathLength) throws InvalidTypeException {
 		Reference<?> reference = bosk.rootReference().then(Object.class, Path.parseParameterized(path));
-		return Formatter.dottedFieldNameOf(reference, pathLength, bosk.rootReference());
+		return BsonFormatter.dottedFieldNameOf(reference, pathLength, bosk.rootReference());
 	}
 
 }
