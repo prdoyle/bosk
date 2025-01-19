@@ -187,6 +187,7 @@ public sealed interface Reference<T> permits
 
 	/**
 	 * @return <code>this.path().{@link Path#isPrefixOf isPrefixOf}(other.path())</code>
+	 * @see Path#isPrefixOf
 	 */
 	default boolean encloses(Reference<?> other) {
 		return this.path().isPrefixOf(other.path());

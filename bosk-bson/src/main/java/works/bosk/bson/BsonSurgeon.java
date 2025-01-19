@@ -1,4 +1,4 @@
-package works.bosk.drivers.mongo;
+package works.bosk.bson;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,27 +11,32 @@ import org.bson.BsonDocument;
 import org.bson.BsonInvalidOperationException;
 import org.bson.BsonString;
 import org.bson.BsonValue;
-import works.bosk.Bosk;
 import works.bosk.EnumerableByIdentifier;
 import works.bosk.Identifier;
 import works.bosk.Path;
 import works.bosk.Reference;
-import works.bosk.SideTable;
+import works.bosk.bson.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
-import static works.bosk.drivers.mongo.Formatter.containerSegments;
-import static works.bosk.drivers.mongo.Formatter.dottedFieldNameSegments;
-import static works.bosk.drivers.mongo.Formatter.undottedFieldNameSegment;
+import static works.bosk.bson.BsonFormatter.containerSegments;
+import static works.bosk.bson.BsonFormatter.undottedFieldNameSegment;
 
 /**
  * Splits up a single large BSON document into multiple self-describing pieces,
  * and re-assembles them. Provides the core mechanism to carve large BSON structures
  * into pieces so they can stay under the MongoDB document size limit.
- * <p>
  *
+ * <p>
+ * <em>Beware</em>: {@link BsonSurgeon} takes advantage of the mutability of the
+ * {@link BsonDocument} data structure to perform surgeries efficiently.
+ * As a consequence, the {@link #scatter} and {@link #gather} methods
+ * will <em>modify</em> objects passed in as arguments.
+ *
+ * <p>
  * Jargon:
  * <dl>
  *     <dt>Root document</dt>
@@ -40,9 +45,13 @@ import static works.bosk.drivers.mongo.Formatter.undottedFieldNameSegment;
  *     <dd>BSON document corresponding to the part of the state tree being described</dd>
  * </dl>
  */
-class BsonSurgeon {
+public class BsonSurgeon {
 	final List<GraftPoint> graftPoints;
 
+	/**
+	 * Internal representation of a graft point, storing a pre-built placeholder
+	 * reference for an entry in the grafted container for efficiency.
+	 */
 	record GraftPoint (
 		Reference<? extends EnumerableByIdentifier<?>> containerRef,
 		Reference<?> entryPlaceholderRef
@@ -64,9 +73,9 @@ class BsonSurgeon {
 	 */
 	private static final String BSON_PATH_FIELD = "_id";
 
-	private static final String STATE_FIELD = Formatter.DocumentFields.state.name();
+	private static final String STATE_FIELD = DocumentFields.state.name();
 
-	BsonSurgeon(List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints) {
+	public BsonSurgeon(List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints) {
 		this.graftPoints = new ArrayList<>(graftPoints.size());
 		graftPoints.stream()
 			// Scatter bottom-up so we don't have to worry about scattering already-scattered documents
@@ -75,7 +84,7 @@ class BsonSurgeon {
 				GraftPoint.of(containerRef, entryRef(containerRef))));
 	}
 
-	static Reference<?> entryRef(Reference<? extends EnumerableByIdentifier<?>> containerRef) {
+	private static Reference<?> entryRef(Reference<? extends EnumerableByIdentifier<?>> containerRef) {
 		// We need a reference pointing all the way to the collection entry, so that if the
 		// collection itself has BSON fields (like SideTable does), those fields will be included
 		// in the dotted name segment list. The actual ID we pick doesn't matter and will be ignored.
@@ -94,32 +103,21 @@ class BsonSurgeon {
 	 *
 	 * @param docRef   the bosk node corresponding to <code>document</code>
 	 * @param document will be modified!
-	 * @param rootRef  {@link Bosk#rootReference()}
 	 * @return list of {@link BsonDocument}s which, when passed to {@link #gather}, combine to form the original <code>document</code>.
 	 * The main document, document corresponding to <code>docRef</code>, will be at the end of the list.
 	 * @see #gather
 	 */
-	public List<BsonDocument> scatter(Reference<?> docRef, BsonDocument document, Reference<?> rootRef) {
+	public List<BsonDocument> scatter(Reference<?> docRef, BsonDocument document) {
 		List<BsonDocument> parts = new ArrayList<>();
 		for (GraftPoint graftPoint: graftPoints) {
-			scatterOneCollection(docRef, graftPoint, document, rootRef, parts);
+			scatterOneCollection(docRef, graftPoint, document, docRef.root(), parts);
 		}
 
-		// `document` has now had the scattered pieces replaced by BsonBoolean.TRUE
-		String docBsonPath = "|" + String.join("|", docSegments(docRef, rootRef));
-		parts.add(createRecipe(document, docBsonPath));
+		// `document` has now had the scattered pieces stubbed-out by BsonBoolean.TRUE.
+		// Add the stubbed-out document as the final recipe in the parts list.
+		parts.add(createRecipe(document, BsonFormatter.docBsonPath(docRef, docRef.root())));
 
 		return parts;
-	}
-
-	/**
-	 * @return list of field names suitable for {@link #lookup} to find the document corresponding
-	 * to <code>docRef</code> inside a document corresponding to <code>rootRef</code>
-	 */
-	static List<String> docSegments(Reference<?> docRef, Reference<?> rootRef) {
-		ArrayList<String> allSegments = dottedFieldNameSegments(docRef, docRef.path().length(), rootRef);
-		return allSegments
-			.subList(1, allSegments.size()); // Skip the "state" field
 	}
 
 	private void scatterOneCollection(Reference<?> docRef, GraftPoint graftPoint, BsonDocument docToScatter, Reference<?> rootRef, List<BsonDocument> parts) {
@@ -164,11 +162,6 @@ class BsonSurgeon {
 		return allSegments.subList(1, allSegments.size()); // Remove "state" segment
 	}
 
-	/**
-	 * <code>entryPath</code> and <code>entryBsonPath</code> must correspond to each other.
-	 * They'll have the same segments, except where the BSON representation of a container actually contains its own
-	 * fields (as with {@link SideTable}, in which case those fields will appear too.
-	 */
 	private static BsonDocument createRecipe(BsonValue entryState, String bsonPathString) {
 		return new BsonDocument()
 			.append(BSON_PATH_FIELD, new BsonString(bsonPathString))
@@ -204,6 +197,11 @@ class BsonSurgeon {
 	 *
 	 * <p>
 	 * <code>partsList</code> is a list of "instructions" for assembling a larger document.
+	 * Each part contains a {@link DocumentFields#path path} field containing a {@link BsonFormatter#docBsonPath BSON path}
+	 * that indicates where that part fits into the larger document;
+	 * and a {@link DocumentFields#state state} field with the contents of the part.
+	 *
+	 * <p>
 	 * By design, this method is supposed to be simple and general;
 	 * any sophistication should be in {@link #scatter}.
 	 * This way, {@link #scatter} can evolve without breaking backward compatibility

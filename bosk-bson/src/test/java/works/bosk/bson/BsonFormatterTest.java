@@ -1,16 +1,12 @@
-package works.bosk.drivers.mongo;
+package works.bosk.bson;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.stream.Stream;
 import org.bson.BsonDocument;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import works.bosk.AbstractBoskTest;
 import works.bosk.Bosk;
 import works.bosk.Catalog;
@@ -24,12 +20,12 @@ import works.bosk.util.Types;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.TypeValidation.validateType;
 
-class FormatterTest extends AbstractBoskTest {
+class BsonFormatterTest extends AbstractBoskTest {
 	Bosk<TestRoot> bosk;
 	CatalogReference<TestEntity> entitiesRef;
 	Reference<TestEntity> weirdRef;
 	static final String WEIRD_ID = "weird|i.d.";
-	Formatter formatter;
+	BsonFormatter formatter;
 	private TestEntity weirdEntity;
 
 	@BeforeEach
@@ -41,7 +37,7 @@ class FormatterTest extends AbstractBoskTest {
 		weirdEntity = builder.blankEntity(Identifier.from(WEIRD_ID), TestEnum.OK);
 		bosk.driver().submitReplacement(entitiesRef, Catalog.of(weirdEntity));
 		bosk.driver().flush();
-		formatter = new Formatter(bosk, new BsonPlugin());
+		formatter = new BsonFormatter(bosk, new BsonPlugin());
 	}
 
 	@Test
@@ -74,46 +70,9 @@ class FormatterTest extends AbstractBoskTest {
 			)
 			;
 
-		ArrayList<String> dottedName = Formatter.dottedFieldNameSegments(weirdRef, weirdRef.path().length(), bosk.rootReference());
+		ArrayList<String> dottedName = BsonFormatter.dottedFieldNameSegments(weirdRef, weirdRef.path().length(), bosk.rootReference());
 		BsonDocument expected = new BsonDocument()
 			.append(dottedName.get(dottedName.size()-1), weirdDoc);
 		assertEquals(expected, actual);
-	}
-
-	@ParameterizedTest
-	@MethodSource("dottedNameCases")
-	void dottedFieldNameSegment(String plain, String dotted) {
-		assertEquals(dotted, Formatter.dottedFieldNameSegment(plain));
-	}
-
-	@ParameterizedTest
-	@MethodSource("dottedNameCases")
-	void undottedFieldNameSegment(String plain, String dotted) {
-		assertEquals(plain, Formatter.undottedFieldNameSegment(dotted));
-	}
-
-	static Stream<Arguments> dottedNameCases() {
-		return Stream.of(
-			dottedNameCase("%", "%25"),
-			dottedNameCase("$", "%24"),
-			dottedNameCase(".", "%2E"),
-			dottedNameCase("\0", "%00"),
-			dottedNameCase("|", "%7C"),
-			dottedNameCase("!", "%21"),
-			dottedNameCase("~", "%7E"),
-			dottedNameCase("[", "%5B"),
-			dottedNameCase("]", "%5D"),
-			dottedNameCase("+", "%2B"),
-			dottedNameCase(" ", "%20")
-		);
-	}
-
-	static Arguments dottedNameCase(String plain, String dotted) {
-		return Arguments.of(plain, dotted);
-	}
-
-	@Test
-	void manifest_passesTypeValidation() throws InvalidTypeException {
-		validateType(Manifest.class);
 	}
 }

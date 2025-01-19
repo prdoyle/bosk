@@ -1,3 +1,12 @@
 
 rootProject.name = 'bosk'
-include 'bosk-annotations', 'bosk-core', 'bosk-jackson', 'bosk-logback', 'bosk-mongo', 'bosk-spring-boot-3', 'bosk-testing', 'lib-testing', 'example-hello'
+include 'bosk-annotations'
+include 'bosk-bson'
+include 'bosk-core'
+include 'bosk-jackson'
+include 'bosk-logback'
+include 'bosk-mongo'
+include 'bosk-spring-boot-3'
+include 'bosk-testing'
+include 'example-hello'
+include 'lib-testing'

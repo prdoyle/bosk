@@ -1,4 +1,4 @@
-package works.bosk.drivers.mongo;
+package works.bosk.bson;
 
 import lombok.experimental.FieldNameConstants;
 import org.bson.BsonDocument;

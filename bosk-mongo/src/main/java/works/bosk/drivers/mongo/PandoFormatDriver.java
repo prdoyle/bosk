@@ -40,6 +40,9 @@ import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
+import works.bosk.bson.BsonFormatter;
+import works.bosk.bson.BsonPlugin;
+import works.bosk.bson.BsonSurgeon;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
@@ -57,6 +60,7 @@ import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static org.bson.BsonBoolean.TRUE;
 import static works.bosk.Path.parseParameterized;
+import static works.bosk.bson.BsonFormatter.docBsonPath;
 import static works.bosk.util.Classes.enumerableByIdentifier;
 
 /**
@@ -71,6 +75,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	private final FlushLock flushLock;
 	private final BsonSurgeon bsonSurgeon;
 	private final Demultiplexer demultiplexer = new Demultiplexer();
+	private final List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints;
 
 	private volatile BsonInt64 revisionToSkip = null;
 
@@ -91,12 +96,11 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		this.collection = collection;
 		this.downstream = downstream;
 		this.flushLock = flushLock;
-
-		this.bsonSurgeon = new BsonSurgeon(
-			format.graftPoints().stream()
+		this.graftPoints = format.graftPoints().stream()
 			.map(s -> referenceTo(s, rootRef))
 			.sorted(comparing((Reference<?> ref) -> ref.path().length()).reversed())
-			.collect(toList()));
+			.collect(toList());
+		this.bsonSurgeon = new BsonSurgeon(graftPoints);
 	}
 
 	private static Reference<EnumerableByIdentifier<Entity>> referenceTo(String pathString, RootReference<?> rootRef) {
@@ -117,7 +121,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		collection.ensureTransactionStarted();
 		Reference<?> mainRef = mainRef(target);
 		BsonDocument filter = documentFilter(mainRef)
-			.append(Formatter.dottedFieldNameOf(target, mainRef), new BsonDocument("$exists", TRUE));
+			.append(BsonFormatter.dottedFieldNameOf(target, mainRef), new BsonDocument("$exists", TRUE));
 		if (documentExists(filter)) {
 			LOGGER.debug("Already exists: {}", filter);
 			collection.abortTransaction();
@@ -425,7 +429,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		// referenceTo does everything we need already. Build a fake dotted field name and use that
 		String dottedName = "state" + pipedPath.replace('|', '.');
 		try {
-			return Formatter.referenceTo(dottedName, rootRef);
+			return BsonFormatter.referenceTo(dottedName, rootRef);
 		} catch (InvalidTypeException e) {
 			throw new UnprocessableEventException("Invalid path from document ID: \"" + pipedPath + "\"", e, event.getOperationType());
 		}
@@ -532,7 +536,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		if (rootRef.equals(mainRef)) {
 			LOGGER.debug("| Root ref is main ref");
 			LOGGER.debug("| Pre-delete on root document");
-			String key = Formatter.dottedFieldNameOf(target, rootRef);
+			String key = BsonFormatter.dottedFieldNameOf(target, rootRef);
 			LOGGER.debug("| Pre-delete field {}", key);
 			doUpdate( // Important: don't bump the revision field because that's how we identify the last event in a transaction
 				new BsonDocument("$unset", new BsonDocument(key, BsonNull.VALUE)),
@@ -564,7 +568,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			}
 
 			// Update part of the main doc (which must already exist)
-			String key = Formatter.dottedFieldNameOf(target, mainRef);
+			String key = BsonFormatter.dottedFieldNameOf(target, mainRef);
 			LOGGER.debug("| Pre-delete field {} in {}", key, mainRef);
 			BsonDocument preDelete = new BsonDocument("$unset", new BsonDocument(key, BsonNull.VALUE));
 			doUpdate(preDelete, standardPreconditions(target, mainRef, filter));
@@ -608,7 +612,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	private boolean preconditionFailed(Reference<Identifier> precondition, Identifier requiredValue) {
 		Reference<?> mainRef = mainRef(precondition);
 		BsonDocument filter = documentFilter(mainRef)
-			.append(Formatter.dottedFieldNameOf(precondition, mainRef), new BsonString(requiredValue.toString()));
+			.append(BsonFormatter.dottedFieldNameOf(precondition, mainRef), new BsonString(requiredValue.toString()));
 		LOGGER.debug("Precondition filter: {}", filter);
 		boolean result = !documentExists(filter);
 		if (result) {
@@ -634,8 +638,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		// graftPoints is in descending order of depth.
 		// TODO: This could be done more efficiently, perhaps using a trie
 		int targetPathLength = target.path().length();
-		for (BsonSurgeon.GraftPoint graftPoint: bsonSurgeon.graftPoints) {
-			Reference<?> candidateContainer = graftPoint.containerRef();
+		for (var candidateContainer: graftPoints) {
 			int containerPathLength = candidateContainer.path().length();
 			if (containerPathLength <= targetPathLength - 1) {
 				if (candidateContainer.path().matchesPrefixOf(target.path())) {
@@ -695,8 +698,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	private BsonDocument documentFilter(Reference<?> docRef) {
-		String id = '|' + String.join("|", BsonSurgeon.docSegments(docRef, rootRef));
-		return new BsonDocument("_id", new BsonString(id));
+		return new BsonDocument("_id", new BsonString(docBsonPath(docRef, rootRef)));
 	}
 
 	private <T> BsonDocument standardRootPreconditions(Reference<T> target) {
@@ -705,7 +707,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 	private <T> BsonDocument standardPreconditions(Reference<T> target, Reference<?> startingRef, BsonDocument filter) {
 		if (!target.path().equals(startingRef.path())) {
-			String enclosingObjectKey = Formatter.dottedFieldNameOf(target.enclosingReference(Object.class), startingRef);
+			String enclosingObjectKey = BsonFormatter.dottedFieldNameOf(target.enclosingReference(Object.class), startingRef);
 			BsonDocument condition = new BsonDocument("$type", new BsonString("object"));
 			filter.put(enclosingObjectKey, condition);
 			LOGGER.debug("| Precondition: {} {}", enclosingObjectKey, condition);
@@ -716,12 +718,12 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	private <T> BsonDocument explicitPreconditions(Reference<T> target, Reference<Identifier> preconditionRef, Identifier requiredValue) {
 		BsonDocument filter = standardRootPreconditions(target);
 		BsonDocument precondition = new BsonDocument("$eq", new BsonString(requiredValue.toString()));
-		filter.put(Formatter.dottedFieldNameOf(preconditionRef, rootRef), precondition);
+		filter.put(BsonFormatter.dottedFieldNameOf(preconditionRef, rootRef), precondition);
 		return filter;
 	}
 
 	private <T> BsonDocument replacementDoc(Reference<T> target, BsonValue value, Reference<?> startingRef) {
-		String key = Formatter.dottedFieldNameOf(target, startingRef);
+		String key = BsonFormatter.dottedFieldNameOf(target, startingRef);
 		LOGGER.debug("| Set field {}: {}", key, value);
 		BsonDocument result = blankUpdateDoc();
 		result.compute("$set", (__,existing) -> {
@@ -735,7 +737,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	private <T> BsonDocument deletionDoc(Reference<T> target, Reference<?> startingRef) {
-		String key = Formatter.dottedFieldNameOf(target, startingRef);
+		String key = BsonFormatter.dottedFieldNameOf(target, startingRef);
 		LOGGER.debug("| Unset field {}", key);
 		return blankUpdateDoc().append("$unset", new BsonDocument(key, BsonNull.VALUE)); // Value is ignored
 	}
@@ -794,7 +796,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				if (dottedName.startsWith(Formatter.DocumentFields.state.name())) {
 					Reference<Object> ref;
 					try {
-						ref = Formatter.referenceTo(dottedName, mainRef);
+						ref = BsonFormatter.referenceTo(dottedName, mainRef);
 					} catch (InvalidTypeException e) {
 						logNonexistentField(dottedName, e);
 						continue;
@@ -809,7 +811,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					BsonValue replacementValue = entry.getValue();
 					if (replacementValue instanceof BsonDocument) {
 						LOGGER.debug("Replacement value is a document; gather along with {} subparts", subParts.size());
-						String mainID = "|" + String.join("|", BsonSurgeon.docSegments(ref, mainRef));
+						String mainID = docBsonPath(ref, mainRef);
 						BsonDocument mainDocument = new BsonDocument()
 							.append("_id", new BsonString(mainID))
 							.append("state", replacementValue);
@@ -851,7 +853,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				if (dottedName.startsWith(Formatter.DocumentFields.state.name())) {
 					Reference<Object> ref;
 					try {
-						ref = Formatter.referenceTo(dottedName, mainRef);
+						ref = BsonFormatter.referenceTo(dottedName, mainRef);
 					} catch (InvalidTypeException e) {
 						logNonexistentField(dottedName, e);
 						continue;
@@ -876,7 +878,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				if (mainRef.path().isEmpty()) {
 					prefix = "|";
 				} else {
-					prefix = "|" + String.join("|", BsonSurgeon.docSegments(mainRef, rootRef)) + "|";
+					prefix = docBsonPath(mainRef, rootRef) + "|";
 				}
 
 				// Every doc whose ID starts with the prefix and has at least one more character
@@ -897,7 +899,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	 * (which is not the root of the bosk state tree, unless of course <code>target</code> is the root reference)
 	 */
 	private <T> BsonDocument upsertAndRemoveSubParts(Reference<T> target, BsonDocument value) {
-		List<BsonDocument> allParts = bsonSurgeon.scatter(target, value, rootRef);
+		List<BsonDocument> allParts = bsonSurgeon.scatter(target, value);
 		// NOTE: `value` has now been mutated so the parts have been stubbed out
 
 		List<BsonDocument> subParts = allParts.subList(0, allParts.size() - 1);

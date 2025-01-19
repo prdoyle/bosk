@@ -198,6 +198,9 @@ public abstract class Path implements Iterable<String> {
 		}
 	}
 
+	/**
+	 * @return true if {@code other} equals {@codee this} or can be truncated to equal {@code this}.
+	 */
 	public final boolean isPrefixOf(Path other) {
 		int excessSegments = other.length() - this.length();
 		if (excessSegments >= 0) {

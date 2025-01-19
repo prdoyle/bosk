@@ -26,6 +26,7 @@ import works.bosk.ListingReference;
 import works.bosk.Reference;
 import works.bosk.SideTable;
 import works.bosk.annotations.ReferencePath;
+import works.bosk.bson.BsonPlugin;
 import works.bosk.drivers.mongo.MongoDriverSettings.MongoDriverSettingsBuilder;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;

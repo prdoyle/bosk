@@ -1,11 +1,10 @@
-package works.bosk.drivers.mongo;
+package works.bosk.bson;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
@@ -66,8 +65,8 @@ import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.ReferenceUtils.getterMethod;
 import static works.bosk.ReferenceUtils.parameterType;
 import static works.bosk.ReferenceUtils.rawClass;
-import static works.bosk.drivers.mongo.Formatter.dottedFieldNameSegment;
-import static works.bosk.drivers.mongo.Formatter.undottedFieldNameSegment;
+import static works.bosk.bson.BsonFormatter.dottedFieldNameSegment;
+import static works.bosk.bson.BsonFormatter.undottedFieldNameSegment;
 
 public final class BsonPlugin extends SerializationPlugin {
 	private final ValueCodecProvider valueCodecProvider = new ValueCodecProvider();
