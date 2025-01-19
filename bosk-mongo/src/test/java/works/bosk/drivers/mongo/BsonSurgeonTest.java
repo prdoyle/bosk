@@ -78,34 +78,34 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 
 	@Test
 	void root_roundTripWorks() {
-		doTest(bosk.rootReference());
+		assertRoundTripWorks(bosk.rootReference());
 	}
 
 	@Test
 	void catalog_roundTripWorks() {
-		doTest(refs.catalog());
+		assertRoundTripWorks(refs.catalog());
 	}
 
 	@Test
 	void catalogEntry_roundTripWorks() {
-		doTest(refs.entity(Identifier.from("entity1")));
+		assertRoundTripWorks(refs.entity(Identifier.from("entity1")));
 	}
 
 	@Test
 	void nestedCatalog_roundTripWorks() {
-		doTest(refs.nestedCatalog(Identifier.from("entity1")));
+		assertRoundTripWorks(refs.nestedCatalog(Identifier.from("entity1")));
 	}
 
 	@Test
 	void childEntry_roundTripWorks() {
-		doTest(refs.child(
+		assertRoundTripWorks(refs.child(
 			Identifier.from("entity1"),
 			Identifier.from("child1")));
 	}
 
 	@Test
 	void grandchildEntry_roundTripWorks() {
-		doTest(refs.grandchild(
+		assertRoundTripWorks(refs.grandchild(
 			Identifier.from("entity1"),
 			Identifier.from("child1"),
 			Identifier.from("child1")));
@@ -113,7 +113,7 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 
 	@Test
 	void sideTable_roundTripWorks() {
-		doTest(refs.sideTable());
+		assertRoundTripWorks(refs.sideTable());
 	}
 
 	@Test
@@ -188,7 +188,7 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 		});
 	}
 
-	private void doTest(Reference<?> mainRef) {
+	private void assertRoundTripWorks(Reference<?> mainRef) {
 		BsonDocument entireDoc;
 		try (var _ = bosk.readContext()) {
 			entireDoc = (BsonDocument) formatter.object2bsonValue(mainRef.value(), mainRef.targetType());
