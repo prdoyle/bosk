@@ -291,6 +291,15 @@ public class BsonFormatter {
 		/**
 		 * The location of this document's state within the conceptual giant document.
 		 * A pipe-separated list of BSON field names.
+		 *
+		 * <p>
+		 * We put the whole path in _id so that it will be present in change stream documents.
+		 */
+		_id,
+
+		/**
+		 * The {@link Path#urlEncoded() url encoded} {@link Path path} of the location of
+		 * this document's state within the bosk tree.
 		 */
 		path,
 

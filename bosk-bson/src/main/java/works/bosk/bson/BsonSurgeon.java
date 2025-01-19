@@ -68,10 +68,7 @@ public class BsonSurgeon {
 		}
 	}
 
-	/**
-	 * We put the whole path in _id so that it will be present in change stream documents
-	 */
-	private static final String BSON_PATH_FIELD = "_id";
+	private static final String BSON_PATH_FIELD = DocumentFields._id.name();
 
 	private static final String STATE_FIELD = DocumentFields.state.name();
 
@@ -197,7 +194,8 @@ public class BsonSurgeon {
 	 *
 	 * <p>
 	 * <code>partsList</code> is a list of "instructions" for assembling a larger document.
-	 * Each part contains a {@link DocumentFields#path path} field containing a {@link BsonFormatter#docBsonPath BSON path}
+	 * Each part contains a {@link DocumentFields#_id _id} field containing
+	 * a {@link BsonFormatter#docBsonPath BSON path}
 	 * that indicates where that part fits into the larger document;
 	 * and a {@link DocumentFields#state state} field with the contents of the part.
 	 *
