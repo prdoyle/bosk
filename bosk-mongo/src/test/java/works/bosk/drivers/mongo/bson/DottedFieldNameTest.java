@@ -1,4 +1,4 @@
-package works.bosk.bson;
+package works.bosk.drivers.mongo.bson;
 
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;

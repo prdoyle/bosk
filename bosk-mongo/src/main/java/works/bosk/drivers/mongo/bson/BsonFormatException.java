@@ -1,4 +1,4 @@
-package works.bosk.bson;
+package works.bosk.drivers.mongo.bson;
 
 class BsonFormatException extends IllegalStateException {
 	public BsonFormatException(String s) { super(s); }

@@ -1,4 +1,4 @@
-package works.bosk.bson;
+package works.bosk.drivers.mongo.bson;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,7 +18,6 @@ import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.util.Types;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static works.bosk.TypeValidation.validateType;
 
 class BsonFormatterTest extends AbstractBoskTest {
 	Bosk<TestRoot> bosk;

@@ -1,4 +1,4 @@
-package works.bosk.bson;
+package works.bosk.drivers.mongo.bson;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
@@ -28,7 +28,7 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static works.bosk.bson.BsonFormatter.docBsonPath;
+import static works.bosk.drivers.mongo.bson.BsonFormatter.docBsonPath;
 
 public class BsonSurgeonTest extends AbstractDriverTest {
 	BsonSurgeon surgeon;
