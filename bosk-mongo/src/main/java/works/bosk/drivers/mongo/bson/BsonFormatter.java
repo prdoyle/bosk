@@ -1,4 +1,4 @@
-package works.bosk.bson;
+package works.bosk.drivers.mongo.bson;
 
 import java.lang.reflect.Type;
 import java.net.URLDecoder;

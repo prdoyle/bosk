@@ -7,7 +7,7 @@ import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
 import works.bosk.StateTreeNode;
-import works.bosk.bson.BsonPlugin;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.mongo.status.MongoStatus;
 
 /**

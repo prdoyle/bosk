@@ -28,7 +28,7 @@ import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.bson.BsonPlugin;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JacksonPlugin;
 import works.bosk.jackson.JacksonPluginConfiguration;
