@@ -144,6 +144,10 @@ public sealed interface Reference<T> permits
 		return path().parametersFrom(definitePath);
 	}
 
+	default boolean isRoot() {
+		return path().isEmpty();
+	}
+
 	/**
 	 * @return The equivalent of {@link Bosk#rootReference()} on the <code>bosk</code> to which this Reference applies,
 	 * but without static type checking; the intent is that you'd call {@link #then} on the resulting reference,
