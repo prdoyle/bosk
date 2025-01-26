@@ -1,6 +1,6 @@
 plugins {
 	id 'bosk.development'
-	id 'com.github.spotbugs' version '5.1.5'
+	id 'com.github.spotbugs' version '6.1.2'
 }
 
 java {
