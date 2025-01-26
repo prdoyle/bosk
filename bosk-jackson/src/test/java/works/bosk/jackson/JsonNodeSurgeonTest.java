@@ -21,11 +21,11 @@ import works.bosk.SideTableReference;
 import works.bosk.StateTreeNode;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.jackson.JsonNodeFinder.NodeInfo;
-import works.bosk.jackson.JsonNodeFinder.NodeLocation.ArrayElement;
-import works.bosk.jackson.JsonNodeFinder.NodeLocation.NonexistentParent;
-import works.bosk.jackson.JsonNodeFinder.NodeLocation.ObjectMember;
-import works.bosk.jackson.JsonNodeFinder.NodeLocation.Root;
+import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
+import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.ArrayElement;
+import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.NonexistentParent;
+import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.ObjectMember;
+import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -33,12 +33,13 @@ import static works.bosk.BoskTestUtils.boskName;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.ARRAY;
 
-public class JsonNodeFinderTest {
+// TODO: Test mutation methods too
+public class JsonNodeSurgeonTest {
 	Bosk<JsonRoot> bosk;
 	Refs refs;
 	JacksonPlugin jacksonPlugin;
 	ObjectMapper mapper;
-	JsonNodeFinder surgeon;
+	JsonNodeSurgeon surgeon;
 
 	@BeforeEach
 	void setUp() throws InvalidTypeException {
@@ -51,7 +52,7 @@ public class JsonNodeFinderTest {
 		jacksonPlugin = new JacksonPlugin(new JacksonPluginConfiguration(ARRAY));
 		mapper = new ObjectMapper();
 		mapper.registerModule(jacksonPlugin.moduleFor(bosk));
-		surgeon = new JsonNodeFinder();
+		surgeon = new JsonNodeSurgeon();
 	}
 
 	public record JsonRoot(

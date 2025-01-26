@@ -2,31 +2,35 @@ package works.bosk.jackson;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import java.util.Map;
+import java.util.function.Supplier;
 import works.bosk.Catalog;
 import works.bosk.Listing;
+import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.SideTable;
 import works.bosk.exceptions.NotYetImplementedException;
-import works.bosk.jackson.JsonNodeFinder.NodeLocation.ArrayElement;
-import works.bosk.jackson.JsonNodeFinder.NodeLocation.NonexistentParent;
-import works.bosk.jackson.JsonNodeFinder.NodeLocation.ObjectMember;
-import works.bosk.jackson.JsonNodeFinder.NodeLocation.Root;
+import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.ArrayElement;
+import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.NonexistentParent;
+import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.ObjectMember;
+import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
 
 import static java.util.Objects.requireNonNull;
-import static works.bosk.jackson.JsonNodeFinder.ReplacementStyle.ID_ONLY;
-import static works.bosk.jackson.JsonNodeFinder.ReplacementStyle.PLAIN;
-import static works.bosk.jackson.JsonNodeFinder.ReplacementStyle.WRAPPED_ENTITY;
+import static works.bosk.jackson.JsonNodeSurgeon.ReplacementStyle.ID_ONLY;
+import static works.bosk.jackson.JsonNodeSurgeon.ReplacementStyle.PLAIN;
+import static works.bosk.jackson.JsonNodeSurgeon.ReplacementStyle.WRAPPED_ENTITY;
 
 /**
- * Finds the {@link JsonNode} corresponding to a given bosk {@link Reference}.
+ * Utilities to find and modify the {@link JsonNode} corresponding to
+ * a given bosk {@link Reference}.
  *
  * <p>
  * Note: currently only works with {@link works.bosk.jackson.JacksonPluginConfiguration.MapShape#ARRAY MapShape.ARRAY}.
  */
-class JsonNodeFinder {
+public class JsonNodeSurgeon {
 	/**
 	 * Describes how to access a particular {@link JsonNode} from its parent node.
 	 */
@@ -228,4 +232,67 @@ class JsonNodeFinder {
 			}
 		};
 	}
+
+	/**
+	 * @throws IllegalArgumentException if {@link NodeInfo#replacementLocation() nodeInfo.replacementLocation} is {@link Root Root} or {@link NonexistentParent NonexistentParent}.
+	 *                                  Callers must handle these cases.
+	 */
+	public void replaceNode(NodeInfo nodeInfo, JsonNode replacement) {
+		var location = nodeInfo.replacementLocation();
+		if (location instanceof NonexistentParent) {
+			// Nothing to do
+			return;
+		}
+		switch (location) {
+			case Root() -> {
+				throw new IllegalArgumentException("Cannot replace root node");
+			}
+			case JsonNodeSurgeon.NodeLocation.ArrayElement(var parent, int i) -> {
+				if (parent.size() == i) {
+					parent.add(replacement);
+				} else {
+					parent.set(i, replacement);
+				}
+			}
+			case JsonNodeSurgeon.NodeLocation.ObjectMember(var parent, String member) -> {
+				parent.set(member, replacement);
+			}
+			case NonexistentParent() -> {
+				throw new IllegalArgumentException("This should already have been handled");
+			}
+		}
+	}
+
+	/**
+	 * @param lastSegment the {@link Path#lastSegment() lastSegment} of the {@link Reference} pointing at the node to be replaced.
+	 */
+	public JsonNode replacementNode(NodeInfo nodeInfo, String lastSegment, Supplier<JsonNode> newValue) {
+		return switch (nodeInfo.replacementStyle()) {
+			case PLAIN -> newValue.get();
+			case ID_ONLY -> new TextNode(lastSegment);
+			case WRAPPED_ENTITY -> {
+				JsonNode entityNode = newValue.get();
+				String id = entityNode.get("id").textValue();
+				yield new ObjectNode(JsonNodeFactory.instance, Map.of(id, entityNode));
+			}
+		};
+	}
+
+	public void deleteNode(NodeInfo nodeInfo) {
+		switch (nodeInfo.replacementLocation()) {
+			case Root() -> {
+				throw new IllegalArgumentException("Cannot delete root");
+			}
+			case JsonNodeSurgeon.NodeLocation.ArrayElement(var parent, int i) -> {
+				parent.remove(i);
+			}
+			case JsonNodeSurgeon.NodeLocation.ObjectMember(var parent, String member) -> {
+				parent.remove(member);
+			}
+			case NonexistentParent() -> {
+				// Nothing to do
+			}
+		}
+	}
+
 }
