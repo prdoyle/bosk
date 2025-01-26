@@ -28,8 +28,7 @@ all we do is send updates to MongoDB, and maintain the in-memory replica by foll
 
 The [bosk-core](bosk-core) library is enough to create a `Bosk` object and start writing your application.
 
-The library works particularly well with Java records.
-You can define your state tree's root node as follows:
+You can define your state tree's root node as a java Record, like this:
 
 ```
 import works.bosk.StateTreeNode;
@@ -81,7 +80,7 @@ public class ExampleBosk extends Bosk<ExampleState> {
 You create an instance of `ExampleBosk` at initialization time,
 typically using your application framework's dependency injection system.
 
-To read state, acquire a `ReadContext`:
+To read state, acquire a `ReadContext`, providing access to a lightweight immutable snapshot of your state tree:
 
 ```
 try (var __ = bosk.readContext()) {
@@ -99,7 +98,7 @@ To modify state, use the `BoskDriver` interface:
 bosk.driver().submitReplacement(bosk.refs.name(), "everybody");
 ```
 
-During your application's initialization, register a hook to perform an action whenever state changes:
+During your application's initialization, you can register a callback hook to perform an action whenever state changes:
 
 ```
 bosk.registerHook("Name update", bosk.refs.name(), ref -> {
