@@ -5,23 +5,20 @@
 
 ![Three inquisitive cartoon trees with eyes](/art/bosk-3trees-wide-small.png)
 
-Bosk is a state management library for developing distributed application control-plane logic.
-It's a bit like server-side Redux for Java, but without the boilerplate code.
-(No selectors, no action objects, no reducers.)
+Bosk is a Java library for state management in distributed systems.
+It eases the journey from a simple standalone application to a high-availability clustered replica set
+by supporting reactive, idempotent, deterministic control logic design patterns,
+using an immutable in-memory state tree for ultra-fast reads (~50ns).
 
-Bosk eases the transition from a standalone application to a clustered high-availability replica set,
-by supporting a programming style that minimizes the surprises encountered during the transition.
-Bosk encourages reactive event-triggered closed-loop control logic
-based on a user-defined immutable state tree structure,
-and favours idempotency and determinism.
+First, you start with just the `bosk-core` library, writing your application's control plane logic using Bosk.
+The the built-in integrations with things like Jackson and Spring Boot help you get your application up and running.
 
-State is kept in memory, making reads extremely fast (on the order of 50ns).
-
-Replication is achieved by activating an optional [MongoDB module](bosk-mongo), meaning the hard work of
-change propagation, ordering, durability, consistency, atomicity, and observability,
+Then, when the time comes to turn your standalone application into a high-availability replica set,
+you can bring in the optional [MongoDB module](bosk-mongo) library.
+The hard work of change propagation, ordering, durability, consistency, atomicity, and observability,
 as well as fault tolerance, and emergency manual state inspection and modification,
 is all delegated to MongoDB: a well-known, reliable, battle-hardened codebase.
-You don't need to trust Bosk to get all these details right:
+You don't even need to trust Bosk to get all these details right:
 all we do is send updates to MongoDB, and maintain the in-memory replica by following the MongoDB change stream.
 
 ## Documentation
@@ -31,8 +28,7 @@ all we do is send updates to MongoDB, and maintain the in-memory replica by foll
 
 The [bosk-core](bosk-core) library is enough to create a `Bosk` object and start writing your application.
 
-The library works particularly well with Java records.
-You can define your state tree's root node as follows:
+You can define your state tree's root node as a java Record, like this:
 
 ```
 import works.bosk.StateTreeNode;
@@ -84,7 +80,7 @@ public class ExampleBosk extends Bosk<ExampleState> {
 You create an instance of `ExampleBosk` at initialization time,
 typically using your application framework's dependency injection system.
 
-To read state, acquire a `ReadContext`:
+To read state, acquire a `ReadContext`, providing access to a lightweight immutable snapshot of your state tree:
 
 ```
 try (var __ = bosk.readContext()) {
@@ -96,13 +92,16 @@ A read context is intended to be coarse-grained, for example covering an entire 
 giving you "snapshot-at-start" semantics and protecting you from race conditions.
 It is an antipattern to use many small read contexts during the course of a single operation.
 
-To modify state, use the `BoskDriver` interface:
+If you're using Spring Boot 3, you can bring in `bosk-spring-boot-3`
+and set the `bosk.web.service-path` property to get an immediate HTTP REST API to view and edit your state tree.
+
+To modify state programmatically, use the `BoskDriver` interface:
 
 ```
 bosk.driver().submitReplacement(bosk.refs.name(), "everybody");
 ```
 
-During your application's initialization, register a hook to perform an action whenever state changes:
+During your application's initialization, you can register a callback hook to perform an action whenever state changes:
 
 ```
 bosk.registerHook("Name update", bosk.refs.name(), ref -> {
