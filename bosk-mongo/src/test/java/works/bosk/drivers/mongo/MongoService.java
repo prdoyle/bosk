@@ -7,6 +7,7 @@ import com.mongodb.WriteConcern;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import java.io.Closeable;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +73,7 @@ public class MongoService implements Closeable {
 				.run("echo \"rs.initiate()\" > /docker-entrypoint-initdb.d/rs-initiate.js")
 				.cmd("mongod", "--replSet", "rsLonesome", "--port", "27017", "--bind_ip_all")
 				.build()))
+			.withTmpFs(Map.of("/data/db", "rw"))
 			.withNetwork(NETWORK)
 			.withExposedPorts(27017);
 		result.start();
