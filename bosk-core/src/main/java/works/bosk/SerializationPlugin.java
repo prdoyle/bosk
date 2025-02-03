@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.EqualsAndHashCode;
@@ -347,45 +346,52 @@ public abstract class SerializationPlugin {
 	}
 
 
+	/**
+	 * Note that the parameter info depends only on the class, and not on {@code this};
+	 * hence, we can share parameter info among all instances.
+	 */
 	private static ParameterInfo infoFor(Class<?> nodeClass) {
-		return PARAMETER_INFO_MAP.computeIfAbsent(nodeClass, SerializationPlugin::computeInfoFor);
+		return PARAMETER_INFO.get(nodeClass);
 	}
 
-	private static ParameterInfo computeInfoFor(Class<?> nodeClass) {
-		Set<String> selfParameters = new HashSet<>();
-		Set<String> enclosingParameters = new HashSet<>();
-		Map<String, DeserializationPath> deserializationPathParameters = new HashMap<>();
-		Map<String, Object> polyfills = new HashMap<>();
-		AtomicReference<VariantCaseMapInfo> variantCaseMap = new AtomicReference<>(new NoVariantCaseMap(nodeClass));
+	private static final ClassValue<ParameterInfo> PARAMETER_INFO = new ClassValue<ParameterInfo>() {
+		@Override
+		protected ParameterInfo computeValue(@NotNull Class<?> type) {
+			Set<String> selfParameters = new HashSet<>();
+			Set<String> enclosingParameters = new HashSet<>();
+			Map<String, DeserializationPath> deserializationPathParameters = new HashMap<>();
+			Map<String, Object> polyfills = new HashMap<>();
+			AtomicReference<VariantCaseMapInfo> variantCaseMap = new AtomicReference<>(new NoVariantCaseMap(type));
 
-		if (!nodeClass.isInterface()) { // Avoid for @VariantCaseMap classes
-			for (Parameter parameter: ReferenceUtils.getCanonicalConstructor(nodeClass).getParameters()) {
-				scanForInfo(parameter, parameter.getName(),
-					selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
+			if (!type.isInterface()) { // Avoid for @VariantCaseMap classes
+				for (Parameter parameter: ReferenceUtils.getCanonicalConstructor(type).getParameters()) {
+					scanForInfo(parameter, parameter.getName(),
+						selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
+				}
 			}
-		}
 
-		// Bosk generally ignores an object's fields, looking only at its
-		// constructor arguments and its getters. However, we make an exception
-		// for convenience: Bosk annotations that go on constructor parameters
-		// can also go on fields with the same name. This accommodates systems
-		// like Lombok that derive constructors from fields.
-		//
-		// It's also required to scan static fields for features like @VariantCaseMap.
+			// Bosk generally ignores an object's fields, looking only at its
+			// constructor arguments and its getters. However, we make an exception
+			// for convenience: Bosk annotations that go on constructor parameters
+			// can also go on fields with the same name. This accommodates systems
+			// like Lombok that derive constructors from fields.
+			//
+			// It's also required to scan static fields for features like @VariantCaseMap.
 
-		for (Class<?> c = nodeClass; c != Object.class && c != null; c = c.getSuperclass()) {
-			for (Field field: c.getDeclaredFields()) {
-				scanForInfo(field, field.getName(),
-					selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
+			for (Class<?> c = type; c != Object.class && c != null; c = c.getSuperclass()) {
+				for (Field field: c.getDeclaredFields()) {
+					scanForInfo(field, field.getName(),
+						selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
+				}
 			}
-		}
 
-		if (VariantNode.class.isAssignableFrom(nodeClass)) {
-			scanForVariantCaseMap(nodeClass, variantCaseMap);
-		}
+			if (VariantNode.class.isAssignableFrom(type)) {
+				scanForVariantCaseMap(type, variantCaseMap);
+			}
 
-		return new ParameterInfo(selfParameters, enclosingParameters, deserializationPathParameters, polyfills, variantCaseMap.get());
-	}
+			return new ParameterInfo(selfParameters, enclosingParameters, deserializationPathParameters, polyfills, variantCaseMap.get());
+		}
+	};
 
 	@SuppressWarnings({"rawtypes","unchecked"})
 	private static void scanForVariantCaseMap(Class<?> nodeClass, AtomicReference<VariantCaseMapInfo> variantCaseMap) {
@@ -520,7 +526,6 @@ public abstract class SerializationPlugin {
 		}
 	}
 
-	private static final Map<Class<?>, ParameterInfo> PARAMETER_INFO_MAP = new ConcurrentHashMap<>();
 	private static final AtomicBoolean ANY_POLYFILLS = new AtomicBoolean(false);
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(SerializationPlugin.class);
