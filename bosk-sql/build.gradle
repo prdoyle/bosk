@@ -25,4 +25,8 @@ dependencies {
 
 	testImplementation project(":bosk-testing")
 	testImplementation project(":lib-testing")
+
+	testImplementation project(":bosk-logback")
+	testImplementation "org.testcontainers:postgresql:1.20.4"
+	testImplementation 'com.zaxxer:HikariCP:6.2.1'
 }
