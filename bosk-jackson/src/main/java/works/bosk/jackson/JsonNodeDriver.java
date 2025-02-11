@@ -58,7 +58,7 @@ public class JsonNodeDriver implements BoskDriver {
 	@Override
 	public synchronized <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
 		traceCurrentState("Before submitConditionalReplacement");
-		if (requiredValue.toString().equals(surgeon.node(currentRoot, precondition).textValue())) {
+		if (requiredValue.toString().equals(surgeon.valueNode(currentRoot, precondition).textValue())) {
 			doReplacement(surgeon.nodeInfo(currentRoot, target), target.path().lastSegment(), newValue);
 		}
 		downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue);
@@ -68,7 +68,7 @@ public class JsonNodeDriver implements BoskDriver {
 	@Override
 	public synchronized <T> void submitInitialization(Reference<T> target, T newValue) {
 		traceCurrentState("Before submitInitialization");
-		if (surgeon.node(currentRoot, target) == null) {
+		if (surgeon.valueNode(currentRoot, target) == null) {
 			doReplacement(surgeon.nodeInfo(currentRoot, target), target.path().lastSegment(), newValue);
 		}
 		downstream.submitInitialization(target, newValue);
@@ -86,7 +86,7 @@ public class JsonNodeDriver implements BoskDriver {
 	@Override
 	public synchronized <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
 		traceCurrentState("Before submitConditionalDeletion");
-		if (requiredValue.toString().equals(surgeon.node(currentRoot, precondition).textValue())) {
+		if (requiredValue.toString().equals(surgeon.valueNode(currentRoot, precondition).textValue())) {
 			surgeon.deleteNode(surgeon.nodeInfo(currentRoot, target));
 		}
 		downstream.submitConditionalDeletion(target, precondition, requiredValue);

@@ -95,7 +95,7 @@ public class JsonNodeSurgeonTest {
 		NodeInfo expected = NodeInfo.plain(new Root());
 		NodeInfo actual = surgeon.nodeInfo(doc, bosk.rootReference());
 		assertEquals(expected, actual);
-		assertEquals(doc, surgeon.node(doc, bosk.rootReference()));
+		assertEquals(doc, surgeon.valueNode(doc, bosk.rootReference()));
 	}
 
 	@Test

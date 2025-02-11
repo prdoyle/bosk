@@ -59,7 +59,7 @@ public class JsonNodeSurgeon {
 		 * <p>
 		 * (Note that the parent {@link JsonNode} is not always the node corresponding
 		 * to the {@link Reference#enclosingReference enclosing reference}.
-		 * They're two related but different concepts.)
+		 * They're two related but different concepts. See {@link ReplacementStyle#WRAPPED_ENTITY WRAPPED_ENTITY}.)
 		 */
 		public record NonexistentParent() implements NodeLocation {}
 	}
@@ -85,9 +85,16 @@ public class JsonNodeSurgeon {
 		 * form of the desired entity.
 		 *
 		 * <p>
-		 * (Note that this is the style that causes the {@link NodeInfo#valueLocation value location}
+		 * Note that this is the style that causes the {@link NodeInfo#valueLocation value location}
 		 * to differ from the {@link NodeInfo#replacementLocation replacement location},
-		 * because the value is placed inside another object.)
+		 * because the value is placed inside another object.
+		 * In particular, for nonexistent entities,
+		 * the <i>value location</i> will be {@link NonexistentParent NonexistentParent}
+		 * because the parent JSON node (the wrapper object) doesn't yet exist,
+		 * since it is created at the same time as the JSON node for the entity;
+		 * however, the <i>replacement location</i> will exist (that is, it will be
+		 * something other than {@link NonexistentParent NonexistentParent}
+		 * and will indicate where the wrapper object should be.
 		 */
 		WRAPPED_ENTITY,
 	};
@@ -129,8 +136,17 @@ public class JsonNodeSurgeon {
 	/**
 	 * @return null if {@code doc} has no node corresponding to {@code ref}
 	 */
-	public JsonNode node(JsonNode doc, Reference<?> ref) {
+	public JsonNode valueNode(JsonNode doc, Reference<?> ref) {
 		return getNode(nodeInfo(doc, ref).valueLocation, doc);
+	}
+
+	/**
+	 * @param rootDocument is needed only if {@code location} is a {@link Root},
+	 *                     in which case it is returned. It can even be null.
+	 * @return null if the node does not exist
+	 */
+	public JsonNode node(NodeLocation location, JsonNode rootDocument) {
+		return getNode(location, rootDocument);
 	}
 
 	/**
