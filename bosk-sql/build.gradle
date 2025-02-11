@@ -20,13 +20,15 @@ compileTestJava {
 }
 
 dependencies {
-	api project(":bosk-core")
-	implementation project(":bosk-jackson")
+	api project(':bosk-core')
+	implementation project(':bosk-jackson')
 
-	testImplementation project(":bosk-testing")
-	testImplementation project(":lib-testing")
+	testImplementation project(':bosk-testing')
+	testImplementation project(':lib-testing')
 
-	testImplementation project(":bosk-logback")
-	testImplementation "org.testcontainers:postgresql:1.20.4"
+	testImplementation project(':bosk-logback')
 	testImplementation 'com.zaxxer:HikariCP:6.2.1'
+	testImplementation 'org.testcontainers:postgresql:1.20.4'
+	testImplementation 'org.postgresql:postgresql:42.7.5'
+
 }
