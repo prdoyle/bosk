@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -98,14 +99,17 @@ public class SqlDriver implements BoskDriver {
 				+ "\" "
 				+ bosk.instanceID())
 		);
-		this.listener.scheduleWithFixedDelay(this::listenerLoop, 0, settings.timescaleMS(), MILLISECONDS);
+		this.listener.scheduleWithFixedDelay(this::listenForChanges, 0, settings.timescaleMS(), MILLISECONDS);
 	}
 
 	public interface ConnectionSource {
 		Connection get() throws SQLException;
 	}
 
-	private void listenerLoop() {
+	private void listenForChanges() {
+		if (!isOpen.get()) {
+			return;
+		}
 //		try {
 //			while (isOpen.get()) {
 //				PGNotification[] notifications = null;
@@ -138,7 +142,7 @@ public class SqlDriver implements BoskDriver {
 //		LOGGER.debug("Processing notification {}", n.parameter());
 //		try (
 //			var c = connectionSource.get();
-//			var q = c.prepareStatement("SELECT ref, new_state, diagnostics, id FROM bosk_changes WHERE id = ?::int");
+//			var q = c.prepareStatement("SELECT ref, new_state, diagnostics, revision FROM bosk_changes WHERE id = ?::int");
 //			var rs = S.executeQuery(c, q, n.parameter)
 //		) {
 //			if (rs.next()) {
@@ -230,6 +234,7 @@ public class SqlDriver implements BoskDriver {
 	@Override
 	public StateTreeNode initialRoot(Type rootType) throws InvalidTypeException, IOException, InterruptedException {
 		// TODO: Consider a disconnected mode where we delegate downstream if something goes wrong
+		LOGGER.debug("initialRoot({})", rootType);
 		String json;
 		try (
 			var connection = connectionSource.get()
@@ -250,12 +255,12 @@ public class SqlDriver implements BoskDriver {
 					return rootFromDatabase;
 				} else {
 					StateTreeNode root = downstream.initialRoot(rootType);
-					String stateJson = mapper.writerFor(rawClass(rootType)).writeValueAsString(root);
+					String stateJson = mapper.writeValueAsString(root);
 
 					S.initializeState(connection, stateJson);
 					long changeID = S.insertChange(connection, rootRef, stateJson);
 					S.commitTransaction(connection);
-					lastChangeSubmittedDownstream.getAndSet(changeID);
+					lastChangeSubmittedDownstream.getAndSet(changeID); // Not technically "submitted"
 
 					return root;
 				}
@@ -268,8 +273,8 @@ public class SqlDriver implements BoskDriver {
 	private void ensureTablesExist(Connection connection) throws SQLException {
 		S.executeCommand(connection, """
 			CREATE TABLE IF NOT EXISTS bosk_changes (
-				id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-				ref varchar NOT NULL,
+				revision INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+				ref TEXT NOT NULL,
 				new_state TEXT NULL,
 				diagnostics TEXT NOT NULL
 			);
@@ -277,7 +282,7 @@ public class SqlDriver implements BoskDriver {
 
 		S.executeCommand(connection, """
 			CREATE TABLE IF NOT EXISTS bosk_table (
-				id char(7) PRIMARY KEY NOT NULL,
+				id CHAR(7) PRIMARY KEY NOT NULL,
 				state TEXT NOT NULL
 			);
 			""");
@@ -285,79 +290,89 @@ public class SqlDriver implements BoskDriver {
 
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
+		LOGGER.debug("submitReplacement({}, {})", target, newValue);
+		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
-			if (target.isRoot()) {
-				// Optimization: no need to read the current state; we're replacing the whole thing
-				S.writeState(connection, mapper.valueToTree(newValue));
-				S.commitTransaction(connection);
-			} else {
-				modifyWriteAndCommit(surgeon.nodeInfo(S.readState(connection), target), newValue, connection);
-			}
+			// TODO optimization: no need to read the current state for root
+			revision = replaceAndCommit(S.readState(connection), target, newValue, connection);
 		} catch (SQLException e) {
 			throw new IllegalStateException(e);
 		}
-		runInBackground(() -> downstream.submitReplacement(target, newValue));
+		runInBackground(revision, () -> downstream.submitReplacement(target, newValue));
 	}
 
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
+		LOGGER.debug("submitConditionalReplacement({}, {}, {}, {})", target, newValue, precondition, requiredValue);
+		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
 			JsonNode state = S.readState(connection);
 			if (isMatchingTextNode(precondition, requiredValue, state)) {
-				modifyWriteAndCommit(surgeon.nodeInfo(state, target), newValue, connection);
+				revision = replaceAndCommit(state, target, newValue, connection);
+			} else {
+				revision = OptionalLong.empty();
 			}
 		} catch (SQLException e) {
 			throw new IllegalStateException(e);
 		}
-		runInBackground(() -> downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue));
+		runInBackground(revision, () -> downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue));
 	}
 
 	@Override
 	public <T> void submitInitialization(Reference<T> target, T newValue) {
+		LOGGER.debug("submitInitialization({}, {})", target, newValue);
+		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
 			JsonNode state = S.readState(connection);
 			NodeInfo node = surgeon.nodeInfo(state, target);
 			if (surgeon.node(node.valueLocation(), state) == null) {
-				modifyWriteAndCommit(node, newValue, connection);
+				revision = replaceAndCommit(state, target, newValue, connection);
+			} else {
+				revision = OptionalLong.empty();
 			}
 		} catch (SQLException e) {
 			throw new IllegalStateException(e);
 		}
-		runInBackground(() -> downstream.submitInitialization(target, newValue));
+		runInBackground(revision, () -> downstream.submitInitialization(target, newValue));
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
+		LOGGER.debug("submitDeletion({})", target);
+		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
-			JsonNode state = S.readState(connection);
-			modifyWriteAndCommit(surgeon.nodeInfo(state, target), null, connection);
+			revision = replaceAndCommit(S.readState(connection), target, null, connection);
 		} catch (SQLException e) {
 			throw new IllegalStateException(e);
 		}
-		runInBackground(() -> downstream.submitDeletion(target));
+		runInBackground(revision, () -> downstream.submitDeletion(target));
 	}
 
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
+		LOGGER.debug("submitConditionalDeletion({}, {}, {})", target, precondition, requiredValue);
+		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
 			JsonNode state = S.readState(connection);
 			if (isMatchingTextNode(precondition, requiredValue, state)) {
-				modifyWriteAndCommit(surgeon.nodeInfo(state, target), null, connection);
+				revision = replaceAndCommit(state, target, null, connection);
+			} else {
+				revision = OptionalLong.empty();
 			}
 		} catch (SQLException e) {
 			throw new IllegalStateException(e);
 		}
-		runInBackground(() -> downstream.submitConditionalDeletion(target, precondition, requiredValue));
+		runInBackground(revision, () -> downstream.submitConditionalDeletion(target, precondition, requiredValue));
 	}
 
 	private boolean isMatchingTextNode(Reference<Identifier> precondition, Identifier requiredValue, JsonNode state) {
@@ -371,6 +386,7 @@ public class SqlDriver implements BoskDriver {
 			var connection = connectionSource.get();
 		){
 			long currentChangeID = S.latestChangeID(connection);
+			LOGGER.debug("flush({})", currentChangeID);
 			// Wait for any background tasks to finish
 			background.submit(()->{}).get();
 			// Wait for any pending notifications
@@ -390,28 +406,42 @@ public class SqlDriver implements BoskDriver {
 	}
 
 	/**
+	 * @param state may be mutated!
 	 * @param newValue if null, this is a delete
 	 */
-	private <T> void modifyWriteAndCommit(NodeInfo node, T newValue, Connection connection) throws SQLException {
+	private <T> OptionalLong replaceAndCommit(JsonNode state, Reference<T> target, T newValue, Connection connection) throws SQLException {
+		NodeInfo node = surgeon.nodeInfo(state, target);
 		switch (node.replacementLocation()) {
 			case Root __ -> {
 				if (newValue == null) {
 					throw new NotYetImplementedException("Cannot delete root");
 				}
-				S.writeState(connection, mapper.valueToTree(newValue));
+				JsonNode newNode = mapper.valueToTree(newValue);
+				long revision = S.insertChange(connection, target, newNode);
+				S.writeState(connection, newNode);
 				S.commitTransaction(connection);
+				LOGGER.debug("{}: replaced root", revision);
+				return OptionalLong.of(revision);
 			}
 			case NonexistentParent __ -> {
 				// Modifying a node with a nonexistent parent is a no-op
+				LOGGER.debug("--: nonexistent parent for {}", target);
+				return OptionalLong.empty();
 			}
 			default -> {
+				JsonNode newNode;
 				if (newValue == null) {
+					newNode = null;
 					surgeon.deleteNode(node);
-					S.commitTransaction(connection);
 				} else {
-					surgeon.replaceNode(node, mapper.valueToTree(newValue));
-					S.commitTransaction(connection);
+					newNode = mapper.valueToTree(newValue);
+					surgeon.replaceNode(node, surgeon.replacementNode(node, target.path().lastSegment(), ()->newNode));
 				}
+				long revision = S.insertChange(connection, target, newNode);
+				S.writeState(connection, state);
+				S.commitTransaction(connection);
+				LOGGER.debug("--: replaced {}", target);
+				return OptionalLong.of(revision);
 			}
 		}
 	}
@@ -423,21 +453,25 @@ public class SqlDriver implements BoskDriver {
 	/**
 	 * Fake it till you make it
 	 */
-	private void runInBackground(Runnable runnable) {
-		var attributes = rootRef.diagnosticContext().getAttributes();
-		background.submit(() -> {
-			try (var __ = rootRef.diagnosticContext().withOnly(attributes)) {
-				runnable.run();
-			}
-		});
+	private void runInBackground(OptionalLong revision, Runnable runnable) {
+		if (revision.isPresent()) {
+			var attributes = rootRef.diagnosticContext().getAttributes();
+			background.submit(() -> {
+				try (var __ = rootRef.diagnosticContext().withOnly(attributes)) {
+					runnable.run();
+					LOGGER.debug("submitted change {} downstream", revision.getAsLong());
+					lastChangeSubmittedDownstream.getAndSet(revision.getAsLong());
+				}
+			});
+		} else {
+			LOGGER.debug("no change to submit downstream");
+		}
 	}
 
 	private ObjectWriter writerFor(Type type) {
 		return mapper.writerFor(TypeFactory.defaultInstance()
 			.constructType(type));
 	}
-
-	private static final Logger LOGGER = LoggerFactory.getLogger(SqlDriver.class);
 
 	/**
 	 * Low-level SQL queries.
@@ -478,22 +512,31 @@ public class SqlDriver implements BoskDriver {
 				""", newValue);
 		}
 
-		long insertChange(Connection c, Reference<?> ref, String newValue) throws JsonProcessingException, SQLException {
+		long insertChange(Connection c, Reference<?> ref, JsonNode newValue) throws SQLException {
+			try {
+				return insertChange(c, ref, mapper.writeValueAsString(newValue));
+			} catch (JsonProcessingException e) {
+				throw new NotYetImplementedException(e);
+			}
+		}
+
+		long insertChange(Connection c, Reference<?> ref, String newValue) throws SQLException {
 			try (
 				var q = c.prepareStatement("""
 					INSERT INTO bosk_changes (ref, new_state, diagnostics) VALUES (?, ?, ?)
-					RETURNING id;
+					RETURNING revision;
 				""");
 				var rs =
 					 executeQuery(c, q,
 						 ref.pathString(),
 						 newValue,
-						 mapper.writerFor(mapValueType(String.class)).writeValueAsString(
-							 ref.root().diagnosticContext().getAttributes())
+						 mapper.writeValueAsString(ref.root().diagnosticContext().getAttributes())
 					 );
 			) {
 				rs.next();
 				return rs.getLong(1);
+			} catch (JsonProcessingException e) {
+				throw new NotYetImplementedException(e);
 			}
 		}
 
@@ -520,7 +563,7 @@ public class SqlDriver implements BoskDriver {
 		long latestChangeID(Connection connection) throws SQLException {
 			try (
 				var q = connection.prepareStatement(
-					"SELECT max(id) FROM bosk_changes"
+					"SELECT max(revision) FROM bosk_changes"
 				);
 				var r = executeQuery(connection, q)
 			) {
@@ -596,4 +639,7 @@ public class SqlDriver implements BoskDriver {
 	private static JavaType mapValueType(Class<?> entryType) {
 		return TypeFactory.defaultInstance().constructParametricType(MapValue.class, entryType);
 	}
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(SqlDriver.class);
+
 }
