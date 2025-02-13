@@ -35,6 +35,7 @@ import works.bosk.Entity;
 import works.bosk.Identifier;
 import works.bosk.Listing;
 import works.bosk.MapValue;
+import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.RootReference;
 import works.bosk.SideTable;
@@ -47,7 +48,7 @@ import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.NonexistentParent;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
 
-import static com.fasterxml.jackson.databind.type.TypeFactory.rawClass;
+import static java.lang.Math.multiplyExact;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -99,7 +100,6 @@ public class SqlDriver implements BoskDriver {
 				+ "\" "
 				+ bosk.instanceID())
 		);
-		this.listener.scheduleWithFixedDelay(this::listenForChanges, 0, settings.timescaleMS(), MILLISECONDS);
 	}
 
 	public interface ConnectionSource {
@@ -108,88 +108,66 @@ public class SqlDriver implements BoskDriver {
 
 	private void listenForChanges() {
 		if (!isOpen.get()) {
+			LOGGER.debug("Already closed");
 			return;
 		}
-//		try {
-//			while (isOpen.get()) {
-//				PGNotification[] notifications = null;
-//				try {
-//					LOGGER.debug("Asking for notifications");
-//					notifications = listenerConnection.unwrap(PGConnection.class).getNotifications();
-//				} catch (PSQLException e) {
-//					if (isOpen.get()) {
-//						throw e;
-//					} else {
-//						continue;
-//					}
-//				}
-//				if (notifications == null) {
-//					LOGGER.debug("Notifications is null");
-//				} else {
-//					LOGGER.debug("Got {} notifications", notifications.length);
-//					for (PGNotification n : notifications) {
-//						processNotification(Notification.from(n));
-//					}
-//				}
-//				Thread.sleep(settings.timescaleMS());
-//			}
-//		} catch (Throwable e) {
-//			LOGGER.error("Listener loop aborted; will wait and restart", e);
-//		}
-	}
+		LOGGER.trace("Polling for changes");
+		try {
+			try (
+				var c = connectionSource.get();
+				var q = c.prepareStatement("SELECT ref, new_state, diagnostics, revision FROM bosk_changes WHERE revision > ?");
+			) {
+				q.setLong(1, lastChangeSubmittedDownstream.get());
+				var rs = q.executeQuery();
+				while (rs.next()) {
+					var ref = rs.getString(1);
+					var newState = rs.getString(2);
+					var diagnostics = rs.getString(3);
+					long changeID = rs.getLong(4);
 
-//	private void processNotification(Notification n) throws SQLException {
-//		LOGGER.debug("Processing notification {}", n.parameter());
-//		try (
-//			var c = connectionSource.get();
-//			var q = c.prepareStatement("SELECT ref, new_state, diagnostics, revision FROM bosk_changes WHERE id = ?::int");
-//			var rs = S.executeQuery(c, q, n.parameter)
-//		) {
-//			if (rs.next()) {
-//				var ref = rs.getString(1);
-//				var newState = rs.getString(2);
-//				var diagnostics = rs.getString(3);
-//				long changeID = rs.getLong(4);
-//
-//				if (LOGGER.isTraceEnabled()) {
-//					record Change(String ref, String newState, String diagnostics){}
-//					LOGGER.trace("Received change {}: {}", changeID, new Change(ref, newState, diagnostics));
-//				} else {
-//					LOGGER.debug("Received change {}: {}", changeID, ref);
-//				}
-//
-//				MapValue<String> diagnosticAttributes;
-//				if (diagnostics == null) {
-//					diagnosticAttributes = MapValue.empty();
-//				} else {
-//					try {
-//						diagnosticAttributes = mapper.readerFor(mapValueType(String.class)).readValue(diagnostics);
-//					} catch (JsonProcessingException e) {
-//						LOGGER.error("Unable to parse diagnostic attributes; ignoring", e);
-//						diagnosticAttributes = MapValue.empty();
-//					}
-//				}
-//				try (var __ = rootRef.diagnosticContext().withOnly(diagnosticAttributes)) {
-//					Reference<Object> target = rootRef.then(Object.class, Path.parse(ref));
-//					Object newValue;
-//					if (newState == null) {
-//						newValue = null;
-//					} else {
-//						newValue = mapper.readerFor(TypeFactory.defaultInstance().constructType(target.targetType()))
-//							.readValue(newState);
-//					}
-//					submitDownstream(target, newValue, changeID);
-//				} catch (JsonProcessingException e) {
-//					throw new NotYetImplementedException("Error parsing notification", e);
-//				} catch (InvalidTypeException e) {
-//					throw new NotYetImplementedException("Invalid object reference: \"" + ref + "\"", e);
-//				}
-//			} else {
-//				LOGGER.error("Received notification of nonexistent change; bosk state may be unreliable: {}", n);
-//				throw new NotYetImplementedException("Should reconnect and reload the state from scratch");
-//			}
-//		}
-//	}
+					if (LOGGER.isTraceEnabled()) {
+						record Change(String ref, String newState, String diagnostics){}
+						LOGGER.trace("Received change {}: {}", changeID, new Change(ref, newState, diagnostics));
+					} else {
+						LOGGER.debug("Received change {}: {}", changeID, ref);
+					}
+
+					MapValue<String> diagnosticAttributes;
+					if (diagnostics == null) {
+						diagnosticAttributes = MapValue.empty();
+					} else {
+						try {
+							diagnosticAttributes = mapper.readerFor(mapValueType(String.class)).readValue(diagnostics);
+						} catch (JsonProcessingException e) {
+							LOGGER.error("Unable to parse diagnostic attributes; ignoring", e);
+							diagnosticAttributes = MapValue.empty();
+						}
+					}
+					try (var __ = rootRef.diagnosticContext().withOnly(diagnosticAttributes)) {
+						Reference<Object> target = rootRef.then(Object.class, Path.parse(ref));
+						Object newValue;
+						if (newState == null) {
+							newValue = null;
+						} else {
+							newValue = mapper.readerFor(TypeFactory.defaultInstance().constructType(target.targetType()))
+								.readValue(newState);
+						}
+						submitDownstream(target, newValue, changeID);
+					} catch (JsonProcessingException e) {
+						throw new NotYetImplementedException("Error parsing notification", e);
+					} catch (InvalidTypeException e) {
+						throw new NotYetImplementedException("Invalid object reference: \"" + ref + "\"", e);
+					}
+
+				}
+			} catch (SQLException e) {
+				throw new IllegalStateException(e);
+			}
+		} catch (RuntimeException e) {
+			LOGGER.warn("Change processing exited unexpectedly", e);
+			throw e;
+		}
+	}
 
 	@SuppressWarnings("rawtypes")
 	private void submitDownstream(Reference target, Object newValue, long changeID) {
@@ -222,7 +200,8 @@ public class SqlDriver implements BoskDriver {
 	 */
 	public void close() {
 		if (isOpen.getAndSet(false)) {
-			listener.shutdown();
+			LOGGER.debug("Closing");
+			listener.shutdownNow();
 		}
 	}
 
@@ -239,8 +218,8 @@ public class SqlDriver implements BoskDriver {
 		try (
 			var connection = connectionSource.get()
 		){
-
 			ensureTablesExist(connection);
+			listener.scheduleWithFixedDelay(this::listenForChanges, 0, settings.timescaleMS(), MILLISECONDS);
 			try (
 				var query = connection.prepareStatement("SELECT state FROM bosk_table WHERE id='current'");
 				var resultSet = S.executeQuery(connection, query)
@@ -286,6 +265,9 @@ public class SqlDriver implements BoskDriver {
 				state TEXT NOT NULL
 			);
 			""");
+
+		// When we say "ensure tables exist", we mean it
+		connection.commit();
 	}
 
 	@Override
@@ -395,6 +377,7 @@ public class SqlDriver implements BoskDriver {
 				if (retryBudget <= 0) {
 					throw new FlushFailureException("Timed out waiting for change #" + currentChangeID);
 				} else {
+					LOGGER.debug("...not yet. Will try {} more times", retryBudget);
 					--retryBudget;
 				}
 				Thread.sleep(settings.timescaleMS());
@@ -454,6 +437,9 @@ public class SqlDriver implements BoskDriver {
 	 * Fake it till you make it
 	 */
 	private void runInBackground(OptionalLong revision, Runnable runnable) {
+		if (true) {
+			return;
+		}
 		if (revision.isPresent()) {
 			var attributes = rootRef.diagnosticContext().getAttributes();
 			background.submit(() -> {
@@ -571,6 +557,7 @@ public class SqlDriver implements BoskDriver {
 				return r.getLong(1);
 			}
 		}
+
 	}
 
 	/**

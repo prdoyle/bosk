@@ -43,7 +43,7 @@ class SqlDriverConformanceTest extends DriverConformanceTest {
 	void setupDriverFactory() {
 		driverFactory = (boskInfo, downstream) -> {
 			SqlDriverSettings settings = new SqlDriverSettings(
-				200, 1, 1
+				200, 10, 2
 			);
 			tearDownActions.addFirst(this::cleanupTable);
 			var driver = SqlDriver.<TestEntity>factory(
@@ -69,6 +69,7 @@ class SqlDriverConformanceTest extends DriverConformanceTest {
 			var stmt = connection.createStatement()
 		) {
 			stmt.execute("DROP TABLE IF EXISTS bosk_table");
+			stmt.execute("DROP TABLE IF EXISTS bosk_changes");
 		} catch (SQLException e) {
 			throw new AssertionError("Unexpected error cleaning up table", e);
 		}
