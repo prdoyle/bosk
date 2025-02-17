@@ -29,11 +29,6 @@
 		<Bug code="MS"/>
 	</Match>
 	<Match>
-		<Class name="works.bosk.Bosk$DefiniteReference"/>
-		<Method name="dereferencer"/>
-		<Bug code="JLM"/>
-	</Match>
-	<Match>
 		<Class name="works.bosk.SideTable$1Accumulator"/>
 		<Bug code="UMAC"/> <!-- Incorrectly identified as uncallable -->
 	</Match>
