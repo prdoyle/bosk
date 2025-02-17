@@ -782,7 +782,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		// use getCanonicalConstructor, we rule out using things that currently work as derived
 		// records, such as subclasses of ListValue, which can't be records. I'm not going to sweat
 		// this too much right now because I think derived records are likely to go away soon enough anyway.
-		Constructor<L> constructor = (Constructor<L>) (Constructor) ReferenceUtils.theOnlyConstructorFor(objClass);
+		Constructor<L> constructor = (Constructor<L>) ReferenceUtils.theOnlyConstructorFor(objClass);
 		Class<?>[] parameters = constructor.getParameterTypes();
 		if (parameters.length == 1 && parameters[0].getComponentType().equals(entryClass)) {
 			JavaType referenceType = TypeFactory.defaultInstance().constructParametricType(Reference.class, entryClass);

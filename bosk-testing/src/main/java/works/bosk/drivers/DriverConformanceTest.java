@@ -8,6 +8,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
+import works.bosk.BoskDiagnosticContext;
 import works.bosk.BoskDriver;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -459,7 +460,9 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		bosk.registerHook("contextPropagatesToHook", bosk.rootReference(), ref -> {
 			// Note that this will run as soon as it's registered
 			if (diagnosticsAreReady.get()) {
-				assertEquals("attributeValue", bosk.diagnosticContext().getAttribute("attributeName"));
+				BoskDiagnosticContext boskDiagnosticContext = bosk.diagnosticContext();
+				LOGGER.debug("Received diagnostic attributes: {}", boskDiagnosticContext.getAttributes());
+				assertEquals("attributeValue", boskDiagnosticContext.getAttribute("attributeName"));
 				diagnosticsVerified.release();
 			}
 		});

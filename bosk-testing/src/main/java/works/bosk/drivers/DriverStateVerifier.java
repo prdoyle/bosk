@@ -50,6 +50,12 @@ public class DriverStateVerifier<R extends StateTreeNode> {
 	final Map<String, Deque<UpdateOperation>> pendingOperationsByThreadName = new ConcurrentHashMap<>();
 	static final String THREAD_NAME = "thread.name";
 
+	/**
+	 * @param subject factory whose behaviour is to be verified
+	 * @param rootType the type of {@link Bosk#rootReference()}
+	 * @param defaultRootFunction returns the initial root used to set up an internal bosk
+	 *                            that will track the cumulative effect of the updates coming from {@code subject} driver
+	 */
 	public static <RR extends StateTreeNode> DriverFactory<RR> wrap(DriverFactory<RR> subject, Type rootType, Bosk.DefaultRootFunction<RR> defaultRootFunction) {
 		Bosk<RR> stateTrackingBosk = new Bosk<>(
 			boskName(),
@@ -61,10 +67,15 @@ public class DriverStateVerifier<R extends StateTreeNode> {
 			ReplicaSet.redirectingTo(stateTrackingBosk)
 		);
 		return DriverStack.of(
+			// Tag the updates with a thread name so we can demultiplex them properly after they go through the subject driver
 			DiagnosticScopeDriver.factory(dc -> dc.withAttribute(THREAD_NAME, currentThread().getName())),
+			// Report the updates as they appear on their way into the subject driver
 			ReportingDriver.factory(verifier::incomingUpdate, verifier::incomingFlush),
+			// Send to the subject driver
 			subject,
-			BufferingDriver.factory(), // This catches missing flush operations
+			// Delay as long as possible to catch missing flushes
+			BufferingDriver.factory(),
+			// Report the updates as they appear on their way out of the subject driver
 			ReportingDriver.factory(verifier::outgoingUpdate, verifier::outgoingFlush)
 		);
 	}

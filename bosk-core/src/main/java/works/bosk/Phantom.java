@@ -18,6 +18,8 @@ package works.bosk;
  * and reference that as your domain.
  */
 public final class Phantom<T> {
+	private Phantom() {}
+
 	public static <T> Phantom<T> empty() {
 		@SuppressWarnings("unchecked")
 		Phantom<T> instance = (Phantom<T>) INSTANCE;
