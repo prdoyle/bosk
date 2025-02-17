@@ -4,8 +4,11 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.BoskDiagnosticContext;
 import works.bosk.BoskDriver;
 import works.bosk.DriverFactory;
@@ -35,6 +38,7 @@ import static lombok.AccessLevel.PROTECTED;
 public class BufferingDriver implements BoskDriver {
 	private final BoskDriver downstream;
 	private final Deque<Consumer<BoskDriver>> updateQueue = new ConcurrentLinkedDeque<>();
+	private final AtomicLong changeID = new AtomicLong();
 
 	public static BufferingDriver writingTo(BoskDriver downstream) {
 		return new BufferingDriver(downstream);
@@ -83,12 +87,16 @@ public class BufferingDriver implements BoskDriver {
 	}
 
 	private void enqueue(Consumer<BoskDriver> action, BoskDiagnosticContext diagnosticContext) {
+		long changeID = this.changeID.incrementAndGet();
+		LOGGER.debug("Buffering action {} {}", changeID, diagnosticContext.getAttributes());
 		MapValue<String> capturedAttributes = diagnosticContext.getAttributes();
 		updateQueue.add(d -> {
 			try (var __ = diagnosticContext.withOnly(capturedAttributes)) {
+				LOGGER.debug("Running action {} {}", changeID, diagnosticContext.getAttributes());
 				action.accept(d);
 			}
 		});
 	}
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(BufferingDriver.class);
 }
