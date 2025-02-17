@@ -5,6 +5,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
@@ -52,6 +55,7 @@ import static works.bosk.util.Classes.mapValue;
  * Use this by extending it and supplying a value for
  * the {@link #driverFactory} to test.
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public abstract class DriverConformanceTest extends AbstractDriverTest {
 	// Subclass can initialize this as desired
 	protected DriverFactory<TestEntity> driverFactory;
@@ -61,12 +65,14 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		@ReferencePath("/catalog/-id-") Reference<TestEntity> catalogEntry(Identifier id);
 	}
 
+	@Order(1) // If this doesn't work, nothing will
 	@ParametersByName
 	void initialState(Path enclosingCatalogPath) {
 		initializeBoskWithCatalog(enclosingCatalogPath);
 		assertCorrectBoskContents();
 	}
 
+	@Order(2)
 	@ParametersByName
 	void replaceIdentical(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
@@ -74,6 +80,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		assertCorrectBoskContents();
 	}
 
+	@Order(2)
 	@ParametersByName
 	void replaceDifferent(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
