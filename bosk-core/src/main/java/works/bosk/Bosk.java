@@ -36,6 +36,7 @@ import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.exceptions.ReferenceBindingException;
 import works.bosk.util.Classes;
 
+import static java.lang.Thread.holdsLock;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
@@ -277,11 +278,13 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * When it comes to hooks, this provides three guarantees:
 	 *
 	 * <ol><li>
-	 * All updates submitted to this driver are applied to the Bosk state in order.
+	 * Updates submitted to this driver are applied to the Bosk state in the order they were submitted.
 	 * </li><li>
 	 * Hooks are run sequentially: no hook begins until the previous one finishes.
 	 * </li><li>
-	 * Hooks are run in breadth-first fashion.
+	 * Hooks are run in <em>breadth-first</em> fashion:
+	 * hooks triggered by one update run before any hooks triggered by subsequent updates,
+	 * even if those hooks themselves submit more updates.
 	 * </li></ol>
 	 *
 	 * Satisfying all of these simultaneously is tricky, especially because we can't just put
@@ -404,7 +407,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		/**
 		 * @return false if the update was ignored
 		 */
-		private synchronized <T> boolean tryGraftReplacement(Reference<T> target, T newValue) {
+		private <T> boolean tryGraftReplacement(Reference<T> target, T newValue) {
+			assert holdsLock(this);
 			Dereferencer dereferencer = dereferencerFor(target);
 			try {
 				LOGGER.debug("Applying replacement at {}", target);
@@ -428,7 +432,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		/**
 		 * @return false if the update was ignored
 		 */
-		private synchronized <T> boolean tryGraftDeletion(Reference<T> target) {
+		private <T> boolean tryGraftDeletion(Reference<T> target) {
+			assert holdsLock(this);
 			Path targetPath = target.path();
 			assert !targetPath.isEmpty();
 			Dereferencer dereferencer = dereferencerFor(target);
