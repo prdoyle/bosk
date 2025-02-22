@@ -21,6 +21,7 @@ import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.SideTable;
+import works.bosk.TaggedUnion;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestEntity.IdentifierCase;
@@ -334,20 +335,22 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		assertCorrectBoskContents();
 
-		Reference<Variant> variantRef = bosk.rootReference().then(Variant.class, TestEntity.Fields.variant);
-		driver.submitReplacement(variantRef, new StringCase("value1"));
+		Reference<TaggedUnion<Variant>> variantRef = bosk.rootReference().thenTaggedUnion(Variant.class, TestEntity.Fields.variant);
+		driver.submitReplacement(variantRef, TaggedUnion.of(new StringCase("value1")));
+		assertCorrectBoskContents();
+		driver.submitReplacement(variantRef, TaggedUnion.of(new IdentifierCase(Identifier.from("value2"))));
 		assertCorrectBoskContents();
 		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(variantRef));
 		assertCorrectBoskContents();
 
 		Reference<StringCase> stringCaseRef = variantRef.then(StringCase.class, "string");
-		driver.submitReplacement(stringCaseRef, new StringCase("value2"));
+		assertThrows(IllegalArgumentException.class, () -> driver.submitReplacement(stringCaseRef, new StringCase("value2")));
 		assertCorrectBoskContents();
 		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(stringCaseRef));
 		assertCorrectBoskContents();
 
 		Reference<IdentifierCase> idCaseRef = variantRef.then(IdentifierCase.class, "identifier");
-		driver.submitReplacement(idCaseRef, new IdentifierCase(Identifier.from("value3")));
+		assertThrows(IllegalArgumentException.class, () -> driver.submitReplacement(idCaseRef, new IdentifierCase(Identifier.from("value3"))));
 		assertCorrectBoskContents();
 		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(idCaseRef));
 		assertCorrectBoskContents();

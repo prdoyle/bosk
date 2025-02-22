@@ -983,6 +983,11 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 		}
 
 		@Override
+		public <TT extends VariantCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> variantCaseClass, Path path) throws InvalidTypeException {
+			return this.then(Classes.taggedUnion(variantCaseClass), path);
+		}
+
+		@Override
 		public BoskDiagnosticContext diagnosticContext() {
 			return diagnosticContext;
 		}
@@ -1038,6 +1043,11 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 		@Override
 		public final <TT> Reference<Reference<TT>> thenReference(Class<TT> targetClass, String... segments) throws InvalidTypeException {
 			return rootReference().thenReference(targetClass, path.then(segments));
+		}
+
+		@Override
+		public <TT extends VariantCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> variantCaseClass, String... segments) throws InvalidTypeException {
+			return rootReference().thenTaggedUnion(variantCaseClass, path.then(segments));
 		}
 
 		@SuppressWarnings("unchecked")

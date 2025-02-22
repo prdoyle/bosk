@@ -265,7 +265,7 @@ public abstract class SerializationPlugin {
 	 */
 	@Nullable
 	public static MapValue<Type> getVariantCaseMapIfAny(Class<?> nodeClass) throws InvalidTypeException {
-		if (VariantNode.class.isAssignableFrom(nodeClass)) {
+		if (VariantCase.class.isAssignableFrom(nodeClass)) {
 			return infoFor(nodeClass).variantCaseMap().ifAny();
 		} else {
 			// We don't want to even call infoFor on types that aren't StateTreeNodes
@@ -385,7 +385,7 @@ public abstract class SerializationPlugin {
 				}
 			}
 
-			if (VariantNode.class.isAssignableFrom(type)) {
+			if (VariantCase.class.isAssignableFrom(type)) {
 				scanForVariantCaseMap(type, variantCaseMap);
 			}
 
@@ -395,7 +395,7 @@ public abstract class SerializationPlugin {
 
 	@SuppressWarnings({"rawtypes","unchecked"})
 	private static void scanForVariantCaseMap(Class<?> nodeClass, AtomicReference<VariantCaseMapInfo> variantCaseMap) {
-		if (!VariantNode.class.isAssignableFrom(nodeClass)) {
+		if (!VariantCase.class.isAssignableFrom(nodeClass)) {
 			return;
 		}
 

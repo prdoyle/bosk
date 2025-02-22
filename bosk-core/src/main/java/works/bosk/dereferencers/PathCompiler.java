@@ -19,7 +19,6 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
-import lombok.experimental.Delegate;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +35,8 @@ import works.bosk.ReferenceUtils;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
-import works.bosk.annotations.VariantCaseMap;
+import works.bosk.TaggedUnion;
+import works.bosk.VariantCase;
 import works.bosk.bytecode.LocalVariable;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
@@ -171,14 +171,18 @@ public final class PathCompiler {
 		String fullyParameterizedPathSegment();
 
 		/**
-		 * Initial stack: penultimateObject
-		 * Final stack: targetObject
+		 * <dl>
+		 *     <dt>Initial stack</dt><dd>penultimateObject</dd>
+		 *     <dt>Final stack</dt><dd>targetObject</dd>
+		 * </dl>
 		 */
 		void generate_get();
 
 		/**
-		 * Initial stack: penultimateObject newTargetObject
-		 * Final stack: newPenultimateObject
+		 * <dl>
+		 *     <dt>Initial stack</dt><dd>penultimateObject newTargetObject</dd>
+		 *     <dt>Final stack</dt><dd>newPenultimateObject</dd>
+		 * </dl>
 		 */
 		void generate_with();
 
@@ -192,8 +196,10 @@ public final class PathCompiler {
 	 */
 	private interface DeletableStep extends Step {
 		/**
-		 * Initial stack: penultimateObject
-		 * Final stack: newPenultimateObject
+		 * <dl>
+		 *     <dt>Initial stack</dt><dd>penultimateObject</dd>
+		 *     <dt>Final stack</dt><dd>newPenultimateObject</dd>
+		 * </dl>
 		 */
 		void generate_without();
 	}
@@ -234,8 +240,15 @@ public final class PathCompiler {
 				Type keyType = parameterType(currentType, SideTable.class, 0);
 				Type targetType = parameterType(currentType, SideTable.class, 1);
 				return new SideTableEntryStep(keyType, targetType, segmentNum);
-			} else if (priorStep instanceof VariantFieldStep v) {
-				return new VariantCaseStep(segment, v.caseType(segment));
+			} else if (TaggedUnion.class.isAssignableFrom(currentClass)) {
+				Class<?> caseStaticClass = rawClass(parameterType(currentType, TaggedUnion.class, 0));
+				Map<String, Type> typeMap = SerializationPlugin.getVariantCaseMap(caseStaticClass);
+				Type targetType = typeMap.get(segment);
+				if (targetType == null) {
+					throw new InvalidTypeException("Invalid tag \"" + segment + "\" for TaggedUnion<" + caseStaticClass.getSimpleName() + ">: expected one of " + typeMap.keySet());
+				} else {
+					return new VariantCaseStep(segment, targetType);
+				}
 			} else if (StateTreeNode.class.isAssignableFrom(currentClass)) {
 				if (isParameterSegment(segment)) {
 					throw new InvalidTypeException("Invalid parameter location: expected a field of " + currentClass.getSimpleName());
@@ -250,10 +263,7 @@ public final class PathCompiler {
 
 				Step fieldStep = newFieldStep(segment, getters, ReferenceUtils.getCanonicalConstructor(currentClass));
 				Class<?> fieldClass = rawClass(fieldStep.targetType());
-				Map<String, Type> typeMap = SerializationPlugin.getVariantCaseMapIfAny(fieldStep.targetClass());
-				if (typeMap != null) {
-					return new VariantFieldStep(typeMap, fieldStep);
-				} else if (Optional.class.isAssignableFrom(fieldClass)) {
+				if (Optional.class.isAssignableFrom(fieldClass)) {
 					return new OptionalValueStep(parameterType(fieldStep.targetType(), Optional.class, 0), fieldStep);
 				} else if (Phantom.class.isAssignableFrom(fieldClass)) {
 					return new PhantomValueStep(parameterType(fieldStep.targetType(), Phantom.class, 0), segment);
@@ -554,24 +564,6 @@ public final class PathCompiler {
 			@Override public void generate_without() { /* No effect */ }
 		}
 
-		/**
-		 * Augments another step to capture info for fields using
-		 * {@link VariantCaseMap}.
-		 */
-		public record VariantFieldStep(
-			Map<String, Type> variantMap,
-			@Delegate Step fieldStep
-		) implements Step {
-			public Type caseType(String caseName) throws InvalidTypeException {
-				Type result = variantMap.get(caseName);
-				if (result == null) {
-					throw new InvalidTypeException("Unknown variant case \"" + caseName + "\" of " + fieldStep.targetClass().getSimpleName() + "." + fieldStep.fullyParameterizedPathSegment());
-				} else {
-					return result;
-				}
-			}
-		}
-
 		@Value
 		public class VariantCaseStep implements Step {
 			String name;
@@ -587,29 +579,20 @@ public final class PathCompiler {
 				return name;
 			}
 
-			/**
-			 * The "containing object" is actually the object we want.
-			 * If it's the right type,
-			 * then picking one case of a variant is nothing but a downcast,
-			 * which {@link StepwiseDereferencerBuilder#generate_get} already does.
-			 * If it's the wrong type, then we want to treat that as nonexistent.
-			 */
 			@Override
 			public void generate_get() {
-				cb.pushObject(targetClass().getSimpleName(), targetClass(), Class.class);
+				// Regardless of which case we select from a {@link works.bosk.TaggedUnion},
+				// we always just call {@link TaggedUnion#value()}.
+				cb.invoke(TAGGED_UNION_VALUE);
+
+				// On a tag mismatch, report nonexistent
+				cb.pushString(name);
 				pushReference();
-				invoke(INSTANCEOF_OR_NONEXISTENT);
+				invoke(TAG_CHECK);
 			}
 
-			/**
-			 * We actually replace the entire "containing object".
-			 * Simply discard the old value and return the new one.
-			 */
 			@Override
-			public void generate_with() {
-				swap(); // Move old value to top of stack
-				pop();  // Discard old value
-			}
+			public void generate_with() { pop(); pop(); pushReference(); invoke(THROW_CANNOT_REPLACE_VARIANT_CASE); }
 		}
 
 		@Value
@@ -651,6 +634,7 @@ public final class PathCompiler {
 	static final Method LISTING_GET, LISTING_WITH, LISTING_WITHOUT;
 	static final Method SIDE_TABLE_GET, SIDE_TABLE_WITH, SIDE_TABLE_WITHOUT;
 	static final Method OPTIONAL_OF, OPTIONAL_OR_THROW, OPTIONAL_EMPTY;
+	static final Method TAGGED_UNION_VALUE, TAG_CHECK, THROW_CANNOT_REPLACE_VARIANT_CASE;
 	static final Method THROW_NONEXISTENT_ENTRY, THROW_CANNOT_REPLACE_PHANTOM;
 	static final Method INSTANCEOF_OR_NONEXISTENT, INVALID_WITHOUT;
 
@@ -669,6 +653,9 @@ public final class PathCompiler {
 			OPTIONAL_OF = Optional.class.getDeclaredMethod("ofNullable", Object.class);
 			OPTIONAL_OR_THROW = DereferencerRuntime.class.getDeclaredMethod("optionalOrThrow", Optional.class, Reference.class);
 			OPTIONAL_EMPTY = Optional.class.getDeclaredMethod("empty");
+			TAGGED_UNION_VALUE = TaggedUnion.class.getDeclaredMethod("variant");
+			TAG_CHECK = DereferencerRuntime.class.getDeclaredMethod("tagCheck", VariantCase.class, String.class, Reference.class);
+			THROW_CANNOT_REPLACE_VARIANT_CASE = DereferencerRuntime.class.getDeclaredMethod("throwCannotReplaceVariantCase", Reference.class);
 			THROW_NONEXISTENT_ENTRY = DereferencerRuntime.class.getDeclaredMethod("throwNonexistentEntry", Reference.class);
 			THROW_CANNOT_REPLACE_PHANTOM = DereferencerRuntime.class.getDeclaredMethod("throwCannotReplacePhantom", Reference.class);
 			INVALID_WITHOUT = DereferencerRuntime.class.getDeclaredMethod("invalidWithout", Object.class, Reference.class);

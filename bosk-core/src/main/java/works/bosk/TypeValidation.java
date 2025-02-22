@@ -28,6 +28,7 @@ import static java.lang.reflect.Modifier.isStatic;
 import static java.util.Arrays.asList;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
+import static works.bosk.ReferenceUtils.parameterType;
 import static works.bosk.ReferenceUtils.rawClass;
 import static works.bosk.SerializationPlugin.hasDeserializationPath;
 import static works.bosk.SerializationPlugin.isEnclosingReference;
@@ -42,6 +43,9 @@ public final class TypeValidation {
 		Class<?> rootClass = rawClass(rootType);
 		if (!StateTreeNode.class.isAssignableFrom(rootClass)) {
 			throw new InvalidTypeException("Bosk root type must be a StateTreeNode; " + rootClass.getSimpleName() + " is not");
+		}
+		if (!Record.class.isAssignableFrom(rootClass)) {
+			throw new InvalidTypeException("Bosk root type must be a Record");
 		}
 		validateType(rootType, newSetFromMap(new IdentityHashMap<>()));
 	}
@@ -79,6 +83,9 @@ public final class TypeValidation {
 				if (Modifier.isFinal(targetClass.getModifiers())) {
 					validateType(targetType, alreadyValidated);
 				}
+			} else if (TaggedUnion.class.isAssignableFrom(theClass)) {
+				var caseStaticClass = rawClass(parameterType(theType, TaggedUnion.class, 0));
+				validateVariantCaseClass(caseStaticClass, alreadyValidated);
 			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
 				validateStateTreeNodeClass(theClass, alreadyValidated);
 			} else if (ListValue.class.isAssignableFrom(theClass) || MapValue.class.isAssignableFrom(theClass)) {
@@ -143,16 +150,13 @@ public final class TypeValidation {
 	}
 
 	private static void validateStateTreeNodeClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
-		if (VariantNode.class.isAssignableFrom(nodeClass)) {
-			validateVariantNodeClass(nodeClass, alreadyValidated);
-		} else {
-			validateOrdinaryStateTreeNodeClass(nodeClass, alreadyValidated);
-		}
-	}
-
-	private static void validateOrdinaryStateTreeNodeClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
 		if (!Record.class.isAssignableFrom(nodeClass)) {
-			throw new InvalidTypeException(nodeClass + " must be a record because it is a " + StateTreeNode.class.getSimpleName());
+			if (VariantCase.class.isAssignableFrom(nodeClass) && Modifier.isAbstract(nodeClass.getModifiers())) {
+				// We can emit a better error by guessing what the user was trying to do
+				throw new InvalidTypeException("Abstract VariantCase " + nodeClass.getSimpleName() + " must be wrapped in a TaggedUnion");
+			} else {
+				throw new InvalidTypeException(nodeClass + " must be a record because it is a " + StateTreeNode.class.getSimpleName());
+			}
 		}
 		for (var c: nodeClass.getRecordComponents()) {
 			// For troubleshooting reasons, wrap any thrown exception so the
@@ -168,15 +172,18 @@ public final class TypeValidation {
 		validateFieldsAreFinal(nodeClass);
 	}
 
-	private static void validateVariantNodeClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
+	private static void validateVariantCaseClass(Class<?> nodeClass, Set<Type> alreadyValidated) throws InvalidTypeException {
 		for (Map.Entry<String, Type> entry : SerializationPlugin.getVariantCaseMap(nodeClass).entrySet()) {
 			String tag = requireNonNull(entry.getKey());
 			Type type = requireNonNull(entry.getValue());
 			validateFieldName(nodeClass, tag); // TODO: this produces confusing exception messages
 			validateType(type, alreadyValidated);
-			if (!VariantNode.class.isAssignableFrom(rawClass(type))) {
-				throw new InvalidTypeException("Variant case " + nodeClass.getSimpleName() + "." + tag + " maps to a type that doesn't inherit VariantNode: " + type);
+			if (!VariantCase.class.isAssignableFrom(rawClass(type))) {
+				throw new InvalidTypeException("Variant case " + nodeClass.getSimpleName() + "." + tag + " maps to a type that doesn't inherit VariantCase: " + type);
 			}
+		}
+		if (!Modifier.isAbstract(nodeClass.getModifiers())) {
+			validateStateTreeNodeClass(nodeClass, alreadyValidated);
 		}
 	}
 
