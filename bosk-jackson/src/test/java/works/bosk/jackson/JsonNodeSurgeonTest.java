@@ -28,7 +28,6 @@ import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.ObjectMember;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static works.bosk.BoskTestUtils.boskName;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.ARRAY;

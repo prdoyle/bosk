@@ -35,7 +35,6 @@ import works.bosk.ListingEntry;
 import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Reference;
-import works.bosk.ReflectiveEntity;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
 import works.bosk.TestEntityBuilder;

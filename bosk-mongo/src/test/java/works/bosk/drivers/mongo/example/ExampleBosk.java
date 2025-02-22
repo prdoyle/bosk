@@ -5,9 +5,9 @@ import works.bosk.Bosk;
 import works.bosk.DriverFactory;
 import works.bosk.Reference;
 import works.bosk.annotations.ReferencePath;
-import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.exceptions.InvalidTypeException;
 
 public class ExampleBosk extends Bosk<ExampleState> {

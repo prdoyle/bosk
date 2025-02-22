@@ -3,7 +3,6 @@ package works.bosk.drivers.state;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Optional;
-import lombok.Value;
 import lombok.With;
 import lombok.experimental.FieldNameConstants;
 import works.bosk.Catalog;

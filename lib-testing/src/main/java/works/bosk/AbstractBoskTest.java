@@ -2,8 +2,6 @@ package works.bosk;
 
 import java.lang.reflect.Type;
 import java.util.Optional;
-import lombok.EqualsAndHashCode;
-import lombok.Value;
 import lombok.With;
 import lombok.experimental.FieldNameConstants;
 import works.bosk.annotations.Enclosing;

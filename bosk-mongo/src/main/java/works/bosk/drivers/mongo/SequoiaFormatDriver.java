@@ -28,8 +28,8 @@ import works.bosk.Identifier;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
-import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.mongo.bson.BsonFormatter.DocumentFields;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 
@@ -43,9 +43,9 @@ import static java.util.Objects.requireNonNull;
 import static org.bson.BsonBoolean.FALSE;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.Formatter.dottedFieldNameOf;
-import static works.bosk.drivers.mongo.bson.BsonFormatter.referenceTo;
 import static works.bosk.drivers.mongo.MainDriver.MANIFEST_ID;
 import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT;
+import static works.bosk.drivers.mongo.bson.BsonFormatter.referenceTo;
 
 /**
  * Implements the {@link MongoDriverSettings.DatabaseFormat#SEQUOIA Sequoia} format.
