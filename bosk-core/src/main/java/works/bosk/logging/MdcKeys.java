@@ -1,5 +1,7 @@
 package works.bosk.logging;
 
+import works.bosk.Bosk;
+
 /**
  * Keys to use for SLF4J's Mapped Diagnostic Context.
  * <p>

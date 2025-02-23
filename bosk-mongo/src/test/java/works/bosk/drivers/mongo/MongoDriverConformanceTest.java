@@ -8,10 +8,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import works.bosk.DriverFactory;
 import works.bosk.StateTreeNode;
-import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.DriverConformanceTest;
 import works.bosk.drivers.mongo.TestParameters.EventTiming;
 import works.bosk.drivers.mongo.TestParameters.ParameterSet;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.junit.ParametersByName;
 import works.bosk.junit.Slow;
 

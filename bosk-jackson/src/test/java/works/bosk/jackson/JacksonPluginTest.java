@@ -35,9 +35,9 @@ import works.bosk.ListingEntry;
 import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Reference;
-import works.bosk.ReflectiveEntity;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
+import works.bosk.TaggedUnion;
 import works.bosk.TestEntityBuilder;
 import works.bosk.annotations.DerivedRecord;
 import works.bosk.annotations.DeserializationPath;
@@ -512,7 +512,7 @@ class JacksonPluginTest extends AbstractBoskTest {
 			Phantoms.empty(Identifier.unique("phantoms")),
 			new Optionals(Identifier.unique("optionals"), optionalString, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty()),
 			new ImplicitRefs(Identifier.unique("implicitRefs"), implicitRefsRef, entityRef, implicitRefsRef, entityRef),
-			new VariantCase1("variantCase1"));
+			TaggedUnion.of(new VariantCase1("variantCase1")));
 	}
 
 	private TestEntity makeEntityWithOptionalString(Optional<String> optionalString) {
@@ -606,14 +606,14 @@ class JacksonPluginTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void variantNode_works() {
-		Variant variant = new VariantCase1("fieldValue");
+	void taggedUnion_works() {
+		var taggedUnion = TaggedUnion.of(new VariantCase1("fieldValue"));
 
 		Map<String, Object> expected = Map.of(
 			"variant1", Map.of("stringField", "fieldValue")
 		);
 
-		assertJacksonWorks(expected, variant, new TypeReference<Variant>() {}, Path.just("doesn't matter"));
+		assertJacksonWorks(expected, taggedUnion, new TypeReference<TaggedUnion<Variant>>() {}, Path.just("doesn't matter"));
 	}
 
 	// Sad paths

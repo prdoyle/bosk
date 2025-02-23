@@ -17,23 +17,16 @@
 		<Bug code="NP"/> <!-- https://github.com/spotbugs/spotbugs/issues/651 -->
 	</Match>
 	<Match>
-		<Bug code="DP"/> <!-- doPrivileged is deprecated for removal -->
+		<Bug code="DP"/> <!-- Obsolete: doPrivileged is deprecated for removal -->
 	</Match>
 	<Match>
-		<Bug code="CT"/> <!-- Finalizers are deprecated for removal -->
+		<Bug code="CT"/> <!-- Obsolete: Finalizers are deprecated for removal -->
 	</Match>
 	<Match>
-		<Bug code="PI"/> <!-- Some of our type names match those of the Java Standard Library -->
-	</Match>
-	<Match>
+		<!-- I don't understand the objection here. We're returning a singleton. -->
 		<Class name="works.bosk.Path"/>
 		<Method name="empty"/>
 		<Bug code="MS"/>
-	</Match>
-	<Match>
-		<Class name="works.bosk.Bosk$DefiniteReference"/>
-		<Method name="dereferencer"/>
-		<Bug code="JLM"/>
 	</Match>
 	<Match>
 		<Class name="works.bosk.SideTable$1Accumulator"/>

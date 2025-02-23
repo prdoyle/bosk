@@ -110,9 +110,9 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	@SuppressWarnings("this-escape")
 	public Bosk(String name, Type rootType, DefaultRootFunction<R> defaultRootFunction, DriverFactory<R> driverFactory) {
 		this.name = name;
+		this.pathCompiler = PathCompiler.withSourceType(rootType); // Required before rootRef
 		this.localDriver = new LocalDriver(defaultRootFunction);
 		this.rootRef = new RootRef(rootType);
-		this.pathCompiler = PathCompiler.withSourceType(rootType);
 		try {
 			validateType(rootType);
 		} catch (InvalidTypeException e) {
@@ -983,6 +983,11 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 		}
 
 		@Override
+		public <TT extends VariantCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> variantCaseClass, Path path) throws InvalidTypeException {
+			return this.then(Classes.taggedUnion(variantCaseClass), path);
+		}
+
+		@Override
 		public BoskDiagnosticContext diagnosticContext() {
 			return diagnosticContext;
 		}
@@ -1038,6 +1043,11 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 		@Override
 		public final <TT> Reference<Reference<TT>> thenReference(Class<TT> targetClass, String... segments) throws InvalidTypeException {
 			return rootReference().thenReference(targetClass, path.then(segments));
+		}
+
+		@Override
+		public <TT extends VariantCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> variantCaseClass, String... segments) throws InvalidTypeException {
+			return rootReference().thenTaggedUnion(variantCaseClass, path.then(segments));
 		}
 
 		@SuppressWarnings("unchecked")
@@ -1108,7 +1118,7 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 	 * A {@link Reference} with no unbound parameters.
 	 */
 	private sealed class DefiniteReference<T> extends ReferenceImpl<T> {
-		@Getter(lazy = true) private final Dereferencer dereferencer = compileVettedPath(path);
+		private final Dereferencer dereferencer = compileVettedPath(path);
 
 		public DefiniteReference(Path path, Type targetType) {
 			super(path, targetType);
@@ -1135,6 +1145,10 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 			if (value != null) {
 				action.accept(value, existingEnvironment);
 			}
+		}
+
+		public Dereferencer dereferencer() {
+			return this.dereferencer;
 		}
 	}
 

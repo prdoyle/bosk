@@ -12,13 +12,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static works.bosk.BoskTestUtils.boskName;
 
-class VariantTest extends AbstractBoskTest {
+class TaggedUnionTest extends AbstractBoskTest {
 
 	public record BoskState(
-		TestVariant v
+		TaggedUnion<TestVariant> v
 	) implements StateTreeNode { }
 
-	public interface TestVariant extends VariantNode {
+	public interface TestVariant extends VariantCase {
 		default String tag() {
 			if (this instanceof StringCase) {
 				return "string";
@@ -38,32 +38,48 @@ class VariantTest extends AbstractBoskTest {
 	public record IDCase(Identifier value) implements TestVariant {}
 
 	public interface Refs {
-		@ReferencePath("/v") Reference<TestVariant> v();
+		@ReferencePath("/v") Reference<TaggedUnion<TestVariant>> v();
 		@ReferencePath("/v/id") Reference<IDCase> idCase();
 		@ReferencePath("/v/id/value") Reference<Identifier> idValue();
+		@ReferencePath("/v/string") Reference<StringCase> stringCase();
 		@ReferencePath("/v/string/value") Reference<String> stringValue();
 	}
 
 	@Test
 	void test() throws InvalidTypeException, IOException, InterruptedException {
 		String stringValue = "test";
-		var bosk = new Bosk<>(boskName(), BoskState.class, _ -> new BoskState(new StringCase(stringValue)), Bosk.simpleDriver());
+		Identifier idValue = Identifier.from("test2");
+		StringCase stringCase = new StringCase(stringValue);
+		IDCase idCase = new IDCase(idValue);
+		var bosk = new Bosk<>(boskName(), BoskState.class, _ -> new BoskState(TaggedUnion.of(stringCase)), Bosk.simpleDriver());
 		var refs = bosk.rootReference().buildReferences(Refs.class);
+
+		// Initial state
 		try (var _ = bosk.readContext()) {
+			assertEquals(TaggedUnion.of(stringCase), refs.v().value());
+			assertEquals(stringCase, refs.stringCase().value());
 			assertEquals(stringValue, refs.stringValue().value());
+			assertNull(refs.idCase().valueIfExists());
+			assertNull(refs.idValue().valueIfExists());
 		}
-		IDCase idCase = new IDCase(Identifier.from("test2"));
-		bosk.driver().submitReplacement(refs.idCase(), idCase);
+
+		bosk.driver().submitReplacement(refs.v(), TaggedUnion.of(idCase));
 		bosk.driver().flush();
+
 		try (var _ = bosk.readContext()) {
-			assertEquals(idCase, refs.v().value());
-			assertEquals(idCase, refs.idCase().value());
-			assertEquals(idCase.value(), refs.idValue().value());
+			assertEquals(TaggedUnion.of(idCase), refs.v().value());
+			assertEquals(idCase, refs.idCase().valueIfExists());
+			assertEquals(idValue, refs.idValue().valueIfExists());
+			assertNull(refs.stringCase().valueIfExists());
 			assertNull(refs.stringValue().valueIfExists());
 		}
+
+		// Can't update the cases inside the TaggedUnion
+		assertThrows(IllegalArgumentException.class, ()->bosk.driver().submitReplacement(refs.stringCase(), stringCase));
+		assertThrows(IllegalArgumentException.class, ()->bosk.driver().submitReplacement(refs.idCase(), idCase));
 	}
 
-	public interface WrongTagVariant extends VariantNode {
+	public interface WrongTagVariant extends VariantCase {
 		@VariantCaseMap
 		MapValue<Class<? extends WrongTagVariant>> CASE_MAP = MapValue.copyOf(Map.of(
 			"expectedTag", NonexistentTagCase.class

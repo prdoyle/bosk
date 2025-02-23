@@ -166,7 +166,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 						if (!StateTreeNode.class.isAssignableFrom(nodeClass)) {
 							return;
 						}
-						if (VariantNode.class.isAssignableFrom(nodeClass)) {
+						if (TaggedUnion.class.isAssignableFrom(nodeClass)) {
 							return;
 						}
 						Map<String, RecordComponent> componentsByName = new LinkedHashMap<>();

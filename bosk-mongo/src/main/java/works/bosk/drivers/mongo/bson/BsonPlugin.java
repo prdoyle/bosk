@@ -46,7 +46,8 @@ import works.bosk.ReferenceUtils;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
-import works.bosk.VariantNode;
+import works.bosk.TaggedUnion;
+import works.bosk.VariantCase;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.UnexpectedPathException;
 
@@ -157,8 +158,8 @@ public final class BsonPlugin extends SerializationPlugin {
 			return enumCodec(targetClass);
 		} else if (Listing.class.isAssignableFrom(targetClass)) {
 			return listingCodec(targetClass, registry);
-		} else if (VariantNode.class.isAssignableFrom(targetClass)) {
-			return variantNodeCodec(targetClass, registry, boskInfo);
+		} else if (TaggedUnion.class.isAssignableFrom(targetClass)) {
+			return taggedUnionCodec(targetType, targetClass, registry, boskInfo);
 		} else if (StateTreeNode.class.isAssignableFrom(targetClass)) {
 			// TODO: What about generic node classes?
 			return stateTreeNodeCodec(targetClass, registry, boskInfo);
@@ -445,10 +446,12 @@ public final class BsonPlugin extends SerializationPlugin {
 		};
 	}
 
-	private <T extends VariantNode, R extends StateTreeNode> Codec<T> variantNodeCodec(Class<T> nodeClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
+	private <V extends VariantCase, R extends StateTreeNode> Codec<TaggedUnion<V>> taggedUnionCodec(Type taggedUnionType, Class<TaggedUnion<V>> taggedUnionClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
+		Type caseStaticType = parameterType(taggedUnionType, TaggedUnion.class, 0);
+		Class<V> caseStaticClass = (Class<V>)rawClass(caseStaticType);
 		MapValue<Type> variantCaseMap;
 		try {
-			variantCaseMap = SerializationPlugin.getVariantCaseMap(nodeClass);
+			variantCaseMap = SerializationPlugin.getVariantCaseMap(caseStaticClass);
 		} catch (InvalidTypeException e) {
 			throw new IllegalArgumentException(e);
 		}
@@ -457,46 +460,52 @@ public final class BsonPlugin extends SerializationPlugin {
 			Class<? extends StateTreeNode> caseClass = (Class<? extends StateTreeNode>) rawClass(e.getValue());
 			return stateTreeNodeCodec(caseClass, registry, boskInfo);
 		}));
-		return new Codec<>() {
+		return new Codec<TaggedUnion<V>>() {
 			@Override
-			public void encode(BsonWriter writer, T value, EncoderContext encoderContext) {
-				String tag = value.tag();
+			public void encode(BsonWriter writer, TaggedUnion<V> taggedUnion, EncoderContext encoderContext) {
+				V variant = taggedUnion.variant();
+				String tag = variant.tag();
 				@SuppressWarnings("unchecked")
-				Codec<T> caseCodec = (Codec<T>) codecs.get(tag);
+				Codec caseCodec = (Codec) codecs.get(tag);
 				if (caseCodec == null) {
-					throw new IllegalStateException(value.getClass().getSimpleName() + " has unexpected variant tag field \"" + tag
-						+ "\" for " + nodeClass.getSimpleName()
+					throw new IllegalStateException("TaggedUnion<" + caseStaticClass.getSimpleName() + "> has unexpected variant tag field \"" + tag
 						+ "; expected one of " + variantCaseMap.keySet());
 				}
+				Type caseDynamicType = variantCaseMap.get(tag);
+				Class<? extends V> caseDynamicClass = (Class<? extends V>)rawClass(caseDynamicType);
 				writer.writeStartDocument();
 				try {
 					writer.writeName(tag);
-					caseCodec.encode(writer, value, encoderContext);
+					caseCodec.encode(writer, caseDynamicClass.cast(variant), encoderContext);
 				} catch (Throwable e) {
-					throw new IllegalStateException("Error encoding " + nodeClass + ": " + e.getMessage(), e);
+					throw new IllegalStateException("Error encoding " + caseStaticClass.getSimpleName() + ": " + e.getMessage(), e);
 				}
 				writer.writeEndDocument();
 			}
 
 			@Override
-			public T decode(BsonReader reader, DecoderContext decoderContext) {
+			public TaggedUnion<V> decode(BsonReader reader, DecoderContext decoderContext) {
 				reader.readStartDocument();
 				String tag = reader.readName();
 				@SuppressWarnings("unchecked")
-				Codec<T> caseCodec = (Codec<T>) codecs.get(tag);
+				Codec<V> caseCodec = (Codec<V>) codecs.get(tag);
 				if (caseCodec == null) {
 					throw new IllegalStateException("Input has unexpected variant tag field \"" + tag
-						+ "\" for " + nodeClass.getSimpleName()
-						+ "; expected one of " + variantCaseMap.keySet());
+						+ "\" for TaggedUnion<" + caseStaticClass.getSimpleName()
+						+ ">; expected one of " + variantCaseMap.keySet());
 				}
-				T result = caseCodec.decode(reader, decoderContext);
+				Class<? extends V> caseDynamicClass = (Class<? extends V>) rawClass(variantCaseMap.get(tag));
+				TaggedUnion<V> result = TaggedUnion.of(caseDynamicClass.cast(caseCodec.decode(reader, decoderContext)));
+				if (reader.readBsonType() != BsonType.END_OF_DOCUMENT) {
+					throw new IllegalStateException("Input has two tags for the same TaggedUnion: \"" + tag + "\" and \"" + reader.readName() + "\"");
+				}
 				reader.readEndDocument();
 				return result;
 			}
 
 			@Override
-			public Class<T> getEncoderClass() {
-				return nodeClass;
+			public Class<TaggedUnion<V>> getEncoderClass() {
+				return taggedUnionClass;
 			}
 		};
 	}

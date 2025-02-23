@@ -512,7 +512,6 @@ public abstract class Path implements Iterable<String> {
 	 * Implementing this as its own subclass prevents lots of
 	 * corner-case <code>if</code> statements elsewhere.
 	 */
-	@RequiredArgsConstructor
 	private static final class RootPath extends Path {
 		@Override public int length() { return 0; }
 
@@ -550,7 +549,6 @@ public abstract class Path implements Iterable<String> {
 			assert other.isEmpty(): "Should never be called with a path of a different length";
 			return true;
 		}
-
 	}
 
 	private static final Path ROOT_PATH = new RootPath();

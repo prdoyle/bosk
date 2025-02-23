@@ -25,9 +25,10 @@ import works.bosk.ListingEntry;
 import works.bosk.ListingReference;
 import works.bosk.Reference;
 import works.bosk.SideTable;
+import works.bosk.TaggedUnion;
 import works.bosk.annotations.ReferencePath;
-import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.mongo.MongoDriverSettings.MongoDriverSettingsBuilder;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;
 import works.bosk.exceptions.InvalidTypeException;
@@ -122,7 +123,7 @@ abstract class AbstractMongoDriverTest {
 			Catalog.empty(),
 			Listing.of(refs.catalog(), entity123),
 			SideTable.empty(refs.catalog()),
-			new TestEntity.StringCase(rootID.toString()),
+			TaggedUnion.of(new TestEntity.StringCase(rootID.toString())),
 			Optional.empty()
 		);
 	}

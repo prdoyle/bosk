@@ -53,7 +53,8 @@ import works.bosk.ReflectiveEntity;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
-import works.bosk.VariantNode;
+import works.bosk.TaggedUnion;
+import works.bosk.VariantCase;
 import works.bosk.annotations.DerivedRecord;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.TunneledCheckedException;
@@ -126,8 +127,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return listingEntrySerializer(config, beanDesc);
 			} else if (SideTable.class.isAssignableFrom(theClass)) {
 				return sideTableSerializer(config, beanDesc);
-			} else if (VariantNode.class.isAssignableFrom(theClass)) {
-				return variantNodeSerializer(config, type, beanDesc);
+			} else if (TaggedUnion.class.isAssignableFrom(theClass)) {
+				return taggedUnionSerializer(config, type, beanDesc);
 			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
 				return stateTreeNodeSerializer(config, type, beanDesc);
 			} else if (Optional.class.isAssignableFrom(theClass)) {
@@ -246,33 +247,21 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		@SuppressWarnings("unchecked")
-		private <T> JsonSerializer<VariantNode> variantNodeSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
-			Class<?> nodeClass = type.getRawClass();
-			MapValue<Type> variantCaseMap;
-			try {
-				variantCaseMap = SerializationPlugin.getVariantCaseMap(nodeClass);
-			} catch (InvalidTypeException e) {
-				throw new IllegalArgumentException(e);
-			}
-			Map<String, JsonSerializer<?>> caseSerializers = variantCaseMap.entrySet().stream().collect(toMap(Entry::getKey, e ->
-				stateTreeNodeSerializer(config, TypeFactory.defaultInstance().constructType(e.getValue()), beanDesc)));
+		private <T extends VariantCase> JsonSerializer<TaggedUnion> taggedUnionSerializer(SerializationConfig config, JavaType taggedUnionType, BeanDescription beanDesc) {
 			return new JsonSerializer<>() {
+				/**
+				 * A {@link TaggedUnion} has a single field called {@code value},
+				 * but we serialize it as though it had a single field whose name equals {@code node.value().tag()} and whose value is {@code node.value()}.
+				 */
 				@Override
-				public void serialize(VariantNode value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+				public void serialize(TaggedUnion union, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+					// We assume the TaggedUnion object is correct by construction and don't bother checking the variant case map here
+					T variant = (T)union.variant();
+					JsonSerializer<Object> valueSerializer = serializers.findValueSerializer(variant.getClass());
+					String tag = requireNonNull(variant.tag());
 					gen.writeStartObject();
-					String tag = requireNonNull(value.tag());
 					gen.writeFieldName(tag);
-					JsonSerializer<T> caseSerializer = (JsonSerializer<T>) caseSerializers.get(tag);
-					if (caseSerializer == null) {
-						throw new IllegalStateException(value.getClass().getSimpleName() + " has unexpected variant tag field \"" + tag
-							+ "\" for " + nodeClass.getSimpleName()
-							+ "; expected one of " + variantCaseMap.keySet());
-					}
-					try {
-						caseSerializer.serialize((T) rawClass(variantCaseMap.get(tag)).cast(value), gen, serializers);
-					} catch (ClassCastException e) {
-						throw new IllegalStateException(value.getClass().getSimpleName() + " has tag field \"" + tag + "\" corresponding to incompatible type: " + variantCaseMap.get(tag));
-					}
+					valueSerializer.serialize(variant, gen, serializers);
 					gen.writeEndObject();
 				}
 			};
@@ -342,8 +331,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 				return listingEntryDeserializer(type, config, beanDesc);
 			} else if (SideTable.class.isAssignableFrom(theClass)) {
 				return sideTableDeserializer(type, config, beanDesc);
-			} else if (VariantNode.class.isAssignableFrom(theClass)) {
-				return variantNodeDeserializer(type, config, beanDesc);
+			} else if (TaggedUnion.class.isAssignableFrom(theClass)) {
+				return taggedUnionDeserializer(type, config, beanDesc);
 			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
 				return stateTreeNodeDeserializer(type, config, beanDesc);
 			} else if (Optional.class.isAssignableFrom(theClass)) {
@@ -513,10 +502,12 @@ public final class JacksonPlugin extends SerializationPlugin {
 			return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).deserializer(config);
 		}
 
-		private JsonDeserializer<VariantNode> variantNodeDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+		private <V extends VariantCase, D extends V> JsonDeserializer<TaggedUnion<V>> taggedUnionDeserializer(JavaType taggedUnionType, DeserializationConfig config, BeanDescription beanDesc) {
+			JavaType caseStaticType = taggedUnionType.findTypeParameters(TaggedUnion.class)[0];
+			Class<?> caseStaticClass = caseStaticType.getRawClass();
 			MapValue<Type> variantCaseMap;
 			try {
-				variantCaseMap = SerializationPlugin.getVariantCaseMap(type.getRawClass());
+				variantCaseMap = SerializationPlugin.getVariantCaseMap(caseStaticClass);
 			} catch (InvalidTypeException e) {
 				throw new IllegalArgumentException(e);
 			}
@@ -524,7 +515,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				stateTreeNodeDeserializer(TypeFactory.defaultInstance().constructType(e.getValue()), config, beanDesc)));
 			return new JsonDeserializer<>() {
 				@Override
-				public VariantNode deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+				public TaggedUnion<V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 					expect(START_OBJECT, p);
 					if (p.nextToken() == END_OBJECT) {
 						throw new JsonParseException(p, "Input is missing variant tag field; expected one of " + variantCaseMap.keySet());
@@ -534,13 +525,20 @@ public final class JacksonPlugin extends SerializationPlugin {
 					String tag = p.currentName();
 					JsonDeserializer<?> deserializer = deserializers.get(tag);
 					if (deserializer == null) {
-						throw new JsonParseException(p, "Input has unexpected variant tag field \"" + tag + "\"; expected one of " + variantCaseMap.keySet());
+						throw new JsonParseException(p, "TaggedUnion<" + caseStaticClass.getSimpleName() + "> has unexpected variant tag field \"" + tag + "\"; expected one of " + variantCaseMap.keySet());
 					}
-					VariantNode result = (VariantNode) deserializer.deserialize(p, ctxt);
+					Object deserialized = deserializer.deserialize(p, ctxt);
+					Class<D> caseDynamicClass = (Class<D>) rawClass(variantCaseMap.get(tag));
+					D value;
+					try {
+						value = caseDynamicClass.cast(deserialized);
+					} catch (ClassCastException e) {
+						throw new JsonParseException(p, "Deserialized " + deserialized.getClass().getSimpleName() + " has incorrect tag \"" + tag + "\" corresponding to incompatible type " + caseDynamicClass.getSimpleName());
+					}
 
 					p.nextToken();
 					expect(END_OBJECT, p);
-					return result;
+					return TaggedUnion.of(value);
 				}
 			};
 		}

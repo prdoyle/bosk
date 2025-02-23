@@ -1,7 +1,6 @@
 package works.bosk.drivers.state;
 
 import java.time.temporal.ChronoUnit;
-import lombok.Value;
 import lombok.With;
 import lombok.experimental.FieldNameConstants;
 import works.bosk.ListValue;

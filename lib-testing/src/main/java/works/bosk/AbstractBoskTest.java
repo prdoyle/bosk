@@ -2,8 +2,6 @@ package works.bosk;
 
 import java.lang.reflect.Type;
 import java.util.Optional;
-import lombok.EqualsAndHashCode;
-import lombok.Value;
 import lombok.With;
 import lombok.experimental.FieldNameConstants;
 import works.bosk.annotations.Enclosing;
@@ -42,7 +40,7 @@ public abstract class AbstractBoskTest {
 		Phantoms phantoms,
 		Optionals optionals,
 		ImplicitRefs implicitRefs,
-		Variant variant
+		TaggedUnion<Variant> variant
 	) implements Entity {
 		public TestEntity withChild(TestChild child) {
 			return this.withChildren(children.with(child));
@@ -127,7 +125,7 @@ public abstract class AbstractBoskTest {
 		}
 	}
 
-	public interface Variant extends VariantNode {
+	public interface Variant extends VariantCase {
 		@Override default String tag() {
 			return "variant1";
 		}
@@ -174,7 +172,7 @@ public abstract class AbstractBoskTest {
 			new ImplicitRefs(Identifier.from("parent_implicitRefs"),
 				teb.implicitRefsRef(parentID), parentRef,
 				teb.implicitRefsRef(parentID), parentRef),
-			new VariantCase1("variantCase1String"));
+			TaggedUnion.of(new VariantCase1("variantCase1String")));
 		return new TestRoot(
 			Identifier.from("root"),
 			Catalog.of(entity),

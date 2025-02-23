@@ -1,8 +1,6 @@
 package works.bosk;
 
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.experimental.FieldNameConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

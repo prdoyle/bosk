@@ -29,9 +29,10 @@ import works.bosk.ListingEntry;
 import works.bosk.ListingReference;
 import works.bosk.Reference;
 import works.bosk.SideTable;
+import works.bosk.TaggedUnion;
 import works.bosk.annotations.Polyfill;
-import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.BufferingDriver;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;
 import works.bosk.exceptions.FlushFailureException;
@@ -728,7 +729,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		Catalog<TestEntity> catalog,
 		Listing<TestEntity> listing,
 		SideTable<TestEntity, TestEntity> sideTable,
-		TestEntity.Variant variant,
+		TaggedUnion<TestEntity.Variant> variant,
 		TestValues values
 	) implements Entity {
 		@Polyfill("values")
@@ -746,7 +747,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		Optional<Catalog<TestEntity>> catalog,
 		Optional<Listing<TestEntity>> listing,
 		Optional<SideTable<TestEntity, TestEntity>> sideTable,
-		TestEntity.Variant variant,
+		TaggedUnion<TestEntity.Variant> variant,
 		Optional<TestValues> values
 	) implements Entity {
 		static OptionalEntity withString(Optional<String> string, Bosk<OptionalEntity> bosk) throws InvalidTypeException {
@@ -757,7 +758,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 				Optional.of(Catalog.empty()),
 				Optional.of(Listing.empty(domain)),
 				Optional.of(SideTable.empty(domain)),
-				new TestEntity.StringCase("stringCase"),
+				TaggedUnion.of(new TestEntity.StringCase("stringCase")),
 				java.util.Optional.empty());
 		}
 	}

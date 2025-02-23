@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import works.bosk.Bosk;
@@ -15,11 +16,15 @@ import works.bosk.Identifier;
 import works.bosk.Listing;
 import works.bosk.ListingEntry;
 import works.bosk.ListingReference;
+import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.SideTable;
 import works.bosk.SideTableReference;
 import works.bosk.StateTreeNode;
+import works.bosk.TaggedUnion;
+import works.bosk.VariantCase;
 import works.bosk.annotations.ReferencePath;
+import works.bosk.annotations.VariantCaseMap;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.ArrayElement;
@@ -28,7 +33,6 @@ import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.ObjectMember;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static works.bosk.BoskTestUtils.boskName;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.ARRAY;
@@ -60,7 +64,8 @@ public class JsonNodeSurgeonTest {
 		String string,
 		Catalog<JsonEntity> catalog,
 		Listing<JsonEntity> listing,
-		SideTable<JsonEntity, JsonEntity> sideTable
+		SideTable<JsonEntity, JsonEntity> sideTable,
+		TaggedUnion<JsonVariant> variant
 	) implements StateTreeNode {
 		public static final JsonRoot empty(Refs refs) {
 			return new JsonRoot(
@@ -68,13 +73,28 @@ public class JsonNodeSurgeonTest {
 				"testString",
 				Catalog.empty(),
 				Listing.empty(refs.catalog()),
-				SideTable.empty(refs.catalog()));
+				SideTable.empty(refs.catalog()),
+				TaggedUnion.of(new JsonVariant.JsonVariant1()));
 		}
 	}
 
 	public record JsonEntity(
 		Identifier id
 	) implements Entity {}
+
+	public sealed interface JsonVariant extends VariantCase {
+		@VariantCaseMap
+		static final MapValue<Class<?>> variants = MapValue.copyOf(Map.of(
+			"variant1", JsonVariant1.class,
+			"variant2", JsonVariant2.class
+		));
+		public record JsonVariant1() implements JsonVariant {
+			@Override public String tag() { return "variant1"; }
+		}
+		public record JsonVariant2() implements JsonVariant {
+			@Override public String tag() { return "variant2"; }
+		}
+	}
 
 	public interface Refs {
 		@ReferencePath("/id") Reference<Identifier> id();
@@ -87,6 +107,9 @@ public class JsonNodeSurgeonTest {
 		@ReferencePath("/sideTable") SideTableReference<JsonEntity, JsonEntity> sideTable();
 		@ReferencePath("/sideTable/-jsonEntity-") Reference<JsonEntity> sideTableEntry(Identifier jsonEntity);
 		@ReferencePath("/sideTable/-jsonEntity-/id") Reference<Identifier> sideTableEntryID(Identifier jsonEntity);
+		@ReferencePath("/variant") Reference<TaggedUnion<JsonVariant>> variant();
+		@ReferencePath("/variant/variant1") Reference<JsonVariant.JsonVariant1> variant1();
+		@ReferencePath("/variant/variant2") Reference<JsonVariant.JsonVariant2> variant2();
 	}
 
 	@Test
@@ -206,6 +229,27 @@ public class JsonNodeSurgeonTest {
 		{
 			NodeInfo expected = NodeInfo.plain(new NonexistentParent());
 			NodeInfo actual = surgeon.nodeInfo(doc, refs.sideTableEntryID(Identifier.from("NONEXISTENT")));
+			assertEquals(expected, actual);
+		}
+	}
+
+	@Test
+	void variant() throws IOException, InterruptedException {
+		bosk.driver().submitReplacement(refs.variant(), TaggedUnion.of(new JsonVariant.JsonVariant1()));
+		JsonNode doc = boskContents();
+		{
+			NodeInfo expected = NodeInfo.plain(new ObjectMember((ObjectNode) doc, "variant"));
+			NodeInfo actual = surgeon.nodeInfo(doc, refs.variant());
+			assertEquals(expected, actual);
+		}
+		{
+			NodeInfo expected = NodeInfo.plain(new ObjectMember((ObjectNode) doc.get("variant"), "variant1"));
+			NodeInfo actual = surgeon.nodeInfo(doc, refs.variant1());
+			assertEquals(expected, actual);
+		}
+		{
+			NodeInfo expected = NodeInfo.plain(new ObjectMember((ObjectNode) doc.get("variant"), "variant2"));
+			NodeInfo actual = surgeon.nodeInfo(doc, refs.variant2());
 			assertEquals(expected, actual);
 		}
 	}

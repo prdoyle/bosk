@@ -26,8 +26,8 @@ import works.bosk.BoskInfo;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.SerializationPlugin;
-import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.mongo.bson.BsonFormatter;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
