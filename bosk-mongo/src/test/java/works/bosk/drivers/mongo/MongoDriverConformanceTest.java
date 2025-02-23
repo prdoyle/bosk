@@ -8,7 +8,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import works.bosk.DriverFactory;
 import works.bosk.StateTreeNode;
-import works.bosk.drivers.DriverConformanceTest;
+import works.bosk.drivers.SharedDriverConformanceTest;
 import works.bosk.drivers.mongo.TestParameters.EventTiming;
 import works.bosk.drivers.mongo.TestParameters.ParameterSet;
 import works.bosk.drivers.mongo.bson.BsonPlugin;
@@ -19,7 +19,7 @@ import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOI
 
 @UsesMongoService
 @Slow
-class MongoDriverConformanceTest extends DriverConformanceTest {
+class MongoDriverConformanceTest extends SharedDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
 	private static MongoService mongoService;
 	private final MongoDriverSettings driverSettings;
@@ -56,6 +56,10 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 	@AfterEach
 	void runTearDown() {
 		tearDownActions.forEach(Runnable::run);
+		mongoService.client()
+			.getDatabase(driverSettings.database())
+			.getCollection(MainDriver.COLLECTION_NAME)
+			.drop();
 	}
 
 	private <R extends StateTreeNode> DriverFactory<R> createDriverFactory() {
@@ -63,13 +67,7 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 			MongoDriver driver = MongoDriver.<R>factory(
 				mongoService.clientSettings(), driverSettings, new BsonPlugin()
 			).build(boskInfo, downstream);
-			tearDownActions.addFirst(()->{
-				driver.close();
-				mongoService.client()
-					.getDatabase(driverSettings.database())
-					.getCollection(MainDriver.COLLECTION_NAME)
-					.drop();
-			});
+			tearDownActions.addFirst(driver::close);
 			return driver;
 		};
 	}
