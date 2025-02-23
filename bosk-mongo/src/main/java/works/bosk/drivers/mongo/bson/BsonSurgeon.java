@@ -199,6 +199,13 @@ public class BsonSurgeon {
 	 * and a {@link DocumentFields#state state} field with the contents of the part.
 	 *
 	 * <p>
+	 * Each part has a parent part into which is will be grafted.
+	 * The parent should have a placeholder value at the graft location;
+	 * if it does not, that part is a "dangling part" and is ignored.
+	 * This permits systems to delete a part by deleting only the placeholder,
+	 * which may reduce complexity and corner cases.
+	 *
+	 * <p>
 	 * By design, this method is supposed to be simple and general;
 	 * any sophistication should be in {@link #scatter}.
 	 * This way, {@link #scatter} can evolve without breaking backward compatibility
@@ -233,10 +240,12 @@ public class BsonSurgeon {
 			String key = bsonSegments.get(bsonSegments.size()-1);
 			BsonValue value = requireNonNull(entry.get(STATE_FIELD));
 
-			// The container should already have an entry. We'll be replacing it,
-			// and this does not affect the order of the entries.
 			BsonDocument container = lookup(whole, bsonSegments.subList(prefix.size(), bsonSegments.size() - 1));
-			container.put(key, value);
+
+			// If the container already has a placeholder entry for `key`, replace it
+			// (which, incidentally, maintains the key order).
+			// Otherwise, this is a dangling part, and we must ignore it.
+			container.computeIfPresent(key, (k,old) ->value);
 		}
 
 		return whole;

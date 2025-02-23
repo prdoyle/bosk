@@ -21,6 +21,7 @@ import works.bosk.Reference;
 import works.bosk.SideTableReference;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.AbstractDriverTest;
+import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.exceptions.InvalidTypeException;
 
@@ -185,6 +186,30 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 					))
 			);
 		});
+	}
+
+	/**
+	 * This behaviour supports {@link MongoDriverSettings.OrphanDocumentMode#HASTY} mode.
+	 * In isolation, this seems surprising for {@link BsonSurgeon};
+	 * I'm not sure it's desirable. TODO: Reconsider this.
+	 */
+	@Test
+	void danglingPart_ignored() {
+		BsonDocument actual = surgeon.gather(asList(
+			new BsonDocument()
+				.append("_id", new BsonString("|catalog|dangling"))
+				.append("state", new BsonDocument()),
+			new BsonDocument()
+				.append("_id", new BsonString("|"))
+				.append("state", new BsonDocument()
+					.append("_id", new BsonString("rootID"))
+					.append("catalog", new BsonDocument(/* empty */))
+				))
+		);
+		BsonDocument expected = new BsonDocument()
+			.append("_id", new BsonString("rootID"))
+			.append("catalog", new BsonDocument(/* empty */));
+		assertEquals(expected, actual);
 	}
 
 	private void assertRoundTripWorks(Reference<?> mainRef) {
