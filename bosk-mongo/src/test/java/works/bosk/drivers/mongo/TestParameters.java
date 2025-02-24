@@ -22,7 +22,7 @@ public class TestParameters {
 				+ "_" + format.getClass().getSimpleName()
 				+ timing.suffix;
 			return new ParameterSet(
-				dbName,
+				timing + "," + format,
 				MongoDriverSettings.builder()
 					.preferredDatabaseFormat(format)
 					.recoveryPollingMS(3000) // Note that some tests can take as long as 10x this
