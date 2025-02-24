@@ -1,10 +1,7 @@
 package works.bosk.drivers;
 
-import java.io.IOException;
-import org.junit.jupiter.api.AfterEach;
 import works.bosk.Bosk;
 import works.bosk.BoskTestUtils;
-import works.bosk.DriverFactory;
 import works.bosk.drivers.state.TestEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

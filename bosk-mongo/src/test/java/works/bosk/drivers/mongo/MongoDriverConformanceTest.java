@@ -6,6 +6,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 import works.bosk.DriverFactory;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.SharedDriverConformanceTest;
@@ -17,7 +18,6 @@ import works.bosk.junit.Slow;
 
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 
-@UsesMongoService
 @Slow
 class MongoDriverConformanceTest extends SharedDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
@@ -49,8 +49,8 @@ class MongoDriverConformanceTest extends SharedDriverConformanceTest {
 	}
 
 	@BeforeEach
-	void setupDriverFactory() {
-		driverFactory = createDriverFactory();
+	void setupDriverFactory(TestInfo testInfo) {
+		driverFactory = createDriverFactory(testInfo);
 	}
 
 	@AfterEach
@@ -62,10 +62,10 @@ class MongoDriverConformanceTest extends SharedDriverConformanceTest {
 			.drop();
 	}
 
-	private <R extends StateTreeNode> DriverFactory<R> createDriverFactory() {
+	private <R extends StateTreeNode> DriverFactory<R> createDriverFactory(TestInfo testInfo) {
 		return (boskInfo, downstream) -> {
 			MongoDriver driver = MongoDriver.<R>factory(
-				mongoService.clientSettings(), driverSettings, new BsonPlugin()
+				mongoService.clientSettings(testInfo), driverSettings, new BsonPlugin()
 			).build(boskInfo, downstream);
 			tearDownActions.addFirst(driver::close);
 			return driver;

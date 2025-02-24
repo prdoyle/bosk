@@ -59,9 +59,9 @@ abstract class AbstractMongoDriverTest {
 	}
 
 	@BeforeEach
-	void setupDriverFactory() {
+	void setupDriverFactory(TestInfo testInfo) {
 		logController = new BoskLogFilter.LogController();
-		driverFactory = createDriverFactory(logController);
+		driverFactory = createDriverFactory(logController, testInfo);
 
 		// Start with a clean slate
 		mongoService.client()
@@ -128,10 +128,10 @@ abstract class AbstractMongoDriverTest {
 		);
 	}
 
-	protected <E extends Entity> DriverFactory<E> createDriverFactory(BoskLogFilter.LogController logController) {
+	protected <E extends Entity> DriverFactory<E> createDriverFactory(BoskLogFilter.LogController logController, TestInfo testInfo) {
 		DriverFactory<E> mongoDriverFactory = (boskInfo, downstream) -> {
 			MongoDriver driver = MongoDriver.<E>factory(
-				MongoClientSettings.builder(mongoService.clientSettings())
+				MongoClientSettings.builder(mongoService.clientSettings(testInfo))
 					.applyToClusterSettings(builder -> {
 						builder.serverSelectionTimeout(5, SECONDS);
 					})

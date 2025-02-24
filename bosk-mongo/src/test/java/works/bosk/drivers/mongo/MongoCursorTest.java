@@ -24,7 +24,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@UsesMongoService
 @Disabled("Used to explore basic MongoDB functionality; not an actual bosk unit test")
 public class MongoCursorTest {
 	final MongoService mongoService = new MongoService();

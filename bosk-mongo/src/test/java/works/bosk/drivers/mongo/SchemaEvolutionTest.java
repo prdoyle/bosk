@@ -19,7 +19,6 @@ import works.bosk.junit.ParametersByName;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.BoskTestUtils.boskName;
 
-@UsesMongoService
 public class SchemaEvolutionTest {
 
 	private final Helper fromHelper;
@@ -39,8 +38,8 @@ public class SchemaEvolutionTest {
 
 	@BeforeEach
 	void beforeEach(TestInfo testInfo) {
-		fromHelper.setupDriverFactory();
-		toHelper  .setupDriverFactory();
+		fromHelper.setupDriverFactory(testInfo);
+		toHelper  .setupDriverFactory(testInfo);
 
 		// Changing formats often causes events that are not understood by other FormatDrivers
 		fromHelper.setLogging(Level.ERROR, ChangeReceiver.class);
