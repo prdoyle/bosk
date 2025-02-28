@@ -446,6 +446,7 @@ public final class BsonPlugin extends SerializationPlugin {
 		};
 	}
 
+	@SuppressWarnings("unchecked")
 	private <V extends VariantCase, R extends StateTreeNode> Codec<TaggedUnion<V>> taggedUnionCodec(Type taggedUnionType, Class<TaggedUnion<V>> taggedUnionClass, CodecRegistry registry, BoskInfo<R> boskInfo) {
 		Type caseStaticType = parameterType(taggedUnionType, TaggedUnion.class, 0);
 		Class<V> caseStaticClass = (Class<V>)rawClass(caseStaticType);
@@ -460,19 +461,19 @@ public final class BsonPlugin extends SerializationPlugin {
 			Class<? extends StateTreeNode> caseClass = (Class<? extends StateTreeNode>) rawClass(e.getValue());
 			return stateTreeNodeCodec(caseClass, registry, boskInfo);
 		}));
-		return new Codec<TaggedUnion<V>>() {
+		return new Codec<>() {
 			@Override
 			public void encode(BsonWriter writer, TaggedUnion<V> taggedUnion, EncoderContext encoderContext) {
 				V variant = taggedUnion.variant();
 				String tag = variant.tag();
-				@SuppressWarnings("unchecked")
-				Codec caseCodec = (Codec) codecs.get(tag);
+				@SuppressWarnings("rawtypes")
+				Codec caseCodec = codecs.get(tag);
 				if (caseCodec == null) {
 					throw new IllegalStateException("TaggedUnion<" + caseStaticClass.getSimpleName() + "> has unexpected variant tag field \"" + tag
 						+ "; expected one of " + variantCaseMap.keySet());
 				}
 				Type caseDynamicType = variantCaseMap.get(tag);
-				Class<? extends V> caseDynamicClass = (Class<? extends V>)rawClass(caseDynamicType);
+				Class<? extends V> caseDynamicClass = (Class<? extends V>) rawClass(caseDynamicType);
 				writer.writeStartDocument();
 				try {
 					writer.writeName(tag);
@@ -729,7 +730,7 @@ public final class BsonPlugin extends SerializationPlugin {
 		Class<?> targetClass = rawClass(targetType);
 		if (targetClass.getTypeParameters().length >= 1) {
 			if ((targetType instanceof ParameterizedType) || EASYGOING_GENERICS.contains(targetClass)) {
-				// all is well
+				LOGGER.trace("All is well");
 			} else {
 				// Without this, we get some pretty puzzling exception backtraces
 				throw new AssertionError("Class " + targetClass.getSimpleName() + " requires type parameters");

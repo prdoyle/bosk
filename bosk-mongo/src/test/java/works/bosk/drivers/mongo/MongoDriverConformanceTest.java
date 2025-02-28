@@ -2,13 +2,17 @@ package works.bosk.drivers.mongo;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.DriverFactory;
 import works.bosk.StateTreeNode;
-import works.bosk.drivers.DriverConformanceTest;
+import works.bosk.drivers.SharedDriverConformanceTest;
 import works.bosk.drivers.mongo.TestParameters.EventTiming;
 import works.bosk.drivers.mongo.TestParameters.ParameterSet;
 import works.bosk.drivers.mongo.bson.BsonPlugin;
@@ -17,12 +21,12 @@ import works.bosk.junit.Slow;
 
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 
-@UsesMongoService
 @Slow
-class MongoDriverConformanceTest extends DriverConformanceTest {
+class MongoDriverConformanceTest extends SharedDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
 	private static MongoService mongoService;
 	private final MongoDriverSettings driverSettings;
+	private final AtomicInteger numOpenDrivers = new AtomicInteger(0);
 
 	@ParametersByName
 	public MongoDriverConformanceTest(ParameterSet parameters) {
@@ -49,29 +53,32 @@ class MongoDriverConformanceTest extends DriverConformanceTest {
 	}
 
 	@BeforeEach
-	void setupDriverFactory() {
-		driverFactory = createDriverFactory();
+	void setupDriverFactory(TestInfo testInfo) {
+		driverFactory = createDriverFactory(testInfo);
 	}
 
 	@AfterEach
 	void runTearDown() {
 		tearDownActions.forEach(Runnable::run);
+		mongoService.client()
+			.getDatabase(driverSettings.database())
+			.getCollection(MainDriver.COLLECTION_NAME)
+			.drop();
 	}
 
-	private <R extends StateTreeNode> DriverFactory<R> createDriverFactory() {
+	private <R extends StateTreeNode> DriverFactory<R> createDriverFactory(TestInfo testInfo) {
 		return (boskInfo, downstream) -> {
 			MongoDriver driver = MongoDriver.<R>factory(
-				mongoService.clientSettings(), driverSettings, new BsonPlugin()
+				mongoService.clientSettings(testInfo), driverSettings, new BsonPlugin()
 			).build(boskInfo, downstream);
-			tearDownActions.addFirst(()->{
+			LOGGER.debug("Driver created; {} open", numOpenDrivers.incrementAndGet());
+			tearDownActions.addFirst(() -> {
 				driver.close();
-				mongoService.client()
-					.getDatabase(driverSettings.database())
-					.getCollection(MainDriver.COLLECTION_NAME)
-					.drop();
+				LOGGER.debug("Driver closed; {} remaining", numOpenDrivers.decrementAndGet());
 			});
 			return driver;
 		};
 	}
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(MongoDriverConformanceTest.class);
 }

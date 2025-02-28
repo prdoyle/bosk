@@ -16,6 +16,7 @@ import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
@@ -75,7 +76,6 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void warmStart_stateMatches() throws InvalidTypeException, InterruptedException, IOException {
 		Bosk<TestEntity> setupBosk = new Bosk<TestEntity>(boskName("Setup"), TestEntity.class, this::initialRoot, driverFactory);
 		Refs refs = setupBosk.buildReferences(Refs.class);
@@ -97,7 +97,6 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void flush_localStateUpdated() throws InvalidTypeException, InterruptedException, IOException {
 		// Set up MongoDriver writing to a modified BufferingDriver that lets us
 		// have tight control over all the comings and goings from MongoDriver.
@@ -152,7 +151,6 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void listing_stateMatches() throws InvalidTypeException, InterruptedException, IOException {
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName(), TestEntity.class, this::initialRoot, driverFactory);
 		BoskDriver driver = bosk.driver();
@@ -190,7 +188,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@DisruptsMongoService
+	@DisruptsMongoProxy
 	void networkOutage_boskRecovers() throws InvalidTypeException, InterruptedException, IOException {
 		setLogging(ERROR, MainDriver.class, ChangeReceiver.class);
 
@@ -236,7 +234,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@DisruptsMongoService
+	@DisruptsMongoProxy
 	void hookRegisteredDuringNetworkOutage_works() throws InvalidTypeException, InterruptedException, IOException {
 		setLogging(ERROR, MainDriver.class, ChangeReceiver.class);
 
@@ -292,8 +290,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
-	void initialStateHasNonexistentFields_ignored() throws InvalidTypeException {
+	void initialStateHasNonexistentFields_ignored(TestInfo testInfo) throws InvalidTypeException {
 		setLogging(ERROR, BsonPlugin.class);
 
 		// Upon creating bosk, the initial value will be saved to MongoDB
@@ -304,7 +301,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			boskName("Prev"),
 			OldEntity.class,
 			(b) -> { throw new AssertionError("prevBosk should use the state from MongoDB"); },
-			createDriverFactory(logController));
+			createDriverFactory(logController, testInfo));
 
 		OldEntity expected = OldEntity.withString(rootID.toString(), prevBosk);
 
@@ -316,8 +313,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
-	void updateHasNonexistentFields_ignored() throws InvalidTypeException, IOException, InterruptedException {
+	void updateHasNonexistentFields_ignored(TestInfo testInfo) throws InvalidTypeException, IOException, InterruptedException {
 		setLogging(ERROR, BsonPlugin.class);
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName("Newer"), TestEntity.class, this::initialRootWithEmptyCatalog, driverFactory);
@@ -325,7 +321,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			boskName("Prev"),
 			OldEntity.class,
 			(b) -> { throw new AssertionError("prevBosk should use the state from MongoDB"); },
-			createDriverFactory(logController));
+			createDriverFactory(logController, testInfo));
 
 		TestEntity initialRoot = initialRootWithEmptyCatalog(bosk);
 		bosk.driver().submitReplacement(bosk.rootReference(),
@@ -346,8 +342,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
-	void updateNonexistentField_ignored() throws InvalidTypeException, IOException, InterruptedException {
+	void updateNonexistentField_ignored(TestInfo testInfo) throws InvalidTypeException, IOException, InterruptedException {
 		setLogging(ERROR, SequoiaFormatDriver.class, PandoFormatDriver.class, BsonPlugin.class);
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(boskName("Newer"), TestEntity.class, this::initialRootWithEmptyCatalog, driverFactory);
@@ -355,7 +350,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			boskName("Prev"),
 			OldEntity.class,
 			(b) -> { throw new AssertionError("prevBosk should use the state from MongoDB"); },
-			createDriverFactory(logController));
+			createDriverFactory(logController, testInfo));
 
 		Refs refs = bosk.buildReferences(Refs.class);
 		bosk.driver().submitReplacement(refs.values(),
@@ -375,15 +370,14 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
-	void updateInsidePolyfill_works() throws IOException, InterruptedException, InvalidTypeException {
+	void updateInsidePolyfill_works(TestInfo testInfo) throws IOException, InterruptedException, InvalidTypeException {
 		// We'll use this as an honest observer of the actual state
 		LOGGER.debug("Create Original bosk");
 		Bosk<TestEntity> originalBosk = new Bosk<TestEntity>(
 			boskName("Original"),
 			TestEntity.class,
 			this::initialRoot,
-			createDriverFactory(logController)
+			createDriverFactory(logController, testInfo)
 		);
 
 		LOGGER.debug("Create Upgradeable bosk");
@@ -391,7 +385,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			boskName("Upgradeable"),
 			UpgradeableEntity.class,
 			(b) -> { throw new AssertionError("upgradeableBosk should use the state from MongoDB"); },
-			createDriverFactory(logController)
+			createDriverFactory(logController, testInfo)
 		);
 
 		LOGGER.debug("Ensure polyfill returns the right value on read");
@@ -422,8 +416,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
-	void deleteNonexistentField_ignored() throws InvalidTypeException, IOException, InterruptedException {
+	void deleteNonexistentField_ignored(TestInfo testInfo) throws InvalidTypeException, IOException, InterruptedException {
 		setLogging(ERROR, SequoiaFormatDriver.class, PandoFormatDriver.class);
 
 		Bosk<TestEntity> newerBosk = new Bosk<TestEntity>(boskName("Newer"), TestEntity.class, this::initialRootWithEmptyCatalog, driverFactory);
@@ -431,7 +424,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			boskName("Prev"),
 			OldEntity.class,
 			(b) -> { throw new AssertionError("prevBosk should use the state from MongoDB"); },
-			createDriverFactory(logController));
+			createDriverFactory(logController, testInfo));
 
 		Refs refs = newerBosk.buildReferences(Refs.class);
 		newerBosk.driver().submitDeletion(refs.values());
@@ -449,13 +442,12 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	@Slow
-	void databaseMissingField_fallsBackToDefaultState() throws InvalidTypeException, IOException, InterruptedException {
+	void databaseMissingField_fallsBackToDefaultState(TestInfo testInfo) throws InvalidTypeException, IOException, InterruptedException {
 		setLogging(ERROR, ChangeReceiver.class);
 
 		LOGGER.debug("Set up database with entity that has no string field");
-		Bosk<OptionalEntity> setupBosk = new Bosk<OptionalEntity>(boskName("Setup"), OptionalEntity.class, b -> OptionalEntity.withString(Optional.empty(), b), createDriverFactory(logController));
+		Bosk<OptionalEntity> setupBosk = new Bosk<OptionalEntity>(boskName("Setup"), OptionalEntity.class, b -> OptionalEntity.withString(Optional.empty(), b), createDriverFactory(logController, testInfo));
 
 		LOGGER.debug("Connect another bosk where the string field is mandatory");
 		Bosk<TestEntity> testBosk = new Bosk<TestEntity>(boskName("Test"), TestEntity.class, this::initialRoot, driverFactory);
@@ -494,20 +486,17 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void unrelatedDatabase_ignored() throws InvalidTypeException, IOException, InterruptedException {
 		tearDownActions.addFirst(mongoService.client().getDatabase("unrelated")::drop);
 		doUnrelatedChangeTest("unrelated", MainDriver.COLLECTION_NAME, rootDocumentID().getValue());
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void unrelatedCollection_ignored() throws InvalidTypeException, IOException, InterruptedException {
 		doUnrelatedChangeTest(driverSettings.database(), "unrelated", rootDocumentID().getValue());
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void unrelatedDoc_ignored() throws InvalidTypeException, IOException, InterruptedException {
 		doUnrelatedChangeTest(driverSettings.database(), MainDriver.COLLECTION_NAME, "unrelated");
 	}
@@ -540,15 +529,14 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
-	void refurbish_createsField() throws IOException, InterruptedException {
+	void refurbish_createsField(TestInfo testInfo) throws IOException, InterruptedException {
 		// We'll use this as an honest observer of the actual state
 		LOGGER.debug("Create Original bosk");
 		Bosk<TestEntity> originalBosk = new Bosk<TestEntity>(
 			boskName("Original"),
 			TestEntity.class,
 			this::initialRoot,
-			createDriverFactory(logController)
+			createDriverFactory(logController, testInfo)
 		);
 
 		LOGGER.debug("Create Upgradeable bosk");
@@ -556,7 +544,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			boskName("Upgradeable"),
 			UpgradeableEntity.class,
 			(b) -> { throw new AssertionError("upgradeableBosk should use the state from MongoDB"); },
-			createDriverFactory(logController)
+			createDriverFactory(logController, testInfo)
 		);
 
 		LOGGER.debug("Check state before");
@@ -579,16 +567,15 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	@Slow
-	void manifestVersionBump_disconnects() throws IOException, InterruptedException {
+	void manifestVersionBump_disconnects(TestInfo testInfo) throws IOException, InterruptedException {
 		setLogging(ERROR, MainDriver.class, ChangeReceiver.class);
 
 		Bosk<TestEntity> bosk = new Bosk<TestEntity>(
 			boskName(),
 			TestEntity.class,
 			this::initialRoot,
-			createDriverFactory(logController)
+			createDriverFactory(logController, testInfo)
 		);
 
 		LOGGER.debug("Flush should work");
@@ -615,14 +602,13 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
-	void refurbish_fixesMetadata() throws IOException, InterruptedException {
+	void refurbish_fixesMetadata(TestInfo testInfo) throws IOException, InterruptedException {
 		// Set up the database so it looks basically right
 		Bosk<TestEntity> initialBosk = new Bosk<TestEntity>(
 			boskName("Initial"),
 			TestEntity.class,
 			this::initialRoot,
-			createDriverFactory(logController)
+			createDriverFactory(logController, testInfo)
 		);
 
 		// (Close this so it doesn't crash when we delete the "path" field)
@@ -639,7 +625,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			boskName("Main"),
 			TestEntity.class,
 			this::initialRoot,
-			createDriverFactory(logController)
+			createDriverFactory(logController, testInfo)
 		);
 
 		// Get the new bosk reconnected

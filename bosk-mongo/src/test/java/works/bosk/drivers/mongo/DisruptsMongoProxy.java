@@ -4,6 +4,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import works.bosk.junit.Slow;
 
@@ -16,8 +17,7 @@ import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
  * Use this annotation instead of {@link UsesMongoService} to ensure
  * this test won't be run in parallel with other tests that
  * it might disrupt.
- * Only one {@link DisruptsMongoService} will run at a time,
- * and never at the same time as any {@link UsesMongoService}.
+ * Only one {@link DisruptsMongoProxy} test will run at a time.
  *
  * <p>
  * Each test class should use a distinct database name so that
@@ -31,5 +31,7 @@ import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
 @Retention(RetentionPolicy.RUNTIME)
 @ResourceLock(value="mongoContainer", mode=READ_WRITE)
 @Slow // These are inherently slow because they prevent tests from running in parallel
-public @interface DisruptsMongoService {
+@Tag(DisruptsMongoProxy.TAG)
+public @interface DisruptsMongoProxy {
+	public static final String TAG = "disruptsMongoProxy";
 }

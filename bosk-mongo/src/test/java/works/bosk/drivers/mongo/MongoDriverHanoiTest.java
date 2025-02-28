@@ -15,19 +15,18 @@ import works.bosk.junit.Slow;
 
 import static works.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 
-@UsesMongoService
 @Slow
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;
 	private final Queue<Runnable> shutdownOperations = new ConcurrentLinkedDeque<>();
 
 	@ParametersByName
-	public MongoDriverHanoiTest(TestParameters.ParameterSet parameters) {
+	public MongoDriverHanoiTest(TestParameters.ParameterSet parameters, TestInfo testInfo) {
 		MongoDriverSettings settings = parameters.driverSettingsBuilder().build();
 		this.driverFactory = DriverStack.of(
 			(_,d) -> { shutdownOperations.add(((MongoDriver)d)::close); return d;},
 			MongoDriver.factory(
-				mongoService.clientSettings(),
+				mongoService.clientSettings(testInfo),
 				settings,
 				new BsonPlugin()
 			)
