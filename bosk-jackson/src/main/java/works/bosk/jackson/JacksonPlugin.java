@@ -107,48 +107,48 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 		@Override
 		public JsonSerializer<?> findSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
-			return memo.computeIfAbsent(type, __ -> getJsonSerializer(config, type, beanDesc));
+			return memo.computeIfAbsent(type, __ -> getJsonSerializer(config, type));
 		}
 
 		@SuppressWarnings({ "unchecked", "rawtypes" })
-		private JsonSerializer<?> getJsonSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
+		private JsonSerializer<?> getJsonSerializer(SerializationConfig config, JavaType type) {
 			Class theClass = type.getRawClass();
 			if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-				return derivedRecordSerializer(config, type, beanDesc);
+				return derivedRecordSerializer(config, type);
 			} else if (Catalog.class.isAssignableFrom(theClass)) {
-				return catalogSerializer(config, beanDesc);
+				return catalogSerializer();
 			} else if (Listing.class.isAssignableFrom(theClass)) {
-				return listingSerializer(config, beanDesc);
+				return listingSerializer();
 			} else if (Reference.class.isAssignableFrom(theClass)) {
-				return referenceSerializer(config, beanDesc);
+				return referenceSerializer();
 			} else if (Identifier.class.isAssignableFrom(theClass)) {
-				return identifierSerializer(config, beanDesc);
+				return identifierSerializer();
 			} else if (ListingEntry.class.isAssignableFrom(theClass)) {
-				return listingEntrySerializer(config, beanDesc);
+				return listingEntrySerializer();
 			} else if (SideTable.class.isAssignableFrom(theClass)) {
-				return sideTableSerializer(config, beanDesc);
+				return sideTableSerializer();
 			} else if (TaggedUnion.class.isAssignableFrom(theClass)) {
-				return taggedUnionSerializer(config, type, beanDesc);
+				return taggedUnionSerializer();
 			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
-				return stateTreeNodeSerializer(config, type, beanDesc);
+				return stateTreeNodeSerializer(config, type);
 			} else if (Optional.class.isAssignableFrom(theClass)) {
 				// Optional.empty() can't be serialized on its own because the field name itself must also be omitted
 				throw new IllegalArgumentException("Cannot serialize an Optional on its own; only as a field of another object");
 			} else if (Phantom.class.isAssignableFrom(theClass)) {
 				throw new IllegalArgumentException("Cannot serialize a Phantom on its own; only as a field of another object");
 			} else if (MapValue.class.isAssignableFrom(theClass)) {
-				return mapValueSerializer(config, beanDesc);
+				return mapValueSerializer();
 			} else {
 				return null;
 			}
 		}
 
-		private JsonSerializer<Object> derivedRecordSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
-			return derivedRecordSerDes(type, beanDesc, boskInfo).serializer(config);
+		private JsonSerializer<Object> derivedRecordSerializer(SerializationConfig config, JavaType type) {
+			return derivedRecordSerDes(type, boskInfo).serializer(config);
 		}
 
-		private JsonSerializer<Catalog<Entity>> catalogSerializer(SerializationConfig config, BeanDescription beanDesc) {
-			return new JsonSerializer<Catalog<Entity>>() {
+		private JsonSerializer<Catalog<Entity>> catalogSerializer() {
+			return new JsonSerializer<>() {
 				@Override
 				public void serialize(Catalog<Entity> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					writeMapEntries(gen, value.asMap().entrySet(), serializers);
@@ -156,8 +156,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonSerializer<Listing<Entity>> listingSerializer(SerializationConfig serializationConfig, BeanDescription beanDesc) {
-			return new JsonSerializer<Listing<Entity>>() {
+		private JsonSerializer<Listing<Entity>> listingSerializer() {
+			return new JsonSerializer<>() {
 				@Override
 				public void serialize(Listing<Entity> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeStartObject();
@@ -185,16 +185,16 @@ public final class JacksonPlugin extends SerializationPlugin {
 				private void writeIDsAsLinkedMap(Collection<Identifier> ids, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeFieldName("entriesById");
 					var effectiveMapEntries = ids.stream().collect(toMap(
-						id->id,
-						id->true
+						id -> id,
+						id -> true
 					)).entrySet();
 					writeEntriesAsLinkedMap(gen, effectiveMapEntries, serializers);
 				}
 			};
 		}
 
-		private JsonSerializer<Reference<?>> referenceSerializer(SerializationConfig config, BeanDescription beanDesc) {
-			return new JsonSerializer<Reference<?>>() {
+		private JsonSerializer<Reference<?>> referenceSerializer() {
+			return new JsonSerializer<>() {
 				@Override
 				public void serialize(Reference<?> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeString(value.path().urlEncoded());
@@ -202,8 +202,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonSerializer<Identifier> identifierSerializer(SerializationConfig config, BeanDescription beanDesc) {
-			return new JsonSerializer<Identifier>() {
+		private JsonSerializer<Identifier> identifierSerializer() {
+			return new JsonSerializer<>() {
 				@Override
 				public void serialize(Identifier value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeString(value.toString());
@@ -211,7 +211,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonSerializer<ListingEntry> listingEntrySerializer(SerializationConfig config, BeanDescription beanDesc) {
+		private JsonSerializer<ListingEntry> listingEntrySerializer() {
 			// We serialize ListingEntry as a boolean `true` with the following rationale:
 			// - The only "unit type" in JSON is null
 			// - `null` is not suitable because many systems treat that as being equivalent to an absent field
@@ -219,7 +219,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			// - `false` gives the wrong impression
 			// Hence, by a process of elimination, `true` it is
 
-			return new JsonSerializer<ListingEntry>() {
+			return new JsonSerializer<>() {
 				@Override
 				public void serialize(ListingEntry value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeBoolean(true);
@@ -227,8 +227,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonSerializer<SideTable<Entity, Object>> sideTableSerializer(SerializationConfig config, BeanDescription beanDesc) {
-			return new JsonSerializer<SideTable<Entity, Object>>() {
+		private JsonSerializer<SideTable<Entity, Object>> sideTableSerializer() {
+			return new JsonSerializer<>() {
 				@Override
 				public void serialize(SideTable<Entity, Object> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeStartObject();
@@ -247,7 +247,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		@SuppressWarnings("unchecked")
-		private <T extends VariantCase> JsonSerializer<TaggedUnion> taggedUnionSerializer(SerializationConfig config, JavaType taggedUnionType, BeanDescription beanDesc) {
+		private <T extends VariantCase> JsonSerializer<TaggedUnion<?>> taggedUnionSerializer() {
 			return new JsonSerializer<>() {
 				/**
 				 * A {@link TaggedUnion} has a single field called {@code value},
@@ -267,13 +267,13 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonSerializer<StateTreeNode> stateTreeNodeSerializer(SerializationConfig config, JavaType type, BeanDescription beanDesc) {
+		private JsonSerializer<StateTreeNode> stateTreeNodeSerializer(SerializationConfig config, JavaType type) {
 			StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
 			return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).serializer(config);
 		}
 
-		private JsonSerializer<MapValue<Object>> mapValueSerializer(SerializationConfig config, BeanDescription beanDesc) {
-			return new JsonSerializer<MapValue<Object>>() {
+		private JsonSerializer<MapValue<Object>> mapValueSerializer() {
+			return new JsonSerializer<>() {
 				@Override
 				public void serialize(MapValue<Object> value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeStartObject();
@@ -311,54 +311,53 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 		@Override
 		public JsonDeserializer<?> findBeanDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
-			return memo.computeIfAbsent(type, __ -> getJsonDeserializer(type, config, beanDesc));
+			return memo.computeIfAbsent(type, __ -> getJsonDeserializer(type, config));
 		}
 
 		@SuppressWarnings({ "unchecked", "rawtypes" })
-		private JsonDeserializer<?> getJsonDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+		private JsonDeserializer<?> getJsonDeserializer(JavaType type, DeserializationConfig config) {
 			Class theClass = type.getRawClass();
 			if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-				return derivedRecordDeserializer(type, config, beanDesc);
+				return derivedRecordDeserializer(type, config);
 			} else if (Catalog.class.isAssignableFrom(theClass)) {
-				return catalogDeserializer(type, config, beanDesc);
+				return catalogDeserializer(type);
 			} else if (Listing.class.isAssignableFrom(theClass)) {
-				return listingDeserializer(type, config, beanDesc);
+				return listingDeserializer();
 			} else if (Reference.class.isAssignableFrom(theClass)) {
-				return referenceDeserializer(type, config, beanDesc);
+				return referenceDeserializer();
 			} else if (Identifier.class.isAssignableFrom(theClass)) {
-				return identifierDeserializer(type, config, beanDesc);
+				return identifierDeserializer();
 			} else if (ListingEntry.class.isAssignableFrom(theClass)) {
-				return listingEntryDeserializer(type, config, beanDesc);
+				return listingEntryDeserializer();
 			} else if (SideTable.class.isAssignableFrom(theClass)) {
-				return sideTableDeserializer(type, config, beanDesc);
+				return sideTableDeserializer(type);
 			} else if (TaggedUnion.class.isAssignableFrom(theClass)) {
-				return taggedUnionDeserializer(type, config, beanDesc);
+				return taggedUnionDeserializer(type, config);
 			} else if (StateTreeNode.class.isAssignableFrom(theClass)) {
-				return stateTreeNodeDeserializer(type, config, beanDesc);
+				return stateTreeNodeDeserializer(type, config);
 			} else if (Optional.class.isAssignableFrom(theClass)) {
 				// Optional.empty() can't be serialized on its own because the field name itself must also be omitted
 				throw new IllegalArgumentException("Cannot serialize an Optional on its own; only as a field of another object");
 			} else if (Phantom.class.isAssignableFrom(theClass)) {
 				throw new IllegalArgumentException("Cannot serialize a Phantom on its own; only as a field of another object");
 			} else if (ListValue.class.isAssignableFrom(theClass)) {
-				return listValueDeserializer(type, config, beanDesc);
+				return listValueDeserializer(type);
 			} else if (MapValue.class.isAssignableFrom(theClass)) {
-				return mapValueDeserializer(type, config, beanDesc);
+				return mapValueDeserializer(type);
 			} else {
 				return null;
 			}
 		}
 
-		private JsonDeserializer<Object> derivedRecordDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
-			return derivedRecordSerDes(type, beanDesc, boskInfo).deserializer(config);
+		private JsonDeserializer<Object> derivedRecordDeserializer(JavaType type, DeserializationConfig config) {
+			return derivedRecordSerDes(type, boskInfo).deserializer(config);
 		}
 
-		private JsonDeserializer<Catalog<Entity>> catalogDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+		private JsonDeserializer<Catalog<Entity>> catalogDeserializer(JavaType type) {
 			JavaType entryType = catalogEntryType(type);
 
-			return new BoskDeserializer<Catalog<Entity>>() {
+			return new BoskDeserializer<>() {
 				@Override
-				@SuppressWarnings({"rawtypes", "unchecked"})
 				public Catalog<Entity> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 					LinkedHashMap<Identifier, Entity> entries = readMapEntries(p, entryType, ctxt);
 					return Catalog.of(entries.values());
@@ -366,8 +365,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonDeserializer<Listing<Entity>> listingDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
-			return new BoskDeserializer<Listing<Entity>>() {
+		private JsonDeserializer<Listing<Entity>> listingDeserializer() {
+			return new BoskDeserializer<>() {
 				@Override
 				@SuppressWarnings("unchecked")
 				public Listing<Entity> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
@@ -416,8 +415,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonDeserializer<Reference<?>> referenceDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
-			return new BoskDeserializer<Reference<?>>() {
+		private JsonDeserializer<Reference<?>> referenceDeserializer() {
+			return new BoskDeserializer<>() {
 				@Override
 				public Reference<?> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 					try {
@@ -429,8 +428,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonDeserializer<Identifier> identifierDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
-			return new BoskDeserializer<Identifier>() {
+		private JsonDeserializer<Identifier> identifierDeserializer() {
+			return new BoskDeserializer<>() {
 				@Override
 				public Identifier deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 					return Identifier.from(p.getText());
@@ -438,8 +437,8 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonDeserializer<ListingEntry> listingEntryDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
-			return new BoskDeserializer<ListingEntry>() {
+		private JsonDeserializer<ListingEntry> listingEntryDeserializer() {
+			return new BoskDeserializer<>() {
 				@Override
 				public ListingEntry deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 					if (p.getBooleanValue()) {
@@ -451,9 +450,9 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonDeserializer<SideTable<Entity, Object>> sideTableDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+		private JsonDeserializer<SideTable<Entity, Object>> sideTableDeserializer(JavaType type) {
 			JavaType valueType = sideTableValueType(type);
-			return new BoskDeserializer<SideTable<Entity, Object>>() {
+			return new BoskDeserializer<>() {
 				@Override
 				@SuppressWarnings("unchecked")
 				public SideTable<Entity, Object> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
@@ -497,12 +496,12 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonDeserializer<? extends StateTreeNode> stateTreeNodeDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+		private JsonDeserializer<? extends StateTreeNode> stateTreeNodeDeserializer(JavaType type, DeserializationConfig config) {
 			StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
 			return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).deserializer(config);
 		}
 
-		private <V extends VariantCase, D extends V> JsonDeserializer<TaggedUnion<V>> taggedUnionDeserializer(JavaType taggedUnionType, DeserializationConfig config, BeanDescription beanDesc) {
+		private <V extends VariantCase, D extends V> JsonDeserializer<TaggedUnion<V>> taggedUnionDeserializer(JavaType taggedUnionType, DeserializationConfig config) {
 			JavaType caseStaticType = taggedUnionType.findTypeParameters(TaggedUnion.class)[0];
 			Class<?> caseStaticClass = caseStaticType.getRawClass();
 			MapValue<Type> variantCaseMap;
@@ -512,7 +511,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				throw new IllegalArgumentException(e);
 			}
 			Map<String, JsonDeserializer<?>> deserializers = variantCaseMap.entrySet().stream().collect(toMap(Entry::getKey, e ->
-				stateTreeNodeDeserializer(TypeFactory.defaultInstance().constructType(e.getValue()), config, beanDesc)));
+				stateTreeNodeDeserializer(TypeFactory.defaultInstance().constructType(e.getValue()), config)));
 			return new JsonDeserializer<>() {
 				@Override
 				public TaggedUnion<V> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
@@ -528,7 +527,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 						throw new JsonParseException(p, "TaggedUnion<" + caseStaticClass.getSimpleName() + "> has unexpected variant tag field \"" + tag + "\"; expected one of " + variantCaseMap.keySet());
 					}
 					Object deserialized = deserializer.deserialize(p, ctxt);
-					Class<D> caseDynamicClass = (Class<D>) rawClass(variantCaseMap.get(tag));
+					@SuppressWarnings("unchecked") Class<D> caseDynamicClass = (Class<D>) rawClass(variantCaseMap.get(tag));
 					D value;
 					try {
 						value = caseDynamicClass.cast(deserialized);
@@ -543,10 +542,10 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonDeserializer<ListValue<Object>> listValueDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+		private JsonDeserializer<ListValue<Object>> listValueDeserializer(JavaType type) {
 			Constructor<?> ctor = ReferenceUtils.theOnlyConstructorFor(type.getRawClass());
 			JavaType arrayType = listValueEquivalentArrayType(type);
-			return new BoskDeserializer<ListValue<Object>>() {
+			return new BoskDeserializer<>() {
 				@Override
 				@SuppressWarnings({"unchecked"})
 				public ListValue<Object> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
@@ -562,9 +561,9 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		private JsonDeserializer<MapValue<Object>> mapValueDeserializer(JavaType type, DeserializationConfig config, BeanDescription beanDesc) {
+		private JsonDeserializer<MapValue<Object>> mapValueDeserializer(JavaType type) {
 			JavaType valueType = mapValueValueType(type);
-			return new BoskDeserializer<MapValue<Object>>() {
+			return new BoskDeserializer<>() {
 				@Override
 				public MapValue<Object> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 					LinkedHashMap<String, Object> result1 = new LinkedHashMap<>();
@@ -753,7 +752,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 	private static final JavaType CATALOG_REF_TYPE = TypeFactory.defaultInstance().constructType(new TypeReference<
 		Reference<Catalog<?>>>() {});
 
-	private <T> CompiledSerDes<T> derivedRecordSerDes(JavaType objType, BeanDescription beanDesc, BoskInfo<?> boskInfo) {
+	private <T> CompiledSerDes<T> derivedRecordSerDes(JavaType objType, BoskInfo<?> boskInfo) {
 		// Check for special cases
 		Class<?> objClass = objType.getRawClass();
 		if (ListValue.class.isAssignableFrom(objClass)) { // TODO: MapValue?
@@ -787,7 +786,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			return new CompiledSerDes<L>() {
 				@Override
 				public JsonSerializer<L> serializer(SerializationConfig config) {
-					return new JsonSerializer<L>() {
+					return new JsonSerializer<>() {
 						@Override
 						public void serialize(L value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 							JsonSerializer<Object> refSerializer = serializers
@@ -811,10 +810,10 @@ public final class JacksonPlugin extends SerializationPlugin {
 
 				@Override
 				public JsonDeserializer<L> deserializer(DeserializationConfig config) {
-					return new BoskDeserializer<L>() {
+					return new BoskDeserializer<>() {
 						@Override
 						public L deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-							JsonDeserializer<Reference<E>> refDeserializer = (JsonDeserializer<Reference<E>>)(JsonDeserializer) ctxt
+							JsonDeserializer<Reference<E>> refDeserializer = (JsonDeserializer<Reference<E>>) (JsonDeserializer) ctxt
 								.findContextualValueDeserializer(referenceType, null);
 
 							List<E> entries = new ArrayList<>();
@@ -824,9 +823,9 @@ public final class JacksonPlugin extends SerializationPlugin {
 							}
 							expect(END_ARRAY, p);
 
-							E[] array = (E[])Array.newInstance(entryClass, entries.size());
+							E[] array = (E[]) Array.newInstance(entryClass, entries.size());
 							try {
-								return constructor.newInstance(new Object[] { entries.toArray(array) } );
+								return constructor.newInstance(new Object[]{entries.toArray(array)});
 							} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
 								throw new IOException("Error creating " + objClass.getSimpleName() + ": " + e.getMessage(), e);
 							}
