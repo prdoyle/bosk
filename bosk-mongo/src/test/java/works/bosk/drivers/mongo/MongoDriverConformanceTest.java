@@ -2,11 +2,14 @@ package works.bosk.drivers.mongo;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.DriverFactory;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.SharedDriverConformanceTest;
@@ -23,6 +26,7 @@ class MongoDriverConformanceTest extends SharedDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
 	private static MongoService mongoService;
 	private final MongoDriverSettings driverSettings;
+	private final AtomicInteger numOpenDrivers = new AtomicInteger(0);
 
 	@ParametersByName
 	public MongoDriverConformanceTest(ParameterSet parameters) {
@@ -67,9 +71,14 @@ class MongoDriverConformanceTest extends SharedDriverConformanceTest {
 			MongoDriver driver = MongoDriver.<R>factory(
 				mongoService.clientSettings(testInfo), driverSettings, new BsonPlugin()
 			).build(boskInfo, downstream);
-			tearDownActions.addFirst(driver::close);
+			LOGGER.debug("Driver created; {} open", numOpenDrivers.incrementAndGet());
+			tearDownActions.addFirst(() -> {
+				driver.close();
+				LOGGER.debug("Driver closed; {} remaining", numOpenDrivers.decrementAndGet());
+			});
 			return driver;
 		};
 	}
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(MongoDriverConformanceTest.class);
 }
