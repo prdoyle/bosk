@@ -15,6 +15,7 @@ import java.lang.reflect.Type;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -62,9 +63,17 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private final MongoDriverSettings driverSettings;
 	private final BsonPlugin bsonPlugin;
 	private final BoskDriver downstream;
+	private final MongoClient mongoClient;
 	private final TransactionalCollection<BsonDocument> collection;
 	private final Listener listener;
 	final Formatter formatter;
+
+	/**
+	 * {@link MongoClient#close()} throws if called more than once.
+	 * {@link MongoDriver} is more civilized: subsequent calls do nothing.
+	 * Hence, we must keep track of whether we've already closed the {@link MongoClient}.
+	 */
+	private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
 	/**
 	 * Hold this while waiting on {@link #formatDriverChanged}
@@ -78,7 +87,6 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private final Condition formatDriverChanged = formatDriverLock.newCondition();
 
 	private volatile FormatDriver<R> formatDriver = new DisconnectedDriver<>(new Exception("Driver not yet initialized"));
-	private volatile boolean isClosed = false;
 
 	MainDriver(
 		BoskInfo<R> boskInfo,
@@ -93,7 +101,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.bsonPlugin = bsonPlugin;
 			this.downstream = downstream;
 
-			MongoClient mongoClient = MongoClients.create(
+			mongoClient = MongoClients.create(
 				MongoClientSettings.builder(clientSettings)
 					// By default, let's deal only with durable data that won't get rolled back
 					.readConcern(ReadConcern.MAJORITY)
@@ -349,11 +357,12 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 	@Override
 	public void close() {
-		isClosed = true;
+		if (!isClosed.getAndSet(true)) {
+			// It's important we don't call this twice, or else it will throw
+			mongoClient.close();
+		}
 		receiver.close();
 		formatDriver.close();
-		// JFC, if mongoClient is already closed, this throws
-		// mongoClient.close();
 	}
 
 	/**
@@ -559,7 +568,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 
 	private MDCScope beginDriverOperation(String description, Object... args) {
-		if (isClosed) {
+		if (isClosed.get()) {
 			throw new IllegalStateException("Driver is closed");
 		}
 		MDCScope ex = setupMDC(boskInfo.name(), boskInfo.instanceID());
