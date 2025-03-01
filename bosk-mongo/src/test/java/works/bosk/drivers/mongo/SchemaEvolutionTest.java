@@ -58,10 +58,9 @@ public class SchemaEvolutionTest {
 	@SuppressWarnings("unused")
 	static Stream<Configuration> fromConfig() {
 		return Stream.of(
-			new Configuration(MongoDriverSettings.DatabaseFormat.SEQUOIA, MongoDriverSettings.ManifestMode.USE_IF_EXISTS),
-			new Configuration(MongoDriverSettings.DatabaseFormat.SEQUOIA, MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT),
-			new Configuration(PandoFormat.oneBigDocument(), MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT),
-			new Configuration(PandoFormat.withGraftPoints("/catalog", "/sideTable"), MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT)
+			new Configuration(MongoDriverSettings.DatabaseFormat.SEQUOIA),
+			new Configuration(PandoFormat.oneBigDocument()),
+			new Configuration(PandoFormat.withGraftPoints("/catalog", "/sideTable"))
 		);
 	}
 
@@ -178,16 +177,15 @@ public class SchemaEvolutionTest {
 	}
 
 	private static Bosk<TestEntity> newBosk(Helper helper) {
-		return new Bosk<TestEntity>(boskName(helper.toString()), TestEntity.class, helper::initialRoot, helper.driverFactory);
+		return new Bosk<>(boskName(helper.toString()), TestEntity.class, helper::initialRoot, helper.driverFactory);
 	}
 
 	record Configuration(
-		MongoDriverSettings.DatabaseFormat preferredFormat,
-		MongoDriverSettings.ManifestMode manifestMode
+		MongoDriverSettings.DatabaseFormat preferredFormat
 	) {
 		@Override
 		public String toString() {
-			return preferredFormat + "&" + manifestMode;
+			return preferredFormat.toString();
 		}
 	}
 
@@ -199,9 +197,8 @@ public class SchemaEvolutionTest {
 				.database(SchemaEvolutionTest.class.getSimpleName() + "_" + dbCounter)
 				.preferredDatabaseFormat(config.preferredFormat())
 				.experimental(MongoDriverSettings.Experimental.builder()
-					.manifestMode(config.manifestMode())
 					.build()));
-			this.name = (config.preferredFormat() + ":" + config.manifestMode()).toLowerCase();
+			this.name = config.preferredFormat().toString().toLowerCase();
 		}
 
 		@Override

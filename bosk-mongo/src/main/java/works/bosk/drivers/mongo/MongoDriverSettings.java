@@ -6,7 +6,6 @@ import lombok.Value;
 import works.bosk.BoskDriver;
 
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
-import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.USE_IF_EXISTS;
 import static works.bosk.drivers.mongo.MongoDriverSettings.OrphanDocumentMode.EARNEST;
 
 @Value
@@ -33,7 +32,6 @@ public class MongoDriverSettings {
 	@Builder
 	public static class Experimental {
 		@Default long changeStreamInitialWaitMS = 20;
-		@Default ManifestMode manifestMode = ManifestMode.CREATE_IF_ABSENT;
 		@Default OrphanDocumentMode orphanDocumentMode = OrphanDocumentMode.HASTY;
 	}
 
@@ -94,11 +92,6 @@ public class MongoDriverSettings {
 
 	public enum ManifestMode {
 		/**
-		 * If a manifest document doesn't exist, we'll assume certain defaults.
-		 */
-		USE_IF_EXISTS,
-
-		/**
 		 * If a manifest document doesn't exist, we'll create one.
 		 */
 		CREATE_IF_ABSENT,
@@ -118,9 +111,6 @@ public class MongoDriverSettings {
 
 	public void validate() {
 		if (preferredDatabaseFormat() instanceof PandoFormat) {
-			if (experimental.manifestMode() == USE_IF_EXISTS) {
-				throw new IllegalArgumentException("Pando format requires a manifest. Databases with no manifest are interpreted as Sequoia.");
-			}
 			if (experimental.orphanDocumentMode() == EARNEST) {
 				throw new IllegalArgumentException("Pando format does not support earnest orphan document cleanup");
 			}

@@ -44,7 +44,6 @@ import static org.bson.BsonBoolean.FALSE;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.Formatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.MainDriver.MANIFEST_ID;
-import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT;
 import static works.bosk.drivers.mongo.bson.BsonFormatter.referenceTo;
 
 /**
@@ -159,17 +158,15 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		LOGGER.trace("| Options: {}", options);
 		UpdateResult result = collection.updateOne(filter, update, options);
 		LOGGER.debug("| Result: {}", result);
-		if (settings.experimental().manifestMode() == CREATE_IF_ABSENT) {
-			// This is the only time Sequoia changes two documents for the same operation.
-			// Aside from refurbish, it's the only reason we'd want multi-document transactions,
-			// and it's not even a strong reason, because this still works correctly
-			// if interpreted as two separate events.
-			writeManifest();
-		}
+
+		// This is the only time Sequoia changes two documents for the same operation.
+		// Aside from refurbish, it's the only reason we'd want multi-document transactions,
+		// and it's not even a strong reason, because this still works correctly
+		// if interpreted as two separate events.
+		writeManifest();
 	}
 
 	private void writeManifest() {
-		assert settings.experimental().manifestMode() == CREATE_IF_ABSENT;
 		BsonDocument doc = new BsonDocument("_id", MANIFEST_ID);
 		doc.putAll((BsonDocument) formatter.object2bsonValue(Manifest.forSequoia(), Manifest.class));
 		BsonDocument filter = new BsonDocument("_id", MANIFEST_ID);

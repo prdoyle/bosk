@@ -231,9 +231,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		LOGGER.trace("| Options: {}", options);
 		UpdateResult result = collection.updateOne(filter, update, options);
 		LOGGER.debug("| Result: {}", result);
-		if (settings.experimental().manifestMode() == MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT) {
-			writeManifest();
-		}
+		writeManifest();
 	}
 
 	private void writeManifest() {
@@ -889,6 +887,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			}
 		} else {
 			// TODO!
+			assert settings.experimental().orphanDocumentMode() == MongoDriverSettings.OrphanDocumentMode.HASTY;
 			LOGGER.debug("Skipping deletePartsUnder({}) because mainRef is different: {}", target, mainRef);
 		}
 	}
