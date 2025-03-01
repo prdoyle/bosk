@@ -2,9 +2,6 @@ package works.bosk.util;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Executable;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +11,6 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
-import static java.lang.reflect.Modifier.isPrivate;
 import static java.util.Objects.requireNonNull;
 import static org.objectweb.asm.ClassReader.SKIP_CODE;
 import static org.objectweb.asm.ClassReader.SKIP_DEBUG;
@@ -24,29 +20,6 @@ import static org.objectweb.asm.Type.ARRAY;
 import static org.objectweb.asm.Type.OBJECT;
 
 public final class ReflectionHelpers {
-
-	public static Field setAccessible(Field field) {
-		makeAccessible(field, field.getModifiers());
-		return field;
-	}
-
-	public static <T extends Executable> T setAccessible(T method) {
-		makeAccessible(method, method.getModifiers());
-		return method;
-	}
-
-	private static void makeAccessible(AccessibleObject object, int modifiers) {
-		// Let's honour "private" modifiers so people can know that private
-		// methods and fields aren't being called by us. That allows them to
-		// refactor them freely without concern for breaking some Bosk magic.
-		//
-		if (isPrivate(modifiers)) {
-			throw new IllegalArgumentException("Access to private " + object.getClass().getSimpleName() + " is forbidden: " + object);
-		}
-
-		//... but otherwise, it's open season.
-		object.setAccessible(true);
-	}
 
 	/**
 	 * @param type must be defined in a classfile accessible by passing {@link Class#getResourceAsStream(String)}

@@ -26,7 +26,6 @@ import org.objectweb.asm.util.TraceClassVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.exceptions.NotYetImplementedException;
-import works.bosk.util.ReflectionHelpers;
 
 import static java.lang.System.identityHashCode;
 import static java.lang.reflect.Modifier.isStatic;
@@ -264,7 +263,6 @@ public final class ClassBuilder<T> {
 	 * Emit the appropriate INVOKE instruction for the given Method.
 	 */
 	public void invoke(Method method) {
-		ReflectionHelpers.setAccessible(method); // Hmm, we seem to get IllegalAccessError even after doing this
 		emitLineNumberInfo();
 		Class<?> type = method.getDeclaringClass();
 		String typeName = Type.getInternalName(type);
@@ -289,7 +287,6 @@ public final class ClassBuilder<T> {
 	 * Emit INVOKESPECIAL for the given Constructor.
 	 */
 	public void invoke(Constructor<?> ctor) {
-		ReflectionHelpers.setAccessible(ctor); // Hmm, we seem to get IllegalAccessError even after doing this
 		emitLineNumberInfo();
 		String typeName = Type.getInternalName(ctor.getDeclaringClass());
 		Type[] parameterTypes = Stream.of(ctor.getParameterTypes()).map(Type::getType).toArray(Type[]::new);

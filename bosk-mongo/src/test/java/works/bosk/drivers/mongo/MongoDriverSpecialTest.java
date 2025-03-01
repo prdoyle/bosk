@@ -719,7 +719,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		TestValues values
 	) implements Entity {
 		@Polyfill("values")
-		static final TestValues DEFAULT_VALUES = works.bosk.drivers.state.TestValues.blank();
+		public static final TestValues DEFAULT_VALUES = works.bosk.drivers.state.TestValues.blank();
 	}
 
 	/**

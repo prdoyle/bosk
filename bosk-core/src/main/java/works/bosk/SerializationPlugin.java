@@ -1,7 +1,9 @@
 package works.bosk;
 
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
@@ -16,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 import org.jetbrains.annotations.NotNull;
@@ -168,6 +171,36 @@ public abstract class SerializationPlugin {
 			currentScope.set(requireNonNull(outer));
 		}
 	}
+
+	public static <V> Function<Object[], ? extends ListValue<V>> listValueFactory(Class<ListValue<V>> targetClass) {
+		Function<Object[], ? extends ListValue<V>> factory;
+		if (ListValue.class.equals(targetClass)) {
+			factory = SerializationPlugin::listValueOf;
+		} else {
+			// User-supplied subclass needs a public constructor
+			Constructor<ListValue<V>> ctor = ReferenceUtils.theOnlyConstructorFor(targetClass);
+			factory = args -> newInstance(ctor, args);
+		}
+		return factory;
+	}
+
+	private static <V> ListValue<V> newInstance(Constructor<ListValue<V>> listValueConstructor, Object[] args) {
+		try {
+			return listValueConstructor.newInstance((Object)args);
+		} catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+			throw new IllegalStateException("Error instantiating ListValue subclass via constructor: " + listValueConstructor, e);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T> ListValue<T> listValueOf(Object[] args) {
+		try {
+			return (ListValue<T>) ListValue.class.getMethod("of", Object[].class).invoke(null, (Object)args);
+		} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+			throw new AssertionError("ListValue.of should be callable", e);
+		}
+	}
+
 
 	/**
 	 * Turns <code>parameterValuesByName</code> into a list suitable for
@@ -411,7 +444,6 @@ public abstract class SerializationPlugin {
 				if (!isStatic(f.getModifiers()) || isPrivate(f.getModifiers())) {
 					throw new IllegalStateException("The variant case map must be static and final: " + f);
 				}
-				f.setAccessible(true);
 				MapValue value;
 				try {
 					value = (MapValue) f.get(null);
@@ -446,7 +478,6 @@ public abstract class SerializationPlugin {
 			deserializationPathParameters.put(name, thing.getAnnotation(DeserializationPath.class));
 		} else if (thing.isAnnotationPresent(Polyfill.class)) {
 			if (thing instanceof Field f && isStatic(f.getModifiers()) && !isPrivate(f.getModifiers())) {
-				f.setAccessible(true);
 				for (Polyfill polyfill : thing.getAnnotationsByType(Polyfill.class)) {
 					Object value;
 					try {

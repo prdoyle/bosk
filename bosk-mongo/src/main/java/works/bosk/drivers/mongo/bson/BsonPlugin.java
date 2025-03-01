@@ -4,7 +4,6 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
@@ -19,6 +18,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.bson.BsonReader;
 import org.bson.BsonType;
@@ -342,7 +342,7 @@ public final class BsonPlugin extends SerializationPlugin {
 	}
 
 	private <V> Codec<ListValue<V>> listValueCodec(Type listValueType, Class<ListValue<V>> targetClass, CodecRegistry registry, BoskInfo<?> boskInfo) {
-		Constructor<? extends ListValue<V>> ctor = ReferenceUtils.theOnlyConstructorFor(targetClass);
+		Function<Object[], ? extends ListValue<V>> factory = listValueFactory(targetClass);
 		Type entryType = parameterType(listValueType, ListValue.class, 0);
 		@SuppressWarnings("unchecked")
 		Class<V> entryClass = (Class<V>) rawClass(entryType);
@@ -371,16 +371,11 @@ public final class BsonPlugin extends SerializationPlugin {
 					entries.add(entryCodec.decode(reader, decoderContext));
 				}
 				reader.readEndArray();
-				try {
-					return ctor.newInstance((Object) entries.toArray((Object[])Array.newInstance(entryClass, entries.size())));
-				} catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-					throw new IllegalStateException("Error reading " + listValueType, e);
-				}
+				return factory.apply(entries.toArray((Object[])Array.newInstance(entryClass, entries.size())));
 			}
 
 		};
 	}
-
 
 	private static <R extends StateTreeNode> Codec<Reference<?>> referenceCodec(BoskInfo<R> boskInfo) {
 		return new Codec<>() {
