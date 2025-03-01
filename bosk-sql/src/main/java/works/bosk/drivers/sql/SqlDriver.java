@@ -46,7 +46,7 @@ import static org.jooq.impl.DSL.primaryKey;
 import static org.jooq.impl.DSL.using;
 import static works.bosk.drivers.sql.schema.Schema.BOSK;
 import static works.bosk.drivers.sql.schema.Schema.CHANGES;
-import static works.bosk.drivers.sql.schema.Schema.DIAGONSTICS;
+import static works.bosk.drivers.sql.schema.Schema.DIAGNOSTICS;
 import static works.bosk.drivers.sql.schema.Schema.ID;
 import static works.bosk.drivers.sql.schema.Schema.NEW_STATE;
 import static works.bosk.drivers.sql.schema.Schema.REF;
@@ -63,9 +63,6 @@ public class SqlDriver implements BoskDriver {
 
 	final AtomicBoolean isOpen = new AtomicBoolean(true);
 
-	/**
-	 * The thread that does the Postgres LISTEN
-	 */
 	final ScheduledExecutorService listener;
 
 	private final AtomicLong lastChangeSubmittedDownstream = new AtomicLong(-1);
@@ -108,14 +105,14 @@ public class SqlDriver implements BoskDriver {
 		try {
 			try (var c = connectionSource.get()) {
 				var rs = using(c)
-					.select(REF, NEW_STATE, DIAGONSTICS, REVISION)
+					.select(REF, NEW_STATE, DIAGNOSTICS, REVISION)
 					.from(CHANGES)
 					.where(REVISION.gt(lastChangeSubmittedDownstream.get()))
 					.fetch();
 				for (var r: rs) {
 					var ref = r.get(REF);
 					var newState = r.get(NEW_STATE);
-					var diagnostics = r.get(DIAGONSTICS);
+					var diagnostics = r.get(DIAGNOSTICS);
 					long changeID = r.get(REVISION);
 
 					if (LOGGER.isTraceEnabled()) {
@@ -181,7 +178,7 @@ public class SqlDriver implements BoskDriver {
 		}
 	}
 
-	public static <RR extends StateTreeNode> PostgresDriverFactory<RR> factory(
+	public static <RR extends StateTreeNode> SqlDriverFactory<RR> factory(
 		SqlDriverSettings settings,
 		ConnectionSource connectionSource,
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
@@ -210,7 +207,7 @@ public class SqlDriver implements BoskDriver {
 		}
 	}
 
-	public interface PostgresDriverFactory<RR extends StateTreeNode> extends DriverFactory<RR> {
+	public interface SqlDriverFactory<RR extends StateTreeNode> extends DriverFactory<RR> {
 		@Override
 		SqlDriver build(BoskInfo<RR> boskInfo, BoskDriver downstream);
 	}
@@ -261,7 +258,7 @@ public class SqlDriver implements BoskDriver {
 	private void ensureTablesExist(Connection connection) throws SQLException {
 		using(connection)
 			.createTableIfNotExists(CHANGES)
-			.columns(REVISION, REF, NEW_STATE, DIAGONSTICS)
+			.columns(REVISION, REF, NEW_STATE, DIAGNOSTICS)
 			.constraints(primaryKey(REVISION))
 			.execute();
 
@@ -439,7 +436,7 @@ public class SqlDriver implements BoskDriver {
 	private long insertChange(Connection c, Reference<?> ref, String newValue) {
 		try {
 			return using(c)
-				.insertInto(CHANGES).columns(REF, NEW_STATE, DIAGONSTICS)
+				.insertInto(CHANGES).columns(REF, NEW_STATE, DIAGNOSTICS)
 				.values(ref.pathString(), newValue, mapper.writeValueAsString(ref.root().diagnosticContext().getAttributes()))
 				.returning(REVISION)
 				.fetchOptional(REVISION)
