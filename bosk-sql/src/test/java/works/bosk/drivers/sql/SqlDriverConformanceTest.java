@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import works.bosk.drivers.SharedDriverConformanceTest;
+import works.bosk.drivers.sql.schema.Schema;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.jackson.JacksonPlugin;
 import works.bosk.jackson.JacksonPluginConfiguration;
@@ -21,10 +22,9 @@ import works.bosk.junit.ParametersByName;
 import works.bosk.junit.Slow;
 
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
+import static org.jooq.impl.DSL.name;
 import static org.jooq.impl.DSL.using;
 import static works.bosk.drivers.sql.SqlDriverConformanceTest.Database.POSTGRES;
-import static works.bosk.drivers.sql.schema.Schema.BOSK;
-import static works.bosk.drivers.sql.schema.Schema.CHANGES;
 import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.ARRAY;
 
 @Slow
@@ -32,6 +32,7 @@ import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.ARRAY;
 class SqlDriverConformanceTest extends SharedDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
 	private final HikariDataSource dataSource;
+	private SqlDriverSettings settings;
 
 	enum Database {
 		POSTGRES("postgresql:16"),
@@ -64,10 +65,10 @@ class SqlDriverConformanceTest extends SharedDriverConformanceTest {
 
 	@BeforeEach
 	void setupDriverFactory() {
+		settings = new SqlDriverSettings(
+			getClass().getSimpleName(), 50, 100
+		);
 		driverFactory = (boskInfo, downstream) -> {
-			SqlDriverSettings settings = new SqlDriverSettings(
-				50, 100
-			);
 			var driver = SqlDriver.<TestEntity>factory(
 				settings, dataSource::getConnection,
 				b -> new ObjectMapper()
@@ -87,12 +88,15 @@ class SqlDriverConformanceTest extends SharedDriverConformanceTest {
 	}
 
 	private void cleanupTables() {
+		Schema schema = new works.bosk.drivers.sql.schema.Schema(name(settings.schemaName()));
 		try (
 			var c = dataSource.getConnection()
 		) {
-			using(c).dropTableIfExists(BOSK).execute();
-			using(c).dropTableIfExists(CHANGES).execute();
-			LOGGER.trace("Tables dropped: {}, {}", BOSK, CHANGES);
+			using(c)
+				.dropSchemaIfExists(schema)
+				.cascade()
+				.execute();
+			LOGGER.trace("Dropped schema {}", schema);
 		} catch (SQLException e) {
 			throw new AssertionError("Unexpected error cleaning up table", e);
 		}

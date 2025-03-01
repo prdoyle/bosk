@@ -1,11 +1,10 @@
 package works.bosk.drivers.sql;
 
 
-import org.jooq.CheckReturnValue;
-
 import static java.lang.Math.multiplyExact;
 
 /**
+ * @param schemaName     the database schema in which this driver's tables will be stored.
  * @param timescaleMS    how often the system should check for updates events in the database.
  *                       Characterizes the "response time" of the system: lower values
  *                       are more responsive, while higher values are more efficient.
@@ -18,9 +17,11 @@ import static java.lang.Math.multiplyExact;
  *                       been better off giving up and proceeding with error handling.
  */
 public record SqlDriverSettings(
+	String schemaName,
 	long timescaleMS,
 	int patienceFactor
 ) {
+	@SuppressWarnings("ResultOfMethodCallIgnored") // We just want an exception if this is out of range
 	public SqlDriverSettings {
 		multiplyExact(timescaleMS, patienceFactor);
 	}

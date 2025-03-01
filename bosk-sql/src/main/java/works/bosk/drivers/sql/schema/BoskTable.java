@@ -16,7 +16,7 @@ public class BoskTable extends TableImpl<Record> {
 	public final TableField<Record, String> STATE = createField(
 		name("state"), CLOB.null_());
 
-	BoskTable() {
-		super(name("bosk_state"));
+	BoskTable(Schema schema) {
+		super(name("bosk_state"), schema);
 	}
 }

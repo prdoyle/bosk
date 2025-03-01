@@ -17,6 +17,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import org.jooq.Record;
+import org.jooq.TableField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskDriver;
@@ -28,6 +30,9 @@ import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
+import works.bosk.drivers.sql.schema.BoskTable;
+import works.bosk.drivers.sql.schema.ChangesTable;
+import works.bosk.drivers.sql.schema.Schema;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
@@ -42,16 +47,9 @@ import static java.lang.System.currentTimeMillis;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.jooq.impl.DSL.max;
+import static org.jooq.impl.DSL.name;
 import static org.jooq.impl.DSL.primaryKey;
 import static org.jooq.impl.DSL.using;
-import static works.bosk.drivers.sql.schema.Schema.BOSK;
-import static works.bosk.drivers.sql.schema.Schema.CHANGES;
-import static works.bosk.drivers.sql.schema.Schema.DIAGNOSTICS;
-import static works.bosk.drivers.sql.schema.Schema.ID;
-import static works.bosk.drivers.sql.schema.Schema.NEW_STATE;
-import static works.bosk.drivers.sql.schema.Schema.REF;
-import static works.bosk.drivers.sql.schema.Schema.REVISION;
-import static works.bosk.drivers.sql.schema.Schema.STATE;
 
 public class SqlDriver implements BoskDriver {
 	final SqlDriverSettings settings;
@@ -63,7 +61,18 @@ public class SqlDriver implements BoskDriver {
 
 	final AtomicBoolean isOpen = new AtomicBoolean(true);
 
+	// jOOQ references
+	final TableField<Record, String> DIAGNOSTICS;
+	final ChangesTable CHANGES;
+	final TableField<Record, Long> REVISION;
+	final TableField<Record, String> REF;
+	final TableField<Record, String> NEW_STATE;
+	final TableField<Record, String> STATE;
+	final BoskTable BOSK;
+	final TableField<Record, String> ID;
+
 	final ScheduledExecutorService listener;
+	private final Schema schema;
 
 	private final AtomicLong lastChangeSubmittedDownstream = new AtomicLong(-1);
 
@@ -84,6 +93,19 @@ public class SqlDriver implements BoskDriver {
 			result.setAutoCommit(false);
 			return result;
 		};
+
+		// Set up jOOQ references
+		schema = new Schema(name(settings.schemaName()));
+		REF = schema.REF;
+		NEW_STATE = schema.NEW_STATE;
+		REVISION = schema.REVISION;
+		CHANGES = schema.CHANGES;
+		DIAGNOSTICS = schema.DIAGNOSTICS;
+		STATE = schema.STATE;
+		BOSK = schema.BOSK;
+		ID = schema.ID;
+
+		// Kick off listener thread
 		listener = Executors.newScheduledThreadPool(1, r ->
 			new Thread(r, "SQL listener \""
 				+ bosk.name()
@@ -256,6 +278,10 @@ public class SqlDriver implements BoskDriver {
 	}
 
 	private void ensureTablesExist(Connection connection) throws SQLException {
+		using(connection)
+			.createSchemaIfNotExists(schema)
+			.execute();
+
 		using(connection)
 			.createTableIfNotExists(CHANGES)
 			.columns(REVISION, REF, NEW_STATE, DIAGNOSTICS)

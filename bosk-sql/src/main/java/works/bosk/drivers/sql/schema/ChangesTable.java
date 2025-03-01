@@ -19,7 +19,7 @@ public class ChangesTable extends TableImpl<org.jooq.Record> {
 	public final TableField<Record, String> DIAGNOSTICS = createField(
 		name("diagnostics"), CLOB.notNull());
 
-	ChangesTable() {
-		super(name("bosk_changes"));
+	ChangesTable(Schema schema) {
+		super(name("bosk_changes"), schema);
 	}
 }
