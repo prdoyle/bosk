@@ -12,6 +12,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Objects;
 import java.util.OptionalLong;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,6 +50,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.name;
 import static org.jooq.impl.DSL.primaryKey;
+import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.using;
 
 public class SqlDriver implements BoskDriver {
@@ -73,6 +75,8 @@ public class SqlDriver implements BoskDriver {
 
 	final ScheduledExecutorService listener;
 	private final Schema schema;
+
+	private volatile String epoch;
 
 	private final AtomicLong lastChangeSubmittedDownstream = new AtomicLong(-1);
 
@@ -127,7 +131,7 @@ public class SqlDriver implements BoskDriver {
 		try {
 			try (var c = connectionSource.get()) {
 				var rs = using(c)
-					.select(REF, NEW_STATE, DIAGNOSTICS, REVISION)
+					.select(REF, NEW_STATE, DIAGNOSTICS, CHANGES.EPOCH, REVISION)
 					.from(CHANGES)
 					.where(REVISION.gt(lastChangeSubmittedDownstream.get()))
 					.fetch();
@@ -135,7 +139,12 @@ public class SqlDriver implements BoskDriver {
 					var ref = r.get(REF);
 					var newState = r.get(NEW_STATE);
 					var diagnostics = r.get(DIAGNOSTICS);
+					String epoch = r.get(CHANGES.EPOCH);
 					long changeID = r.get(REVISION);
+
+					if (!epoch.equals(this.epoch)) {
+						throw new NotYetImplementedException("Epoch changed!");
+					}
 
 					if (LOGGER.isTraceEnabled()) {
 						record Change(String ref, String newState, String diagnostics){}
@@ -244,19 +253,21 @@ public class SqlDriver implements BoskDriver {
 			// TODO: It seems wrong to schedule the listener loop here. It should be in the constructor.
 			ensureTablesExist(connection);
 			StateTreeNode result;
-			String json = using(connection)
-				.select(STATE)
+			record Row(String state, String epoch){}
+			var row = using(connection)
+				.select(STATE, BOSK.EPOCH)
 				.from(BOSK)
 				.where(ID.eq("current"))
-				.fetchOne(STATE);
-			if (json == null) {
+				.fetchOneInto(Row.class);
+			if (row == null) {
 				LOGGER.debug("No current state; initializing {} table from downstream", BOSK);
+				this.epoch = UUID.randomUUID().toString();
 				result = downstream.initialRoot(rootType);
 				String stateJson = mapper.writeValueAsString(result);
 
 				using(connection)
-					.insertInto(BOSK).columns(ID, STATE)
-					.values("current", stateJson)
+					.insertInto(BOSK).columns(ID, STATE, BOSK.EPOCH)
+					.values("current", stateJson, epoch)
 					.onConflictDoNothing()
 					.execute();
 				long changeID = insertChange(connection, rootRef, stateJson);
@@ -264,9 +275,10 @@ public class SqlDriver implements BoskDriver {
 				lastChangeSubmittedDownstream.getAndSet(changeID); // Not technically "submitted"
 			} else {
 				LOGGER.debug("Database state exists; initializing downstream from {} table", BOSK);
+				this.epoch = row.epoch;
 				long currentChangeID = latestChangeID(connection);
 				JavaType valueType = TypeFactory.defaultInstance().constructType(rootType);
-				result = mapper.readValue(json, valueType);
+				result = mapper.readValue(row.state, valueType);
 				connection.commit();
 				submitDownstream(rootRef, result, currentChangeID);
 			}
@@ -284,13 +296,13 @@ public class SqlDriver implements BoskDriver {
 
 		using(connection)
 			.createTableIfNotExists(CHANGES)
-			.columns(REVISION, REF, NEW_STATE, DIAGNOSTICS)
+			.columns(CHANGES.EPOCH, REVISION, REF, NEW_STATE, DIAGNOSTICS)
 			.constraints(primaryKey(REVISION))
 			.execute();
 
 		using(connection)
 			.createTableIfNotExists(BOSK)
-			.columns(ID, STATE)
+			.columns(ID, BOSK.EPOCH, STATE)
 			.constraints(primaryKey(ID))
 			.execute();
 
@@ -402,7 +414,7 @@ public class SqlDriver implements BoskDriver {
 
 	/**
 	 * @param state may be mutated!
-	 * @param newValue if null, this is a delete operation
+	 * @param newValue if null, this is a delete
 	 */
 	private <T> OptionalLong replaceAndCommit(JsonNode state, Reference<T> target, T newValue, Connection connection) throws SQLException {
 		NodeInfo node = surgeon.nodeInfo(state, target);
@@ -462,8 +474,8 @@ public class SqlDriver implements BoskDriver {
 	private long insertChange(Connection c, Reference<?> ref, String newValue) {
 		try {
 			return using(c)
-				.insertInto(CHANGES).columns(REF, NEW_STATE, DIAGNOSTICS)
-				.values(ref.pathString(), newValue, mapper.writeValueAsString(ref.root().diagnosticContext().getAttributes()))
+				.insertInto(CHANGES).columns(CHANGES.EPOCH, REF, NEW_STATE, DIAGNOSTICS)
+				.values(epoch, ref.pathString(), newValue, mapper.writeValueAsString(ref.root().diagnosticContext().getAttributes()))
 				.returning(REVISION)
 				.fetchOptional(REVISION)
 				.orElseThrow(()->new NotYetImplementedException("No change inserted"));
@@ -486,11 +498,21 @@ public class SqlDriver implements BoskDriver {
 	}
 
 	private long latestChangeID(Connection connection) {
-		return using(connection)
-			.select(max(REVISION).as(REVISION))
+		record Row(String epoch, Long revision){}
+		var result = using(connection)
+			.select(CHANGES.EPOCH, REVISION)
 			.from(CHANGES)
-			.fetchOptional(REVISION)
-			.orElse(0L); // TODO: Are we sure auto-increment always generates numbers strictly greater than zero?
+			.where(REVISION.eq(select(max(REVISION)).from(CHANGES)))
+			.fetchOneInto(Row.class);
+		if (result == null) {
+			// No changes yet; return something less than the first change ID
+			return 0L; // TODO: Are we sure auto-increment always generates numbers strictly greater than zero?
+		} else {
+			if (!result.epoch.equals(this.epoch)) {
+				throw new NotYetImplementedException("Epoch mismatch");
+			}
+			return result.revision;
+		}
 	}
 
 	private static JavaType mapValueType(Class<?> entryType) {

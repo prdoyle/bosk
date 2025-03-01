@@ -10,6 +10,13 @@ import static org.jooq.impl.SQLDataType.CLOB;
 import static org.jooq.impl.SQLDataType.VARCHAR;
 
 public class ChangesTable extends TableImpl<org.jooq.Record> {
+	/**
+	 * A UUID chosen at the time the tables were created.
+	 * Provides a scope for {@link #REVISION}.
+	 * Revisions from different epochs are not comparable.
+	 */
+	public final TableField<Record, String> EPOCH = createField(
+		name("epoch"), VARCHAR.notNull());
 	public final TableField<Record, Long> REVISION = createField(
 		name("revision"), BIGINT.null_().identity(true));
 	public final TableField<Record, String> REF = createField(
