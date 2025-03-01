@@ -224,7 +224,6 @@ public class BsonFormatter {
 		// BsonPlugin gives better codecs than CodecRegistry, because BsonPlugin is aware of generics,
 		// so we always try that first. The CodecSupplier protocol uses "null" to indicate that another
 		// CodecSupplier should be used, so we follow that protocol and fall back on the CodecRegistry.
-		// TODO: Should this logic be in BsonPlugin? It has nothing to do with MongoDriver really.
 		Codec<?> result = preferredBoskCodecs.apply(type);
 		if (result == null) {
 			return simpleCodecs.get(rawClass(type));

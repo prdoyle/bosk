@@ -196,8 +196,6 @@ public final class ClassBuilder<T> {
 	 */
 	public void pushObject(String name, Object object, Class<?> type) {
 		type.cast(object);
-
-		// TODO: Use ConstantDynamic instead
 		invokeDynamic(name, new ConstantCallSite(MethodHandles.constant(type, object)));
 	}
 
