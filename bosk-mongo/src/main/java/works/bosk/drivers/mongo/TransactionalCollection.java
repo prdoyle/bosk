@@ -179,19 +179,30 @@ class TransactionalCollection<TDocument> implements MongoCollection<TDocument> {
 	}
 
 	/**
+	 * This method kind of breaks the abstraction we're trying to build here.
+	 * <p>
 	 * Calling this is not usually recommended because it ends the transaction,
 	 * which defeats the intent of the prior {@link #ensureTransactionStarted()} call;
-	 * and anyway, whoever opened the {@link Session} will call
-	 * {@link Session#commitTransactionIfAny()} on successful completion of the session.
+	 * and it's not often needed anyway, because whoever opened the {@link Session} will
+	 * call {@link Session#commitTransactionIfAny()} on successful completion of the session.
 	 * <p>
-	 * However, if there are non-database actions that should occur after the commit,
+	 * However, if there are non-database actions that must occur after the commit,
 	 * this can be called first to ensure a successful commit before proceeding.
+	 * Just be aware that whoever called {@link #ensureTransactionStarted()} might not
+	 * have expected you to have ended their transaction: they might have pending
+	 * updates they don't expect to be committed, or they may do subsequent operations
+	 * and then expect to be able to roll them back.
+	 *
+	 * @throws IllegalStateException if there's no active transaction
 	 */
 	public void commitTransaction() {
-		// TODO: Can we eliminate this and use commitTransactionIfAny exclusively?
-		// This one doesn't even have the retry logic.
 		LOGGER.debug("Commit transaction");
-		currentSession().commitTransaction();
+		Session session = currentSession.get();
+		if (session.clientSession.hasActiveTransaction()) {
+			session.commitTransactionIfAny();
+		} else {
+			throw new IllegalStateException("No active transaction");
+		}
 	}
 
 	public void abortTransaction() {

@@ -264,7 +264,11 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			collection.deleteMany(deletionFilter);
 
 			newFormatDriver.initializeCollection(result);
+
+			// We must rudely commit the transaction here, since correctness requires that
+			// the database updates commit before we publish newFormatDriver.
 			collection.commitTransaction();
+
 			publishFormatDriver(newFormatDriver);
 		} catch (UninitializedCollectionException e) {
 			throw new IOException("Unable to refurbish uninitialized database collection", e);
