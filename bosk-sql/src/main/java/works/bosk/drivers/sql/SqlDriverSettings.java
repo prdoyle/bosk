@@ -1,8 +1,6 @@
 package works.bosk.drivers.sql;
 
 
-import org.jooq.CheckReturnValue;
-
 import static java.lang.Math.multiplyExact;
 
 /**
@@ -21,6 +19,7 @@ public record SqlDriverSettings(
 	long timescaleMS,
 	int patienceFactor
 ) {
+	@SuppressWarnings("ResultOfMethodCallIgnored") // We just want an exception if this is out of range
 	public SqlDriverSettings {
 		multiplyExact(timescaleMS, patienceFactor);
 	}
