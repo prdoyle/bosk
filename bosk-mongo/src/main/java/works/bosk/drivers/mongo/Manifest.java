@@ -3,6 +3,7 @@ package works.bosk.drivers.mongo;
 import java.util.Optional;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
+import works.bosk.drivers.mongo.MongoDriverSettings.SequoiaFormat;
 
 /**
  * Defines the format of the manifest document, which is stored in the database
@@ -35,11 +36,9 @@ public record Manifest(
 	}
 
 	public static Manifest forFormat(DatabaseFormat format) {
-		// TODO: Use a type switch in newer Java versions
-		if (format instanceof PandoFormat p) {
-			return forPando(p);
-		} else {
-			return forSequoia();
-		}
+		return switch (format) {
+			case PandoFormat p -> forPando(p);
+			case SequoiaFormat __ -> forSequoia();
+		};
 	}
 }
