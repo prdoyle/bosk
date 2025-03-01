@@ -4,16 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -24,17 +21,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
-import works.bosk.Catalog;
-import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
-import works.bosk.Entity;
 import works.bosk.Identifier;
-import works.bosk.Listing;
 import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.RootReference;
-import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
@@ -286,88 +278,72 @@ public class SqlDriver implements BoskDriver {
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		LOGGER.debug("submitReplacement({}, {})", target, newValue);
-		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
 			// TODO optimization: no need to read the current state for root
-			revision = replaceAndCommit(readState(connection), target, newValue, connection);
+			replaceAndCommit(readState(connection), target, newValue, connection);
 		} catch (SQLException e) {
 			throw new NotYetImplementedException(e);
 		}
-		runInBackground(revision, () -> downstream.submitReplacement(target, newValue));
 	}
 
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
 		LOGGER.debug("submitConditionalReplacement({}, {}, {}, {})", target, newValue, precondition, requiredValue);
-		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
 			JsonNode state = readState(connection);
 			if (isMatchingTextNode(precondition, requiredValue, state)) {
-				revision = replaceAndCommit(state, target, newValue, connection);
-			} else {
-				revision = OptionalLong.empty();
+				replaceAndCommit(state, target, newValue, connection);
 			}
 		} catch (SQLException e) {
 			throw new NotYetImplementedException(e);
 		}
-		runInBackground(revision, () -> downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue));
 	}
 
 	@Override
 	public <T> void submitInitialization(Reference<T> target, T newValue) {
 		LOGGER.debug("submitInitialization({}, {})", target, newValue);
-		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
 			JsonNode state = readState(connection);
 			NodeInfo node = surgeon.nodeInfo(state, target);
 			if (surgeon.node(node.valueLocation(), state) == null) {
-				revision = replaceAndCommit(state, target, newValue, connection);
-			} else {
-				revision = OptionalLong.empty();
+				replaceAndCommit(state, target, newValue, connection);
 			}
 		} catch (SQLException e) {
 			throw new NotYetImplementedException(e);
 		}
-		runInBackground(revision, () -> downstream.submitInitialization(target, newValue));
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
 		LOGGER.debug("submitDeletion({})", target);
-		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
-			revision = replaceAndCommit(readState(connection), target, null, connection);
+			replaceAndCommit(readState(connection), target, null, connection);
 		} catch (SQLException e) {
 			throw new NotYetImplementedException(e);
 		}
-		runInBackground(revision, () -> downstream.submitDeletion(target));
 	}
 
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
 		LOGGER.debug("submitConditionalDeletion({}, {}, {})", target, precondition, requiredValue);
-		OptionalLong revision;
 		try (
 			var connection = connectionSource.get()
 		){
 			JsonNode state = readState(connection);
 			if (isMatchingTextNode(precondition, requiredValue, state)) {
-				revision = replaceAndCommit(state, target, null, connection);
-			} else {
-				revision = OptionalLong.empty();
+				replaceAndCommit(state, target, null, connection);
 			}
 		} catch (SQLException e) {
 			throw new NotYetImplementedException(e);
 		}
-		runInBackground(revision, () -> downstream.submitConditionalDeletion(target, precondition, requiredValue));
 	}
 
 	private boolean isMatchingTextNode(Reference<Identifier> precondition, Identifier requiredValue, JsonNode state) {
@@ -378,7 +354,7 @@ public class SqlDriver implements BoskDriver {
 	@Override
 	public void flush() throws IOException, InterruptedException {
 		try (
-			var connection = connectionSource.get();
+			var connection = connectionSource.get()
 		){
 			long currentChangeID = latestChangeID(connection);
 			LOGGER.debug("flush({})", currentChangeID);
@@ -403,7 +379,7 @@ public class SqlDriver implements BoskDriver {
 
 	/**
 	 * @param state may be mutated!
-	 * @param newValue if null, this is a delete
+	 * @param newValue if null, this is a delete operation
 	 */
 	private <T> OptionalLong replaceAndCommit(JsonNode state, Reference<T> target, T newValue, Connection connection) throws SQLException {
 		NodeInfo node = surgeon.nodeInfo(state, target);
@@ -460,21 +436,6 @@ public class SqlDriver implements BoskDriver {
 		}
 	}
 
-	private static String stringLiteral(String raw) {
-		return '"' + raw.replace("\"", "\"\"") + '"';
-	}
-
-	/**
-	 * Fake it till you make it
-	 */
-	private void runInBackground(OptionalLong revision, Runnable runnable) {
-	}
-
-	private ObjectWriter writerFor(Type type) {
-		return mapper.writerFor(TypeFactory.defaultInstance()
-			.constructType(type));
-	}
-
 	private long insertChange(Connection c, Reference<?> ref, String newValue) {
 		try {
 			return using(c)
@@ -507,69 +468,6 @@ public class SqlDriver implements BoskDriver {
 			.from(CHANGES)
 			.fetchOptional(REVISION)
 			.orElse(0L); // TODO: Are we sure auto-increment always generates numbers strictly greater than zero?
-	}
-
-	/**
-	 * The object at this path deserializes into {@code ref.value()}.
-	 * Often the same as {@link #entityPath} but not necessarily always.
-	 * @return jsonb path pointing to where {@code ref.value()} would be stored in the JSON structure
-	 */
-	private static String contentPath(Reference<?> ref) {
-		ArrayList<String> steps = new ArrayList<>();
-		buildFieldPath(ref, steps, true);
-		return "{" + String.join(",", steps) + "}";
-	}
-
-	/**
-	 * Creating the object at this path causes {@code ref} to exist;
-	 * deleting it causes it not to exist.
-	 * Often the same as {@link #contentPath} but not necessarily always.
-	 * @return jsonb path pointing to the JSON object representing {@code ref}.
-	 */
-	private static String entityPath(Reference<?> ref) {
-		ArrayList<String> steps = new ArrayList<>();
-		buildFieldPath(ref, steps, false);
-		return "{" + String.join(",", steps) + "}";
-	}
-
-	/**
-	 * @param content if true, return the {@link #contentPath}; else return the {@link #entityPath}.
-	 */
-	private static void buildFieldPath(Reference<?> ref, ArrayList<String> steps, boolean content) {
-		if (!ref.path().isEmpty()) {
-			Reference<Object> enclosing = enclosingReference(ref);
-			buildFieldPath(enclosing, steps, true);
-			if (Listing.class.isAssignableFrom(enclosing.targetClass())) {
-				steps.add(stringLiteral("entriesById"));
-			} else if (SideTable.class.isAssignableFrom(enclosing.targetClass())) {
-				steps.add(stringLiteral("valuesById"));
-			}
-			steps.add(stringLiteral(ref.path().lastSegment()));
-			if (content && Catalog.class.isAssignableFrom(enclosing.targetClass())) {
-				steps.add(stringLiteral("value"));
-			}
-		}
-	}
-
-	private static Reference<Object> enclosingReference(Reference<?> ref) {
-		assert !ref.path().isEmpty();
-		return ref.enclosingReference(Object.class);
-	}
-
-	private static Optional<CatalogReference<?>> directlyEnclosingCatalog(Reference<?> ref) {
-		if (ref.path().isEmpty()) {
-			return Optional.empty();
-		}
-		var enclosing = enclosingReference(ref);
-		if (Catalog.class.isAssignableFrom(enclosing.targetClass())) {
-			try {
-				return Optional.of(enclosing.root().thenCatalog(Entity.class, enclosing.path()));
-			} catch (InvalidTypeException e) {
-				throw new AssertionError("Should be able to make a CatalogReference from a reference to a Catalog", e);
-			}
-		} else {
-			return Optional.empty();
-		}
 	}
 
 	private static JavaType mapValueType(Class<?> entryType) {
