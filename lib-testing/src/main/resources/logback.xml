@@ -16,6 +16,7 @@
 	<!-- How to add more tracing during unit tests
 	<logger name="works.bosk" level="INFO"/>
 	<logger name="works.bosk.drivers.mongo" level="DEBUG"/>
+	<logger name="works.bosk.drivers.sql" level="DEBUG"/>
 	<logger name="works.bosk.drivers.DriverConformanceTest" level="DEBUG"/>
 	<logger name="works.bosk.drivers.mongo.PandoFormatDriver" level="TRACE"/>
 	<logger name="works.bosk.drivers.mongo.MainDriver" level="TRACE"/>

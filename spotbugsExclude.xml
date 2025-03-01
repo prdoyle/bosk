@@ -32,4 +32,19 @@
 		<Class name="works.bosk.SideTable$1Accumulator"/>
 		<Bug code="UMAC"/> <!-- Incorrectly identified as uncallable -->
 	</Match>
+
+	<Match>
+		<Class name="works.bosk.drivers.sql.SqlDriverSettings"/>
+		<Bug code="RV"/> <!-- Incorrectly flags multiplyExact as having no side effect -->
+	</Match>
+	<Match>
+		<Class name="works.bosk.drivers.sql.schema.BoskTable"/>
+		<Method name="equals"/>
+		<Bug code="Eq"/> <!-- Inherited equals is fine -->
+	</Match>
+	<Match>
+		<Class name="works.bosk.drivers.sql.schema.ChangesTable"/>
+		<Method name="equals"/>
+		<Bug code="Eq"/> <!-- Inherited equals is fine -->
+	</Match>
 </FindBugsFilter>
