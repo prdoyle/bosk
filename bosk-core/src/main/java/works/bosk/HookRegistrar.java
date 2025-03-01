@@ -36,7 +36,6 @@ class HookRegistrar {
 				} else if (isPrivate(method.getModifiers())) {
 					throw new IllegalArgumentException("Hook method cannot be private: " + method);
 				}
-				method.setAccessible(true);
 				Path path = Path.parseParameterized(hookAnnotation.value());
 
 				Reference<?> plainRef = bosk.rootReference().then(Object.class, path);

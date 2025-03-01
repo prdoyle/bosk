@@ -37,6 +37,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import works.bosk.BoskInfo;
 import works.bosk.Catalog;
 import works.bosk.Entity;
@@ -543,20 +544,16 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		private JsonDeserializer<ListValue<Object>> listValueDeserializer(JavaType type) {
-			Constructor<?> ctor = ReferenceUtils.theOnlyConstructorFor(type.getRawClass());
+			@SuppressWarnings("unchecked")
+			Function<Object[], ? extends ListValue<Object>> factory = listValueFactory((Class<ListValue<Object>>)type.getRawClass());
 			JavaType arrayType = listValueEquivalentArrayType(type);
 			return new BoskDeserializer<>() {
 				@Override
-				@SuppressWarnings({"unchecked"})
 				public ListValue<Object> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-					Object elementArray = ctxt
+					Object[] elementArray = (Object[]) ctxt
 						.findContextualValueDeserializer(arrayType, null)
 						.deserialize(p, ctxt);
-					try {
-						return (ListValue<Object>) ctor.newInstance(elementArray);
-					} catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-						throw new IOException("Failed to instantiate " + type.getRawClass().getSimpleName() + ": " + e.getMessage(), e);
-					}
+					return factory.apply(elementArray);
 				}
 			};
 		}
