@@ -60,7 +60,7 @@ public class ListValue<T> extends AbstractList<T> {
 
 	@SuppressWarnings("unchecked")
 	public static <TT> ListValue<TT> from(Collection<TT> entries) {
-		if (entries.size() == 0) {
+		if (entries.isEmpty()) {
 			return empty();
 		} else {
 			return new ListValue<>((TT[])entries.toArray());
