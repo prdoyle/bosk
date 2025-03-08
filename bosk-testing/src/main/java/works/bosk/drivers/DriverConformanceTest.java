@@ -72,7 +72,6 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		assertCorrectBoskContents();
 	}
 
-	@Order(2)
 	@ParametersByName
 	void replaceIdentical(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
@@ -80,7 +79,6 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		assertCorrectBoskContents();
 	}
 
-	@Order(2)
 	@ParametersByName
 	void replaceDifferent(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);

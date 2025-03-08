@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class SharedDriverConformanceTest extends DriverConformanceTest {
 
 	@Override
-	void assertCorrectBoskContents() {
+	protected void assertCorrectBoskContents() {
 		super.assertCorrectBoskContents();
 		var latecomer = new Bosk<>(BoskTestUtils.boskName("latecomer"), TestEntity.class, AbstractDriverTest::initialRoot, driverFactory);
 		try {
