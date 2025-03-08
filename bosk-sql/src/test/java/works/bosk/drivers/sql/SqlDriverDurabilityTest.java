@@ -21,6 +21,7 @@ import works.bosk.junit.ParametersByName;
 import static org.jooq.impl.DSL.using;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.drivers.sql.SqlTestService.Database.POSTGRES;
+import static works.bosk.drivers.sql.SqlTestService.Database.SQLITE;
 import static works.bosk.drivers.sql.SqlTestService.sqlDriverFactory;
 
 @Testcontainers
@@ -37,7 +38,7 @@ public class SqlDriverDurabilityTest extends AbstractDriverTest {
 
 	@SuppressWarnings("unused")
 	static Stream<Database> database() {
-		return Stream.of(POSTGRES);
+		return Stream.of(POSTGRES, SQLITE);
 	}
 
 	@BeforeEach

@@ -3,9 +3,13 @@ package works.bosk.drivers.sql;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import works.bosk.drivers.state.TestEntity;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.jackson.JacksonPlugin;
 import works.bosk.jackson.JacksonPluginConfiguration;
 
@@ -16,9 +20,21 @@ public class SqlTestService {
 	record DBKey(Database database, String databaseName) {}
 	private static final ConcurrentHashMap<DBKey, HikariDataSource> DATA_SOURCES = new ConcurrentHashMap<>();
 
+	static final Path TEMP_DIR;
+
+	static {
+		try {
+			TEMP_DIR = Files.createTempDirectory("bosk-test");
+			TEMP_DIR.toFile().deleteOnExit();
+		} catch (IOException e) {
+			throw new NotYetImplementedException(e);
+		}
+	}
+
 	public enum Database {
 		MYSQL(testcontainers("mysql:8.0.36")),
 		POSTGRES(testcontainers("postgresql:16")),
+		SQLITE(dbName -> "jdbc:sqlite:" + TEMP_DIR.resolve(dbName + ".db")),
 		;
 
 		final Function<String, String> url;

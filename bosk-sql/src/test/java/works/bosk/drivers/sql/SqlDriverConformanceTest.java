@@ -15,6 +15,7 @@ import works.bosk.drivers.sql.schema.Schema;
 import works.bosk.junit.ParametersByName;
 
 import static works.bosk.drivers.sql.SqlTestService.Database.POSTGRES;
+import static works.bosk.drivers.sql.SqlTestService.Database.SQLITE;
 import static works.bosk.drivers.sql.SqlTestService.sqlDriverFactory;
 
 @Testcontainers
@@ -32,7 +33,7 @@ class SqlDriverConformanceTest extends SharedDriverConformanceTest {
 
 	@SuppressWarnings("unused")
 	public static Stream<Database> database() {
-		return Stream.of(POSTGRES); // MYSQL is very slow for some reason
+		return Stream.of(POSTGRES, SQLITE); // MYSQL is very slow for some reason
 	}
 
 	@BeforeEach
