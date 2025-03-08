@@ -28,10 +28,13 @@ dependencies {
 	testImplementation project(':lib-testing')
 
 	testImplementation project(':bosk-logback')
+
 	testImplementation 'com.zaxxer:HikariCP:6.2.1'
 	testImplementation 'org.testcontainers:postgresql:1.20.4'
 	testImplementation 'org.postgresql:postgresql:42.7.5'
 	testImplementation 'org.testcontainers:mysql:1.20.4'
 	testImplementation 'com.mysql:mysql-connector-j:9.2.0'
+	testImplementation 'org.xerial:sqlite-jdbc:3.49.1.0'
+
 
 }
