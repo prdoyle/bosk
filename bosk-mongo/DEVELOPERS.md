@@ -17,7 +17,7 @@ Consequently, `MongoDriver` is concerned only with
 (1) initializing the bosk's in-memory replica of the state from the database, and
 (2) implementing state updates.
 
-Like all drivers, `MongoDriver` acts as a stackable layer on top of another _downstream_ `BoskDriver`.
+Like most drivers, `MongoDriver` acts as a stackable layer on top of another _downstream_ `BoskDriver`.
 Drivers are expected to implement the `BoskDriver` semantics, describing the desired updates to the downstream driver.
 From this description alone, a driver that simply forwarded all method calls to the downstream driver would be a valid implementation, but not an interesting one.
 Real drivers aim to imbue a bosk with additional attributes it would not otherwise have.
@@ -55,35 +55,35 @@ When anything goes awry, `MainDriver` can discard and replace the `FormatDriver`
 which allows `FormatDriver` to be largely ignorant of fault tolerance concerns:
 `FormatDriver` can simply throw exceptions when errors occur, and let `MainDriver` handle the recovery operations.
 
-The `MainDriver` functionality is further divided into three areas:
-- the `BoskDriver` `submit` methods are implemented by `MainDriver` itself;
-- the change stream cursor lifecycle is managed by `ChangeReceiver`, which houses the background thread that receives change events; and
-- the `MainDriver.Listener` processes events from `ChangeReceiver` to update the driver state and forward state changes downstream.
-
 ### Major components
 
 A `MongoDriver` instance comprises a small cluster of objects that cooperate to deliver the desired functionality.
 
-The actual core implementation of driver semantics is mostly contained in `FormatDriver` implementations,
-which handle the translation of bosk operations to and from MongoDB operations.
-
 The top-level coordination is implemented by `MainDriver`, which serves as a kind of harness for the rest of the objects.
 `MainDriver` is concerned with initialization, error handling, and coordination between threads.
 
+The actual core implementation of driver semantics is mostly contained in `FormatDriver` implementations,
+which handle the translation from bosk updates to MongoDB updates
+and from MongoDB changes back to bosk updates passed to the downstream driver.
+`MainDriver` manages the lifecycle of ts `FormatDriver` object,
+and has exactly one at any given moment.
+Whenever an unexpected condition is encountered, `MainDriver` can respond by discarding the `FormatDriver`
+and creating a new one.
+
 The management of the change stream, by which `MongoDriver` learns of changes to the database,
 is governed by `ChangeReceiver`, which houses the background thread responsible for
-opening the cursor, waiting for events, forwarding them to the `FormatDriver` (via the `ChangeListener` interface),
+opening the cursor, waiting for events, forwarding them to the `FormatDriver` via the `ChangeListener` interface,
 and handling cursor-related exceptions.
 The `MainDriver` instantiates the `ChangeReceiver` and coordinates with it to ensure all change events and error conditions are handled appropriately.
 
 ### The `MongoDriver` interface
 
-The `MongoDriver` interface extends the `BoskDriver` interface with two additional methods, described below.
+The `MongoDriver` interface extends the `BoskDriver` interface with two additional public methods, described below.
 
 #### `refurbish`
 
-The `refurbish` method supports schema evolution by
-rewriting the entire database contents to bring them up to date.
+The `refurbish` rewrites the entire database contents in the preferred format.
+This supports evolution of the format, as well as evolution of the schema (the bosk state tree layout).
 Users of `MongoDriver` use `MongoDriverSettings` to configure their preferred format options,
 but if the database already exists, its format must take precedence.
 The intent of the `refurbish` method is to overwrite the database contents so they are freshly serialized using the preferred format.
@@ -122,13 +122,8 @@ produced by a prior version, and it must still work.
 In other words, the appropriate way to interact with the database must be determined by the database contents,
 not the driver code, if we want to maintain access to the data when the code is upgraded.
 
-In order to allow for the evolution of the database format over time,
-`MongoDriver` is separated into two primary pieces:
-
-- the subclasses of `FormatDriver`, which implement the `BoskDriver` methods in terms of database write operations, and translate change events from the database into corresponding bosk update operations; and
-- the `MainDriver` and `ChangeReceiver` classes, which implement format-independent logic for initialization, fault tolerance, thread synchronization, error handling, and logging, as well as common logic for the `initialRoot` and `refurbish` operations.
-
-The lifetime of a `FormatDriver` is shorter than that of the `MongoDriver` as a whole.
+The `MainDriver` creates the appropriate `FormatDriver` subclass
+based on the database contents, as described in its manifest document.
 By design, if anything goes wrong in any part of the `FormatDriver` code,
 including unforeseen exceptions,
 the `FormatDriver` can be discarded and a new one created,
@@ -183,6 +178,44 @@ The `onRevisionToSkip` method is called whenever the state is loaded via `loadAl
 This communicates to the `FormatDriver` that subsequent events should be ignored if they are older than
 the revision found when the state was read from the database.
 
+#### Division of responsibilities
+
+Here is a summary of the responsibilities of `MainDriver` and `FormatDriver`.
+
+`MainDriver`:
+- Determines when the database collection should be initialized
+- Detects the format, instantiates the `FormatDriver`, and connects it to the `ChangeReceiver`
+- Ignores events on unrelated MongoDB databases and collections
+- Implements `initialRoot` in terms of `loadAllState`
+- Implements `refurbish` in terms of `loadAllState` and `initializeCollection`
+- Handles `MongoException`
+- Orchestrates disconnect/reconnect and retries
+- Debounces reinitialization requests
+
+`FormatDriver`:
+- Implements `initializeCollection` and `loadAllState`
+- Performs database reads and writes, aside from loading the manifest for format detection
+- Interacts with the downstream driver, aside from `initialRoot`
+- Implements `flush`
+- Implements revisions, and ignores revisions older than the current one
+- Ignores events on unrelated documents within the bosk collection (like the manifest)
+- Processes updates to the manifest itself
+	- Can throw `UnprocessableEventException` at its discretion,
+	  but must not do so for any changes from its own `initializeCollection`
+	  method, since this could lead to an endless loop of reinitialization.
+
+#### `FormatDriver` implementation checklist
+
+When your implementation is complete, you should be able to answer "yes" to the following questions:
+
+- [ ] Does your `onEvent` ignore document-specific events with a `documentKey` you don't recognize?
+- [ ] Does your `onEvent` handle events that are not document-specific?
+- [ ] Does your `onEvent` cope with any events generated by its own `initializeCollection`?
+- [ ] Does your `flush` end with a call to `downstream.flush()`?
+- [ ] Do you use checked exceptions for all exceptions you want to handle internally?
+- [ ] Do you have enough `LOGGER.debug` statements that a developer can tell which code ran?
+- [ ] Does `loadAllState` throw `UninitializedCollectionException` when it detects that the collection has not yet been initialized?
+
 ### `ChangeReceiver` and `ChangeListener`
 
 If change stream events are the lifeblood of `MongoDriver`, then `ChangeReceiver` is its heart.
@@ -190,27 +223,15 @@ If change stream events are the lifeblood of `MongoDriver`, then `ChangeReceiver
 running a continual loop that initializes the cursor, waits for events, feeds them to a `ChangeListener`
 and eventually closes the cursor if there's an error, at which point the loop starts over with a new cursor.
 
-In a perfect world, there would be a clean division of responsibilities between `ChangeReceiver` and `MainDriver`.
-`ChangeReceiver` processes change events; `MainDriver` implements the `BoskDriver` methods using database reads and writes.
-`ChangeReceiver` runs on a background thread; `MainDriver` runs on the foreground threads (the application threads that call the `BoskDriver` methods).
+The `MainDriver` provides an implementation of the `ChangeListener` interface.
+Ordinary update events are logged and forwarded to the `FormatDriver`;
+other events are handled by `MainDriver` itself:
 
-In reality, the division can't be this clean, for two main reasons.
+- `onConnectionSucceeded` detects the database format and instantiates the appropriate `FormatDriver` subclass;
+- `onConnectionFailed` ensures the `MainDriver`'s internal state is consistent when the database is unreachable; and
+- `onDisconnect` shuts down the `FormatDriver` when the database connection is lost.
 
-First, all format-specific operations, whether database reads or writes or change stream events,
-are handled by `FormatDriver`.
-The division we describe here is intentionally absent from `FormatDriver`,
-where separating these two concerns would do more harm than good.
-
-Second, reading the database state is inextricably linked with change events,
-because when the bosk state is loaded into memory,
-it's crucial to ensure that every subsequent update is applied, and none are missed.
-This means the opening of a new cursor must be coordinated with the load of the bosk state.
-Furthermore, certain other change stream occurrences, like an `INVALIDATE` event or a `NoSuchElementException` exception,
-affect how the driver methods behave;
-for example, when the connection to the database is lost,
-calls to driver methods may attempt to reconnect, or may throw an exception.
-
-As a result, there are actually four divisions of responsibilities:
+In summary, these are the division of responsibilities among the components:
 1. All format-specific logic is in `FormatDriver`
 2. For format-independent logic:
 - All change stream cursor lifecycle logic is in `ChangeReceiver`
@@ -230,8 +251,8 @@ because a reconnection is simply a shutdown followed by an initialization.
 Thus, this design reduces risk by transforming an unusual and risky occurrence (error handling and recovery)
 into commonplace operations that happen every time an application runs (initialization and shutdown).
 
-Certain objects, such as `MainDriver` and `ChangeReceiver`, have a lifetime that coincides with that of the `Bosk`,
-while other objects, such as `FormatDriver` and `FlushLock`, have a lifetime that coincides with that of the cursor.
+`MainDriver` and `ChangeReceiver` have a lifetime that coincides with that of the `Bosk`.
+`FormatDriver` and `FlushLock` have a lifetime that coincides with that of the cursor.
 
 ### Miscellaneous development notes
 
@@ -249,28 +270,48 @@ and since they are runtime exceptions, we get no help from the Java compiler.)
 We have developed a few of our own JUnit 5 extensions to make this testing more convenient,
 such as `@ParametersByName` and `@DisruptsMongoService`.
 
+#### Logging guidelines
+
+Log `warn` and `error` levels are likely to be logged by applications in production,
+and so they will be visible to whatever team is operating the application that uses Bosk.
+They should be written with a reader in mind who is not a Bosk expert, perhaps not even
+knowing what bosk is, and should contain enough information to guide their troubleshooting efforts.
+
+Logs at `info` levels can target knowledgeable Bosk users, and should aim to explain what
+the library is doing in a way that helps them learn to use it more effectively.
+
+Logs at the `debug` level target Bosk developers. They can use some Bosk jargon, though
+they should also be helping new Bosk developers climb the learning curve. They should
+allow developers to tell what code paths executed.
+
+Logs at the `trace` level target expert Bosk developers troubleshooting very tricky bugs,
+and can include information that would be too voluminous to emit under most circumstances.
+Examples include stack traces for routine situations, or dumps of entire data structures,
+neither of which should be done at the `debug` level. It can also include high-frequency messages
+emitted many times for a single user action (again, not recommended at the `debug` level),
+though this must be done cautiously, since even disabled log statements still have nonzero overhead.
+
 ### TODO: Points to cover
 (This document is a work in progress.)
 
 / Basic operation
 / Reads always come from memory. That's always true in Bosk, and a driver can't change that even if it wanted to.
 / Driver operations lead to database operations; they are not forwarded downstream
-- Translated from bosk to MongoDB by a `FormatDriver`
+X Translated from bosk to MongoDB by a `FormatDriver`
 - `initialRoot` is a special case that will need to be documented separately
-- Change events bring the database operations back to `MongoDriver` via `ChangeReceiver`, which forwards them to `FormatDriver`
+/ Change events bring the database operations back to `MongoDriver` via `ChangeReceiver`, which forwards them to `FormatDriver`
 	- From there, they are translated from MongoDB back to Bosk and forwarded to the downstream driver
-- With a single bosk interacting with the database, all of this makes little difference, but
+X With a single bosk interacting with the database, all of this makes little difference, but
 	- You get persistence/durability
 	- You get replication for free!
-- The cursor lifecycle
+/ The cursor lifecycle
 - Responsibilities of the background thread
 - Two different lifetimes: permanent and cursor
   / `FormatDriver`
-- Division of responsibilities from the draft Principles of Operation doc
-- Emphasis on error handling
+/ Division of responsibilities from the draft Principles of Operation doc
+/ Emphasis on error handling
   / General orientation toward checked exceptions for exceptions that are not visible to the user
-- `initialRoot` is complicated; explain why from the block comment
-- Logging philosophy from block comment
+/ Logging philosophy from block comment
 - MongoDB semantics
 	- Opening the cursor, then reading the current `revision` using read concern `LOCAL` ensures events aren't missed
 	- FormatDriver should discard events that occurred after the cursor was opened but before the revision from the initial read
