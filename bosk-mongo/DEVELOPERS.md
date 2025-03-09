@@ -116,12 +116,6 @@ The `FormatDriver` interface is a further extension of the `MongoDriver` interfa
 that describes the objects that do all _format-specific_ logic.
 By "format" here, we mean the exact way in which the bosk state is mapped to and from database contents.
 
-The database format can be expected to evolve over time as the bosk library acquires new capabilities.
-A user updating to the latest version of bosk would need to run their application against a database
-produced by a prior version, and it must still work.
-In other words, the appropriate way to interact with the database must be determined by the database contents,
-not the driver code, if we want to maintain access to the data when the code is upgraded.
-
 The `MainDriver` creates the appropriate `FormatDriver` subclass
 based on the database contents, as described in its manifest document.
 By design, if anything goes wrong in any part of the `FormatDriver` code,
@@ -132,11 +126,6 @@ re-establishing the correspondence between the database and the in-memory bosk s
 This approach simplifies the implementations of the `FormatDriver` (which are already complex enough!)
 by freeing them from the need to handle myriad unexpected or rare situations;
 instead, the `FormatDriver` can simply crash and be replaced.
-
-In particular, `FormatDriver` implementations need not concern themselves with
-the transition from one format to another during a `refurbish` operation;
-instead, the existing `FormatDriver` is simply discarded
-and a new one is created corresponding to the new format.
 
 There are two ways in which a `FormatDriver` builds on the functionality of other `MongoDriver` classes, described below.
 
@@ -150,7 +139,7 @@ There are two `MongoDriver` methods that present special challenges to `FormatDr
 - `initialRoot` requires cooperation between loading the database and opening a change stream cursor, and most of the complexity here is not format-specific.
 
 For these reasons, `FormatDriver` does not implement these two methods,
-but instead implements two different methods:
+but instead implements two simpler methods:
 - `loadAllState` performs a database read of the entire bosk state and metadata, and returns it in a `StateAndMetadata` object; and
 - `initializeCollection` performs a database write of the entire bosk state and metadata.
 
