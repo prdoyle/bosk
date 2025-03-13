@@ -32,8 +32,8 @@ public class SqlTestService {
 	}
 
 	public enum Database {
-		MYSQL(testcontainers("mysql:8.0.36")),
-		POSTGRES(testcontainers("postgresql:16")),
+		MYSQL(testcontainers("mysql:8.0.36", "/var/lib/mysql")),
+		POSTGRES(testcontainers("postgresql:16", "/var/lib/postgresql/data")),
 		SQLITE(dbName -> "jdbc:sqlite:" + TEMP_DIR.resolve(dbName + ".db")),
 		;
 
@@ -55,8 +55,12 @@ public class SqlTestService {
 		return new HikariDataSource(config);
 	}
 
-	private static Function<String, String> testcontainers(String image) {
-		return dbName -> "jdbc:tc:" + image + ":///" + dbName + "?TC_DAEMON=true";
+	private static Function<String, String> testcontainers(String image, String dataDir) {
+		return dbName -> "jdbc:tc:" + image
+			+ ":///" + dbName
+			+ "?TC_DAEMON=true"
+			+ "&TC_TMPFS=" + dataDir + ":rw"
+			;
 	}
 
 	public static SqlDriver.SqlDriverFactory<TestEntity> sqlDriverFactory(SqlDriverSettings settings, HikariDataSource dataSource) {
