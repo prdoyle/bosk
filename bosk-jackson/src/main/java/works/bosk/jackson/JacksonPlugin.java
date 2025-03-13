@@ -247,7 +247,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 			};
 		}
 
-		@SuppressWarnings("unchecked")
+		@SuppressWarnings({"unchecked"})
 		private <T extends VariantCase> JsonSerializer<TaggedUnion<?>> taggedUnionSerializer() {
 			return new JsonSerializer<>() {
 				/**
@@ -255,7 +255,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 				 * but we serialize it as though it had a single field whose name equals {@code node.value().tag()} and whose value is {@code node.value()}.
 				 */
 				@Override
-				public void serialize(TaggedUnion union, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+				public void serialize(TaggedUnion<?> union, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					// We assume the TaggedUnion object is correct by construction and don't bother checking the variant case map here
 					T variant = (T)union.variant();
 					JsonSerializer<Object> valueSerializer = serializers.findValueSerializer(variant.getClass());
