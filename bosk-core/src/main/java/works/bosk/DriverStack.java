@@ -20,6 +20,7 @@ public interface DriverStack<R extends StateTreeNode> extends DriverFactory<R> {
 	 * @return a factory that composes <code>factories</code> from right to left
 	 */
 	@SafeVarargs
+	@SuppressWarnings("varargs")
 	static <RR extends StateTreeNode> DriverStack<RR> of(DriverFactory<RR>...factories) {
 		return DriverStack.of(List.of(factories));
 	}
