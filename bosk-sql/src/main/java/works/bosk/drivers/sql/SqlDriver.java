@@ -184,7 +184,11 @@ public class SqlDriver implements BoskDriver {
 				throw new NotYetImplementedException(e);
 			}
 		} catch (RuntimeException e) {
-			LOGGER.warn("Change processing exited unexpectedly", e);
+			if (isOpen.get()) {
+				LOGGER.warn("Change processing exited unexpectedly", e);
+			} else {
+				LOGGER.debug("Driver is closed; exiting change processing loop", e);
+			}
 			throw e;
 		}
 	}
