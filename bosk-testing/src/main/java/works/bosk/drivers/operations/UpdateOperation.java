@@ -7,7 +7,7 @@ import works.bosk.MapValue;
 import works.bosk.Reference;
 
 public sealed interface UpdateOperation permits
-	ConditionalOperation,
+	OperationWithPrecondition,
 	DeletionOperation,
 	ReplacementOperation
 {

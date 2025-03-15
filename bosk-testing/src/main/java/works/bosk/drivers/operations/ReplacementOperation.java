@@ -2,7 +2,7 @@ package works.bosk.drivers.operations;
 
 public sealed interface ReplacementOperation<T> extends UpdateOperation permits
 	SubmitConditionalReplacement,
-	SubmitInitialization,
+	ConditionalCreation,
 	SubmitReplacement
 {
 	T newValue();

@@ -250,7 +250,7 @@ public class HooksTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void basic_initialization() {
+	void basic_creation() {
 		registerInterleavedHooks();
 
 		Identifier child4ID = Identifier.from("child4");
@@ -270,7 +270,7 @@ public class HooksTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void basic_reinitialization() {
+	void basic_creationAlreadyExists() {
 		registerInterleavedHooks();
 
 		TestChild newValue = originalChild1
@@ -285,7 +285,7 @@ public class HooksTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void basic_initializationInNonexistentParent() {
+	void basic_creationInNonexistentParent() {
 		registerInterleavedHooks();
 
 		Identifier child4ID = Identifier.from("child4");

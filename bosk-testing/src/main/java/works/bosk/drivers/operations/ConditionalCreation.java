@@ -5,15 +5,15 @@ import works.bosk.BoskDriver;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 
-public record SubmitInitialization<T>(
+public record ConditionalCreation<T>(
 	Reference<T> target,
 	T newValue,
 	MapValue<String> diagnosticAttributes
 ) implements ReplacementOperation<T> {
 
 	@Override
-	public SubmitInitialization<T> withFilteredAttributes(Collection<String> allowedNames) {
-		return new SubmitInitialization<>(target, newValue, MapValue.fromFunction(allowedNames, diagnosticAttributes::get));
+	public ConditionalCreation<T> withFilteredAttributes(Collection<String> allowedNames) {
+		return new ConditionalCreation<>(target, newValue, MapValue.fromFunction(allowedNames, diagnosticAttributes::get));
 	}
 
 	@Override
