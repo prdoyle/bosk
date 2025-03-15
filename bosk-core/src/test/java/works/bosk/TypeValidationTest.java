@@ -11,7 +11,6 @@ import lombok.experimental.FieldDefaults;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import works.bosk.annotations.DerivedRecord;
 import works.bosk.annotations.DeserializationPath;
 import works.bosk.annotations.Enclosing;
 import works.bosk.annotations.Self;
@@ -53,8 +52,6 @@ class TypeValidationTest {
 			CatalogOfInvalidType.class,
 			CharPrimitive.class,
 			DoublePrimitive.class,
-			DerivedRecordField.class,
-			DerivedRecordType.class,
 			EnclosingNonReference.class,
 			EnclosingReferenceToCatalog.class,
 			EnclosingReferenceToOptional.class,
@@ -561,25 +558,6 @@ class TypeValidationTest {
 			assertThat(e.getMessage(), containsString("ListValueSubclassWithWrongConstructor.badField"));
 			assertThat(e.getMessage(), containsStringIgnoringCase("constructor"));
 			assertThat(e.getMessage(), not(containsStringIgnoringCase("ambiguous")));
-		}
-	}
-
-	@DerivedRecord
-	public record DerivedRecordType(
-		Identifier id
-	) implements Entity {
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString(DerivedRecord.class.getSimpleName()));
-		}
-	}
-
-	public record DerivedRecordField(
-		Identifier id,
-		DerivedRecordType badField
-	) implements Entity {
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString(DerivedRecord.class.getSimpleName()));
-			assertThat(e.getMessage(), containsString("DerivedRecordField.badField"));
 		}
 	}
 

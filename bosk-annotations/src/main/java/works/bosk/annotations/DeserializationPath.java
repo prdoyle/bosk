@@ -16,14 +16,14 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *
  * <pre>
  *     public class MyDTO implements StateTreeNode {
- *        {@code @DeserializationPath("a/b/c")}
+ *        &#064;DeserializationPath("a/b/c")
  *        MyObject field;
  *     }
  *
- *     public class MyObject extends ReflectiveEntity&lt;MyObject> {
- *         Reference&lt;MyObject> self;
- *         Optional&lt;MyObject> nested;
- *     }
+ *     public record MyObject(
+ *         &#064;Self Reference&lt;MyObject> self,
+ *         Optional&lt;MyObject> nested
+ *     ) extends Entity {}
  * </pre>
  *
  * If we deserialize an instance <code>x</code> of <code>MyDTO</code>, then

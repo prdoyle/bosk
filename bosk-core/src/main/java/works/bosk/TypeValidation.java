@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import works.bosk.annotations.DerivedRecord;
 import works.bosk.annotations.DeserializationPath;
 import works.bosk.annotations.Enclosing;
 import works.bosk.annotations.Self;
@@ -59,8 +58,6 @@ public final class TypeValidation {
 			} else if (isSimpleClass(theClass)) {
 				// All allowed
 				return;
-			} else if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-				throw new InvalidTypeException(DerivedRecord.class.getSimpleName() + " types are not allowed in a Bosk");
 			} else if (Reference.class.isAssignableFrom(theClass)) {
 				validateFieldsAreFinal(theClass);
 				Type targetType = ReferenceUtils.parameterType(theType, Reference.class, 0);

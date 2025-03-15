@@ -22,9 +22,6 @@ import com.fasterxml.jackson.databind.type.CollectionType;
 import com.fasterxml.jackson.databind.type.MapType;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import java.io.IOException;
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -49,18 +46,13 @@ import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Phantom;
 import works.bosk.Reference;
-import works.bosk.ReferenceUtils;
-import works.bosk.ReflectiveEntity;
 import works.bosk.SerializationPlugin;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
 import works.bosk.TaggedUnion;
 import works.bosk.VariantCase;
-import works.bosk.annotations.DerivedRecord;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.TunneledCheckedException;
 import works.bosk.exceptions.UnexpectedPathException;
-import works.bosk.jackson.JacksonCompiler.CompiledSerDes;
 
 import static com.fasterxml.jackson.core.JsonToken.END_ARRAY;
 import static com.fasterxml.jackson.core.JsonToken.END_OBJECT;
@@ -111,12 +103,10 @@ public final class JacksonPlugin extends SerializationPlugin {
 			return memo.computeIfAbsent(type, __ -> getJsonSerializer(config, type));
 		}
 
-		@SuppressWarnings({ "unchecked", "rawtypes" })
+		@SuppressWarnings({"rawtypes" })
 		private JsonSerializer<?> getJsonSerializer(SerializationConfig config, JavaType type) {
 			Class theClass = type.getRawClass();
-			if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-				return derivedRecordSerializer(config, type);
-			} else if (Catalog.class.isAssignableFrom(theClass)) {
+			if (Catalog.class.isAssignableFrom(theClass)) {
 				return catalogSerializer();
 			} else if (Listing.class.isAssignableFrom(theClass)) {
 				return listingSerializer();
@@ -142,10 +132,6 @@ public final class JacksonPlugin extends SerializationPlugin {
 			} else {
 				return null;
 			}
-		}
-
-		private JsonSerializer<Object> derivedRecordSerializer(SerializationConfig config, JavaType type) {
-			return derivedRecordSerDes(type, boskInfo).serializer(config);
 		}
 
 		private JsonSerializer<Catalog<Entity>> catalogSerializer() {
@@ -269,8 +255,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		private JsonSerializer<StateTreeNode> stateTreeNodeSerializer(SerializationConfig config, JavaType type) {
-			StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
-			return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).serializer(config);
+			return compiler.<StateTreeNode>compiled(type, boskInfo).serializer(config);
 		}
 
 		private JsonSerializer<MapValue<Object>> mapValueSerializer() {
@@ -315,12 +300,10 @@ public final class JacksonPlugin extends SerializationPlugin {
 			return memo.computeIfAbsent(type, __ -> getJsonDeserializer(type, config));
 		}
 
-		@SuppressWarnings({ "unchecked", "rawtypes" })
+		@SuppressWarnings({"rawtypes" })
 		private JsonDeserializer<?> getJsonDeserializer(JavaType type, DeserializationConfig config) {
 			Class theClass = type.getRawClass();
-			if (theClass.isAnnotationPresent(DerivedRecord.class)) {
-				return derivedRecordDeserializer(type, config);
-			} else if (Catalog.class.isAssignableFrom(theClass)) {
+			if (Catalog.class.isAssignableFrom(theClass)) {
 				return catalogDeserializer(type);
 			} else if (Listing.class.isAssignableFrom(theClass)) {
 				return listingDeserializer();
@@ -348,10 +331,6 @@ public final class JacksonPlugin extends SerializationPlugin {
 			} else {
 				return null;
 			}
-		}
-
-		private JsonDeserializer<Object> derivedRecordDeserializer(JavaType type, DeserializationConfig config) {
-			return derivedRecordSerDes(type, boskInfo).deserializer(config);
 		}
 
 		private JsonDeserializer<Catalog<Entity>> catalogDeserializer(JavaType type) {
@@ -498,8 +477,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 		}
 
 		private JsonDeserializer<? extends StateTreeNode> stateTreeNodeDeserializer(JavaType type, DeserializationConfig config) {
-			StateTreeNodeFieldModerator moderator = new StateTreeNodeFieldModerator(type);
-			return compiler.<StateTreeNode>compiled(type, boskInfo, moderator).deserializer(config);
+			return compiler.<StateTreeNode>compiled(type, boskInfo).deserializer(config);
 		}
 
 		private <V extends VariantCase, D extends V> JsonDeserializer<TaggedUnion<V>> taggedUnionDeserializer(JavaType taggedUnionType, DeserializationConfig config) {
@@ -749,165 +727,6 @@ public final class JacksonPlugin extends SerializationPlugin {
 	private static final JavaType CATALOG_REF_TYPE = TypeFactory.defaultInstance().constructType(new TypeReference<
 		Reference<Catalog<?>>>() {});
 
-	private <T> CompiledSerDes<T> derivedRecordSerDes(JavaType objType, BoskInfo<?> boskInfo) {
-		// Check for special cases
-		Class<?> objClass = objType.getRawClass();
-		if (ListValue.class.isAssignableFrom(objClass)) { // TODO: MapValue?
-			Class<?> entryClass = javaParameterType(objType, ListValue.class, 0).getRawClass();
-			if (ReflectiveEntity.class.isAssignableFrom(entryClass)) {
-				@SuppressWarnings("unchecked")
-				CompiledSerDes<T> result = derivedRecordListValueOfReflectiveEntitySerDes(objType, objClass, entryClass);
-				return result;
-			} else if (Entity.class.isAssignableFrom(entryClass)) {
-				throw new IllegalArgumentException("Can't hold non-reflective Entity type in @" + DerivedRecord.class.getSimpleName() + " " + objType);
-			}
-		}
-
-		// Default DerivedRecord handling
-		DerivedRecordFieldModerator moderator = new DerivedRecordFieldModerator(objType);
-		return compiler.compiled(objType, boskInfo, moderator);
-	}
-
-
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private <E extends ReflectiveEntity<E>, L extends ListValue<E>> CompiledSerDes derivedRecordListValueOfReflectiveEntitySerDes(JavaType objType, Class objClass, Class entryClass) {
-		// Note: by calling theOnlyConstructorFor here, we're limited to objClass values with only
-		// one constructor, which rules out records having multiple constructors. However, if we
-		// use getCanonicalConstructor, we rule out using things that currently work as derived
-		// records, such as subclasses of ListValue, which can't be records. I'm not going to sweat
-		// this too much right now because I think derived records are likely to go away soon enough anyway.
-		Constructor<L> constructor = (Constructor<L>) ReferenceUtils.theOnlyConstructorFor(objClass);
-		Class<?>[] parameters = constructor.getParameterTypes();
-		if (parameters.length == 1 && parameters[0].getComponentType().equals(entryClass)) {
-			JavaType referenceType = TypeFactory.defaultInstance().constructParametricType(Reference.class, entryClass);
-			return new CompiledSerDes<L>() {
-				@Override
-				public JsonSerializer<L> serializer(SerializationConfig config) {
-					return new JsonSerializer<>() {
-						@Override
-						public void serialize(L value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-							JsonSerializer<Object> refSerializer = serializers
-								.findValueSerializer(referenceType);
-							gen.writeStartArray();
-							try {
-								value.forEach(entry -> {
-									try {
-										refSerializer.serialize(entry.reference(), gen, serializers);
-									} catch (IOException e) {
-										throw new TunneledCheckedException(e);
-									}
-								});
-							} catch (TunneledCheckedException e) {
-								throw e.getCause(IOException.class);
-							}
-							gen.writeEndArray();
-						}
-					};
-				}
-
-				@Override
-				public JsonDeserializer<L> deserializer(DeserializationConfig config) {
-					return new BoskDeserializer<>() {
-						@Override
-						public L deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-							JsonDeserializer<Reference<E>> refDeserializer = (JsonDeserializer<Reference<E>>) (JsonDeserializer) ctxt
-								.findContextualValueDeserializer(referenceType, null);
-
-							List<E> entries = new ArrayList<>();
-							expect(START_ARRAY, p);
-							while (p.nextToken() != END_ARRAY) {
-								entries.add(refDeserializer.deserialize(p, ctxt).value());
-							}
-							expect(END_ARRAY, p);
-
-							E[] array = (E[]) Array.newInstance(entryClass, entries.size());
-							try {
-								return constructor.newInstance(new Object[]{entries.toArray(array)});
-							} catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-								throw new IOException("Error creating " + objClass.getSimpleName() + ": " + e.getMessage(), e);
-							}
-						}
-					};
-				}
-			};
-		} else {
-			throw new IllegalArgumentException("Cannot serialize " + ListValue.class.getSimpleName() + " subtype " + objType
-					+ ": constructor must have a single array parameter of type " + entryClass.getSimpleName() + "[]");
-		}
-	}
-
-	/**
-	 * Allows custom logic for the serialization and deserialization of an
-	 * object's fields (actually its constructor parameters).
-	 *
-	 * @author Patrick Doyle
-	 */
-	public interface FieldModerator {
-		JavaType typeOf(JavaType parameterType);
-		Object valueFor(JavaType parameterType, Object deserializedValue);
-	}
-
-	/**
-	 * The "normal" {@link FieldModerator} that doesn't add any extra logic.
-	 *
-	 * @author Patrick Doyle
-	 */
-	private record StateTreeNodeFieldModerator(Type nodeType) implements FieldModerator {
-		@Override
-		public JavaType typeOf(JavaType parameterType) {
-			return parameterType;
-		}
-
-		@Override
-		public Object valueFor(JavaType parameterType, Object deserializedValue) {
-			return deserializedValue;
-		}
-
-	}
-
-	/**
-	 * Performs additional serialization logic for {@link DerivedRecord}
-	 * objects. Specifically {@link ReflectiveEntity} fields, serializes them as
-	 * though they were {@link Reference}s; otherwise, serializes normally.
-	 *
-	 * @author Patrick Doyle
-	 */
-	private record DerivedRecordFieldModerator(Type nodeType) implements FieldModerator {
-		@Override
-		public JavaType typeOf(JavaType parameterType) {
-			if (reflectiveEntity(parameterType)) {
-				// These are serialized as References
-				return TypeFactory.defaultInstance()
-					.constructParametricType(Reference.class, parameterType);
-			} else {
-				return parameterType;
-			}
-		}
-
-		@Override
-		public Object valueFor(JavaType parameterType, Object deserializedValue) {
-			if (reflectiveEntity(parameterType)) {
-				// The deserialized value is a Reference; what we want is Reference.value()
-				return ((Reference<?>) deserializedValue).value();
-			} else {
-				return deserializedValue;
-			}
-		}
-
-		private boolean reflectiveEntity(JavaType parameterType) {
-			Class<?> parameterClass = parameterType.getRawClass();
-			if (ReflectiveEntity.class.isAssignableFrom(parameterClass)) {
-				return true;
-			} else if (Entity.class.isAssignableFrom(parameterClass)) {
-				throw new IllegalArgumentException(DerivedRecord.class.getSimpleName() + " " + rawClass(nodeType).getSimpleName() + " cannot contain " + Entity.class.getSimpleName() + " that is not a " + ReflectiveEntity.class.getSimpleName() + ": " + parameterType);
-			} else if (Catalog.class.isAssignableFrom(parameterClass)) {
-				throw new IllegalArgumentException(DerivedRecord.class.getSimpleName() + " " + rawClass(nodeType).getSimpleName() + " cannot contain Catalog (try Listing)");
-			} else {
-				return false;
-			}
-		}
-
-	}
 
 	//
 	// Helpers
@@ -917,7 +736,7 @@ public final class JacksonPlugin extends SerializationPlugin {
 	 * Returns the fields present in the JSON, with value objects deserialized
 	 * using type information from <code>componentsByName</code>.
 	 */
-	public Map<String, Object> gatherParameterValuesByName(JavaType nodeJavaType, Map<String, RecordComponent> componentsByName, FieldModerator moderator, JsonParser p, DeserializationContext ctxt) throws IOException {
+	public Map<String, Object> gatherParameterValuesByName(JavaType nodeJavaType, Map<String, RecordComponent> componentsByName, JsonParser p, DeserializationContext ctxt) throws IOException {
 		Class<?> nodeClass = nodeJavaType.getRawClass();
 		Map<String, Object> parameterValuesByName = new HashMap<>();
 		expect(START_OBJECT, p);
@@ -931,9 +750,9 @@ public final class JacksonPlugin extends SerializationPlugin {
 				JavaType parameterType = TypeFactory.defaultInstance().resolveMemberType(component.getGenericType(), nodeJavaType.getBindings());
 				Object deserializedValue;
 				try (@SuppressWarnings("unused") DeserializationScope scope = nodeFieldDeserializationScope(nodeClass, name)) {
-					deserializedValue = readField(name, p, ctxt, parameterType, moderator);
+					deserializedValue = readField(name, p, ctxt, parameterType);
 				}
-				Object value = moderator.valueFor(parameterType, deserializedValue);
+				Object value = deserializedValue;
 				Object prev = parameterValuesByName.put(name, value);
 				if (prev != null) {
 					throw new JsonParseException(p, "Parameter appeared twice: " + name);
@@ -943,14 +762,14 @@ public final class JacksonPlugin extends SerializationPlugin {
 		return parameterValuesByName;
 	}
 
-	private Object readField(String name, JsonParser p, DeserializationContext ctxt, JavaType parameterType, FieldModerator moderator) throws IOException {
+	private Object readField(String name, JsonParser p, DeserializationContext ctxt, JavaType parameterType) throws IOException {
 		// TODO: Combine with similar method in BsonPlugin
-		JavaType effectiveType = moderator.typeOf(parameterType);
+		JavaType effectiveType = parameterType;
 		Class<?> effectiveClass = effectiveType.getRawClass();
 		if (Optional.class.isAssignableFrom(effectiveClass)) {
 			// Optional field is present in JSON; wrap deserialized value in Optional.of
 			JavaType contentsType = javaParameterType(effectiveType, Optional.class, 0);
-			Object deserializedValue = readField(name, p, ctxt, contentsType, moderator);
+			Object deserializedValue = readField(name, p, ctxt, contentsType);
 			return Optional.of(deserializedValue);
 		} else if (Phantom.class.isAssignableFrom(effectiveClass)) {
 			throw new JsonParseException(p, "Unexpected phantom field \"" + name + "\"");

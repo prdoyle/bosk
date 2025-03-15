@@ -115,7 +115,7 @@ public abstract class AbstractBoskTest {
 		Reference<TestEntity> enclosingRef,
 		@Self Reference<ImplicitRefs> reference2,
 		@Enclosing Reference<TestEntity> enclosingRef2
-	) implements ReflectiveEntity<ImplicitRefs> {
+	) implements Entity {
 		public ImplicitRefs(Identifier id, @Self Reference<ImplicitRefs> reference, @Enclosing Reference<TestEntity> enclosingRef, Reference<ImplicitRefs> reference2, Reference<TestEntity> enclosingRef2) {
 			this.id = id;
 			this.reference = reference;
