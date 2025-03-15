@@ -498,6 +498,10 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		return ref;
 	}
 
+	/**
+	 * @return a reference to {@code enclosingCatalogPath} which is a catalog containing
+	 * two entities with ids {@link #child1ID} and {@link #child2ID}.
+	 */
 	private CatalogReference<TestEntity> initializeBoskWithCatalog(Path enclosingCatalogPath) {
 		LOGGER.debug("initializeBoskWithCatalog({})", enclosingCatalogPath);
 		setupBosksAndReferences(driverFactory);
