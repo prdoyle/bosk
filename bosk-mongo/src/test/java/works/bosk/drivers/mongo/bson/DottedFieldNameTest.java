@@ -9,7 +9,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import works.bosk.Bosk;
-import works.bosk.CatalogReference;
 import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.drivers.AbstractDriverTest;
@@ -24,11 +23,7 @@ class DottedFieldNameTest {
 
 	@BeforeEach
 	void setUpStuff() {
-		bosk = new Bosk<TestEntity>(boskName(), TestEntity.class, AbstractDriverTest::initialRoot, Bosk.simpleDriver());
-	}
-
-	private CatalogReference<TestEntity> rootCatalogRef(Bosk<TestEntity> bosk) throws InvalidTypeException {
-		return bosk.rootReference().thenCatalog(TestEntity.class, Path.just( TestEntity.Fields.catalog));
+		bosk = new Bosk<>(boskName(), TestEntity.class, AbstractDriverTest::initialRoot, Bosk.simpleDriver());
 	}
 
 	static class PathArgumentProvider implements ArgumentsProvider {

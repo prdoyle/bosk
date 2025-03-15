@@ -4,9 +4,7 @@ import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
@@ -266,17 +264,6 @@ public final class TypeValidation {
 
 	static boolean isBetween(char start, char end, int codePoint) {
 		return start <= codePoint && codePoint <= end;
-	}
-
-	private static void validateGetter(Class<?> nodeClass, Parameter p) throws InvalidTypeException {
-		String fieldName = p.getName();
-		Method getter = ReferenceUtils.getterMethod(nodeClass, fieldName);
-		if (getter.getParameterCount() != 0) {
-			throw new InvalidFieldTypeException(nodeClass, fieldName, "Getter should have no arguments; actually has " + getter.getParameterCount() + " arguments");
-		}
-		if (!p.getType().equals(getter.getReturnType())) {
-			throw new InvalidFieldTypeException(nodeClass, fieldName, "Getter return type must match corresponding parameter type. Expected " + p.getType().getSimpleName() + "; actually returns " + getter.getReturnType().getSimpleName());
-		}
 	}
 
 	private static String fieldDebugInfo(Field field) {

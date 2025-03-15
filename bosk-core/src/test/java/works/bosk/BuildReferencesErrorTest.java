@@ -9,12 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class BuildReferencesErrorTest extends AbstractBoskTest {
 	static Bosk<TestRoot> bosk;
-	static TestEntityBuilder teb;
 
 	@BeforeAll
-	static void setup() throws InvalidTypeException {
+	static void setup() {
 		bosk = setUpBosk(Bosk.simpleDriver());
-		teb = new TestEntityBuilder(bosk);
 	}
 
 	@Test
@@ -49,20 +47,24 @@ public class BuildReferencesErrorTest extends AbstractBoskTest {
 			bosk.buildReferences(Invalid_WeirdParameter.class));
 	}
 
+	@SuppressWarnings("unused")
 	public interface Invalid_NonReference {
 		@ReferencePath("/entities/-entity-")
 		String anyEntity();
 	}
 
+	@SuppressWarnings("unused")
 	public interface Invalid_NoAnnotation {
 		Reference<TestEntity> anyEntity();
 	}
 
+	@SuppressWarnings("unused")
 	public interface Invalid_WrongType {
 		@ReferencePath("/entities/-entity-")
 		Reference<TestChild> anyEntity();
 	}
 
+	@SuppressWarnings("unused")
 	public interface Invalid_WeirdParameter {
 		@ReferencePath("/entities/-entity-")
 		Reference<TestEntity> anyEntity(Object parameter);

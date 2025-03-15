@@ -90,13 +90,6 @@ public class MongoDriverSettings {
 		FAIL
 	}
 
-	public enum ManifestMode {
-		/**
-		 * If a manifest document doesn't exist, we'll create one.
-		 */
-		CREATE_IF_ABSENT,
-	}
-
 	public enum OrphanDocumentMode {
 		/**
 		 * Unused documents are always deleted before the end of the transaction.

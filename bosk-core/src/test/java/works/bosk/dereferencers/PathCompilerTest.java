@@ -273,7 +273,7 @@ public class PathCompilerTest extends AbstractBoskTest {
 		Reference<Identifier> idRef = differentBosk.rootReference().then(Identifier.class, Path.parse(
 			"/id" ));
 
-		try (Bosk<?>.ReadContext context = differentBosk.readContext()) {
+		try (Bosk<?>.ReadContext __ = differentBosk.readContext()) {
 			assertSame(rootID, idRef.valueIfExists());
 		}
 	}

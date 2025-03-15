@@ -9,16 +9,12 @@ import works.bosk.Reference;
  */
 @SuppressWarnings("serial")
 public class NonexistentReferenceException extends RuntimeException {
-	final Reference<?> reference;
-
 	public NonexistentReferenceException(Reference<?> reference) {
 		super(message(reference));
-		this.reference = reference;
 	}
 
 	public NonexistentReferenceException(Reference<?> reference, Throwable cause) {
 		super(message(reference), cause);
-		this.reference = reference;
 	}
 
 	private static String message(Reference<?> reference) {

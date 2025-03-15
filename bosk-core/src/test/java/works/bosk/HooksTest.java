@@ -39,7 +39,6 @@ public class HooksTest extends AbstractBoskTest {
 	private final Identifier child2 = Identifier.from("child2");
 	private final Identifier child3 = Identifier.from("child3");
 
-	TestRoot originalRoot;
 	TestEntity originalParent;
 	TestChild originalChild1, originalChild2, originalChild3;
 	HookRecorder recorder;
@@ -49,7 +48,6 @@ public class HooksTest extends AbstractBoskTest {
 		bosk = setUpBosk(Bosk.simpleDriver());
 		refs = bosk.rootReference().buildReferences(Refs.class);
 		try (var _ = bosk.readContext()) {
-			originalRoot = bosk.rootReference().value();
 			originalParent = refs.parent().value();
 			originalChild1 = refs.child(child1).value();
 			originalChild2 = refs.child(child2).value();

@@ -341,7 +341,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 
 	@ParametersByName
 	void variant() throws InvalidTypeException {
-		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
+		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		assertCorrectBoskContents();
 
 		Reference<TaggedUnion<Variant>> variantRef = bosk.rootReference().thenTaggedUnion(Variant.class, TestEntity.Fields.variant);

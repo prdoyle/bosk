@@ -6,7 +6,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -165,9 +164,5 @@ abstract class AbstractMongoDriverTest {
 		logController.setLogging(level, loggers);
 	}
 
-	/**
-	 * One warning that we're ignoring logging settings from the testcase is enough.
-	 */
-	private static final AtomicBoolean ALREADY_WARNED = new AtomicBoolean(false);
 	private static final Logger LOGGER = LoggerFactory.getLogger(AbstractMongoDriverTest.class);
 }

@@ -713,13 +713,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return filter;
 	}
 
-	private <T> BsonDocument explicitPreconditions(Reference<T> target, Reference<Identifier> preconditionRef, Identifier requiredValue) {
-		BsonDocument filter = standardRootPreconditions(target);
-		BsonDocument precondition = new BsonDocument("$eq", new BsonString(requiredValue.toString()));
-		filter.put(BsonFormatter.dottedFieldNameOf(preconditionRef, rootRef), precondition);
-		return filter;
-	}
-
 	private <T> BsonDocument replacementDoc(Reference<T> target, BsonValue value, Reference<?> startingRef) {
 		String key = BsonFormatter.dottedFieldNameOf(target, startingRef);
 		LOGGER.debug("| Set field {}: {}", key, value);
