@@ -221,16 +221,14 @@ public final class PathCompiler {
 			assert !path.isEmpty();
 			steps = new ArrayList<>();
 			Type currentType = sourceType;
-			Step priorStep = null;
 			for (int i = 0; i < path.length(); i++) {
-				Step step = newSegmentStep(currentType, path.segment(i), i, priorStep);
+				Step step = newSegmentStep(currentType, path.segment(i), i);
 				steps.add(step);
 				currentType = step.targetType();
-				priorStep = step;
 			}
 		}
 
-		private Step newSegmentStep(Type currentType, String segment, int segmentNum, Step priorStep) throws InvalidTypeException {
+		private Step newSegmentStep(Type currentType, String segment, int segmentNum) throws InvalidTypeException {
 			Class<?> currentClass = rawClass(currentType);
 			if (Catalog.class.isAssignableFrom(currentClass)) {
 				return new CatalogEntryStep(parameterType(currentType, Catalog.class, 0), segmentNum);

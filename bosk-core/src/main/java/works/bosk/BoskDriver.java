@@ -154,18 +154,4 @@ public interface BoskDriver {
 	 */
 	void flush() throws IOException, InterruptedException;
 
-	// Handy helpers
-
-	/**
-	 * Equivalent to:
-	 *
-	 * <p>
-	 * <code>
-	 * submitReplacement(newValue.reference(), newValue);
-	 * </code>
-	 */
-	default <T extends ReflectiveEntity<T>> void submitReplacement(T newValue) {
-		submitReplacement(newValue.reference(), newValue);
-	}
-
 }

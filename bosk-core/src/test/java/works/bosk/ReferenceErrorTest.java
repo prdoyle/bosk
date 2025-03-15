@@ -40,6 +40,7 @@ public class ReferenceErrorTest {
 	}
 
 	@FieldNameConstants
+	@SuppressWarnings("unused")
 	public record BadGetters(Identifier id, NestedObject nestedObject) implements Entity {
 		public Identifier id() {
 			throw new UnsupportedOperationException("Whoops");

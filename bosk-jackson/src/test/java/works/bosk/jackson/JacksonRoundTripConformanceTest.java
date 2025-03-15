@@ -12,6 +12,7 @@ public class JacksonRoundTripConformanceTest extends DriverConformanceTest {
 		driverFactory = jacksonRoundTripFactory(config);
 	}
 
+	@SuppressWarnings("unused")
 	static Stream<JacksonPluginConfiguration> config() {
 		return Stream.of(JacksonPluginConfiguration.MapShape.values())
 			.map(shape -> new JacksonPluginConfiguration(shape));

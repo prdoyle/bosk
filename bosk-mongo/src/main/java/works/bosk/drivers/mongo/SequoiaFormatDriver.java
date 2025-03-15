@@ -51,7 +51,6 @@ import static works.bosk.drivers.mongo.bson.BsonFormatter.referenceTo;
  */
 final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatDriver<R> {
 	private final String description;
-	private final MongoDriverSettings settings;
 	private final MongoCollection<BsonDocument> collection;
 	private final BoskDriver downstream;
 	private final FlushLock flushLock;
@@ -70,7 +69,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	) {
 		super(boskInfo.rootReference(), new Formatter(boskInfo, bsonPlugin));
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
-		this.settings = driverSettings;
 		this.collection = collection;
 		this.downstream = downstream;
 		this.flushLock = flushLock;

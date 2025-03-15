@@ -68,11 +68,9 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 	}
 
 	private static class JacksonRoundTripDriverFactory<R extends Entity> implements DriverFactory<R> {
-		private final JacksonPluginConfiguration config;
 		private final JacksonPlugin jp;
 
 		private JacksonRoundTripDriverFactory(JacksonPluginConfiguration config) {
-			this.config = config;
 			this.jp = new JacksonPlugin(config);
 		}
 

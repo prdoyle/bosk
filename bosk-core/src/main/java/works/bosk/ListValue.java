@@ -7,7 +7,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collector;
-import java.util.stream.Stream;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -65,10 +64,6 @@ public class ListValue<T> extends AbstractList<T> {
 		} else {
 			return new ListValue<>((TT[])entries.toArray());
 		}
-	}
-
-	public static <TT> ListValue<TT> from(Stream<TT> entries) {
-		return entries.collect(toListValue());
 	}
 
 	@Override

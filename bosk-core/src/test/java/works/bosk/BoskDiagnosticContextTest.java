@@ -8,7 +8,6 @@ import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.AbstractDriverTest;
 import works.bosk.drivers.DriverConformanceTest;
 import works.bosk.drivers.state.TestEntity;
-import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,21 +18,19 @@ import static works.bosk.BoskTestUtils.boskName;
  * Note that context propagation for driver operations is tested by {@link DriverConformanceTest}.
  */
 class BoskDiagnosticContextTest extends AbstractDriverTest {
-	Refs refs;
 
 	public interface Refs {
 		@ReferencePath("/string") Reference<String> string();
 	}
 
 	@BeforeEach
-	void setupBosk() throws InvalidTypeException {
-		bosk = new Bosk<TestEntity>(
+	void setupBosk() {
+		bosk = new Bosk<>(
 			boskName(),
 			TestEntity.class,
 			AbstractDriverTest::initialRoot,
 			Bosk.simpleDriver()
 		);
-		refs = bosk.buildReferences(Refs.class);
 	}
 
 	@Test

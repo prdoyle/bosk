@@ -17,9 +17,7 @@ import works.bosk.AbstractRoundTripTest;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.DriverStack;
-import works.bosk.Identifier;
 import works.bosk.Reference;
-import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.openjdk.jmh.annotations.Mode.AverageTime;
@@ -34,18 +32,14 @@ public class JacksonRoundTripBenchmark extends AbstractRoundTripTest {
 	@State(Scope.Benchmark)
 	public static class BenchmarkState {
 		private Bosk<TestRoot> bosk;
-		private JacksonPlugin jacksonPlugin;
 		private ObjectMapper mapper;
 		private BoskDriver driver;
 		private BoskDriver downstreamDriver;
 		private Reference<TestRoot> rootRef;
 		private TestRoot root1, root2;
 
-		final Identifier parentID = Identifier.from("parent");
-		final Identifier child1ID = Identifier.from("child1");
-
 		@Setup(Level.Trial)
-		public void setup() throws InvalidTypeException, JsonProcessingException {
+		public void setup() throws JsonProcessingException {
 			AtomicReference<BoskDriver> downstreamRef = new AtomicReference<>();
 			this.bosk = setUpBosk(DriverStack.of(
 				jacksonRoundTripFactory(defaultConfiguration()),
@@ -56,7 +50,7 @@ public class JacksonRoundTripBenchmark extends AbstractRoundTripTest {
 			));
 			this.driver = bosk.driver();
 			this.downstreamDriver = downstreamRef.get();
-			this.jacksonPlugin = new JacksonPlugin();
+			JacksonPlugin jacksonPlugin = new JacksonPlugin();
 			this.mapper = new ObjectMapper().registerModule(jacksonPlugin.moduleFor(bosk));
 			rootRef = bosk.rootReference();
 			try (var _ = bosk.readContext()) {

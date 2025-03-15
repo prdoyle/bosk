@@ -132,13 +132,6 @@ public class MongoCursorTest {
 			new BsonDocument("$set", new BsonDocument("field", new BsonInt64(newValue))));
 	}
 
-	private MongoChangeStreamCursor<ChangeStreamDocument<Document>> openCursor() {
-		return collection
-			.watch()
-			.maxAwaitTime(500, MILLISECONDS)
-			.cursor();
-	}
-
 	@AfterEach
 	void teardown() {
 		collection.drop();

@@ -933,15 +933,6 @@ typically from your dependency injection framework.
 For an object whose _fields_ represent specific nodes of the bosk state,
 use the `@DeserializationPath` annotation; see the javadocs for more info.
 
-#### DerivedRecord
-
-In inner-loop, high-performance code, it can be too costly to use `Reference.value()` to access node objects, and it is definitely too costly to create new `Reference` objects.
-In those cases, it may be preferable to use the node objects directly.
-If you construct an object containing some node objects directly, and you then want to serialize that object as though they were `Reference`s instead,
-you can annotate the class with `@DerivedRecord`.
-All the "directly-contained node" objects must implement `ReflectiveEntity`.
-The serialization process will call `ReflectiveEntity.reference()` to compute the reference, which will be serialized as a string.
-
 ### Recommendations
 
 #### Create a subclass of `Bosk` and create references at startup

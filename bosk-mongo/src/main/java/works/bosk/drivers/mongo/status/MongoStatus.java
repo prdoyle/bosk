@@ -8,6 +8,7 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 
 /**
  * Info about the state of the database, highlighting how it differs from the desired state.
+ * TODO: Unit tests
  */
 public record MongoStatus(
 	@JsonInclude(NON_NULL) String error,

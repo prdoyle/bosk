@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.DeserializationConfig;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.SerializerProvider;
@@ -28,17 +27,11 @@ import lombok.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskInfo;
-import works.bosk.Catalog;
-import works.bosk.Entity;
 import works.bosk.Phantom;
-import works.bosk.Reference;
 import works.bosk.ReferenceUtils;
-import works.bosk.ReflectiveEntity;
-import works.bosk.annotations.DerivedRecord;
 import works.bosk.bytecode.ClassBuilder;
 import works.bosk.bytecode.LocalVariable;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 
 import static java.util.Arrays.asList;
 import static works.bosk.ReferenceUtils.getterMethod;
@@ -65,7 +58,7 @@ final class JacksonCompiler {
 	 *
 	 * @return a newly compiled {@link CompiledSerDes} for values of the given <code>nodeType</code>.
 	 */
-	public <T> CompiledSerDes<T> compiled(JavaType nodeType, BoskInfo<?> boskInfo, JacksonPlugin.FieldModerator moderator) {
+	public <T> CompiledSerDes<T> compiled(JavaType nodeType, BoskInfo<?> boskInfo) {
 		LOGGER.debug("Compiling SerDes for node type {}", nodeType);
 		try {
 			// Record that we're compiling this one to avoid infinite recursion
@@ -89,7 +82,7 @@ final class JacksonCompiler {
 			// Return a CodecWrapper for the codec
 			LinkedHashMap<String, RecordComponent> componentsByName = new LinkedHashMap<>();
 			components.forEach(p -> componentsByName.put(p.getName(), p));
-			return new CodecWrapper<>(codec, boskInfo, nodeType, componentsByName, moderator);
+			return new CodecWrapper<>(codec, boskInfo, nodeType, componentsByName);
 		} finally {
 			Type removed = compilationsInProgress.get().removeLast();
 			assert removed.equals(nodeType);
@@ -152,17 +145,7 @@ final class JacksonCompiler {
 			// correct". The execution of the plan should contain the sophistication.
 			FieldWritePlan plan;
 			JavaType parameterType = TypeFactory.defaultInstance().resolveMemberType(component.getGenericType(), nodeJavaType.getBindings());
-			// TODO: Is the static optimization possible??
-//			if (compilationsInProgress.get().contains(parameterType)) {
-//				// Avoid infinite recursion - look up this field's adapter dynamically
-//				plan = new OrdinaryFieldWritePlan();
-//			} else {
-//				plan = new StaticallyBoundFieldWritePlan();
-//			}
 			plan = new OrdinaryFieldWritePlan();
-			if (nodeClass.isAnnotationPresent(DerivedRecord.class)) {
-				plan = new ReferencingFieldWritePlan(plan, nodeClass.getSimpleName());
-			}
 			if (Optional.class.isAssignableFrom(component.getType())) {
 				plan = new OptionalFieldWritePlan(plan);
 			}
@@ -217,15 +200,9 @@ final class JacksonCompiler {
 	 * how to write a single field to Jackson.
 	 *
 	 * <p>
-	 * There is a wide variety of ways that fields might need to be written,
-	 * and of combinations of "modifiers" (like {@link OptionalFieldWritePlan}).
-	 * It is hard to reason about these in a way that ensures we get all the combinations right.
-	 * Expressing modifiers in the form of "planning" objects helps us to tame
-	 * the multitude of combinations of cases. For example, how should we deal
-	 * with a {@link DerivedRecord} that has an {@link Optional} field that
-	 * is a recursive type? We build the appropriate stack of {@link FieldWritePlan}
-	 * objects, each of whose {@link #generateFieldWrite} method handles one specific
-	 * concern; and the composition of these objects will generate the appropriate code.
+	 * Evolution note: this is a vestigial feature used in the past to deal with
+	 * the combinatorial explosion of possibilities that no longer exist.
+	 * This should probably be refactored away.
 	 */
 	private interface FieldWritePlan {
 		/**
@@ -264,51 +241,6 @@ final class JacksonCompiler {
 	}
 
 	/**
-	 * An optimized way to write a field that looks up the {@link JsonSerializer} at
-	 * compile time to avoid the runtime overhead.
-	 *
-	 * <p>
-	 * This the common case, and is used more often than {@link OrdinaryFieldWritePlan}
-	 * because this optimization is always possible except in recursive data structures,
-	 * where we can't look up the field's type adapter because we're still in the midst
-	 * of compiling that very adapter itself.
-	 */
-	private record StaticallyBoundFieldWritePlan() implements FieldWritePlan {
-		/**
-		 * {@inheritDoc}
-		 */
-		@Override
-		public void generateFieldWrite(String name, ClassBuilder<Codec> cb, LocalVariable jsonGenerator, LocalVariable serializers, SerializerProvider serializerProvider, JavaType type) {
-			// Find or create the TypeAdapter for the given type.
-			// If the TypeAdapter doesn't already exist, we will attempt to compile one,
-			// so this is where our compiler's recursion happens.
-
-			JsonSerializer<Object> serializer;
-			try {
-				serializer = serializerProvider.findValueSerializer(type);
-			} catch (JsonMappingException e) {
-				throw new NotYetImplementedException(e);
-			}
-
-			// Save incoming operand to local variable
-			LocalVariable fieldValue = cb.popToLocal();
-
-			// Write the field name
-			cb.pushLocal(jsonGenerator);
-			cb.pushString(name);
-			cb.invoke(JSON_GENERATOR_WRITE_FIELD_NAME);
-			cb.pop();
-
-			// Write the field value using the statically bound serializer
-			cb.pushObject("serializer", serializer, JsonSerializer.class);
-			cb.pushLocal(fieldValue);
-			cb.pushLocal(jsonGenerator);
-			cb.pushLocal(serializers);
-			cb.invoke(JSON_SERIALIZER_SERIALIZE);
-		}
-	}
-
-	/**
 	 * A stackable wrapper that writes an <code>{@link Optional}&lt;T&gt;</code> given
 	 * a {@link FieldWritePlan} for <code>T</code>.
 	 *
@@ -339,42 +271,6 @@ final class JacksonCompiler {
 	}
 
 	/**
-	 * A stackable wrapper to implement {@link DerivedRecord} semantics: writes {@link Entity}
-	 * fields as {@link Reference References}, and all other fields are written using the
-	 * supplied {@link #nonEntityWriter}.
-	 *
-	 * @param nodeClassName Just for error messages
-	 */
-	private record ReferencingFieldWritePlan(
-		FieldWritePlan nonEntityWriter,
-		String nodeClassName
-	) implements FieldWritePlan {
-			/**
-			 * {@inheritDoc}
-			 */
-			@Override
-			public void generateFieldWrite(String name, ClassBuilder<Codec> cb, LocalVariable jsonGenerator, LocalVariable serializers, SerializerProvider serializerProvider, JavaType type) {
-				Class<?> parameterClass = type.getRawClass();
-				boolean isEntity = Entity.class.isAssignableFrom(parameterClass);
-				if (isEntity) {
-					if (ReflectiveEntity.class.isAssignableFrom(parameterClass)) {
-						cb.castTo(ReflectiveEntity.class);
-						cb.invoke(REFLECTIVE_ENTITY_REFERENCE);
-						// Recurse to write the Reference
-						JavaType referenceType = TypeFactory.defaultInstance().constructParametricType(Reference.class, type);
-						generateFieldWrite(name, cb, jsonGenerator, serializers, serializerProvider, referenceType);
-					} else {
-						throw new IllegalArgumentException(String.format("%s %s cannot contain Entity that is not a ReflectiveEntity: \"%s\"", DerivedRecord.class.getSimpleName(), nodeClassName, name));
-					}
-				} else if (Catalog.class.isAssignableFrom(parameterClass)) {
-					throw new IllegalArgumentException(String.format("%s %s cannot contain Catalog \"%s\" (try Listing?)", DerivedRecord.class.getSimpleName(), nodeClassName, name));
-				} else {
-					nonEntityWriter.generateFieldWrite(name, cb, jsonGenerator, serializers, serializerProvider, type);
-				}
-			}
-		}
-
-	/**
 	 * Implements the {@link CompiledSerDes} interface using a {@link Codec} object.
 	 * Putting boilerplate code in this wrapper is much easier than generating it
 	 * in the compiler, and allows us to keep the {@link Codec} interface focused
@@ -387,11 +283,10 @@ final class JacksonCompiler {
 		BoskInfo<?> boskInfo;
 		JavaType nodeJavaType;
 		LinkedHashMap<String, RecordComponent> componentsByName;
-		JacksonPlugin.FieldModerator moderator;
 
 		@Override
 		public JsonSerializer<T> serializer(SerializationConfig config) {
-			return new JsonSerializer<T>() {
+			return new JsonSerializer<>() {
 				@Override
 				public void serialize(T value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
 					gen.writeStartObject();
@@ -403,18 +298,18 @@ final class JacksonCompiler {
 
 		@Override
 		public JsonDeserializer<T> deserializer(DeserializationConfig config) {
-			return new JsonDeserializer<T>() {
+			return new JsonDeserializer<>() {
 				@Override
 				public T deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 					// Performance-critical. Pre-compute as much as possible outside this method.
 					// Note: the reading side can't be as efficient as the writing side
 					// because we need to tolerate the fields arriving in arbitrary order.
-					Map<String, Object> valueMap = jacksonPlugin.gatherParameterValuesByName(nodeJavaType, componentsByName, moderator, p, ctxt);
+					Map<String, Object> valueMap = jacksonPlugin.gatherParameterValuesByName(nodeJavaType, componentsByName, p, ctxt);
 
 					List<Object> parameterValues = jacksonPlugin.parameterValueList(nodeJavaType.getRawClass(), valueMap, componentsByName, boskInfo);
 
 					@SuppressWarnings("unchecked")
-					T result = (T)codec.instantiateFrom(parameterValues);
+					T result = (T) codec.instantiateFrom(parameterValues);
 					return result;
 				}
 			};
@@ -425,8 +320,6 @@ final class JacksonCompiler {
 	private static final Method DYNAMIC_WRITE_FIELD;
 	private static final Method LIST_GET;
 	private static final Method OPTIONAL_IS_PRESENT, OPTIONAL_GET;
-	private static final Method REFLECTIVE_ENTITY_REFERENCE;
-	private static final Method JSON_GENERATOR_WRITE_FIELD_NAME, JSON_SERIALIZER_SERIALIZE;
 
 	static {
 		try {
@@ -436,9 +329,6 @@ final class JacksonCompiler {
 			LIST_GET = List.class.getDeclaredMethod("get", int.class);
 			OPTIONAL_IS_PRESENT = Optional.class.getDeclaredMethod("isPresent");
 			OPTIONAL_GET = Optional.class.getDeclaredMethod("get");
-			REFLECTIVE_ENTITY_REFERENCE = ReflectiveEntity.class.getDeclaredMethod("reference");
-			JSON_GENERATOR_WRITE_FIELD_NAME = JsonGenerator.class.getDeclaredMethod("writeFieldName", String.class);
-			JSON_SERIALIZER_SERIALIZE = JsonSerializer.class.getDeclaredMethod("serialize", Object.class, JsonGenerator.class, SerializerProvider.class);
 		} catch (NoSuchMethodException e) {
 			throw new AssertionError(e);
 		}
