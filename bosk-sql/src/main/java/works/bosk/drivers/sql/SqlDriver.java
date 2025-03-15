@@ -22,8 +22,8 @@ public interface SqlDriver extends BoskDriver {
 		return (b, d) -> {
 			JacksonPlugin jacksonPlugin = new JacksonPlugin();
 			ObjectMapper mapper = objectMapperCustomizer.apply(b, new ObjectMapper().registerModule(jacksonPlugin.moduleFor(b)));
-			return new SqlDriverFacade(new SqlDriverImpl(
-				settings, connectionSource, b, jacksonPlugin, mapper, d
+			return new SqlDriverFacade(jacksonPlugin, new SqlDriverImpl(
+				settings, connectionSource, b, mapper, d
 			));
 		};
 	}
@@ -37,4 +37,5 @@ public interface SqlDriver extends BoskDriver {
 	interface SqlDriverFactory<RR extends StateTreeNode> extends DriverFactory<RR> {
 		@Override SqlDriver build(BoskInfo<RR> boskInfo, BoskDriver downstream);
 	}
+
 }
