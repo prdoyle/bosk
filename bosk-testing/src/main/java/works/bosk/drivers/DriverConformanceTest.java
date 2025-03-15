@@ -38,7 +38,6 @@ import works.bosk.junit.Slow;
 import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,6 +63,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	public interface Refs {
 		@ReferencePath("/id") Reference<Identifier> rootID();
 		@ReferencePath("/catalog/-id-") Reference<TestEntity> catalogEntry(Identifier id);
+		@ReferencePath("/values/string") Reference<String> valuesString();
 	}
 
 	@Order(1) // If this doesn't work, nothing will
@@ -284,8 +284,8 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		// Use loops instead of parameters to avoid unnecessarily creating and initializing
 		// a new bosk for every case. None of them affect the bosk anyway.
-		for (Identifier childID: childID().collect(toList())) {
-			for (String field: testEntityField().collect(toList())) {
+		for (Identifier childID: childID().toList()) {
+			for (String field: testEntityField().toList()) {
 				Reference<Object> target = ref.then(Object.class, childID.toString(), field);
 				assertThrows(IllegalArgumentException.class, () ->
 					driver.submitDeletion(target), "Must not allow deletion of field " + target);
