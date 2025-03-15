@@ -52,26 +52,26 @@ import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.using;
 
 class SqlDriverImpl implements SqlDriver {
-	final SqlDriverSettings settings;
-	final BoskDriver downstream;
-	final RootReference<?> rootRef;
-	final ConnectionSource connectionSource;
-	final ObjectMapper mapper;
-	final JsonNodeSurgeon surgeon = new JsonNodeSurgeon();
+	private final SqlDriverSettings settings;
+	private final BoskDriver downstream;
+	private final RootReference<?> rootRef;
+	private final ConnectionSource connectionSource;
+	private final ObjectMapper mapper;
+	private final JsonNodeSurgeon surgeon = new JsonNodeSurgeon();
 
-	final AtomicBoolean isOpen = new AtomicBoolean(true);
+	private final AtomicBoolean isOpen = new AtomicBoolean(true);
 
 	// jOOQ references
-	final TableField<Record, String> DIAGNOSTICS;
-	final ChangesTable CHANGES;
-	final TableField<Record, Long> REVISION;
-	final TableField<Record, String> REF;
-	final TableField<Record, String> NEW_STATE;
-	final TableField<Record, String> STATE;
-	final BoskTable BOSK;
-	final TableField<Record, String> ID;
+	private final TableField<Record, String> DIAGNOSTICS;
+	private final ChangesTable CHANGES;
+	private final TableField<Record, Long> REVISION;
+	private final TableField<Record, String> REF;
+	private final TableField<Record, String> NEW_STATE;
+	private final TableField<Record, String> STATE;
+	private final BoskTable BOSK;
+	private final TableField<Record, String> ID;
 
-	final ScheduledExecutorService listener;
+	private final ScheduledExecutorService listener;
 
 	private volatile String epoch;
 
