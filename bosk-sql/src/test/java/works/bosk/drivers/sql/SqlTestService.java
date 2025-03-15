@@ -13,6 +13,7 @@ import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.jackson.JacksonPlugin;
 import works.bosk.jackson.JacksonPluginConfiguration;
 
+import static com.fasterxml.jackson.core.JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION;
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.ARRAY;
 
@@ -68,6 +69,7 @@ public class SqlTestService {
 			settings, dataSource::getConnection,
 			b -> new ObjectMapper()
 				.enable(INDENT_OUTPUT)
+				.enable(INCLUDE_SOURCE_IN_LOCATION)
 				// TODO: SqlDriver should add this, not the caller! It's required for correctness
 				.registerModule(new JacksonPlugin(new JacksonPluginConfiguration(ARRAY)).moduleFor(b))
 		);
