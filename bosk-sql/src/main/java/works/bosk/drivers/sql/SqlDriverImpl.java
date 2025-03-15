@@ -35,6 +35,7 @@ import works.bosk.drivers.sql.schema.Schema;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
+import works.bosk.jackson.JacksonPlugin;
 import works.bosk.jackson.JsonNodeSurgeon;
 import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.NonexistentParent;
@@ -80,6 +81,7 @@ class SqlDriverImpl implements SqlDriver {
 		SqlDriverSettings settings,
 		ConnectionSource cs,
 		BoskInfo<?> bosk,
+		JacksonPlugin jacksonPlugin,
 		ObjectMapper mapper,
 		BoskDriver downstream
 	) {
