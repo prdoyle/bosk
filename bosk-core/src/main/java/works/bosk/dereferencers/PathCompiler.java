@@ -226,6 +226,7 @@ public final class PathCompiler {
 				steps.add(step);
 				currentType = step.targetType();
 			}
+			LOGGER.debug("Steps for {}: {}", path, steps);
 		}
 
 		private Step newSegmentStep(Type currentType, String segment, int segmentNum) throws InvalidTypeException {
@@ -491,6 +492,11 @@ public final class PathCompiler {
 				}
 				cb.invoke(constructor);
 			}
+
+			@Override
+			public String toString() {
+				return getClass().getSimpleName() + "(" + name + ")";
+			}
 		}
 
 		@Value
@@ -503,6 +509,11 @@ public final class PathCompiler {
 			@Override public void generate_get() { pushIdAt(segmentNum); pushReference(); invoke(CATALOG_GET); }
 			@Override public void generate_with() { invoke(CATALOG_WITH); }
 			@Override public void generate_without() { pushIdAt(segmentNum); invoke(CATALOG_WITHOUT); }
+
+			@Override
+			public String toString() {
+				return getClass().getSimpleName() + "(" + segmentNum + ")";
+			}
 		}
 
 		@Value
@@ -523,6 +534,11 @@ public final class PathCompiler {
 			@Override public void generate_get() { pushIdAt(segmentNum); pushReference(); invoke(LISTING_GET); }
 			@Override public void generate_with() { pushIdAt(segmentNum); swap(); invoke(LISTING_WITH); }
 			@Override public void generate_without() { pushIdAt(segmentNum); invoke(LISTING_WITHOUT); }
+
+			@Override
+			public String toString() {
+				return getClass().getSimpleName() + "(" + segmentNum + ")";
+			}
 		}
 
 		@Value
@@ -536,6 +552,11 @@ public final class PathCompiler {
 			@Override public void generate_get() { pushIdAt(segmentNum); pushReference(); invoke(SIDE_TABLE_GET); }
 			@Override public void generate_with() { pushIdAt(segmentNum); swap(); invoke(SIDE_TABLE_WITH); }
 			@Override public void generate_without() { pushIdAt(segmentNum); invoke(SIDE_TABLE_WITHOUT); }
+
+			@Override
+			public String toString() {
+				return getClass().getSimpleName() + "(" + segmentNum + ")";
+			}
 		}
 
 		@Value
@@ -548,6 +569,11 @@ public final class PathCompiler {
 			@Override public void generate_get() { fieldStep.generate_get(); pushReference(); invoke(OPTIONAL_OR_THROW); }
 			@Override public void generate_with() { invoke(OPTIONAL_OF); fieldStep.generate_with(); }
 			@Override public void generate_without() { invoke(OPTIONAL_EMPTY); fieldStep.generate_with(); }
+
+			@Override
+			public String toString() {
+				return getClass().getSimpleName() + "(" + fieldStep + ")";
+			}
 		}
 
 		@Value
@@ -560,6 +586,11 @@ public final class PathCompiler {
 			@Override public void generate_get() { pop(); pushReference(); invoke(THROW_NONEXISTENT_ENTRY); }
 			@Override public void generate_with() { pop(); pop(); pushReference(); invoke(THROW_CANNOT_REPLACE_PHANTOM); }
 			@Override public void generate_without() { /* No effect */ }
+
+			@Override
+			public String toString() {
+				return getClass().getSimpleName() + "(" + name + ")";
+			}
 		}
 
 		@Value
@@ -591,6 +622,11 @@ public final class PathCompiler {
 
 			@Override
 			public void generate_with() { pop(); pop(); pushReference(); invoke(THROW_CANNOT_REPLACE_VARIANT_CASE); }
+
+			@Override
+			public String toString() {
+				return getClass().getSimpleName() + "(" + name + ")";
+			}
 		}
 
 		@Value
@@ -604,6 +640,11 @@ public final class PathCompiler {
 
 			@Override public void generate_get()      { cb.invokeDynamic("get", callSite_get); }
 			@Override public void generate_with()     { cb.invokeDynamic("with", callSite_with); }
+
+			@Override
+			public String toString() {
+				return getClass().getSimpleName();
+			}
 		}
 	}
 
