@@ -21,7 +21,7 @@ public class NoOpDriver implements BoskDriver {
 
 	@Override public <T> void submitReplacement(Reference<T> target, T newValue) { }
 	@Override public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) { }
-	@Override public <T> void submitInitialization(Reference<T> target, T newValue) { }
+	@Override public <T> void submitConditionalCreation(Reference<T> target, T newValue) { }
 	@Override public <T> void submitDeletion(Reference<T> target) { }
 	@Override public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) { }
 	@Override public void flush() throws IOException, InterruptedException { }

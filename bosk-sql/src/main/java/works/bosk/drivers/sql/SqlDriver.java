@@ -355,8 +355,8 @@ public class SqlDriver implements BoskDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		LOGGER.debug("submitInitialization({}, {})", target, newValue);
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
+		LOGGER.debug("submitConditionalCreation({}, {})", target, newValue);
 		try (
 			var connection = connectionSource.get()
 		){

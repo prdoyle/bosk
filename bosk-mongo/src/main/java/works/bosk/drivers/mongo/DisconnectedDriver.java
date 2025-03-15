@@ -24,7 +24,7 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		throw disconnected();
 	}
 

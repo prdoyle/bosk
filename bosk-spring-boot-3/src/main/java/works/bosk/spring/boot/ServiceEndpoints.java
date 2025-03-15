@@ -94,7 +94,7 @@ public class ServiceEndpoints {
 
 			@Override
 			public void ifMustNotExist() {
-				bosk.driver().submitInitialization(ref, newValue);
+				bosk.driver().submitConditionalCreation(ref, newValue);
 			}
 		});
 		rsp.setStatus(ACCEPTED.value());

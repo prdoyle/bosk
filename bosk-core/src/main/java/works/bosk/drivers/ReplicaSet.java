@@ -172,9 +172,9 @@ public class ReplicaSet<R extends StateTreeNode> {
 		}
 
 		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
+		public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 			replicas.forEach(r -> r.driver
-				.submitInitialization(
+				.submitConditionalCreation(
 					r.correspondingReference(target), newValue));
 		}
 

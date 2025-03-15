@@ -80,7 +80,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		BsonDocument filter = standardPreconditions(target);
 		filter.put(dottedFieldNameOf(target, rootRef), new BsonDocument("$exists", FALSE));
 		if (doUpdate(replacementDoc(target, newValue), filter)) {

@@ -72,7 +72,7 @@ public interface BoskDriver {
 	 *
 	 * @see #submitReplacement
 	 */
-	<T> void submitInitialization(Reference<T> target, T newValue);
+	<T> void submitConditionalCreation(Reference<T> target, T newValue);
 
 	/**
 	 * Requests that the object referenced by <code>target</code> be deleted.

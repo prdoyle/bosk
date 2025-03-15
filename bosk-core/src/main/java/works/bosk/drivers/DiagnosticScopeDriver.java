@@ -51,9 +51,9 @@ public class DiagnosticScopeDriver implements BoskDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		try (var __ = scopeSupplier.apply(diagnosticContext)) {
-			downstream.submitInitialization(target, newValue);
+			downstream.submitConditionalCreation(target, newValue);
 		}
 	}
 

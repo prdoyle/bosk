@@ -332,7 +332,7 @@ public abstract class SerializationPlugin {
 			if (StateTreeNode.class.isAssignableFrom(enclosing)) {
 				Object result = infoFor(enclosing).polyfills().get(ref.path().lastSegment());
 				if (result != null) {
-					driver.submitInitialization(ref, ref.targetClass().cast(result));
+					driver.submitConditionalCreation(ref, ref.targetClass().cast(result));
 				}
 			}
 		}

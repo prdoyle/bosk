@@ -37,8 +37,8 @@ public class ForwardingDriver implements BoskDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		downstream.submitInitialization(target, newValue);
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
+		downstream.submitConditionalCreation(target, newValue);
 	}
 
 	@Override

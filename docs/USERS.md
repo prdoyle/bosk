@@ -447,7 +447,7 @@ For example, `submitConditionalReplacement(target, newValue, precondition, requi
 
 `submitConditionalDeletion` is similar.
 
-A third kind of conditional update, called `submitInitialization`, is like `submitReplacement` except ignored if the target node already exists.
+A third kind of conditional update, called `submitConditionalCreation`, is like `submitReplacement` except ignored if the target node already exists.
 
 #### `flush()`
 

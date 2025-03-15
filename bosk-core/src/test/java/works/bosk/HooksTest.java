@@ -250,7 +250,7 @@ public class HooksTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void basic_initialization() {
+	void basic_creation() {
 		registerInterleavedHooks();
 
 		Identifier child4ID = Identifier.from("child4");
@@ -258,7 +258,7 @@ public class HooksTest extends AbstractBoskTest {
 			.withId(child4ID);
 		Reference<TestChild> child4Ref = refs.anyChild().boundTo(Identifier.from("parent"), child4ID);
 
-		bosk.driver().submitInitialization(child4Ref, newValue);
+		bosk.driver().submitConditionalCreation(child4Ref, newValue);
 		TestEntity newParent = originalParent.withChildren(originalParent.children().with(newValue));
 		assertEquals(
 			asList(
@@ -270,13 +270,13 @@ public class HooksTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void basic_reinitialization() {
+	void basic_creationAlreadyExists() {
 		registerInterleavedHooks();
 
 		TestChild newValue = originalChild1
 			.withString("replacement");
 
-		bosk.driver().submitInitialization(refs.child(child1), newValue);
+		bosk.driver().submitConditionalCreation(refs.child(child1), newValue);
 
 		assertEquals(
 			emptyList(),
@@ -285,7 +285,7 @@ public class HooksTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void basic_initializationInNonexistentParent() {
+	void basic_creationInNonexistentParent() {
 		registerInterleavedHooks();
 
 		Identifier child4ID = Identifier.from("child4");
@@ -293,7 +293,7 @@ public class HooksTest extends AbstractBoskTest {
 			.withId(child4ID);
 		Reference<TestChild> child4Ref = refs.anyChild().boundTo(Identifier.from("nonexistent"), child4ID);
 
-		bosk.driver().submitInitialization(child4Ref, newValue);
+		bosk.driver().submitConditionalCreation(child4Ref, newValue);
 
 		assertEquals(
 			emptyList(),

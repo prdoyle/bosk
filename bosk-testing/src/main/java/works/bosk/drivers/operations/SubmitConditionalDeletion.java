@@ -11,7 +11,7 @@ public record SubmitConditionalDeletion<T>(
 	Reference<Identifier> precondition,
 	Identifier requiredValue,
 	MapValue<String> diagnosticAttributes
-) implements DeletionOperation<T>, ConditionalOperation {
+) implements DeletionOperation<T>, OperationWithPrecondition {
 
 	@Override
 	public SubmitDeletion<T> unconditional() {

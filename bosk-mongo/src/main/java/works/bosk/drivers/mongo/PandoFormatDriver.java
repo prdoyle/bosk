@@ -117,7 +117,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		collection.ensureTransactionStarted();
 		Reference<?> mainRef = mainRef(target);
 		BsonDocument filter = documentFilter(mainRef)

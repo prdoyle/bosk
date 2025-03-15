@@ -66,13 +66,13 @@ public class JsonNodeDriver implements BoskDriver {
 	}
 
 	@Override
-	public synchronized <T> void submitInitialization(Reference<T> target, T newValue) {
-		traceCurrentState("Before submitInitialization");
+	public synchronized <T> void submitConditionalCreation(Reference<T> target, T newValue) {
+		traceCurrentState("Before submitConditionalCreation");
 		if (surgeon.valueNode(currentRoot, target) == null) {
 			doReplacement(surgeon.nodeInfo(currentRoot, target), target.path().lastSegment(), newValue);
 		}
-		downstream.submitInitialization(target, newValue);
-		traceCurrentState("After submitInitialization");
+		downstream.submitConditionalCreation(target, newValue);
+		traceCurrentState("After submitConditionalCreation");
 	}
 
 	@Override

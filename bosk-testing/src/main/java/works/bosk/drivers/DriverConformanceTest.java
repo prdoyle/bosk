@@ -440,12 +440,12 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
-	void submitInitialization_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
+	void submitConditionalCreation_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
 		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		Refs refs = bosk.buildReferences(Refs.class);
 		Identifier id = Identifier.from("testEntity");
 		Reference<TestEntity> ref = refs.catalogEntry(id);
-		testDiagnosticContextPropagation(() -> bosk.driver().submitInitialization(ref, emptyEntityAt(ref)));
+		testDiagnosticContextPropagation(() -> bosk.driver().submitConditionalCreation(ref, emptyEntityAt(ref)));
 	}
 
 	@ParametersByName
