@@ -278,7 +278,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		doRetryableDriverOperation(()->{
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitReplacement(target, newValue);
 		}, "submitReplacement({})", target);
 	}
@@ -286,7 +286,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
 		doRetryableDriverOperation(()->{
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitConditionalReplacement(target, newValue, precondition, requiredValue);
 		}, "submitConditionalReplacement({}, {}={})", target, precondition, requiredValue);
 	}
@@ -294,7 +294,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		doRetryableDriverOperation(()->{
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitConditionalCreation(target, newValue);
 		}, "submitConditionalCreation({})", target);
 	}
@@ -302,7 +302,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
 		doRetryableDriverOperation(()->{
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitDeletion(target);
 		}, "submitDeletion({})", target);
 	}
@@ -310,7 +310,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
 		doRetryableDriverOperation(() -> {
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitConditionalDeletion(target, precondition, requiredValue);
 		}, "submitConditionalDeletion({}, {}={})", target, precondition, requiredValue);
 	}

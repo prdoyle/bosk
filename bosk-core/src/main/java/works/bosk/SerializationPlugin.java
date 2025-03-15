@@ -316,7 +316,7 @@ public abstract class SerializationPlugin {
 		}
 	}
 
-	public <R extends StateTreeNode> void initializeEnclosingPolyfills(Reference<?> target, BoskDriver driver) {
+	public <R extends StateTreeNode> void initializeAllEnclosingPolyfills(Reference<?> target, BoskDriver driver) {
 		if (!ANY_POLYFILLS.get()) {
 			return;
 		}
@@ -336,7 +336,7 @@ public abstract class SerializationPlugin {
 	}
 
 	private <R extends StateTreeNode, T> void initializePolyfills(Reference<T> ref, BoskDriver driver) {
-		initializeEnclosingPolyfills(ref, driver);
+		initializeAllEnclosingPolyfills(ref, driver);
 		if (!ref.path().isEmpty()) {
 			Class<?> enclosing = ref.enclosingReference(Object.class).targetClass();
 			if (StateTreeNode.class.isAssignableFrom(enclosing)) {
