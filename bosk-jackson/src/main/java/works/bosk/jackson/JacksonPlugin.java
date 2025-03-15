@@ -745,7 +745,11 @@ public final class JacksonPlugin extends SerializationPlugin {
 			String name = p.currentName();
 			RecordComponent component = componentsByName.get(name);
 			if (component == null) {
-				throw new JsonParseException(p, "No such component in record " + nodeClass.getSimpleName() + ": " + name);
+				if (ignoreUnrecognizedField(nodeClass, name)) {
+					p.skipChildren();
+				} else {
+					throw new JsonParseException(p, "No such component in record " + nodeClass.getSimpleName() + ": " + name);
+				}
 			} else {
 				JavaType parameterType = TypeFactory.defaultInstance().resolveMemberType(component.getGenericType(), nodeJavaType.getBindings());
 				Object deserializedValue;

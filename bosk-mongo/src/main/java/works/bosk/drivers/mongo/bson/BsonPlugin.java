@@ -59,7 +59,6 @@ import static java.lang.invoke.MethodHandles.insertArguments;
 import static java.lang.invoke.MethodHandles.lookup;
 import static java.lang.invoke.MethodHandles.permuteArguments;
 import static java.lang.invoke.MethodType.methodType;
-import static java.util.Collections.synchronizedSet;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
@@ -631,11 +630,12 @@ public final class BsonPlugin extends SerializationPlugin {
 			String fieldName = reader.readName();
 			RecordComponent component = componentsByName.get(fieldName);
 			if (component == null) {
-				if (LOGGER.isWarnEnabled() && ALREADY_WARNED.add(nodeClass.getName() + " " + fieldName)) {
-					LOGGER.warn("Ignoring unrecognized field \"{}\" in {}", fieldName, nodeClass.getSimpleName());
+				if (ignoreUnrecognizedField(nodeClass, fieldName)) {
+					reader.skipValue();
+					continue;
+				} else {
+					throw new BsonFormatException("Unrecognized field " + fieldName);
 				}
-				reader.skipValue();
-				continue;
 			}
 			Object value;
 			try (@SuppressWarnings("unused") DeserializationScope s = nodeFieldDeserializationScope(nodeClass, fieldName)) {
@@ -789,7 +789,6 @@ public final class BsonPlugin extends SerializationPlugin {
 	@SuppressWarnings({"unused", "EmptyMethod"}) // WRITE_NOTHING
 	private static void writeNothing(Object node, BsonWriter writer, EncoderContext context) {}
 
-	private static final Set<String> ALREADY_WARNED = synchronizedSet(new HashSet<>());
 	private static final Logger LOGGER = LoggerFactory.getLogger(BsonPlugin.class);
 
 	private static final Lookup LOOKUP = lookup();

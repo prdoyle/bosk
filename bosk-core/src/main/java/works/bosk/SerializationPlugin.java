@@ -39,6 +39,7 @@ import works.bosk.exceptions.UnexpectedPathException;
 
 import static java.lang.reflect.Modifier.isPrivate;
 import static java.lang.reflect.Modifier.isStatic;
+import static java.util.Collections.synchronizedSet;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -278,6 +279,15 @@ public abstract class SerializationPlugin {
 	public static boolean hasDeserializationPath(Class<?> nodeClass, RecordComponent component) {
 		return infoFor(nodeClass).annotatedParameters_DeserializationPath().containsKey(component.getName());
 	}
+
+	protected boolean ignoreUnrecognizedField(Class<?> nodeClass, String fieldName) {
+		if (LOGGER.isWarnEnabled() && ALREADY_WARNED.add(nodeClass.getName() + " " + fieldName)) {
+			LOGGER.warn("Ignoring unrecognized field \"{}\" in {}", fieldName, nodeClass.getSimpleName());
+		}
+		return true;
+	}
+
+	private static final Set<String> ALREADY_WARNED = synchronizedSet(new HashSet<>());
 
 	/**
 	 * @throws InvalidTypeException if the given class has no unique variant case map
