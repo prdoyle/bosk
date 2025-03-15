@@ -387,7 +387,7 @@ public abstract class SerializationPlugin {
 		return PARAMETER_INFO.get(nodeClass);
 	}
 
-	private static final ClassValue<ParameterInfo> PARAMETER_INFO = new ClassValue<ParameterInfo>() {
+	private static final ClassValue<ParameterInfo> PARAMETER_INFO = new ClassValue<>() {
 		@Override
 		protected ParameterInfo computeValue(@NotNull Class<?> type) {
 			Set<String> selfParameters = new HashSet<>();
