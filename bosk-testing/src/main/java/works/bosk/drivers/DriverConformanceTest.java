@@ -445,7 +445,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		Refs refs = bosk.buildReferences(Refs.class);
 		Identifier id = Identifier.from("testEntity");
 		Reference<TestEntity> ref = refs.catalogEntry(id);
-		testDiagnosticContextPropagation(() -> bosk.driver().submitInitialization(ref, emptyEntityAt(ref)));
+		testDiagnosticContextPropagation(() -> bosk.driver().submitConditionalCreation(ref, emptyEntityAt(ref)));
 	}
 
 	@ParametersByName

@@ -224,9 +224,9 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
+		public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 			assertCorrectBosk(target);
-			downstream.submitInitialization(target, newValue);
+			downstream.submitConditionalCreation(target, newValue);
 		}
 
 		@Override
@@ -323,7 +323,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
+		public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 			synchronized (this) {
 				boolean preconditionsSatisfied;
 				try (@SuppressWarnings("unused") ReadContext executionContext = supersedingReadContext()) {

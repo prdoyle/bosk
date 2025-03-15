@@ -59,8 +59,8 @@ public class BufferingDriver implements BoskDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		enqueue(d -> d.submitInitialization(target, newValue), target.root().diagnosticContext());
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
+		enqueue(d -> d.submitConditionalCreation(target, newValue), target.root().diagnosticContext());
 	}
 
 	@Override

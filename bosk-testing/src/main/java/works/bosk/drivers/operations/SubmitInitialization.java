@@ -18,7 +18,7 @@ public record SubmitInitialization<T>(
 
 	@Override
 	public void submitTo(BoskDriver driver) {
-		driver.submitInitialization(target, newValue);
+		driver.submitConditionalCreation(target, newValue);
 	}
 
 }

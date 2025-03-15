@@ -44,8 +44,8 @@ public class AsyncDriver implements BoskDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		submitAsyncTask("submitInitialization", () -> downstream.submitInitialization(target, newValue));
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
+		submitAsyncTask("submitConditionalCreation", () -> downstream.submitConditionalCreation(target, newValue));
 	}
 
 	@Override

@@ -56,7 +56,7 @@ public class ReportingDriver implements BoskDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		SubmitInitialization<T> op = new SubmitInitialization<>(target, newValue, diagnosticContext.getAttributes());
 		updateListener.accept(op);
 		op.submitTo(downstream);

@@ -292,11 +292,11 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		doRetryableDriverOperation(()->{
 			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
-			formatDriver.submitInitialization(target, newValue);
-		}, "submitInitialization({})", target);
+			formatDriver.submitConditionalCreation(target, newValue);
+		}, "submitConditionalCreation({})", target);
 	}
 
 	@Override

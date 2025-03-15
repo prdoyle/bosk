@@ -233,8 +233,8 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		}
 
 		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
-			downstream.submitInitialization(target, preprocess(target, newValue));
+		public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
+			downstream.submitConditionalCreation(target, preprocess(target, newValue));
 		}
 
 		abstract <T> T preprocess(Reference<T> reference, T newValue);

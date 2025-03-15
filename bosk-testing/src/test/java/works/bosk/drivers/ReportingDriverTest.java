@@ -91,10 +91,10 @@ class ReportingDriverTest extends AbstractDriverTest {
 	}
 
 	@Test
-	void submitInitialization() {
+	void submitConditionalCreation() {
 		Reference<TestEntity> ref = refs.entity(id2);
 		TestEntity newValue = emptyEntityAt(ref);
-		bosk.driver().submitInitialization(ref, newValue);
+		bosk.driver().submitConditionalCreation(ref, newValue);
 		assertExpectedEvents(new SubmitInitialization<>(ref, newValue, expectedAttributes));
 		assertNodeEquals(newValue, ref);
 		assertCorrectBoskContents();

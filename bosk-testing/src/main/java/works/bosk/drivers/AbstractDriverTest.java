@@ -74,7 +74,7 @@ public abstract class AbstractDriverTest {
 		} else {
 			autoInitialize(ref.enclosingReference(TestEntity.class));
 			TestEntity newEntity = emptyEntityAt(ref);
-			driver.submitInitialization(ref, newEntity);
+			driver.submitConditionalCreation(ref, newEntity);
 			return newEntity;
 		}
 	}
