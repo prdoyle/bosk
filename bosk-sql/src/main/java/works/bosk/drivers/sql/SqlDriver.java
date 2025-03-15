@@ -73,7 +73,6 @@ public class SqlDriver implements BoskDriver {
 	final TableField<Record, String> ID;
 
 	final ScheduledExecutorService listener;
-	private final Schema schema;
 
 	private volatile String epoch;
 
@@ -98,7 +97,7 @@ public class SqlDriver implements BoskDriver {
 		};
 
 		// Set up jOOQ references
-		schema = new Schema();
+		Schema schema = new Schema();
 		REF = schema.REF;
 		NEW_STATE = schema.NEW_STATE;
 		REVISION = schema.REVISION;
