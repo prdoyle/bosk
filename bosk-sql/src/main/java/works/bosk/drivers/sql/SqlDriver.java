@@ -15,9 +15,9 @@ public interface SqlDriver extends BoskDriver {
 		ConnectionSource connectionSource,
 		Function<BoskInfo<RR>, ObjectMapper> objectMapperFactory
 	) {
-		return (b, d) -> new SqlDriverImpl(
+		return (b, d) -> new SqlDriverFacade(new SqlDriverImpl(
 			settings, connectionSource, b, objectMapperFactory.apply(b), d
-		);
+		));
 	}
 
 	void close();
