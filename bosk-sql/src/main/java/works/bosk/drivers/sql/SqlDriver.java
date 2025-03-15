@@ -256,13 +256,8 @@ public class SqlDriver implements BoskDriver {
 			// TODO: It seems wrong to schedule the listener loop here. It should be in the constructor.
 			ensureTablesExist(connection);
 			StateTreeNode result;
-			record Row(String state, String epoch){}
-			var row = using(connection)
-				.select(STATE, BOSK.EPOCH)
-				.from(BOSK)
-				.where(ID.eq("current"))
-				.fetchOneInto(Row.class);
-			if (row == null) {
+			var stateAndEpoch = loadStateAndEpoch(connection);
+			if (stateAndEpoch == null) {
 				LOGGER.debug("No current state; initializing {} table from downstream", BOSK);
 				this.epoch = UUID.randomUUID().toString();
 				result = downstream.initialRoot(rootType);
@@ -278,18 +273,40 @@ public class SqlDriver implements BoskDriver {
 				lastChangeSubmittedDownstream.getAndSet(changeID); // Not technically "submitted"
 			} else {
 				LOGGER.debug("Database state exists; initializing downstream from {} table", BOSK);
-				this.epoch = row.epoch;
-				long currentChangeID = latestChangeID(connection);
-				JavaType valueType = TypeFactory.defaultInstance().constructType(rootType);
-				result = mapper.readValue(row.state, valueType);
-				connection.commit();
-				submitDownstream(rootRef, result, currentChangeID);
+				result = resetBoskState(rootType, stateAndEpoch, connection);
 			}
 			listener.scheduleWithFixedDelay(this::listenForChanges, 0, settings.timescaleMS(), MILLISECONDS);
 			return result;
 		} catch (SQLException e) {
 			throw new NotYetImplementedException(e);
 		}
+	}
+
+	private record StateAndEpoch(String state, String epoch){}
+
+	private StateAndEpoch loadStateAndEpoch(Connection connection) {
+		return using(connection)
+			.select(STATE, BOSK.EPOCH)
+			.from(BOSK)
+			.where(ID.eq("current"))
+			.fetchOneInto(StateAndEpoch.class);
+	}
+
+	private synchronized StateTreeNode resetBoskState(Type rootType, StateAndEpoch stateAndEpoch, Connection connection) throws JsonProcessingException, SQLException {
+		StateTreeNode result;
+		this.epoch = stateAndEpoch.epoch;
+		long currentChangeID;
+		try {
+			currentChangeID = latestChangeID(connection);
+		} catch (EpochMismatchException e) {
+			throw new AssertionError("Epoch was just set, so it shouldn't mismatch in the same transaction", e);
+		}
+		JavaType valueType = TypeFactory.defaultInstance().constructType(rootType);
+		result = mapper.readValue(stateAndEpoch.state, valueType);
+		this.lastChangeSubmittedDownstream.set(-1);
+		connection.commit();
+		submitDownstream(rootRef, result, currentChangeID);
+		return result;
 	}
 
 	private void ensureTablesExist(Connection connection) throws SQLException {
@@ -407,6 +424,15 @@ public class SqlDriver implements BoskDriver {
 			}
 		} catch (SQLException e) {
 			throw new FlushFailureException(e);
+		} catch (EpochMismatchException e) {
+			LOGGER.debug("Epoch mismatch: reload state from database");
+			try (var c = connectionSource.get()) {
+				resetBoskState(rootRef.targetType(), loadStateAndEpoch(c), c);
+			} catch (SQLException | RuntimeException ex) {
+				throw new FlushFailureException(ex);
+			}
+		} catch (RuntimeException e) {
+			throw new FlushFailureException("Unexpected error while flushing", e);
 		}
 		downstream.flush();
 	}
@@ -484,19 +510,24 @@ public class SqlDriver implements BoskDriver {
 	}
 
 	private JsonNode readState(Connection connection) {
-		var json = using(connection)
-			.select(STATE)
-			.from(BOSK)
-			.fetchOptional(STATE)
-			.orElseThrow(()->new NotYetImplementedException("No state found"));
+		String json;
+		try {
+			json = using(connection)
+				.select(STATE)
+				.from(BOSK)
+				.fetchOptional(STATE)
+				.orElseThrow(() -> new NotYetImplementedException("No state found"));
+		} catch (RuntimeException e) {
+			throw new IllegalStateException("Unexpected error reading state from database", e);
+		}
 		try {
 			return mapper.readTree(json);
 		} catch (JsonProcessingException e) {
-			throw new NotYetImplementedException(e);
+			throw new IllegalStateException("Unable to parse database contents", e);
 		}
 	}
 
-	private long latestChangeID(Connection connection) {
+	private long latestChangeID(Connection connection) throws EpochMismatchException {
 		record Row(String epoch, Long revision){}
 		var result = using(connection)
 			.select(CHANGES.EPOCH, REVISION)
@@ -508,7 +539,7 @@ public class SqlDriver implements BoskDriver {
 			return 0L; // TODO: Are we sure auto-increment always generates numbers strictly greater than zero?
 		} else {
 			if (!result.epoch.equals(this.epoch)) {
-				throw new NotYetImplementedException("Epoch mismatch");
+				throw new EpochMismatchException();
 			}
 			return result.revision;
 		}

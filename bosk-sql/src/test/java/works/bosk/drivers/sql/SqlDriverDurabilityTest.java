@@ -15,11 +15,14 @@ import works.bosk.drivers.AbstractDriverTest;
 import works.bosk.drivers.sql.SqlTestService.Database;
 import works.bosk.drivers.sql.schema.Schema;
 import works.bosk.drivers.state.TestEntity;
+import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
 
 import static org.jooq.impl.DSL.using;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static works.bosk.BoskTestUtils.boskName;
 import static works.bosk.drivers.sql.SqlTestService.Database.POSTGRES;
 import static works.bosk.drivers.sql.SqlTestService.Database.SQLITE;
 import static works.bosk.drivers.sql.SqlTestService.sqlDriverFactory;
@@ -51,10 +54,17 @@ public class SqlDriverDurabilityTest extends AbstractDriverTest {
 	void tablesDropped_recovers() throws SQLException, IOException, InterruptedException {
 		LOGGER.debug("Initialize database");
 		var factory = sqlDriverFactory(settings, dataSource);
-		var schema = new Schema();
-		setupBosksAndReferences(factory);
-		assertCorrectBoskContents();
 
+		// Note that we can't use DriverStateVerifier here because this test
+		// depends on receiving a new state from another bosk, and DriverStateVerifier
+		// will report that as an unexpected update. DriverStateVerifier objects
+		// to spontaneous state changes, even though they are valid in a setup with
+		// multiple bosks sharing a database.
+		//
+		bosk = new Bosk<>(boskName("tablesDropped", 1), TestEntity.class, AbstractDriverTest::initialRoot, factory);
+		driver = bosk.driver();
+
+		var schema = new Schema();
 		LOGGER.debug("Drop tables");
 		try (var c = dataSource.getConnection()) {
 			using(c)
@@ -64,7 +74,11 @@ public class SqlDriverDurabilityTest extends AbstractDriverTest {
 			using(c)
 				.dropTable(schema.CHANGES)
 				.execute();
+
+			c.commit();
 		}
+
+		assertThrows(FlushFailureException.class, () -> bosk.driver().flush());
 
 		LOGGER.debug("Use another bosk to recreate the database");
 		var fixer = new Bosk<>("fixer", TestEntity.class, SqlDriverDurabilityTest::differentInitialRoot, factory);
