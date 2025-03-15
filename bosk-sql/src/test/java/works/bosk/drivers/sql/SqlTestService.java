@@ -64,7 +64,7 @@ public class SqlTestService {
 			;
 	}
 
-	public static SqlDriver.SqlDriverFactory<TestEntity> sqlDriverFactory(SqlDriverSettings settings, HikariDataSource dataSource) {
+	public static SqlDriverImpl.SqlDriverFactory<TestEntity> sqlDriverFactory(SqlDriverSettings settings, HikariDataSource dataSource) {
 		return SqlDriver.factory(
 			settings, dataSource::getConnection,
 			b -> new ObjectMapper()
