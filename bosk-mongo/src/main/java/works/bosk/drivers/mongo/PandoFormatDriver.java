@@ -524,6 +524,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	 */
 	private <T> void doReplacement(Reference<T> target, T newValue) {
 		collection.ensureTransactionStarted();
+		LOGGER.debug("doReplacement({})", target);
 		Reference<?> mainRef = mainRef(target);
 		BsonValue value = formatter.object2bsonValue(newValue, target.targetType());
 		if (value instanceof BsonDocument b) {

@@ -1,6 +1,5 @@
 package works.bosk.drivers.sql;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.io.IOException;
@@ -10,11 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.exceptions.NotYetImplementedException;
-import works.bosk.jackson.JacksonPlugin;
-import works.bosk.jackson.JacksonPluginConfiguration;
 
+import static com.fasterxml.jackson.core.JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION;
 import static com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT;
-import static works.bosk.jackson.JacksonPluginConfiguration.MapShape.ARRAY;
 
 public class SqlTestService {
 	record DBKey(Database database, String databaseName) {}
@@ -63,13 +60,12 @@ public class SqlTestService {
 			;
 	}
 
-	public static SqlDriver.SqlDriverFactory<TestEntity> sqlDriverFactory(SqlDriverSettings settings, HikariDataSource dataSource) {
+	public static SqlDriverImpl.SqlDriverFactory<TestEntity> sqlDriverFactory(SqlDriverSettings settings, HikariDataSource dataSource) {
 		return SqlDriver.factory(
 			settings, dataSource::getConnection,
-			b -> new ObjectMapper()
+			(b, m) -> m
 				.enable(INDENT_OUTPUT)
-				// TODO: SqlDriver should add this, not the caller! It's required for correctness
-				.registerModule(new JacksonPlugin(new JacksonPluginConfiguration(ARRAY)).moduleFor(b))
+				.enable(INCLUDE_SOURCE_IN_LOCATION)
 		);
 	}
 

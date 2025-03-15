@@ -31,11 +31,11 @@ import works.bosk.ListingReference;
 import works.bosk.Reference;
 import works.bosk.SideTable;
 import works.bosk.TaggedUnion;
-import works.bosk.annotations.Polyfill;
 import works.bosk.drivers.BufferingDriver;
 import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;
+import works.bosk.drivers.state.UpgradeableEntity;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
@@ -370,52 +370,6 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	void updateInsidePolyfill_works(TestInfo testInfo) throws IOException, InterruptedException, InvalidTypeException {
-		// We'll use this as an honest observer of the actual state
-		LOGGER.debug("Create Original bosk");
-		Bosk<TestEntity> originalBosk = new Bosk<TestEntity>(
-			boskName("Original"),
-			TestEntity.class,
-			this::initialRoot,
-			createDriverFactory(logController, testInfo)
-		);
-
-		LOGGER.debug("Create Upgradeable bosk");
-		Bosk<UpgradeableEntity> upgradeableBosk = new Bosk<UpgradeableEntity>(
-			boskName("Upgradeable"),
-			UpgradeableEntity.class,
-			(b) -> { throw new AssertionError("upgradeableBosk should use the state from MongoDB"); },
-			createDriverFactory(logController, testInfo)
-		);
-
-		LOGGER.debug("Ensure polyfill returns the right value on read");
-		TestValues polyfill;
-		try (var _ = upgradeableBosk.readContext()) {
-			polyfill = upgradeableBosk.rootReference().value().values();
-		}
-		assertEquals(TestValues.blank(), polyfill);
-
-		LOGGER.debug("Check state before");
-		Optional<TestValues> before;
-		try (var _ = originalBosk.readContext()) {
-			before = originalBosk.rootReference().value().values();
-		}
-		assertEquals(Optional.empty(), before); // Not there yet
-
-		LOGGER.debug("Perform update inside polyfill");
-		Refs refs = upgradeableBosk.buildReferences(Refs.class);
-		upgradeableBosk.driver().submitReplacement(refs.valuesString(), "new value");
-		originalBosk.driver().flush(); // Not the bosk that did the update!
-
-		LOGGER.debug("Check state after");
-		String after;
-		try (var _ = originalBosk.readContext()) {
-			after = originalBosk.rootReference().value().values().get().string();
-		}
-		assertEquals("new value", after); // Now it's there
-	}
-
-	@ParametersByName
 	void deleteNonexistentField_ignored(TestInfo testInfo) throws InvalidTypeException, IOException, InterruptedException {
 		setLogging(ERROR, SequoiaFormatDriver.class, PandoFormatDriver.class);
 
@@ -703,23 +657,6 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 				SideTable.empty(catalogRef)
 			);
 		}
-	}
-
-	/**
-	 * A version of {@link TestEntity} where the {@link Optional} {@link TestEntity#values()}
-	 * field has a polyfill.
-	 */
-	public record UpgradeableEntity(
-		Identifier id,
-		String string,
-		Catalog<TestEntity> catalog,
-		Listing<TestEntity> listing,
-		SideTable<TestEntity, TestEntity> sideTable,
-		TaggedUnion<TestEntity.Variant> variant,
-		TestValues values
-	) implements Entity {
-		@Polyfill("values")
-		public static final TestValues DEFAULT_VALUES = works.bosk.drivers.state.TestValues.blank();
 	}
 
 	/**

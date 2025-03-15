@@ -39,6 +39,7 @@ import works.bosk.exceptions.UnexpectedPathException;
 
 import static java.lang.reflect.Modifier.isPrivate;
 import static java.lang.reflect.Modifier.isStatic;
+import static java.util.Collections.synchronizedSet;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -279,6 +280,15 @@ public abstract class SerializationPlugin {
 		return infoFor(nodeClass).annotatedParameters_DeserializationPath().containsKey(component.getName());
 	}
 
+	protected boolean ignoreUnrecognizedField(Class<?> nodeClass, String fieldName) {
+		if (LOGGER.isWarnEnabled() && ALREADY_WARNED.add(nodeClass.getName() + " " + fieldName)) {
+			LOGGER.warn("Ignoring unrecognized field \"{}\" in {}", fieldName, nodeClass.getSimpleName());
+		}
+		return true;
+	}
+
+	private static final Set<String> ALREADY_WARNED = synchronizedSet(new HashSet<>());
+
 	/**
 	 * @throws InvalidTypeException if the given class has no unique variant case map
 	 */
@@ -306,7 +316,7 @@ public abstract class SerializationPlugin {
 		}
 	}
 
-	public <R extends StateTreeNode> void initializeEnclosingPolyfills(Reference<?> target, BoskDriver driver) {
+	public <R extends StateTreeNode> void initializeAllEnclosingPolyfills(Reference<?> target, BoskDriver driver) {
 		if (!ANY_POLYFILLS.get()) {
 			return;
 		}
@@ -326,7 +336,7 @@ public abstract class SerializationPlugin {
 	}
 
 	private <R extends StateTreeNode, T> void initializePolyfills(Reference<T> ref, BoskDriver driver) {
-		initializeEnclosingPolyfills(ref, driver);
+		initializeAllEnclosingPolyfills(ref, driver);
 		if (!ref.path().isEmpty()) {
 			Class<?> enclosing = ref.enclosingReference(Object.class).targetClass();
 			if (StateTreeNode.class.isAssignableFrom(enclosing)) {
@@ -387,7 +397,7 @@ public abstract class SerializationPlugin {
 		return PARAMETER_INFO.get(nodeClass);
 	}
 
-	private static final ClassValue<ParameterInfo> PARAMETER_INFO = new ClassValue<ParameterInfo>() {
+	private static final ClassValue<ParameterInfo> PARAMETER_INFO = new ClassValue<>() {
 		@Override
 		protected ParameterInfo computeValue(@NotNull Class<?> type) {
 			Set<String> selfParameters = new HashSet<>();
