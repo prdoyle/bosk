@@ -14,12 +14,14 @@ First, you start with just the `bosk-core` library, writing your application's c
 The the built-in integrations with things like Jackson and Spring Boot help you get your application up and running.
 
 Then, when the time comes to turn your standalone application into a high-availability replica set,
-you can bring in the optional [MongoDB module](bosk-mongo) library.
+you can bring in the optional [MongoDB library](bosk-mongo).
 The hard work of change propagation, ordering, durability, consistency, atomicity, and observability,
 as well as fault tolerance, and emergency manual state inspection and modification,
 is all delegated to MongoDB: a well-known, reliable, battle-hardened codebase.
 You don't even need to trust Bosk to get all these details right:
 all we do is send updates to MongoDB, and maintain the in-memory replica by following the MongoDB change stream.
+
+If you'd rather use SQL instead of MongoDB, there's a [SQL library](bosk-sql) too.
 
 ## Documentation
 - [User's Guide](docs/USERS.md)
