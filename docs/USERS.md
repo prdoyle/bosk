@@ -1091,6 +1091,8 @@ _Path_: The sequence of fields that reaches a particular state tree node startin
 
 _Parameter_: A path segment that can be substituted for an `Identifier`.
 
+_Polyfill_: A default value for a missing field. Simplifies backward compatibility with older databases or serialized data, allowing application code to assume a field is present even if it's not.
+
 _Reference_: A type-safe representation of a `Path` that can be used to access a node in a particular `Bosk` object.
 
 _Root_: The topmost, or outermost, state object in a bosk.
