@@ -821,21 +821,11 @@ Note that `@Polyfill` is not meant as a general way to supply default values for
 but rather to allow rollout of new required fields with no downtime.
 For optional fields, just use `Optional`.
 
-Also note that `@Polyfill` does not yet provide a perfect illusion that the field exists;
-specifically, updates _inside_ nonexistent state tree nodes will still be ignored,
-even if they have a polyfill.
-That is, if you provide a polyfill for a node at `/a/b`, but that node does not actually exist in the database,
-then a read from `/a/b` will return the polyfill node,
-but a write to `/a/b/c` will be ignored, which could be confusing.
-We hope to overcome this shortcoming in the near future.[^polyfill]
-
 [^refurbish]: Note that if your database is using the Sequoia format, and you refurbish it to the Pando format,
 there is a brief window (before the change events arrive) when writes to the old Sequoia driver will
 be silently ignored. While refurbishing from Sequoia to a different format,
 ensure the bosk is quiescent (not performing any updates), or is performing a `flush()` before each update.
 This is a consequence of Sequoia's design simplicity; specifically, its avoidance of multi-document transactions.
-
-[^polyfill]: See [Issue #34](https://github.com/boskworks/bosk/issues/34).
 
 ### Serialization: `bosk-jackson`
 
