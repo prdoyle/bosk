@@ -1,5 +1,7 @@
 package works.bosk.logging;
 
+import works.bosk.Bosk;
+
 /**
  * Keys to use for SLF4J's Mapped Diagnostic Context.
  * <p>
@@ -23,7 +25,7 @@ public final class MdcKeys {
 	public static final String EVENT = "bosk.MongoDriver.event";
 
 	/**
-	 * A unique string generated for each MongoDB {@link ClientSession}.
+	 * A unique string generated for each MongoDB {@code ClientSession}.
 	 * Technically, not every session is a transaction, but we do use them for
 	 * transactions, and this name seemed to convey the intent better than "session".
 	 */

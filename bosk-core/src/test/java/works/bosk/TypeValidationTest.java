@@ -7,13 +7,10 @@ import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.experimental.FieldDefaults;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import works.bosk.annotations.DerivedRecord;
 import works.bosk.annotations.DeserializationPath;
 import works.bosk.annotations.Enclosing;
 import works.bosk.annotations.Self;
@@ -39,7 +36,7 @@ class TypeValidationTest {
 			AllowedFieldNames.class,
 			ImplicitReferences_onConstructorParameters.class,
 			ImplicitReferences_onFields.class,
-			ExtraStaticField.class
+			ExtraStaticField.class,
 			})
 	void testValidRootClasses(Class<?> rootClass) throws InvalidTypeException {
 		TypeValidation.validateType(rootClass);
@@ -55,8 +52,6 @@ class TypeValidationTest {
 			CatalogOfInvalidType.class,
 			CharPrimitive.class,
 			DoublePrimitive.class,
-			DerivedRecordField.class,
-			DerivedRecordType.class,
 			EnclosingNonReference.class,
 			EnclosingReferenceToCatalog.class,
 			EnclosingReferenceToOptional.class,
@@ -87,6 +82,7 @@ class TypeValidationTest {
 			OptionalOfInvalidType.class,
 			ReferenceToInvalidType.class,
 			ValidThenInvalidOfTheSameClass.class,
+			VariantCaseWithNoTaggedUnion.class,
 			})
 	void testInvalidRootClasses(Class<?> rootClass) throws Exception {
 		try {
@@ -246,11 +242,11 @@ class TypeValidationTest {
 		@Enclosing Reference<ImplicitReferences_onFields> enclosingRef
 	) implements Entity { }
 
-	public interface ExtraStaticField extends VariantNode {
-		record Subtype() implements ExtraStaticField {}
+	public interface VariantWithExtraStaticField extends VariantCase {
+		record Subtype() implements VariantWithExtraStaticField {}
 		@Override default String tag() { return ""; }
 
-		@VariantCaseMap MapValue<Class<? extends ExtraStaticField>> CASE_MAP = MapValue.copyOf(Map.of(
+		@VariantCaseMap MapValue<Class<? extends VariantWithExtraStaticField>> CASE_MAP = MapValue.copyOf(Map.of(
 			"subtype", Subtype.class
 		));
 
@@ -259,6 +255,8 @@ class TypeValidationTest {
 		 */
 		String EXTRA_FIELD = "ignore me";
 	}
+
+	public record ExtraStaticField(TaggedUnion<VariantWithExtraStaticField> variant) implements StateTreeNode {}
 
 	public record NestedError(
 		Identifier id,
@@ -563,25 +561,6 @@ class TypeValidationTest {
 		}
 	}
 
-	@DerivedRecord
-	public record DerivedRecordType(
-		Identifier id
-	) implements Entity {
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString(DerivedRecord.class.getSimpleName()));
-		}
-	}
-
-	public record DerivedRecordField(
-		Identifier id,
-		DerivedRecordType badField
-	) implements Entity {
-		public static void testException(InvalidTypeException e) {
-			assertThat(e.getMessage(), containsString(DerivedRecord.class.getSimpleName()));
-			assertThat(e.getMessage(), containsString("DerivedRecordField.badField"));
-		}
-	}
-
 	public record ReferenceToReference(
 		Identifier id,
 		Reference<Reference<String>> ref
@@ -607,16 +586,19 @@ class TypeValidationTest {
 		}
 	}
 
-	public interface Variant1 extends VariantNode {
+	public interface Variant1 extends VariantCase {
 		@VariantCaseMap MapValue<Type> MAP1 = MapValue.empty();
 	}
 
-	public interface Variant2 extends VariantNode {
+	public interface Variant2 extends VariantCase {
 		@VariantCaseMap MapValue<Type> MAP2 = MapValue.empty();
 	}
 
-	public record AmbiguousVariantCaseMap() implements Variant1, Variant2 {
-		@Override public String tag() { return ""; }
-	}
+	public record VariantWithAmbiguousMaps(String tag) implements Variant1, Variant2 {}
 
+	public record AmbiguousVariantCaseMap(TaggedUnion<VariantWithAmbiguousMaps> variant) implements StateTreeNode {}
+
+	public record VariantCaseWithNoTaggedUnion(
+		Variant1 variant
+	) implements StateTreeNode {}
 }

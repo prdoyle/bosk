@@ -92,6 +92,7 @@ class ReferenceUtilsTest_parameterType {
 	@Test
 	void testParameterWithParameters() throws NoSuchFieldException {
 		abstract class TestClass {
+			@SuppressWarnings("unused")
 			public SideTableReference<Entity, String> sideTable;
 		}
 		Type type = TestClass.class.getDeclaredField("sideTable").getGenericType();

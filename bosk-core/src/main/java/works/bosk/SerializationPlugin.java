@@ -1,7 +1,9 @@
 package works.bosk;
 
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
@@ -14,9 +16,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +39,7 @@ import works.bosk.exceptions.UnexpectedPathException;
 
 import static java.lang.reflect.Modifier.isPrivate;
 import static java.lang.reflect.Modifier.isStatic;
+import static java.util.Collections.synchronizedSet;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -170,6 +173,36 @@ public abstract class SerializationPlugin {
 		}
 	}
 
+	public static <V> Function<Object[], ? extends ListValue<V>> listValueFactory(Class<ListValue<V>> targetClass) {
+		Function<Object[], ? extends ListValue<V>> factory;
+		if (ListValue.class.equals(targetClass)) {
+			factory = SerializationPlugin::listValueOf;
+		} else {
+			// User-supplied subclass needs a public constructor
+			Constructor<ListValue<V>> ctor = ReferenceUtils.theOnlyConstructorFor(targetClass);
+			factory = args -> newInstance(ctor, args);
+		}
+		return factory;
+	}
+
+	private static <V> ListValue<V> newInstance(Constructor<ListValue<V>> listValueConstructor, Object[] args) {
+		try {
+			return listValueConstructor.newInstance((Object)args);
+		} catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+			throw new IllegalStateException("Error instantiating ListValue subclass via constructor: " + listValueConstructor, e);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T> ListValue<T> listValueOf(Object[] args) {
+		try {
+			return (ListValue<T>) ListValue.class.getMethod("of", Object[].class).invoke(null, (Object)args);
+		} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+			throw new AssertionError("ListValue.of should be callable", e);
+		}
+	}
+
+
 	/**
 	 * Turns <code>parameterValuesByName</code> into a list suitable for
 	 * passing to a constructor, in the order indicated by
@@ -247,6 +280,15 @@ public abstract class SerializationPlugin {
 		return infoFor(nodeClass).annotatedParameters_DeserializationPath().containsKey(component.getName());
 	}
 
+	protected boolean ignoreUnrecognizedField(Class<?> nodeClass, String fieldName) {
+		if (LOGGER.isWarnEnabled() && ALREADY_WARNED.add(nodeClass.getName() + " " + fieldName)) {
+			LOGGER.warn("Ignoring unrecognized field \"{}\" in {}", fieldName, nodeClass.getSimpleName());
+		}
+		return true;
+	}
+
+	private static final Set<String> ALREADY_WARNED = synchronizedSet(new HashSet<>());
+
 	/**
 	 * @throws InvalidTypeException if the given class has no unique variant case map
 	 */
@@ -266,7 +308,7 @@ public abstract class SerializationPlugin {
 	 */
 	@Nullable
 	public static MapValue<Type> getVariantCaseMapIfAny(Class<?> nodeClass) throws InvalidTypeException {
-		if (VariantNode.class.isAssignableFrom(nodeClass)) {
+		if (VariantCase.class.isAssignableFrom(nodeClass)) {
 			return infoFor(nodeClass).variantCaseMap().ifAny();
 		} else {
 			// We don't want to even call infoFor on types that aren't StateTreeNodes
@@ -274,7 +316,7 @@ public abstract class SerializationPlugin {
 		}
 	}
 
-	public <R extends StateTreeNode> void initializeEnclosingPolyfills(Reference<?> target, BoskDriver driver) {
+	public <R extends StateTreeNode> void initializeAllEnclosingPolyfills(Reference<?> target, BoskDriver driver) {
 		if (!ANY_POLYFILLS.get()) {
 			return;
 		}
@@ -294,13 +336,13 @@ public abstract class SerializationPlugin {
 	}
 
 	private <R extends StateTreeNode, T> void initializePolyfills(Reference<T> ref, BoskDriver driver) {
-		initializeEnclosingPolyfills(ref, driver);
+		initializeAllEnclosingPolyfills(ref, driver);
 		if (!ref.path().isEmpty()) {
 			Class<?> enclosing = ref.enclosingReference(Object.class).targetClass();
 			if (StateTreeNode.class.isAssignableFrom(enclosing)) {
 				Object result = infoFor(enclosing).polyfills().get(ref.path().lastSegment());
 				if (result != null) {
-					driver.submitInitialization(ref, ref.targetClass().cast(result));
+					driver.submitConditionalCreation(ref, ref.targetClass().cast(result));
 				}
 			}
 		}
@@ -347,49 +389,56 @@ public abstract class SerializationPlugin {
 	}
 
 
+	/**
+	 * Note that the parameter info depends only on the class, and not on {@code this};
+	 * hence, we can share parameter info among all instances.
+	 */
 	private static ParameterInfo infoFor(Class<?> nodeClass) {
-		return PARAMETER_INFO_MAP.computeIfAbsent(nodeClass, SerializationPlugin::computeInfoFor);
+		return PARAMETER_INFO.get(nodeClass);
 	}
 
-	private static ParameterInfo computeInfoFor(Class<?> nodeClass) {
-		Set<String> selfParameters = new HashSet<>();
-		Set<String> enclosingParameters = new HashSet<>();
-		Map<String, DeserializationPath> deserializationPathParameters = new HashMap<>();
-		Map<String, Object> polyfills = new HashMap<>();
-		AtomicReference<VariantCaseMapInfo> variantCaseMap = new AtomicReference<>(new NoVariantCaseMap(nodeClass));
+	private static final ClassValue<ParameterInfo> PARAMETER_INFO = new ClassValue<>() {
+		@Override
+		protected ParameterInfo computeValue(@NotNull Class<?> type) {
+			Set<String> selfParameters = new HashSet<>();
+			Set<String> enclosingParameters = new HashSet<>();
+			Map<String, DeserializationPath> deserializationPathParameters = new HashMap<>();
+			Map<String, Object> polyfills = new HashMap<>();
+			AtomicReference<VariantCaseMapInfo> variantCaseMap = new AtomicReference<>(new NoVariantCaseMap(type));
 
-		if (!nodeClass.isInterface()) { // Avoid for @VariantCaseMap classes
-			for (Parameter parameter: ReferenceUtils.getCanonicalConstructor(nodeClass).getParameters()) {
-				scanForInfo(parameter, parameter.getName(),
-					selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
+			if (!type.isInterface()) { // Avoid for @VariantCaseMap classes
+				for (Parameter parameter: ReferenceUtils.getCanonicalConstructor(type).getParameters()) {
+					scanForInfo(parameter, parameter.getName(),
+						selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
+				}
 			}
-		}
 
-		// Bosk generally ignores an object's fields, looking only at its
-		// constructor arguments and its getters. However, we make an exception
-		// for convenience: Bosk annotations that go on constructor parameters
-		// can also go on fields with the same name. This accommodates systems
-		// like Lombok that derive constructors from fields.
-		//
-		// It's also required to scan static fields for features like @VariantCaseMap.
+			// Bosk generally ignores an object's fields, looking only at its
+			// constructor arguments and its getters. However, we make an exception
+			// for convenience: Bosk annotations that go on constructor parameters
+			// can also go on fields with the same name. This accommodates systems
+			// like Lombok that derive constructors from fields.
+			//
+			// It's also required to scan static fields for features like @VariantCaseMap.
 
-		for (Class<?> c = nodeClass; c != Object.class && c != null; c = c.getSuperclass()) {
-			for (Field field: c.getDeclaredFields()) {
-				scanForInfo(field, field.getName(),
-					selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
+			for (Class<?> c = type; c != Object.class && c != null; c = c.getSuperclass()) {
+				for (Field field: c.getDeclaredFields()) {
+					scanForInfo(field, field.getName(),
+						selfParameters, enclosingParameters, deserializationPathParameters, polyfills);
+				}
 			}
-		}
 
-		if (VariantNode.class.isAssignableFrom(nodeClass)) {
-			scanForVariantCaseMap(nodeClass, variantCaseMap);
-		}
+			if (VariantCase.class.isAssignableFrom(type)) {
+				scanForVariantCaseMap(type, variantCaseMap);
+			}
 
-		return new ParameterInfo(selfParameters, enclosingParameters, deserializationPathParameters, polyfills, variantCaseMap.get());
-	}
+			return new ParameterInfo(selfParameters, enclosingParameters, deserializationPathParameters, polyfills, variantCaseMap.get());
+		}
+	};
 
 	@SuppressWarnings({"rawtypes","unchecked"})
 	private static void scanForVariantCaseMap(Class<?> nodeClass, AtomicReference<VariantCaseMapInfo> variantCaseMap) {
-		if (!VariantNode.class.isAssignableFrom(nodeClass)) {
+		if (!VariantCase.class.isAssignableFrom(nodeClass)) {
 			return;
 		}
 
@@ -405,7 +454,6 @@ public abstract class SerializationPlugin {
 				if (!isStatic(f.getModifiers()) || isPrivate(f.getModifiers())) {
 					throw new IllegalStateException("The variant case map must be static and final: " + f);
 				}
-				f.setAccessible(true);
 				MapValue value;
 				try {
 					value = (MapValue) f.get(null);
@@ -440,7 +488,6 @@ public abstract class SerializationPlugin {
 			deserializationPathParameters.put(name, thing.getAnnotation(DeserializationPath.class));
 		} else if (thing.isAnnotationPresent(Polyfill.class)) {
 			if (thing instanceof Field f && isStatic(f.getModifiers()) && !isPrivate(f.getModifiers())) {
-				f.setAccessible(true);
 				for (Polyfill polyfill : thing.getAnnotationsByType(Polyfill.class)) {
 					Object value;
 					try {
@@ -520,7 +567,6 @@ public abstract class SerializationPlugin {
 		}
 	}
 
-	private static final Map<Class<?>, ParameterInfo> PARAMETER_INFO_MAP = new ConcurrentHashMap<>();
 	private static final AtomicBoolean ANY_POLYFILLS = new AtomicBoolean(false);
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(SerializationPlugin.class);

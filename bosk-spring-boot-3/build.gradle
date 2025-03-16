@@ -2,7 +2,7 @@
 plugins {
 	id 'bosk.development'
 	id 'bosk.maven-publish'
-	id 'com.github.spotbugs' version '5.1.5'
+	id 'com.github.spotbugs' version '6.1.2'
 }
 
 java {
@@ -21,8 +21,8 @@ compileTestJava {
 
 dependencies {
 	api project(":bosk-jackson")
-	implementation 'org.springframework.boot:spring-boot-starter-web:3.3.2'
-	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor:3.3.2"
+	implementation 'org.springframework.boot:spring-boot-starter-web:3.4.3'
+	annotationProcessor "org.springframework.boot:spring-boot-configuration-processor:3.4.3"
 	testImplementation project(":bosk-testing")
 	testImplementation project(":lib-testing")
 }

@@ -1,8 +1,6 @@
 package works.bosk;
 
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.experimental.FieldNameConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +40,7 @@ public class ReferenceErrorTest {
 	}
 
 	@FieldNameConstants
+	@SuppressWarnings("unused")
 	public record BadGetters(Identifier id, NestedObject nestedObject) implements Entity {
 		public Identifier id() {
 			throw new UnsupportedOperationException("Whoops");

@@ -8,26 +8,25 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import works.bosk.DriverStack;
-import works.bosk.bson.BsonPlugin;
 import works.bosk.drivers.HanoiTest;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.junit.ParametersByName;
 import works.bosk.junit.Slow;
 
 import static works.bosk.drivers.mongo.MainDriver.COLLECTION_NAME;
 
-@UsesMongoService
 @Slow
 public class MongoDriverHanoiTest extends HanoiTest {
 	private static MongoService mongoService;
 	private final Queue<Runnable> shutdownOperations = new ConcurrentLinkedDeque<>();
 
 	@ParametersByName
-	public MongoDriverHanoiTest(TestParameters.ParameterSet parameters) {
+	public MongoDriverHanoiTest(TestParameters.ParameterSet parameters, TestInfo testInfo) {
 		MongoDriverSettings settings = parameters.driverSettingsBuilder().build();
 		this.driverFactory = DriverStack.of(
 			(_,d) -> { shutdownOperations.add(((MongoDriver)d)::close); return d;},
 			MongoDriver.factory(
-				mongoService.clientSettings(),
+				mongoService.clientSettings(testInfo),
 				settings,
 				new BsonPlugin()
 			)

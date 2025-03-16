@@ -40,9 +40,9 @@ import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
-import works.bosk.bson.BsonFormatter;
-import works.bosk.bson.BsonPlugin;
-import works.bosk.bson.BsonSurgeon;
+import works.bosk.drivers.mongo.bson.BsonFormatter;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
+import works.bosk.drivers.mongo.bson.BsonSurgeon;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
@@ -60,7 +60,7 @@ import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static org.bson.BsonBoolean.TRUE;
 import static works.bosk.Path.parseParameterized;
-import static works.bosk.bson.BsonFormatter.docBsonPath;
+import static works.bosk.drivers.mongo.bson.BsonFormatter.docBsonPath;
 import static works.bosk.util.Classes.enumerableByIdentifier;
 
 /**
@@ -117,7 +117,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		collection.ensureTransactionStarted();
 		Reference<?> mainRef = mainRef(target);
 		BsonDocument filter = documentFilter(mainRef)
@@ -231,9 +231,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		LOGGER.trace("| Options: {}", options);
 		UpdateResult result = collection.updateOne(filter, update, options);
 		LOGGER.debug("| Result: {}", result);
-		if (settings.experimental().manifestMode() == MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT) {
-			writeManifest();
-		}
+		writeManifest();
 	}
 
 	private void writeManifest() {
@@ -526,6 +524,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	 */
 	private <T> void doReplacement(Reference<T> target, T newValue) {
 		collection.ensureTransactionStarted();
+		LOGGER.debug("doReplacement({})", target);
 		Reference<?> mainRef = mainRef(target);
 		BsonValue value = formatter.object2bsonValue(newValue, target.targetType());
 		if (value instanceof BsonDocument b) {
@@ -715,13 +714,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return filter;
 	}
 
-	private <T> BsonDocument explicitPreconditions(Reference<T> target, Reference<Identifier> preconditionRef, Identifier requiredValue) {
-		BsonDocument filter = standardRootPreconditions(target);
-		BsonDocument precondition = new BsonDocument("$eq", new BsonString(requiredValue.toString()));
-		filter.put(BsonFormatter.dottedFieldNameOf(preconditionRef, rootRef), precondition);
-		return filter;
-	}
-
 	private <T> BsonDocument replacementDoc(Reference<T> target, BsonValue value, Reference<?> startingRef) {
 		String key = BsonFormatter.dottedFieldNameOf(target, startingRef);
 		LOGGER.debug("| Set field {}: {}", key, value);
@@ -889,6 +881,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			}
 		} else {
 			// TODO!
+			assert settings.experimental().orphanDocumentMode() == MongoDriverSettings.OrphanDocumentMode.HASTY;
 			LOGGER.debug("Skipping deletePartsUnder({}) because mainRef is different: {}", target, mainRef);
 		}
 	}

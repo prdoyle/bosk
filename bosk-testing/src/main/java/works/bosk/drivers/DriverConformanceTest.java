@@ -5,9 +5,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
+import works.bosk.BoskDiagnosticContext;
 import works.bosk.BoskDriver;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -20,6 +24,7 @@ import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.SideTable;
+import works.bosk.TaggedUnion;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestEntity.IdentifierCase;
@@ -28,11 +33,11 @@ import works.bosk.drivers.state.TestEntity.Variant;
 import works.bosk.drivers.state.TestValues;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
+import works.bosk.junit.Slow;
 
 import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static java.util.stream.Collectors.toList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,6 +55,7 @@ import static works.bosk.util.Classes.mapValue;
  * Use this by extending it and supplying a value for
  * the {@link #driverFactory} to test.
  */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public abstract class DriverConformanceTest extends AbstractDriverTest {
 	// Subclass can initialize this as desired
 	protected DriverFactory<TestEntity> driverFactory;
@@ -57,14 +63,17 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	public interface Refs {
 		@ReferencePath("/id") Reference<Identifier> rootID();
 		@ReferencePath("/catalog/-id-") Reference<TestEntity> catalogEntry(Identifier id);
+		@ReferencePath("/values/string") Reference<String> valuesString();
 	}
 
+	@Order(1) // If this doesn't work, nothing will
 	@ParametersByName
 	void initialState(Path enclosingCatalogPath) {
 		initializeBoskWithCatalog(enclosingCatalogPath);
 		assertCorrectBoskContents();
 	}
 
+	@Slow
 	@ParametersByName
 	void replaceIdentical(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
@@ -72,6 +81,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		assertCorrectBoskContents();
 	}
 
+	@Slow
 	@ParametersByName
 	void replaceDifferent(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
@@ -80,6 +90,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		assertCorrectBoskContents();
 	}
 
+	@Slow
 	@ParametersByName
 	void replaceWholeThenParts(Path enclosingCatalogPath, Identifier childID) throws InvalidTypeException {
 		CatalogReference<TestEntity> catalogRef = initializeBoskWithCatalog(enclosingCatalogPath);
@@ -273,8 +284,8 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		CatalogReference<TestEntity> ref = initializeBoskWithCatalog(enclosingCatalogPath);
 		// Use loops instead of parameters to avoid unnecessarily creating and initializing
 		// a new bosk for every case. None of them affect the bosk anyway.
-		for (Identifier childID: childID().collect(toList())) {
-			for (String field: testEntityField().collect(toList())) {
+		for (Identifier childID: childID().toList()) {
+			for (String field: testEntityField().toList()) {
 				Reference<Object> target = ref.then(Object.class, childID.toString(), field);
 				assertThrows(IllegalArgumentException.class, () ->
 					driver.submitDeletion(target), "Must not allow deletion of field " + target);
@@ -330,23 +341,25 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 
 	@ParametersByName
 	void variant() throws InvalidTypeException {
-		Reference<TestValues> ref = initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
+		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		assertCorrectBoskContents();
 
-		Reference<Variant> variantRef = bosk.rootReference().then(Variant.class, TestEntity.Fields.variant);
-		driver.submitReplacement(variantRef, new StringCase("value1"));
+		Reference<TaggedUnion<Variant>> variantRef = bosk.rootReference().thenTaggedUnion(Variant.class, TestEntity.Fields.variant);
+		driver.submitReplacement(variantRef, TaggedUnion.of(new StringCase("value1")));
+		assertCorrectBoskContents();
+		driver.submitReplacement(variantRef, TaggedUnion.of(new IdentifierCase(Identifier.from("value2"))));
 		assertCorrectBoskContents();
 		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(variantRef));
 		assertCorrectBoskContents();
 
 		Reference<StringCase> stringCaseRef = variantRef.then(StringCase.class, "string");
-		driver.submitReplacement(stringCaseRef, new StringCase("value2"));
+		assertThrows(IllegalArgumentException.class, () -> driver.submitReplacement(stringCaseRef, new StringCase("value2")));
 		assertCorrectBoskContents();
 		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(stringCaseRef));
 		assertCorrectBoskContents();
 
 		Reference<IdentifierCase> idCaseRef = variantRef.then(IdentifierCase.class, "identifier");
-		driver.submitReplacement(idCaseRef, new IdentifierCase(Identifier.from("value3")));
+		assertThrows(IllegalArgumentException.class, () -> driver.submitReplacement(idCaseRef, new IdentifierCase(Identifier.from("value3"))));
 		assertCorrectBoskContents();
 		assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(idCaseRef));
 		assertCorrectBoskContents();
@@ -427,12 +440,12 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@ParametersByName
-	void submitInitialization_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
+	void submitConditionalCreation_propagatesDiagnosticContext() throws InvalidTypeException, IOException, InterruptedException {
 		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		Refs refs = bosk.buildReferences(Refs.class);
 		Identifier id = Identifier.from("testEntity");
 		Reference<TestEntity> ref = refs.catalogEntry(id);
-		testDiagnosticContextPropagation(() -> bosk.driver().submitInitialization(ref, emptyEntityAt(ref)));
+		testDiagnosticContextPropagation(() -> bosk.driver().submitConditionalCreation(ref, emptyEntityAt(ref)));
 	}
 
 	@ParametersByName
@@ -459,7 +472,9 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		bosk.registerHook("contextPropagatesToHook", bosk.rootReference(), ref -> {
 			// Note that this will run as soon as it's registered
 			if (diagnosticsAreReady.get()) {
-				assertEquals("attributeValue", bosk.diagnosticContext().getAttribute("attributeName"));
+				BoskDiagnosticContext boskDiagnosticContext = bosk.diagnosticContext();
+				LOGGER.debug("Received diagnostic attributes: {}", boskDiagnosticContext.getAttributes());
+				assertEquals("attributeValue", boskDiagnosticContext.getAttribute("attributeName"));
 				diagnosticsVerified.release();
 			}
 		});
@@ -483,6 +498,10 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		return ref;
 	}
 
+	/**
+	 * @return a reference to {@code enclosingCatalogPath} which is a catalog containing
+	 * two entities with ids {@link #child1ID} and {@link #child2ID}.
+	 */
 	private CatalogReference<TestEntity> initializeBoskWithCatalog(Path enclosingCatalogPath) {
 		LOGGER.debug("initializeBoskWithCatalog({})", enclosingCatalogPath);
 		setupBosksAndReferences(driverFactory);

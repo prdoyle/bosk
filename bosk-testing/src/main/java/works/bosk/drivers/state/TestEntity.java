@@ -3,7 +3,6 @@ package works.bosk.drivers.state;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Optional;
-import lombok.Value;
 import lombok.With;
 import lombok.experimental.FieldNameConstants;
 import works.bosk.Catalog;
@@ -13,7 +12,8 @@ import works.bosk.Listing;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.SideTable;
-import works.bosk.VariantNode;
+import works.bosk.TaggedUnion;
+import works.bosk.VariantCase;
 import works.bosk.annotations.VariantCaseMap;
 
 @With
@@ -24,11 +24,11 @@ public record TestEntity(
 	Catalog<TestEntity> catalog,
 	Listing<TestEntity> listing,
 	SideTable<TestEntity, TestEntity> sideTable,
-	Variant variant,
+	TaggedUnion<Variant> variant,
 	Optional<TestValues> values
 ) implements Entity {
 
-	public interface Variant extends VariantNode {
+	public interface Variant extends VariantCase {
 		@Override
 		default String tag() {
 			if (this instanceof StringCase) {
@@ -53,7 +53,7 @@ public record TestEntity(
 			Catalog.empty(),
 			Listing.empty(catalogRef),
 			SideTable.empty(catalogRef),
-			new StringCase(""),
+			TaggedUnion.of(new StringCase("")),
 			Optional.empty());
 	}
 

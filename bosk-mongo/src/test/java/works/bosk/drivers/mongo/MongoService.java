@@ -7,7 +7,9 @@ import com.mongodb.WriteConcern;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import java.io.Closeable;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
@@ -25,7 +27,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * suitable for use by a test class.
  *
  * <p>
- * Use {@link UsesMongoService} and {@link DisruptsMongoService} to make sure
+ * Use {@link UsesMongoService} and {@link DisruptsMongoProxy} to make sure
  * that the network outage tests don't run at the same time as
  * other tests that need MongoDB.
  *
@@ -42,17 +44,19 @@ public class MongoService implements Closeable {
 	// Expensive stuff shared among instances as much as possible
 	private static final Network NETWORK = Network.newNetwork();
 	private static final GenericContainer<?> MONGO_CONTAINER = mongoContainer();
+	private static final MongoClientSettings normalClientSettings = mongoClientSettings(new ServerAddress(MONGO_CONTAINER.getHost(), MONGO_CONTAINER.getFirstMappedPort()));
 	private static final ToxiproxyContainer TOXIPROXY_CONTAINER = toxiproxyContainer();
 	private static final ToxiproxyContainer.ContainerProxy proxy = TOXIPROXY_CONTAINER.getProxy(MONGO_CONTAINER, 27017);
-	private static final MongoClientSettings clientSettings = mongoClientSettings(new ServerAddress(proxy.getContainerIpAddress(), proxy.getProxyPort()));
-	private static final MongoClient mongoClient = MongoClients.create(clientSettings);
+	private static final MongoClientSettings disruptableClientSettings = mongoClientSettings(new ServerAddress(proxy.getContainerIpAddress(), proxy.getProxyPort()));
+
+	private final MongoClient mongoClient = MongoClients.create(normalClientSettings);
 
 	public ToxiproxyContainer.ContainerProxy proxy() {
 		return proxy;
 	}
 
-	public MongoClientSettings clientSettings() {
-		return clientSettings;
+	public MongoClientSettings clientSettings(TestInfo testInfo) {
+		return testInfo.getTags().contains(DisruptsMongoProxy.TAG)? disruptableClientSettings : normalClientSettings;
 	}
 
 	public MongoClient client() {
@@ -72,6 +76,7 @@ public class MongoService implements Closeable {
 				.run("echo \"rs.initiate()\" > /docker-entrypoint-initdb.d/rs-initiate.js")
 				.cmd("mongod", "--replSet", "rsLonesome", "--port", "27017", "--bind_ip_all")
 				.build()))
+			.withTmpFs(Map.of("/data/db", "rw"))
 			.withNetwork(NETWORK)
 			.withExposedPorts(27017);
 		result.start();

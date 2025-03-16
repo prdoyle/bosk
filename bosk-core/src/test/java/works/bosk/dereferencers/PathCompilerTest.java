@@ -10,7 +10,6 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import lombok.Value;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -274,7 +273,7 @@ public class PathCompilerTest extends AbstractBoskTest {
 		Reference<Identifier> idRef = differentBosk.rootReference().then(Identifier.class, Path.parse(
 			"/id" ));
 
-		try (Bosk<?>.ReadContext context = differentBosk.readContext()) {
+		try (Bosk<?>.ReadContext __ = differentBosk.readContext()) {
 			assertSame(rootID, idRef.valueIfExists());
 		}
 	}

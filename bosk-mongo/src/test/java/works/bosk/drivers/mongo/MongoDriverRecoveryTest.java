@@ -71,7 +71,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@DisruptsMongoService
+	@DisruptsMongoProxy
 	void initialOutage_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		LOGGER.debug("Set up the database contents to be different from initialRoot");
 		TestEntity initialState = initializeDatabase("distinctive string");
@@ -133,7 +133,6 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void databaseDropped_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		testRecovery(() -> {
 			LOGGER.debug("Drop database");
@@ -145,7 +144,6 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void collectionDropped_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		testRecovery(() -> {
 			LOGGER.debug("Drop collection");
@@ -157,7 +155,6 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void documentDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		testRecovery(() -> {
 			LOGGER.debug("Delete document");
@@ -169,7 +166,6 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void documentReappears_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		MongoCollection<Document> collection = mongoService.client()
 			.getDatabase(driverSettings.database())
@@ -197,7 +193,6 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	}
 
 	@ParametersByName
-	@UsesMongoService
 	void revisionDeleted_recovers() throws InvalidTypeException, InterruptedException, IOException {
 		// It's not clear that this is a valid test. If this test is a burden to support,
 		// we can consider removing it.

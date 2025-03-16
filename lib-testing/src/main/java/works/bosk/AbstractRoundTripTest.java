@@ -28,7 +28,7 @@ import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.bson.BsonPlugin;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JacksonPlugin;
 import works.bosk.jackson.JacksonPluginConfiguration;
@@ -68,11 +68,9 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 	}
 
 	private static class JacksonRoundTripDriverFactory<R extends Entity> implements DriverFactory<R> {
-		private final JacksonPluginConfiguration config;
 		private final JacksonPlugin jp;
 
 		private JacksonRoundTripDriverFactory(JacksonPluginConfiguration config) {
-			this.config = config;
 			this.jp = new JacksonPlugin(config);
 		}
 
@@ -166,7 +164,7 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 						if (!StateTreeNode.class.isAssignableFrom(nodeClass)) {
 							return;
 						}
-						if (VariantNode.class.isAssignableFrom(nodeClass)) {
+						if (TaggedUnion.class.isAssignableFrom(nodeClass)) {
 							return;
 						}
 						Map<String, RecordComponent> componentsByName = new LinkedHashMap<>();
@@ -235,8 +233,8 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 		}
 
 		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
-			downstream.submitInitialization(target, preprocess(target, newValue));
+		public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
+			downstream.submitConditionalCreation(target, preprocess(target, newValue));
 		}
 
 		abstract <T> T preprocess(Reference<T> reference, T newValue);

@@ -5,13 +5,10 @@ import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.status.MongoStatus;
-import works.bosk.exceptions.InitializationFailureException;
 
 @RequiredArgsConstructor
 final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<R> {
@@ -27,7 +24,7 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		throw disconnected();
 	}
 
@@ -71,12 +68,12 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 	}
 
 	@Override
-	public StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException {
+	public StateAndMetadata<R> loadAllState() {
 		throw disconnected();
 	}
 
 	@Override
-	public void initializeCollection(StateAndMetadata<R> priorContents) throws InitializationFailureException {
+	public void initializeCollection(StateAndMetadata<R> priorContents) {
 		throw disconnected();
 	}
 
@@ -84,5 +81,4 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 		return new DisconnectedException(reason);
 	}
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(DisconnectedDriver.class);
 }

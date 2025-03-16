@@ -11,10 +11,10 @@ import works.bosk.DriverFactory;
 import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
+import works.bosk.drivers.operations.ConditionalCreation;
 import works.bosk.drivers.operations.SubmitConditionalDeletion;
 import works.bosk.drivers.operations.SubmitConditionalReplacement;
 import works.bosk.drivers.operations.SubmitDeletion;
-import works.bosk.drivers.operations.SubmitInitialization;
 import works.bosk.drivers.operations.SubmitReplacement;
 import works.bosk.drivers.operations.UpdateOperation;
 import works.bosk.exceptions.InvalidTypeException;
@@ -56,8 +56,8 @@ public class ReportingDriver implements BoskDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
-		SubmitInitialization<T> op = new SubmitInitialization<>(target, newValue, diagnosticContext.getAttributes());
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
+		ConditionalCreation<T> op = new ConditionalCreation<>(target, newValue, diagnosticContext.getAttributes());
 		updateListener.accept(op);
 		op.submitTo(downstream);
 	}

@@ -12,7 +12,7 @@ public record SubmitConditionalReplacement<T>(
 	Reference<Identifier> precondition,
 	Identifier requiredValue,
 	MapValue<String> diagnosticAttributes
-) implements ReplacementOperation<T>, ConditionalOperation {
+) implements ReplacementOperation<T>, OperationWithPrecondition {
 
 	@Override
 	public SubmitReplacement<T> unconditional() {

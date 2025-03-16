@@ -36,6 +36,7 @@ import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.exceptions.ReferenceBindingException;
 import works.bosk.util.Classes;
 
+import static java.lang.Thread.holdsLock;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
@@ -109,9 +110,9 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	@SuppressWarnings("this-escape")
 	public Bosk(String name, Type rootType, DefaultRootFunction<R> defaultRootFunction, DriverFactory<R> driverFactory) {
 		this.name = name;
+		this.pathCompiler = PathCompiler.withSourceType(rootType); // Required before rootRef
 		this.localDriver = new LocalDriver(defaultRootFunction);
 		this.rootRef = new RootRef(rootType);
-		this.pathCompiler = PathCompiler.withSourceType(rootType);
 		try {
 			validateType(rootType);
 		} catch (InvalidTypeException e) {
@@ -223,9 +224,9 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
+		public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 			assertCorrectBosk(target);
-			downstream.submitInitialization(target, newValue);
+			downstream.submitConditionalCreation(target, newValue);
 		}
 
 		@Override
@@ -277,11 +278,13 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * When it comes to hooks, this provides three guarantees:
 	 *
 	 * <ol><li>
-	 * All updates submitted to this driver are applied to the Bosk state in order.
+	 * Updates submitted to this driver are applied to the Bosk state in the order they were submitted.
 	 * </li><li>
 	 * Hooks are run sequentially: no hook begins until the previous one finishes.
 	 * </li><li>
-	 * Hooks are run in breadth-first fashion.
+	 * Hooks are run in <em>breadth-first</em> fashion:
+	 * hooks triggered by one update run before any hooks triggered by subsequent updates,
+	 * even if those hooks themselves submit more updates.
 	 * </li></ol>
 	 *
 	 * Satisfying all of these simultaneously is tricky, especially because we can't just put
@@ -320,7 +323,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
-		public <T> void submitInitialization(Reference<T> target, T newValue) {
+		public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 			synchronized (this) {
 				boolean preconditionsSatisfied;
 				try (@SuppressWarnings("unused") ReadContext executionContext = supersedingReadContext()) {
@@ -404,7 +407,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		/**
 		 * @return false if the update was ignored
 		 */
-		private synchronized <T> boolean tryGraftReplacement(Reference<T> target, T newValue) {
+		private <T> boolean tryGraftReplacement(Reference<T> target, T newValue) {
+			assert holdsLock(this);
 			Dereferencer dereferencer = dereferencerFor(target);
 			try {
 				LOGGER.debug("Applying replacement at {}", target);
@@ -428,7 +432,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		/**
 		 * @return false if the update was ignored
 		 */
-		private synchronized <T> boolean tryGraftDeletion(Reference<T> target) {
+		private <T> boolean tryGraftDeletion(Reference<T> target) {
+			assert holdsLock(this);
 			Path targetPath = target.path();
 			assert !targetPath.isEmpty();
 			Dereferencer dereferencer = dereferencerFor(target);
@@ -978,6 +983,11 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 		}
 
 		@Override
+		public <TT extends VariantCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> variantCaseClass, Path path) throws InvalidTypeException {
+			return this.then(Classes.taggedUnion(variantCaseClass), path);
+		}
+
+		@Override
 		public BoskDiagnosticContext diagnosticContext() {
 			return diagnosticContext;
 		}
@@ -1033,6 +1043,11 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 		@Override
 		public final <TT> Reference<Reference<TT>> thenReference(Class<TT> targetClass, String... segments) throws InvalidTypeException {
 			return rootReference().thenReference(targetClass, path.then(segments));
+		}
+
+		@Override
+		public <TT extends VariantCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> variantCaseClass, String... segments) throws InvalidTypeException {
+			return rootReference().thenTaggedUnion(variantCaseClass, path.then(segments));
 		}
 
 		@SuppressWarnings("unchecked")
@@ -1103,7 +1118,7 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 	 * A {@link Reference} with no unbound parameters.
 	 */
 	private sealed class DefiniteReference<T> extends ReferenceImpl<T> {
-		@Getter(lazy = true) private final Dereferencer dereferencer = compileVettedPath(path);
+		private final Dereferencer dereferencer = compileVettedPath(path);
 
 		public DefiniteReference(Path path, Type targetType) {
 			super(path, targetType);
@@ -1130,6 +1145,10 @@ try (ReadContext originalThReadContext = bosk.readContext()) {
 			if (value != null) {
 				action.accept(value, existingEnvironment);
 			}
+		}
+
+		public Dereferencer dereferencer() {
+			return this.dereferencer;
 		}
 	}
 

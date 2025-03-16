@@ -1,6 +1,5 @@
 package works.bosk;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -21,8 +20,9 @@ public interface DriverStack<R extends StateTreeNode> extends DriverFactory<R> {
 	 * @return a factory that composes <code>factories</code> from right to left
 	 */
 	@SafeVarargs
+	@SuppressWarnings("varargs")
 	static <RR extends StateTreeNode> DriverStack<RR> of(DriverFactory<RR>...factories) {
-		return DriverStack.of(Arrays.asList(factories));
+		return DriverStack.of(List.of(factories));
 	}
 
 	static <RR extends StateTreeNode> DriverStack<RR> of(List<DriverFactory<RR>> factories) {

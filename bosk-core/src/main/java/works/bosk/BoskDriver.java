@@ -72,7 +72,7 @@ public interface BoskDriver {
 	 *
 	 * @see #submitReplacement
 	 */
-	<T> void submitInitialization(Reference<T> target, T newValue);
+	<T> void submitConditionalCreation(Reference<T> target, T newValue);
 
 	/**
 	 * Requests that the object referenced by <code>target</code> be deleted.
@@ -153,19 +153,5 @@ public interface BoskDriver {
 	 * @see FlushFailureException
 	 */
 	void flush() throws IOException, InterruptedException;
-
-	// Handy helpers
-
-	/**
-	 * Equivalent to:
-	 *
-	 * <p>
-	 * <code>
-	 * submitReplacement(newValue.reference(), newValue);
-	 * </code>
-	 */
-	default <T extends ReflectiveEntity<T>> void submitReplacement(T newValue) {
-		submitReplacement(newValue.reference(), newValue);
-	}
 
 }

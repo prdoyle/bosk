@@ -6,7 +6,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,9 +24,10 @@ import works.bosk.ListingEntry;
 import works.bosk.ListingReference;
 import works.bosk.Reference;
 import works.bosk.SideTable;
+import works.bosk.TaggedUnion;
 import works.bosk.annotations.ReferencePath;
-import works.bosk.bson.BsonPlugin;
 import works.bosk.drivers.mongo.MongoDriverSettings.MongoDriverSettingsBuilder;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.state.TestEntity;
 import works.bosk.drivers.state.TestValues;
 import works.bosk.exceptions.InvalidTypeException;
@@ -58,9 +58,9 @@ abstract class AbstractMongoDriverTest {
 	}
 
 	@BeforeEach
-	void setupDriverFactory() {
+	void setupDriverFactory(TestInfo testInfo) {
 		logController = new BoskLogFilter.LogController();
-		driverFactory = createDriverFactory(logController);
+		driverFactory = createDriverFactory(logController, testInfo);
 
 		// Start with a clean slate
 		mongoService.client()
@@ -122,15 +122,15 @@ abstract class AbstractMongoDriverTest {
 			Catalog.empty(),
 			Listing.of(refs.catalog(), entity123),
 			SideTable.empty(refs.catalog()),
-			new TestEntity.StringCase(rootID.toString()),
+			TaggedUnion.of(new TestEntity.StringCase(rootID.toString())),
 			Optional.empty()
 		);
 	}
 
-	protected <E extends Entity> DriverFactory<E> createDriverFactory(BoskLogFilter.LogController logController) {
+	protected <E extends Entity> DriverFactory<E> createDriverFactory(BoskLogFilter.LogController logController, TestInfo testInfo) {
 		DriverFactory<E> mongoDriverFactory = (boskInfo, downstream) -> {
 			MongoDriver driver = MongoDriver.<E>factory(
-				MongoClientSettings.builder(mongoService.clientSettings())
+				MongoClientSettings.builder(mongoService.clientSettings(testInfo))
 					.applyToClusterSettings(builder -> {
 						builder.serverSelectionTimeout(5, SECONDS);
 					})
@@ -164,9 +164,5 @@ abstract class AbstractMongoDriverTest {
 		logController.setLogging(level, loggers);
 	}
 
-	/**
-	 * One warning that we're ignoring logging settings from the testcase is enough.
-	 */
-	private static final AtomicBoolean ALREADY_WARNED = new AtomicBoolean(false);
 	private static final Logger LOGGER = LoggerFactory.getLogger(AbstractMongoDriverTest.class);
 }

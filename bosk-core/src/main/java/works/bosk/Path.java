@@ -45,17 +45,6 @@ import static lombok.AccessLevel.PACKAGE;
  * methods have a low cost comparable to the identity-based implementations inherited
  * from {@link Object}.
  *
- * <p>
- * Furthermore, if you implement a {@link ReflectiveEntity} that holds a {@link Reference}
- * to itself, that will be sufficient to make the entity's Path a suitable key for
- * a {@link WeakHashMap} to hold local state for that object (because {@link Reference}s
- * contain Path objects.)
- *
- * <p>
- * (TODO: Seems like if you make a mistake on this, you're in for a bug
- * that's very hard to reproduce and diagnose. Maybe we need a better story for
- * managing local state.)
- *
  * @author pdoyle
  */
 @RequiredArgsConstructor(access = PACKAGE)
@@ -199,7 +188,7 @@ public abstract class Path implements Iterable<String> {
 	}
 
 	/**
-	 * @return true if {@code other} equals {@codee this} or can be truncated to equal {@code this}.
+	 * @return true if {@code other} equals {@code this} or can be truncated to equal {@code this}.
 	 */
 	public final boolean isPrefixOf(Path other) {
 		int excessSegments = other.length() - this.length();
@@ -512,7 +501,6 @@ public abstract class Path implements Iterable<String> {
 	 * Implementing this as its own subclass prevents lots of
 	 * corner-case <code>if</code> statements elsewhere.
 	 */
-	@RequiredArgsConstructor
 	private static final class RootPath extends Path {
 		@Override public int length() { return 0; }
 
@@ -550,7 +538,6 @@ public abstract class Path implements Iterable<String> {
 			assert other.isEmpty(): "Should never be called with a path of a different length";
 			return true;
 		}
-
 	}
 
 	private static final Path ROOT_PATH = new RootPath();

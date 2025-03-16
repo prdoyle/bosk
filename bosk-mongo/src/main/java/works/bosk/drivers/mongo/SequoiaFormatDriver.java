@@ -28,8 +28,8 @@ import works.bosk.Identifier;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
-import works.bosk.bson.BsonPlugin;
-import works.bosk.bson.BsonFormatter.DocumentFields;
+import works.bosk.drivers.mongo.bson.BsonFormatter.DocumentFields;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 
@@ -43,16 +43,14 @@ import static java.util.Objects.requireNonNull;
 import static org.bson.BsonBoolean.FALSE;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.Formatter.dottedFieldNameOf;
-import static works.bosk.bson.BsonFormatter.referenceTo;
 import static works.bosk.drivers.mongo.MainDriver.MANIFEST_ID;
-import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT;
+import static works.bosk.drivers.mongo.bson.BsonFormatter.referenceTo;
 
 /**
  * Implements the {@link MongoDriverSettings.DatabaseFormat#SEQUOIA Sequoia} format.
  */
 final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatDriver<R> {
 	private final String description;
-	private final MongoDriverSettings settings;
 	private final MongoCollection<BsonDocument> collection;
 	private final BoskDriver downstream;
 	private final FlushLock flushLock;
@@ -71,7 +69,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	) {
 		super(boskInfo.rootReference(), new Formatter(boskInfo, bsonPlugin));
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
-		this.settings = driverSettings;
 		this.collection = collection;
 		this.downstream = downstream;
 		this.flushLock = flushLock;
@@ -83,7 +80,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		BsonDocument filter = standardPreconditions(target);
 		filter.put(dottedFieldNameOf(target, rootRef), new BsonDocument("$exists", FALSE));
 		if (doUpdate(replacementDoc(target, newValue), filter)) {
@@ -159,17 +156,15 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		LOGGER.trace("| Options: {}", options);
 		UpdateResult result = collection.updateOne(filter, update, options);
 		LOGGER.debug("| Result: {}", result);
-		if (settings.experimental().manifestMode() == CREATE_IF_ABSENT) {
-			// This is the only time Sequoia changes two documents for the same operation.
-			// Aside from refurbish, it's the only reason we'd want multi-document transactions,
-			// and it's not even a strong reason, because this still works correctly
-			// if interpreted as two separate events.
-			writeManifest();
-		}
+
+		// This is the only time Sequoia changes two documents for the same operation.
+		// Aside from refurbish, it's the only reason we'd want multi-document transactions,
+		// and it's not even a strong reason, because this still works correctly
+		// if interpreted as two separate events.
+		writeManifest();
 	}
 
 	private void writeManifest() {
-		assert settings.experimental().manifestMode() == CREATE_IF_ABSENT;
 		BsonDocument doc = new BsonDocument("_id", MANIFEST_ID);
 		doc.putAll((BsonDocument) formatter.object2bsonValue(Manifest.forSequoia(), Manifest.class));
 		BsonDocument filter = new BsonDocument("_id", MANIFEST_ID);

@@ -22,11 +22,7 @@ package works.bosk;
  * by its location in the document tree. (There is no notion of "moving" an
  * object in a Bosk while retaining its identity.)
  *
- * <p>
- * If the entity must be aware of its own identity, consider {@link ReflectiveEntity}.
- *
  * @see Catalog
- * @see ReflectiveEntity
  * @author pdoyle
  */
 public interface Entity extends StateTreeNode {

@@ -18,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import lombok.experimental.Delegate;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.util.ReflectionHelpers;
 import works.bosk.util.Types;
 
 import static java.lang.String.format;
@@ -259,7 +258,7 @@ C&lt;String> someField;
 				} else if ((result.getModifiers() & STATIC) != 0) {
 					throw new InvalidTypeException("Getter method \"" + methodName + "\" is static");
 				}
-				return ReflectionHelpers.setAccessible(result);
+				return result;
 			} catch (NoSuchMethodException e) {
 				// No prob; try the superclass
 			}
@@ -285,7 +284,7 @@ C&lt;String> someField;
 		}
 		@SuppressWarnings("unchecked")
 		Constructor<T> theConstructor = (Constructor<T>) constructors.get(0);
-		return ReflectionHelpers.setAccessible(theConstructor);
+		return theConstructor;
 	}
 
 	/**
@@ -298,7 +297,7 @@ C&lt;String> someField;
 				.map(RecordComponent::getType)
 				.toArray(Class<?>[]::new);
 		try {
-			return ReflectionHelpers.setAccessible(cls.getDeclaredConstructor(paramTypes));
+			return cls.getDeclaredConstructor(paramTypes);
 		} catch (NoSuchMethodException e) {
 			throw new AssertionError("Record class must have a canonical constructor; is " + cls.getSimpleName() + " a record class?", e);
 		}

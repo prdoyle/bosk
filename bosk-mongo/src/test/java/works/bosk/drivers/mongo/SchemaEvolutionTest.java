@@ -7,7 +7,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,14 +14,11 @@ import works.bosk.Bosk;
 import works.bosk.Reference;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.state.TestEntity;
-import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.junit.ParametersByName;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.BoskTestUtils.boskName;
-import static works.bosk.TypeValidation.validateType;
 
-@UsesMongoService
 public class SchemaEvolutionTest {
 
 	private final Helper fromHelper;
@@ -42,8 +38,8 @@ public class SchemaEvolutionTest {
 
 	@BeforeEach
 	void beforeEach(TestInfo testInfo) {
-		fromHelper.setupDriverFactory();
-		toHelper  .setupDriverFactory();
+		fromHelper.setupDriverFactory(testInfo);
+		toHelper  .setupDriverFactory(testInfo);
 
 		// Changing formats often causes events that are not understood by other FormatDrivers
 		fromHelper.setLogging(Level.ERROR, ChangeReceiver.class);
@@ -62,10 +58,9 @@ public class SchemaEvolutionTest {
 	@SuppressWarnings("unused")
 	static Stream<Configuration> fromConfig() {
 		return Stream.of(
-			new Configuration(MongoDriverSettings.DatabaseFormat.SEQUOIA, MongoDriverSettings.ManifestMode.USE_IF_EXISTS),
-			new Configuration(MongoDriverSettings.DatabaseFormat.SEQUOIA, MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT),
-			new Configuration(PandoFormat.oneBigDocument(), MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT),
-			new Configuration(PandoFormat.withGraftPoints("/catalog", "/sideTable"), MongoDriverSettings.ManifestMode.CREATE_IF_ABSENT)
+			new Configuration(MongoDriverSettings.DatabaseFormat.SEQUOIA),
+			new Configuration(PandoFormat.oneBigDocument()),
+			new Configuration(PandoFormat.withGraftPoints("/catalog", "/sideTable"))
 		);
 	}
 
@@ -182,16 +177,15 @@ public class SchemaEvolutionTest {
 	}
 
 	private static Bosk<TestEntity> newBosk(Helper helper) {
-		return new Bosk<TestEntity>(boskName(helper.toString()), TestEntity.class, helper::initialRoot, helper.driverFactory);
+		return new Bosk<>(boskName(helper.toString()), TestEntity.class, helper::initialRoot, helper.driverFactory);
 	}
 
 	record Configuration(
-		MongoDriverSettings.DatabaseFormat preferredFormat,
-		MongoDriverSettings.ManifestMode manifestMode
+		MongoDriverSettings.DatabaseFormat preferredFormat
 	) {
 		@Override
 		public String toString() {
-			return preferredFormat + "&" + manifestMode;
+			return preferredFormat.toString();
 		}
 	}
 
@@ -203,9 +197,8 @@ public class SchemaEvolutionTest {
 				.database(SchemaEvolutionTest.class.getSimpleName() + "_" + dbCounter)
 				.preferredDatabaseFormat(config.preferredFormat())
 				.experimental(MongoDriverSettings.Experimental.builder()
-					.manifestMode(config.manifestMode())
 					.build()));
-			this.name = (config.preferredFormat() + ":" + config.manifestMode()).toLowerCase();
+			this.name = config.preferredFormat().toString().toLowerCase();
 		}
 
 		@Override

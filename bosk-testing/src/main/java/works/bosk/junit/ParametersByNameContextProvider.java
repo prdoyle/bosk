@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.Extension;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
@@ -92,6 +93,8 @@ class ParametersByNameContextProvider implements TestTemplateInvocationContextPr
 
 		// Remove dupes if any
 		return parameters.stream()
+			// Hack: This extension doesn't play nice with JUnit 5's parameter resolvers
+			.filter(parameter -> parameter.getType() != TestInfo.class)
 			.map(Parameter::getName)
 			.distinct()
 			.collect(toList());

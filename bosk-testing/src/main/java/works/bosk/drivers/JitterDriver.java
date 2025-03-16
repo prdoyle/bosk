@@ -63,9 +63,9 @@ public final class JitterDriver implements BoskDriver {
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		sleep();
-		downstream.submitInitialization(target, newValue);
+		downstream.submitConditionalCreation(target, newValue);
 	}
 
 	@Override

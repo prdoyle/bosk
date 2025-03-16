@@ -12,23 +12,14 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import works.bosk.AbstractBoskTest;
 import works.bosk.AbstractRoundTripTest;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.DriverStack;
-import works.bosk.Identifier;
-import works.bosk.Path;
 import works.bosk.Reference;
-import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.openjdk.jmh.annotations.Mode.AverageTime;
 import static works.bosk.jackson.JacksonPluginConfiguration.defaultConfiguration;
 
@@ -41,18 +32,14 @@ public class JacksonRoundTripBenchmark extends AbstractRoundTripTest {
 	@State(Scope.Benchmark)
 	public static class BenchmarkState {
 		private Bosk<TestRoot> bosk;
-		private JacksonPlugin jacksonPlugin;
 		private ObjectMapper mapper;
 		private BoskDriver driver;
 		private BoskDriver downstreamDriver;
 		private Reference<TestRoot> rootRef;
 		private TestRoot root1, root2;
 
-		final Identifier parentID = Identifier.from("parent");
-		final Identifier child1ID = Identifier.from("child1");
-
 		@Setup(Level.Trial)
-		public void setup() throws InvalidTypeException, JsonProcessingException {
+		public void setup() throws JsonProcessingException {
 			AtomicReference<BoskDriver> downstreamRef = new AtomicReference<>();
 			this.bosk = setUpBosk(DriverStack.of(
 				jacksonRoundTripFactory(defaultConfiguration()),
@@ -63,7 +50,7 @@ public class JacksonRoundTripBenchmark extends AbstractRoundTripTest {
 			));
 			this.driver = bosk.driver();
 			this.downstreamDriver = downstreamRef.get();
-			this.jacksonPlugin = new JacksonPlugin();
+			JacksonPlugin jacksonPlugin = new JacksonPlugin();
 			this.mapper = new ObjectMapper().registerModule(jacksonPlugin.moduleFor(bosk));
 			rootRef = bosk.rootReference();
 			try (var _ = bosk.readContext()) {

@@ -15,7 +15,7 @@ public class HelloHooks {
 	}
 
 	@Hook("/targets/-target-")
-	void targetChanged(Reference<Target> ref) {
+	public void targetChanged(Reference<Target> ref) {
 		if (ref.exists()) {
 			LOGGER.info("Target: {}", ref.value());
 		} else {

@@ -28,14 +28,18 @@ public abstract class AbstractDriverTest {
 	protected Bosk<TestEntity> canonicalBosk;
 	protected Bosk<TestEntity> bosk;
 	protected BoskDriver driver;
+	private volatile String oldThreadName;
 
 	@BeforeEach
 	void logStart(TestInfo testInfo) {
 		logTest("/=== Start", testInfo);
+		oldThreadName = Thread.currentThread().getName();
+		Thread.currentThread().setName(testInfo.getDisplayName());
 	}
 
 	@AfterEach
 	void logDone(TestInfo testInfo) {
+		Thread.currentThread().setName(oldThreadName);
 		logTest("\\=== Done", testInfo);
 	}
 
@@ -49,10 +53,10 @@ public abstract class AbstractDriverTest {
 
 	protected void setupBosksAndReferences(DriverFactory<TestEntity> driverFactory) {
 		// This is the bosk whose behaviour we'll consider to be correct by definition
-		canonicalBosk = new Bosk<TestEntity>(boskName("Canonical", 1), TestEntity.class, AbstractDriverTest::initialRoot, Bosk.simpleDriver());
+		canonicalBosk = new Bosk<>(boskName("Canonical", 1), TestEntity.class, AbstractDriverTest::initialRoot, Bosk.simpleDriver());
 
 		// This is the bosk we're testing
-		bosk = new Bosk<TestEntity>(boskName("Test", 1), TestEntity.class, AbstractDriverTest::initialRoot, DriverStack.of(
+		bosk = new Bosk<>(boskName("Test", 1), TestEntity.class, AbstractDriverTest::initialRoot, DriverStack.of(
 			ReplicaSet.mirroringTo(canonicalBosk),
 			DriverStateVerifier.wrap(driverFactory, TestEntity.class, AbstractDriverTest::initialRoot)
 		));
@@ -70,7 +74,7 @@ public abstract class AbstractDriverTest {
 		} else {
 			autoInitialize(ref.enclosingReference(TestEntity.class));
 			TestEntity newEntity = emptyEntityAt(ref);
-			driver.submitInitialization(ref, newEntity);
+			driver.submitConditionalCreation(ref, newEntity);
 			return newEntity;
 		}
 	}
@@ -89,7 +93,7 @@ public abstract class AbstractDriverTest {
 		return TestEntity.empty(id, enclosingCatalogRef.then(id).thenCatalog(TestEntity.class, TestEntity.Fields.catalog));
 	}
 
-	void assertCorrectBoskContents() {
+	protected void assertCorrectBoskContents() {
 		LOGGER.debug("assertCorrectBoskContents");
 		try {
 			driver.flush();

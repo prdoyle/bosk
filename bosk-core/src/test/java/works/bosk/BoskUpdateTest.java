@@ -87,7 +87,7 @@ public class BoskUpdateTest extends AbstractBoskTest {
 	void initializeNonexistent_nodeCreated() throws IOException, InterruptedException {
 		TestChild newValue = new TestChild(CHILD_4_ID, "string", TestEnum.OK, Catalog.empty());
 		Reference<TestChild> ref = refs.child(PARENT_ID, CHILD_4_ID);
-		bosk.driver().submitInitialization(ref, newValue);
+		bosk.driver().submitConditionalCreation(ref, newValue);
 		assertValueEquals(newValue, ref);
 	}
 
@@ -96,8 +96,8 @@ public class BoskUpdateTest extends AbstractBoskTest {
 		TestChild newValue = new TestChild(CHILD_1_ID, "string", TestEnum.OK, Catalog.empty());
 		Reference<TestChild> ref = refs.child(PARENT_ID, CHILD_1_ID);
 
-		// Child 1 already exists, so submitInitialization should have no effect
-		bosk.driver().submitInitialization(ref, newValue);
+		// Child 1 already exists, so submitConditionalCreation should have no effect
+		bosk.driver().submitConditionalCreation(ref, newValue);
 		assertValueEquals(originalRoot, bosk.rootReference());
 		assertValueEquals(originalChild1, ref);
 	}

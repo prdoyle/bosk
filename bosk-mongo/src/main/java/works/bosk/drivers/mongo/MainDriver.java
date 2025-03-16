@@ -15,6 +15,7 @@ import java.lang.reflect.Type;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -29,11 +30,11 @@ import works.bosk.BoskInfo;
 import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
-import works.bosk.bson.BsonPlugin;
-import works.bosk.bson.BsonFormatter.DocumentFields;
 import works.bosk.drivers.mongo.MappedDiagnosticContext.MDCScope;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
 import works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode;
+import works.bosk.drivers.mongo.bson.BsonFormatter.DocumentFields;
+import works.bosk.drivers.mongo.bson.BsonPlugin;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
@@ -45,7 +46,6 @@ import static works.bosk.drivers.mongo.Formatter.REVISION_ONE;
 import static works.bosk.drivers.mongo.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.MappedDiagnosticContext.setupMDC;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
-import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestMode.USE_IF_EXISTS;
 
 /**
  * This is the driver returned to the user by {@link MongoDriver#factory}.
@@ -62,9 +62,17 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private final MongoDriverSettings driverSettings;
 	private final BsonPlugin bsonPlugin;
 	private final BoskDriver downstream;
+	private final MongoClient mongoClient;
 	private final TransactionalCollection<BsonDocument> collection;
 	private final Listener listener;
 	final Formatter formatter;
+
+	/**
+	 * {@link MongoClient#close()} throws if called more than once.
+	 * {@link MongoDriver} is more civilized: subsequent calls do nothing.
+	 * Hence, we must keep track of whether we've already closed the {@link MongoClient}.
+	 */
+	private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
 	/**
 	 * Hold this while waiting on {@link #formatDriverChanged}
@@ -78,7 +86,6 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private final Condition formatDriverChanged = formatDriverLock.newCondition();
 
 	private volatile FormatDriver<R> formatDriver = new DisconnectedDriver<>(new Exception("Driver not yet initialized"));
-	private volatile boolean isClosed = false;
 
 	MainDriver(
 		BoskInfo<R> boskInfo,
@@ -93,7 +100,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.bsonPlugin = bsonPlugin;
 			this.downstream = downstream;
 
-			MongoClient mongoClient = MongoClients.create(
+			mongoClient = MongoClients.create(
 				MongoClientSettings.builder(clientSettings)
 					// By default, let's deal only with durable data that won't get rolled back
 					.readConcern(ReadConcern.MAJORITY)
@@ -248,29 +255,20 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			StateAndMetadata<R> result = formatDriver.loadAllState();
 			FormatDriver<R> newFormatDriver = newPreferredFormatDriver();
 
-			BsonDocument deletionFilter;
-			if (driverSettings.experimental().manifestMode() == USE_IF_EXISTS) {
-				// In this weirdo mode, the format driver won't create a manifest
-				// document. We'd better delete the one that's there to avoid
-				// ending up with an incorrect manifest document that doesn't
-				// match the database contents.
-				//
-				// TODO: The sooner we get rid of this mode, the better.
-
-				deletionFilter = new BsonDocument();
-				LOGGER.debug("Deleting manifest due to experimental USE_IF_EXISTS manifest mode");
-			} else {
-				// initializeCollection is required to replace the manifest anyway,
-				// so deleting it has no value; and if we do delete it, then every
-				// FormatDriver must cope with deletions of the manifest document,
-				// which is a burden. Let's just not.
-				deletionFilter = new BsonDocument("_id", new BsonDocument("$ne", MANIFEST_ID));
-			}
+			// initializeCollection is required to replace the manifest anyway,
+			// so deleting it has no value; and if we do delete it, then every
+			// FormatDriver must cope with deletions of the manifest document,
+			// which is a burden. Let's just not.
+			BsonDocument deletionFilter = new BsonDocument("_id", new BsonDocument("$ne", MANIFEST_ID));
 			LOGGER.trace("Deleting state documents: {}", deletionFilter);
 			collection.deleteMany(deletionFilter);
 
 			newFormatDriver.initializeCollection(result);
+
+			// We must rudely commit the transaction here, since correctness requires that
+			// the database updates commit before we publish newFormatDriver.
 			collection.commitTransaction();
+
 			publishFormatDriver(newFormatDriver);
 		} catch (UninitializedCollectionException e) {
 			throw new IOException("Unable to refurbish uninitialized database collection", e);
@@ -280,7 +278,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		doRetryableDriverOperation(()->{
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitReplacement(target, newValue);
 		}, "submitReplacement({})", target);
 	}
@@ -288,23 +286,23 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
 		doRetryableDriverOperation(()->{
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitConditionalReplacement(target, newValue, precondition, requiredValue);
 		}, "submitConditionalReplacement({}, {}={})", target, precondition, requiredValue);
 	}
 
 	@Override
-	public <T> void submitInitialization(Reference<T> target, T newValue) {
+	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		doRetryableDriverOperation(()->{
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
-			formatDriver.submitInitialization(target, newValue);
-		}, "submitInitialization({})", target);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
+			formatDriver.submitConditionalCreation(target, newValue);
+		}, "submitConditionalCreation({})", target);
 	}
 
 	@Override
 	public <T> void submitDeletion(Reference<T> target) {
 		doRetryableDriverOperation(()->{
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitDeletion(target);
 		}, "submitDeletion({})", target);
 	}
@@ -312,7 +310,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
 		doRetryableDriverOperation(() -> {
-			bsonPlugin.initializeEnclosingPolyfills(target, formatDriver);
+			bsonPlugin.initializeAllEnclosingPolyfills(target, formatDriver);
 			formatDriver.submitConditionalDeletion(target, precondition, requiredValue);
 		}, "submitConditionalDeletion({}, {}={})", target, precondition, requiredValue);
 	}
@@ -349,11 +347,12 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 	@Override
 	public void close() {
-		isClosed = true;
+		if (!isClosed.getAndSet(true)) {
+			// It's important we don't call this twice, or else it will throw
+			mongoClient.close();
+		}
 		receiver.close();
 		formatDriver.close();
-		// JFC, if mongoClient is already closed, this throws
-		// mongoClient.close();
 	}
 
 	/**
@@ -559,7 +558,7 @@ final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 
 	private MDCScope beginDriverOperation(String description, Object... args) {
-		if (isClosed) {
+		if (isClosed.get()) {
 			throw new IllegalStateException("Driver is closed");
 		}
 		MDCScope ex = setupMDC(boskInfo.name(), boskInfo.instanceID());

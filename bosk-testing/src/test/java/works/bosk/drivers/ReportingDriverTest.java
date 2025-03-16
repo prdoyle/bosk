@@ -14,10 +14,10 @@ import works.bosk.ListingEntry;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.annotations.ReferencePath;
+import works.bosk.drivers.operations.ConditionalCreation;
 import works.bosk.drivers.operations.SubmitConditionalDeletion;
 import works.bosk.drivers.operations.SubmitConditionalReplacement;
 import works.bosk.drivers.operations.SubmitDeletion;
-import works.bosk.drivers.operations.SubmitInitialization;
 import works.bosk.drivers.operations.SubmitReplacement;
 import works.bosk.drivers.operations.UpdateOperation;
 import works.bosk.drivers.state.TestEntity;
@@ -91,11 +91,11 @@ class ReportingDriverTest extends AbstractDriverTest {
 	}
 
 	@Test
-	void submitInitialization() {
+	void submitConditionalCreation() {
 		Reference<TestEntity> ref = refs.entity(id2);
 		TestEntity newValue = emptyEntityAt(ref);
-		bosk.driver().submitInitialization(ref, newValue);
-		assertExpectedEvents(new SubmitInitialization<>(ref, newValue, expectedAttributes));
+		bosk.driver().submitConditionalCreation(ref, newValue);
+		assertExpectedEvents(new ConditionalCreation<>(ref, newValue, expectedAttributes));
 		assertNodeEquals(newValue, ref);
 		assertCorrectBoskContents();
 	}
