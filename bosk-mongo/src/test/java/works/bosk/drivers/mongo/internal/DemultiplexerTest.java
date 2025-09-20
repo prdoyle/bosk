@@ -102,7 +102,7 @@ class DemultiplexerTest {
 		BsonDocument ns = new BsonDocument()
 			.append("coll", new BsonString("collection"))
 			.append("db", new BsonString("database"));
-		return new ChangeStreamDocument<>(
+		return new ChangeStreamDocument<BsonDocument>(
 			OperationType.OTHER.getValue(),
 			new BsonDocument("_id", new BsonString("resumeToken")),
 			ns, ns,
