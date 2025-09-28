@@ -1,0 +1,1035 @@
+package works.bosk.json.codec.compiler;
+
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.Writer;
+import java.lang.StackWalker.StackFrame;
+import java.lang.classfile.ClassBuilder;
+import java.lang.classfile.ClassFile;
+import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.Label;
+import java.lang.classfile.MethodBuilder;
+import java.lang.classfile.TypeKind;
+import java.lang.classfile.attribute.SourceFileAttribute;
+import java.lang.classfile.instruction.SwitchCase;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.MethodTypeDesc;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.AccessFlag;
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import works.bosk.json.codec.CharArrayReader;
+import works.bosk.json.codec.Codec;
+import works.bosk.json.codec.compiler.LocalVariableAllocator.LocalVariable;
+import works.bosk.json.codec.interpreter.SpecInterpretingGenerator;
+import works.bosk.json.mapping.Token;
+import works.bosk.json.mapping.TypeMap;
+import works.bosk.json.mapping.spec.ArrayNode;
+import works.bosk.json.mapping.spec.BigNumberNode;
+import works.bosk.json.mapping.spec.BooleanNode;
+import works.bosk.json.mapping.spec.BoxedPrimitiveSpec;
+import works.bosk.json.mapping.spec.ComputedSpec;
+import works.bosk.json.mapping.spec.EnumByNameNode;
+import works.bosk.json.mapping.spec.FixedMapNode;
+import works.bosk.json.mapping.spec.JsonValueSpec;
+import works.bosk.json.mapping.spec.MaybeAbsentSpec;
+import works.bosk.json.mapping.spec.MaybeNullSpec;
+import works.bosk.json.mapping.spec.ParseCallbackSpec;
+import works.bosk.json.mapping.spec.PrimitiveNumberNode;
+import works.bosk.json.mapping.spec.RepresentAsSpec;
+import works.bosk.json.mapping.spec.SpecNode;
+import works.bosk.json.mapping.spec.StringNode;
+import works.bosk.json.mapping.spec.StringSpec;
+import works.bosk.json.mapping.spec.TypeRefNode;
+import works.bosk.json.mapping.spec.UniformMapNode;
+import works.bosk.json.types.DataType;
+import works.bosk.json.types.DataType.PrimitiveType;
+
+import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
+import static java.lang.classfile.Opcode.IFEQ;
+import static java.lang.classfile.TypeKind.REFERENCE;
+import static java.lang.reflect.AccessFlag.FINAL;
+import static java.lang.reflect.AccessFlag.PRIVATE;
+import static java.lang.reflect.AccessFlag.PUBLIC;
+import static java.lang.reflect.AccessFlag.STATIC;
+import static java.util.Collections.newSetFromMap;
+import static works.bosk.json.codec.ParserSessionImpl.PRIMITIVE_PARSE_METHOD_NAMES;
+import static works.bosk.json.mapping.Token.END_ARRAY;
+import static works.bosk.json.mapping.Token.END_OBJECT;
+import static works.bosk.json.mapping.Token.NULL;
+import static works.bosk.json.mapping.Token.STRING;
+import static works.bosk.json.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
+
+public class SpecCompiler {
+	final TypeMap typeMap;
+	final Map<Package, Lookup> lookups;
+	final String className;
+	static final Path tempDir;
+
+	static {
+		try {
+			tempDir = Files.createTempDirectory("SpecCompiler_");
+			tempDir.toFile().deleteOnExit();
+		} catch (IOException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
+	public SpecCompiler(TypeMap typeMap, Map<Package, Lookup> lookups) {
+		this.typeMap = typeMap;
+		this.lookups = lookups;
+		this.className = "GeneratedCodec_" + CLASS_COUNTER.incrementAndGet();
+	}
+
+	public Codec compile(JsonValueSpec spec) {
+		LOGGER.info("Compiling {} {}", spec, typeMap.settings());
+		var currier = new Currier();
+		var referencedSpecs = resolvedTypeRefs(spec);
+		byte[] bytecode = ClassFile.of()
+			.build(ClassDesc.of(className), classBuilder -> {
+				classBuilder.withFlags(PUBLIC, FINAL);
+				classBuilder.withSuperclass(cd(ParserRuntime.class));
+				classBuilder.accept(SourceFileAttribute.of(thisFrame(0).getFileName()));
+
+				// The "root parse method" is the parse method for the root spec node.
+				var rootParseMethod = emitParseMethod(classBuilder, spec, referencedSpecs, currier);
+
+				LOGGER.debug("referencedSpecs: {}", referencedSpecs);
+				referencedSpecs.forEach((_, node) -> {
+					if (!node.equals(spec)) { // Don't emit the root spec again
+						emitParseMethod(classBuilder, node, referencedSpecs, currier);
+					}
+				});
+
+				// The "main parse method" is the implementation of CodecSession#parse().
+				classBuilder.withMethod("parse",
+					mtd(Object.class),
+					PUBLIC.mask(),
+					mb -> mb.withCode(cb -> {
+						cb.loadLocal(REFERENCE, 0); // Load 'this'
+						lineInfo(cb);
+						cb.invokevirtual(
+							classBuilder.constantPool().methodRefEntry(
+								rootParseMethod.owner(),
+								rootParseMethod.name(),
+								rootParseMethod.type()
+							)
+						);
+						var returnType = spec.dataType();
+						if (returnType instanceof PrimitiveType p) {
+							_autoBox(cb, p);
+						}
+						cb.areturn();
+					})
+				);
+
+				classBuilder.withMethod("<init>",
+					MethodTypeDesc.of(VOID, cd(CharArrayReader.class)),
+					PUBLIC.mask(),
+					mb -> mb.withCode(cb -> {
+						cb.loadLocal(REFERENCE, 0);
+						cb.loadLocal(REFERENCE, 1);
+						lineInfo(cb);
+						cb.invokespecial(
+							classBuilder.constantPool().methodRefEntry(
+								cd(ParserRuntime.class),
+								"<init>",
+								MethodTypeDesc.of(VOID, cd(CharArrayReader.class))
+							)
+						);
+						cb.return_();
+					})
+				);
+
+				currier.curried.forEach(cv ->
+					classBuilder.withField(
+						cv.completeFieldName(),
+						cv.type(),
+						fb -> fb.withFlags(PRIVATE, STATIC, FINAL)
+					)
+				);
+
+				long curryKey = ParserRuntime.curry(currier.valueArray());
+				classBuilder.withMethod("<clinit>",
+					MethodTypeDesc.of(VOID),
+					PUBLIC.mask() | STATIC.mask(),
+					mb -> mb.withCode(cb -> {
+						cb.loadConstant(curryKey);
+						cb.invokestatic(
+							cb.constantPool().methodRefEntry(
+								cd(ParserRuntime.class),
+								"claimCurriedArray",
+								MethodTypeDesc.of(cd(Object.class).arrayType(), long.class.describeConstable().get())
+							)
+						);
+
+						currier._initializeStatics(cb, ClassDesc.of(className));
+						cb.return_();
+					})
+				);
+			});
+
+		if (LOGGER.isInfoEnabled()) {
+			Path bytecodeFile = tempDir.resolve(className + ".class");
+			LOGGER.info("Writing bytecode to {}", bytecodeFile);
+			try (var out = new FileOutputStream(bytecodeFile.toFile())) {
+				out.write(bytecode);
+			} catch (IOException e) {
+				throw new IllegalStateException(e);
+			}
+		}
+
+		var classLoader = new OneOffClassLoader();
+		var generatedClass = classLoader.defineClass(className, bytecode);
+
+		MethodHandle ctor;
+		try {
+			ctor = MethodHandles.lookup().findConstructor(generatedClass, MethodType.methodType(void.class, CharArrayReader.class));
+		} catch (Exception e) {
+			throw new IllegalStateException("Failed to instantiate the generated Codec class", e);
+		}
+		return new Codec() {
+			final SpecInterpretingGenerator generator = new SpecInterpretingGenerator(spec, typeMap); // TODO: compile this
+
+			@Override
+			public void generate(Writer out, Object value) {
+				generator.generate(out, value);
+			}
+
+			@Override
+			public Object parse(CharArrayReader json) throws IOException {
+				CodecSession session;
+				try {
+					session = (CodecSession) ctor.invokeWithArguments(json);
+				} catch (Throwable e) {
+					throw new IllegalStateException("wat", e);
+				}
+				return session.parse();
+			}
+		};
+	}
+
+	private Lookup lookupFor(Class<?> c) {
+		return lookups.getOrDefault(c.getPackage(), MethodHandles.publicLookup());
+	}
+
+	private void lineInfo(CodeBuilder cb) {
+		cb.lineNumber(thisFrame(1).getLineNumber());
+	}
+
+	private void lineInfo(CodeBuilder cb, int skip) {
+		cb.lineNumber(thisFrame(1+skip).getLineNumber());
+	}
+
+	/**
+	 * @param skip how many extra frames to skip. 0 reports line info from the immediate caller.
+	 */
+	private StackFrame thisFrame(int skip) {
+		return StackWalker.getInstance(RETAIN_CLASS_REFERENCE).walk(s ->
+			s.limit(2+skip).skip(1+skip).findFirst().get());
+	}
+
+	private void _autoBox(CodeBuilder cb, PrimitiveType p) {
+		Class<?> boxed;
+		if (PrimitiveType.BOOLEAN.equals(p)) {
+			boxed = Boolean.class;
+		} else {
+			boxed = PRIMITIVE_NUMBER_CLASSES.get(p.rawClass());
+		}
+		lineInfo(cb);
+		cb.invokestatic(cb.constantPool().methodRefEntry(
+			cd(boxed),
+			"valueOf",
+			mtd(boxed, p.rawClass())
+		));
+	}
+
+
+	private Map<DataType, JsonValueSpec> resolvedTypeRefs(SpecNode root) {
+		Map<DataType, JsonValueSpec> result = new LinkedHashMap<>();
+		forEachInPostorder(root, node -> {
+			if (node instanceof TypeRefNode(DataType type)) {
+				result.put(type, typeMap.get(type));
+			}
+		});
+		return result;
+	}
+
+	private void forEachInPostorder(SpecNode root, Consumer<SpecNode> action) {
+		postorder(root, newSetFromMap(new IdentityHashMap<>()), action);
+	}
+
+	private void postorder(SpecNode node, Set<Object> checklist, Consumer<SpecNode> action) {
+		if (!checklist.add(node)) {
+			return;
+		}
+		switch (node) {
+			case BoxedPrimitiveSpec(var child) -> postorder(child, checklist, action);
+			case MaybeAbsentSpec(var c1, var c2, var _) -> {
+				postorder(c1, checklist, action);
+				postorder(c2, checklist, action);
+			}
+			case MaybeNullSpec(var child) -> postorder(child, checklist, action);
+			case RepresentAsSpec(var child, _, _) -> postorder(child, checklist, action);
+			case ParseCallbackSpec(_, var child, _) -> postorder(child, checklist, action);
+			case ArrayNode(var elementNode, _, _) -> postorder(elementNode, checklist, action);
+			case FixedMapNode(var memberSpecs, _) -> memberSpecs.values().forEach(m -> postorder(m.valueSpec(), checklist, action));
+			case UniformMapNode(var keyNode, var valueNode, _, _) -> {
+				postorder(keyNode, checklist, action);
+				postorder(valueNode, checklist, action);
+			}
+			case TypeRefNode(var type) -> postorder(typeMap.get(type), checklist, action);
+
+			// Leaf nodes
+			case
+				BigNumberNode _,
+				BooleanNode _,
+				PrimitiveNumberNode _,
+				StringSpec _,
+				ComputedSpec _
+				-> { }
+		}
+		
+		// And finally, the moment you've all been waiting for...
+		action.accept(node);
+	}
+
+	/**
+	 * Generates a method that parses a specific {@link JsonValueSpec}.
+	 * These act as the "entry points" for parsing.
+	 */
+	private MethodRef emitParseMethod(ClassBuilder classBuilder, JsonValueSpec spec, Map<DataType, JsonValueSpec> referencedSpecs, Currier currier) {
+		var m = getParseMethod(spec);
+		classBuilder.withMethod(
+			m.name(),
+			m.type(),
+			m.accessFlagMask(),
+			mb -> mb.withCode(cb -> {
+				new ParserCodeBuilder(classBuilder, mb, cb, currier, referencedSpecs)
+					._parseAny(spec);
+				cb.return_(nodeReturnTypeKind(spec));
+			})
+		);
+		return m;
+	}
+
+	private MethodRef getParseMethod(SpecNode spec) {
+		return PARSE_METHODS_BY_NODE.computeIfAbsent(spec, this::computeParseMethod);
+	}
+
+	private MethodRef computeParseMethod(SpecNode valueSpec) {
+		var returnType = valueSpec.dataType();
+		return new MethodRef(
+			"parse_" + valueSpec.getClass().getSimpleName() + "_" + PARSE_METHODS_BY_NODE.size(),
+			ClassDesc.of(className),
+			mtd(ParserCodeBuilder.sanitized(returnType.rawClass())),
+			Set.of());
+	}
+
+	/**
+	 * You may ask yourself: why do we not just have one parse method per {@link DataType}?
+	 * The answer in the abstract is that
+	 * different parts of the tree can parse the same type in different ways;
+	 * for example, one {@code int} could be parsed as a JSON number, and another as an enum ordinal.
+	 * Having a method per node gives us the utmost flexibility to decide when to inline the code
+	 * versus when to call a common method.
+	 * <p>
+	 * However, it is true that the parse methods primarily provide a thing to call
+	 * to implement {@link TypeRefNode}.
+	 * If that were the only use, we could have one parse method per {@link DataType},
+	 * but sadly, there is one more use: the main root node also needs a parse method.
+	 * With a little rejiggering, we could probably simplify this by using one method per type.
+	 */
+	private final Map<SpecNode, MethodRef> PARSE_METHODS_BY_NODE = new ConcurrentHashMap<>();
+
+	record MethodRef(String name, ClassDesc owner, MethodTypeDesc type, Set<AccessFlag> accessFlags) {
+		int accessFlagMask() {
+			return accessFlags.stream().mapToInt(AccessFlag::mask).reduce(0, (a, b) -> a | b);
+		}
+	}
+
+	public TypeKind nodeReturnTypeKind(SpecNode node) {
+		return TypeKind.fromDescriptor(node.dataType().rawClass().descriptorString());
+	}
+
+	record CurriedValue(
+		String name,
+		Object value,
+		ClassDesc type,
+		int index
+	) {
+		/**
+		 * Guaranteed unique within its containing class
+		 */
+		String completeFieldName() {
+			return name + "_" + index;
+		}
+
+		void _load(CodeBuilder cb, ClassDesc owner) {
+			cb.getstatic(owner, completeFieldName(), type);
+		}
+
+		/**
+		 * Assumes the value to be stored is on top of the operand stack
+		 */
+		void _store(CodeBuilder cb, ClassDesc owner) {
+			cb.putstatic(owner, completeFieldName(), type);
+		}
+	}
+
+	/**
+	 * Lets you reference objects in generated code by stashing them in static final fields of the generated class.
+	 */
+	static class Currier {
+		final List<CurriedValue> curried = new ArrayList<>();
+
+		public CurriedValue curry(String name, Object value, ClassDesc type) {
+			CurriedValue curriedValue = new CurriedValue(name, value, type, curried.size());
+			curried.add(curriedValue);
+			return curriedValue;
+		}
+
+		public Object[] valueArray() {
+			return curried.stream().map(CurriedValue::value).toArray();
+		}
+
+		/**
+		 * Assumes an array of curried values is on top of the operand stack.
+		 *
+		 * @param owner the class that contains the static fields
+		 */
+		public void _initializeStatics(CodeBuilder cb, ClassDesc owner) {
+			for (var cv: curried) {
+				cb.dup();
+				cb.loadConstant(cv.index());
+				cb.aaload(); // TODO: primitives?
+				cb.checkcast(cv.type());
+				cv._store(cb, owner);
+			}
+			cb.pop(); // We're done with the array
+		}
+	}
+
+	/**
+	 * Methods starting with underscore are named after the bytecode they emit,
+	 * not what they actually do.
+	 * The {@code _parseXxx} methods leave the resulting value on the operand stack.
+	 */
+	class ParserCodeBuilder {
+		final ClassBuilder classBuilder;
+		final MethodBuilder methodBuilder;
+		final CodeBuilder codeBuilder;
+		final Currier currier;
+		final Map<DataType, JsonValueSpec> referencedSpecs;
+		final LocalVariableAllocator localVariableAllocator = new LocalVariableAllocator(1);
+
+		ParserCodeBuilder(
+			ClassBuilder classBuilder,
+			MethodBuilder methodBuilder,
+			CodeBuilder codeBuilder,
+			Currier currier,
+			Map<DataType, JsonValueSpec> referencedSpecs
+		) {
+			this.classBuilder = classBuilder;
+			this.methodBuilder = methodBuilder;
+			this.codeBuilder = codeBuilder;
+			this.currier = currier;
+			this.referencedSpecs = referencedSpecs;
+		}
+
+		private void _parseAny(JsonValueSpec n) {
+			switch (n) {
+				case BigNumberNode node -> _parseBigNumber(node);
+				case BooleanNode _ -> _parseBoolean();
+				case BoxedPrimitiveSpec node -> _parseBoxedPrimitive(node);
+				case EnumByNameNode node -> _parseEnumByName(node);
+				case ArrayNode node -> _parseArray(node);
+				case UniformMapNode node -> _parseUniformMap(node);
+				case MaybeNullSpec node -> _parseMaybeNull(node);
+				case ParseCallbackSpec node -> _parseCallBack(node);
+				case PrimitiveNumberNode node -> _parsePrimitiveNumber(node);
+				case FixedMapNode node -> _parseFixedMap(node);
+				case RepresentAsSpec node -> _parseAndConvert(node);
+				case StringNode _ -> _parseString();
+				case TypeRefNode node -> _parseTypeRef(node);
+			}
+		}
+
+		private void _parseBoxedPrimitive(BoxedPrimitiveSpec node) {
+			var child = node.child();
+			_parsePrimitiveNumber(child);
+			Class<? extends Number> boxedType = PRIMITIVE_NUMBER_CLASSES.get(child.targetClass());
+			String valueOfMethodName = "valueOf";
+			// Call the appropriate parse method
+			lineInfo(codeBuilder);
+			codeBuilder.invokestatic(
+				cd(boxedType),
+				valueOfMethodName,
+				mtd(node.targetClass(), child.targetClass())
+			);
+		}
+
+		private void _parseCallBack(ParseCallbackSpec node) {
+			// We've written this in a slightly awkward style because both the
+			// parsed value and the callback context can be any datatype, including
+			// 2-slot values (and even 0-slot for the callback context!).
+			// Writing it in the following way makes the datatypes all work out.
+
+			try (var locals = localVariableAllocator.newScope()) {
+				TypeKind returnKind = nodeReturnTypeKind(node);
+				LocalVariable result = locals.allocate(returnKind);
+
+				// Get this MH in the right place on the call stack before things get hairy
+				var afterType = curryAndLoad(node.after().handle(), "after");
+
+				// Call `before` leaving its result on the stack
+				var beforeType = curryAndLoad(node.before().handle(), "before");
+				_invokeExact(beforeType);
+
+				// Parse and store the result so we can use it twice
+				_parseAny(node.child());
+				result.store(codeBuilder);
+
+				// At this stage, the operand stack already has the `after` handle and the callback context value if any.
+				// The third argument to the `after` handle is the parsed object
+				result.load(codeBuilder);
+				_invokeExact(afterType);
+
+				// The result of this whole process is the parsed object
+				result.load(codeBuilder);
+			}
+		}
+
+		private void _parseComputed(ComputedSpec node) {
+			MethodHandle supplier = node.supplier().handle();
+			var mt = curryAndLoad(supplier, supplier.type().returnType().getSimpleName() + "_supplier");
+			_invokeExact(mt);
+		}
+
+		private void _parseBigNumber(BigNumberNode node) {
+			assert node.numberClass().equals(BigDecimal.class);
+			_loadRuntime();
+			lineInfo(codeBuilder);
+			_callRuntime(Number.class, "parseBigNumber");
+			codeBuilder.checkcast(cd(node.numberClass()));
+		}
+
+		private void _parseBoolean() {
+			_loadRuntime();
+			lineInfo(codeBuilder);
+			_callRuntime(boolean.class, "parseBoolean");
+		}
+
+		private void _parseEnumByName(EnumByNameNode node) {
+			// TODO: Use trie to avoid reading the whole name?
+			MethodType type = MethodType.methodType(node.enumType(), String.class);
+			MethodHandle valueOf;
+			try {
+				valueOf = lookupFor(node.enumType()).findStatic(node.enumType(), "valueOf", type);
+			} catch (NoSuchMethodException | IllegalAccessException e) {
+				throw new IllegalStateException(e);
+			}
+			var mt = curryAndLoad(valueOf, node.enumType().getSimpleName() + "_valueOf");
+			_parseString();
+			_invokeExact(mt);
+		}
+
+		private void _parseArray(ArrayNode node) {
+//			codeBuilder.dup();
+
+			var acc = node.accumulator();
+			try (var locals = localVariableAllocator.newScope()) {
+				// Allocate labels
+				Label loop = codeBuilder.newLabel();
+				Label element = codeBuilder.newLabel();
+				Label endArray = codeBuilder.newLabel();
+				Label error = codeBuilder.newLabel();
+
+				// Eat START_ARRAY
+				_nextToken();
+				_skipToken();
+
+				LocalVariable accumulator = locals.allocate(REFERENCE);
+				_invokeExact(curryAndLoad(acc.creator().handle(), "acc_creator"));
+				accumulator.store(codeBuilder);
+
+				codeBuilder.labelBinding(loop);
+				_nextSignificant();
+				_tokenStartingWith();
+				_tokenOrdinal();
+				codeBuilder.lookupswitch(element,
+					List.of(
+						SwitchCase.of(END_ARRAY.ordinal(), endArray)
+					)
+				);
+
+				codeBuilder.labelBinding(element);
+				_skip(-1);
+				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
+				accumulator.load(codeBuilder);
+				_parseAny(node.elementNode());
+				_invokeExact(integratorType);
+				if (integratorType.returnType() != void.class) {
+					accumulator.store(codeBuilder);
+				}
+				codeBuilder.goto_w(loop);
+
+				codeBuilder.labelBinding(error);
+				_throwParseError("Unexpected character");
+
+				codeBuilder.labelBinding(endArray);
+				_skipToken(END_ARRAY);
+
+				var finisherType = curryAndLoad(acc.finisher().handle(), "acc_finisher");
+				accumulator.load(codeBuilder);
+				_invokeExact(finisherType);
+
+			}
+		}
+
+		private void _parseUniformMap(UniformMapNode node) {
+			var acc = node.accumulator();
+			try (var locals = localVariableAllocator.newScope()) {
+				// Allocate labels
+				Label loop = codeBuilder.newLabel();
+				Label member = codeBuilder.newLabel();
+				Label endObject = codeBuilder.newLabel();
+				Label error = codeBuilder.newLabel();
+
+				// Eat START_OBJECT
+				_nextToken();
+				_skipToken();
+
+				LocalVariable accumulator = locals.allocate(REFERENCE);
+				_invokeExact(curryAndLoad(acc.creator().handle(), "acc_creator"));
+				accumulator.store(codeBuilder);
+
+				codeBuilder.labelBinding(loop);
+				_nextSignificant();
+				_tokenStartingWith();
+				_tokenOrdinal();
+				codeBuilder.lookupswitch(error,
+					List.of(
+						SwitchCase.of(STRING.ordinal(), member),
+						SwitchCase.of(END_OBJECT.ordinal(), endObject)
+					)
+				);
+
+				codeBuilder.labelBinding(member);
+				_skip(-1);
+				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
+				accumulator.load(codeBuilder);
+				_parseAny(node.keyNode());
+				_parseAny(node.valueNode());
+				_invokeExact(integratorType);
+				if (integratorType.returnType() != void.class) {
+					accumulator.store(codeBuilder);
+				}
+				codeBuilder.goto_w(loop);
+
+				codeBuilder.labelBinding(error);
+				_throwParseError("Unexpected character");
+
+				codeBuilder.labelBinding(endObject);
+				_skipToken(END_OBJECT);
+
+				var finisherType = curryAndLoad(acc.finisher().handle(), "acc_finisher");
+				accumulator.load(codeBuilder);
+				_invokeExact(finisherType);
+			}
+		}
+
+		private void _skip(int i) {
+			_loadRuntime();
+			codeBuilder.loadConstant(i);
+			lineInfo(codeBuilder, 1);
+			_callRuntime("skip", int.class);
+		}
+
+		private void _parseMaybeNull(MaybeNullSpec node) {
+			Label done = codeBuilder.newLabel();
+			_nextSignificant();
+			codeBuilder.loadConstant(NULL.fixedRepresentation().charAt(0));
+			codeBuilder.isub();
+			codeBuilder.ifThen(IFEQ, block-> {
+				_skipToken(NULL);
+				block.aconst_null();
+				block.goto_w(done);
+			});
+			_skip(-1);
+			_parseAny(node.child());
+			var type = node.child().dataType();
+			if (type instanceof PrimitiveType p) {
+				_autoBox(codeBuilder, p);
+			}
+			codeBuilder.labelBinding(done);
+		}
+
+		private void _parseAndConvert(RepresentAsSpec node) {
+			MethodHandle fromHandle = node.fromRepresentation().handle();
+			var mt = curryAndLoad(fromHandle, "from" + fromHandle.type().parameterType(0).getSimpleName());
+			_parseAny(node.representation());
+			_invokeExact(mt);
+		}
+
+		private MethodType curryAndLoad(MethodHandle object, String name) {
+			MethodHandle sanitized = sanitized(object);
+			currier
+				.curry(name, sanitized, MethodHandle.class.describeConstable().get())
+				._load(codeBuilder, ClassDesc.of(className));
+			return sanitized.type();
+		}
+
+		/**
+		 * @return a version of {@code givenHandle} with a different signature composed
+		 * only of types that are accessible from the generated code.
+		 */
+		private static MethodHandle sanitized(MethodHandle givenHandle) {
+			return givenHandle.asType(sanitized(givenHandle.type()));
+		}
+
+		/**
+		 * @return a version of {@code givenType} with all object types replaced with {@link Object}
+		 * in case they're not actually accessible from the generated bytecode.
+		 */
+		private static MethodType sanitized(MethodType givenType) {
+			return MethodType.methodType(
+				sanitized(givenType.returnType()),
+				Arrays.stream(givenType.parameterArray())
+					.map(ParserCodeBuilder::sanitized)
+					.toArray(Class<?>[]::new)
+			);
+		}
+
+		private static Class<?> sanitized(Class<?> givenClass) {
+			// TODO: We can do better here. Anything accessible from the generated
+			// code can be left alone, and that will result in fewer checkcasts.
+			if (givenClass.isPrimitive()) {
+				return givenClass;
+			} else {
+				return Object.class;
+			}
+		}
+
+		private void _invokeExact(MethodType type) {
+			lineInfo(codeBuilder, 1);
+			codeBuilder.invokevirtual(
+				MethodHandle.class.describeConstable().get(),
+				"invokeExact",
+				type.describeConstable().get()
+			);
+		}
+
+		private void _parsePrimitiveNumber(PrimitiveNumberNode node) {
+			Class<? extends Number> boxedType = PRIMITIVE_NUMBER_CLASSES.get(node.targetClass());
+			String parseMethodName = PRIMITIVE_PARSE_METHOD_NAMES.get(node.targetClass());
+
+			// Read the number as a string
+			_nextSignificant();
+			_readNumberAsStringBuilder();
+			lineInfo(codeBuilder);
+			codeBuilder.invokevirtual(
+				cd(StringBuilder.class),
+				"toString",
+				mtd(String.class)
+			);
+
+			// Call the appropriate parse method
+			lineInfo(codeBuilder);
+			codeBuilder.invokestatic(
+				cd(boxedType),
+				parseMethodName,
+				mtd(node.targetClass(), String.class)
+			);
+		}
+
+		private void _parseFixedMap(FixedMapNode fixedMapNode) {
+			LOGGER.debug("_parseFixedMap on:\n{}", fixedMapNode);
+			TrieNode trie = TrieNode.from(fixedMapNode.memberSpecs().keySet());
+			LOGGER.debug(" -> trie: {}", trie);
+//			codeBuilder.dup(); // This causes a stack underflow that makes the classfile API dump the bytecode
+
+			try (var locals = localVariableAllocator.newScope()) {
+				// Allocate labels
+				Label loop = codeBuilder.newLabel();
+				Label member = codeBuilder.newLabel();
+				Label endObject = codeBuilder.newLabel();
+				Label error = codeBuilder.newLabel();
+
+				// Allocate locals
+				Map<String, LocalVariable> componentLocalsByName = new LinkedHashMap<>(); // ORDER MATTERS
+				fixedMapNode.memberSpecs().forEach((name, componentNode) -> {
+					TypeKind typeKind = nodeReturnTypeKind(componentNode.valueSpec());
+					LocalVariable v = locals.allocate(typeKind);
+					componentLocalsByName.put(name, v);
+
+					// Initialize with default value
+					switch (componentNode.valueSpec()) {
+						case ComputedSpec s -> _parseComputed(s);
+						case MaybeAbsentSpec(_, var s, _) -> _parseComputed(s);
+						default -> _loadDefault(typeKind);
+					}
+					v.store(codeBuilder);
+				});
+
+				// Eat START_OBJECT
+				_nextToken();
+				_skipToken();
+
+				codeBuilder.labelBinding(loop);
+				_nextSignificant();
+				_tokenStartingWith();
+				_tokenOrdinal();
+				codeBuilder.lookupswitch(error,
+					List.of(
+						SwitchCase.of(STRING.ordinal(), member),
+						SwitchCase.of(END_OBJECT.ordinal(), endObject)
+					)
+				);
+
+				codeBuilder.labelBinding(member);
+				generateCodePointSwitch(trie, fixedMapNode, componentLocalsByName, loop, error);
+
+				codeBuilder.labelBinding(error);
+				_throwParseError("Unexpected character");
+
+				codeBuilder.labelBinding(endObject);
+				_skipToken(END_OBJECT);
+
+				// All the local variables should have their values now.
+				// Time to call the finisher
+				var mt = curryAndLoad(fixedMapNode.finisher().handle(), "fixedMap_finisher");
+				fixedMapNode.memberSpecs().forEach((name, node) -> {
+					var local = componentLocalsByName.get(name);
+					local.load(codeBuilder);
+					if (local.typeKind() == REFERENCE) {
+						Class<?> expectedType = node.dataType().rawClass();
+						LOGGER.debug("typeKind is {} for {}", local.typeKind(), expectedType);
+						codeBuilder.checkcast(cd(expectedType));
+					}
+				});
+				_invokeExact(mt);
+			}
+		}
+
+		private void _loadDefault(TypeKind typeKind) {
+			switch (typeKind.asLoadable()) {
+				case INT -> codeBuilder.iconst_0();
+				case LONG -> codeBuilder.lconst_0();
+				case FLOAT -> codeBuilder.fconst_0();
+				case DOUBLE -> codeBuilder.dconst_0();
+				case REFERENCE -> codeBuilder.aconst_null();
+				default -> throw new IllegalStateException("Unexpected typeKind: " + typeKind);
+			}
+		}
+
+		/**
+		 * Recursively a nest of switches to match the strings described by the given trie.
+		 */
+		private void generateCodePointSwitch(TrieNode node, FixedMapNode fixedMapNode, Map<String, LocalVariable> componentLocalsByName, Label loop, Label error) {
+			LOGGER.debug("generateCodePointSwitch({})", node);
+			switch (node) {
+				case TrieNode.LeafNode(String memberName, int matchedPrefix) -> {
+					_skipRemainderOfString(memberName.length() - matchedPrefix);
+					var child = fixedMapNode.memberSpecs().get(memberName);
+					LOGGER.debug("-> leaf({})", child);
+					switch (child.valueSpec()) {
+						case JsonValueSpec v -> {
+							_parseAny(v);
+							componentLocalsByName.get(memberName).store(codeBuilder);
+						}
+						case MaybeAbsentSpec(var v, _, _) -> {
+							_parseAny(v);
+							componentLocalsByName.get(memberName).store(codeBuilder);
+						}
+						case ComputedSpec _ -> {
+							_throwParseError("Unexpected value for computed member [" + memberName + "]");
+						}
+					}
+					codeBuilder.goto_w(loop);
+				}
+				case TrieNode.ChoiceNode(var edges) -> {
+					// Recursively build the cases
+					if (edges.size() == 1 && typeMap.settings().fewerSwitches()) {
+						int numSkips = 1;
+						var child = edges.getFirst().child();
+						while (child instanceof TrieNode.ChoiceNode(var childEdges) && childEdges.size() == 1) {
+							++numSkips;
+							child = childEdges.getFirst().child();
+						}
+						LOGGER.debug("-> skip({})", numSkips);
+						_skip(numSkips);
+						generateCodePointSwitch(child, fixedMapNode, componentLocalsByName, loop, error);
+					} else {
+						LOGGER.debug("-> switch({})", edges.stream().map(TrieEdge::codePoint).toList());
+						_read();
+						var cases = edges.stream()
+							.map(e -> SwitchCase.of(e.codePoint(), codeBuilder.newLabel()))
+							.toList();
+						codeBuilder.lookupswitch(error, cases);
+						Iterator<TrieEdge> iter = edges.iterator();
+						cases.forEach(c -> {
+							codeBuilder.labelBinding(c.target());
+							generateCodePointSwitch(iter.next().child(), fixedMapNode, componentLocalsByName, loop, error);
+						});
+					}
+				}
+			}
+		}
+
+		private void _skipRemainderOfString(int remainingLength) {
+			_loadRuntime();
+			codeBuilder.loadConstant(remainingLength);
+			lineInfo(codeBuilder, 1);
+			_callRuntime("skipRemainderOfString", int.class);
+		}
+
+		private void _skipToken() {
+			_loadRuntime();
+			codeBuilder.swap();
+			lineInfo(codeBuilder, 1);
+			_callRuntime("skipToken", Token.class);
+		}
+
+		private void _skipToken(Token token) {
+			_loadRuntime();
+			codeBuilder.loadConstant(token.ordinal());
+			lineInfo(codeBuilder, 1);
+			_callRuntime("skipTokenWithOrdinal", int.class);
+		}
+
+		private void _parseString() {
+			_loadRuntime();
+			lineInfo(codeBuilder);
+			_callRuntime(String.class, "parseString");
+		}
+
+		/**
+		 * Expects the first char on the operand stack already
+		 */
+		private void _readNumberAsStringBuilder() {
+			_loadRuntime();
+			codeBuilder.swap();
+			lineInfo(codeBuilder, 1);
+			_callRuntime(StringBuilder.class, "readNumber", int.class);
+		}
+
+		private void _throwParseError(String message) {
+			_loadRuntime();
+			codeBuilder.loadConstant(codeBuilder.constantPool().stringEntry(message).constantValue());
+			lineInfo(codeBuilder, 1);
+			_callRuntime("parseError", String.class);
+		}
+
+		private void _parseTypeRef(TypeRefNode node) {
+			lineInfo(codeBuilder);
+			_invokeVirtual(getParseMethod(typeMap.get(node.type())));
+		}
+
+		private void _invokeVirtual(MethodRef mr) {
+			lineInfo(codeBuilder, 1);
+			_loadRuntime();
+			codeBuilder.invokevirtual(classBuilder.constantPool().methodRefEntry(
+				mr.owner(),
+				mr.name(),
+				mr.type()
+			));
+		}
+
+		private void _loadRuntime() {
+			codeBuilder.loadLocal(REFERENCE, 0);
+		}
+
+		private void _read() {
+			_loadRuntime();
+			_callRuntime(int.class, "read");
+		}
+
+		private void _nextSignificant() {
+			_loadRuntime();
+			_callRuntime(int.class, "nextSignificant");
+		}
+
+		private void _nextToken() {
+			_loadRuntime();
+			_callRuntime(Token.class, "nextToken");
+		}
+
+		private void _tokenOrdinal() {
+			lineInfo(codeBuilder);
+			codeBuilder.invokevirtual(classBuilder.constantPool().methodRefEntry(
+				cd(Token.class),
+				"ordinal",
+				mtd(int.class)
+			));
+		}
+
+		private void _tokenStartingWith() {
+			lineInfo(codeBuilder);
+			codeBuilder.invokestatic(classBuilder.constantPool().methodRefEntry(
+				cd(Token.class),
+				"startingWith",
+				mtd(Token.class, int.class))
+			);
+		}
+
+		private void _callRuntime(Class<?> returnType, String methodName, Class<?>... parameterTypes) {
+			codeBuilder.invokevirtual(classBuilder.constantPool().methodRefEntry(
+				cd(ParserRuntime.class),
+				methodName,
+				mtd(returnType, parameterTypes))
+			);
+		}
+
+		private void _callRuntime(String methodName, Class<?>... parameterTypes) {
+			codeBuilder.invokevirtual(classBuilder.constantPool().methodRefEntry(
+				cd(ParserRuntime.class),
+				methodName,
+				mtd(VOID, parameterTypes))
+			);
+		}
+
+	}
+
+	static class OneOffClassLoader extends ClassLoader {
+		public Class<?> defineClass(String name, byte[] b) {
+			return defineClass(name, b, 0, b.length);
+		}
+	}
+
+	static ClassDesc cd(Class<?> c) {
+		return c.describeConstable().get();
+	}
+
+	static MethodTypeDesc mtd(Class<?> returnType, Class<?>... parameterTypes) {
+		return MethodTypeDesc.of(cd(returnType), Stream.of(parameterTypes).map(SpecCompiler::cd).toArray(ClassDesc[]::new));
+	}
+
+	static MethodTypeDesc mtd(ClassDesc returnType, Class<?>... parameterTypes) {
+		return MethodTypeDesc.of(returnType, Stream.of(parameterTypes).map(SpecCompiler::cd).toArray(ClassDesc[]::new));
+	}
+
+	static final ClassDesc VOID = ClassDesc.ofDescriptor("V");
+
+	private static final AtomicLong CLASS_COUNTER = new AtomicLong(0);
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(SpecCompiler.class);
+}

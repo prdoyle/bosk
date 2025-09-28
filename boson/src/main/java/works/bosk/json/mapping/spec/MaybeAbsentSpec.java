@@ -1,0 +1,26 @@
+package works.bosk.json.mapping.spec;
+
+import works.bosk.json.mapping.spec.handles.MemberPresenceCondition;
+import works.bosk.json.types.DataType;
+
+/**
+ * Represents a JSON <em>object member</em> that can be omitted from the JSON representation.
+ *
+ * @param ifPresent
+ * @param ifAbsent
+ * @param presenceCondition determines whether JSON generation should include this member
+ *
+ */
+public record MaybeAbsentSpec(
+	JsonValueSpec ifPresent,
+	ComputedSpec ifAbsent,
+	MemberPresenceCondition presenceCondition
+) implements SpecNode {
+	public MaybeAbsentSpec {
+		assert ifPresent.dataType().equals(ifAbsent.dataType());
+	}
+
+	public DataType.KnownType dataType() {
+		return this.ifPresent().dataType();
+	}
+}

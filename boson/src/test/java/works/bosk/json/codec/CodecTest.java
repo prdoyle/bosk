@@ -1,0 +1,48 @@
+package works.bosk.json.codec;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import works.bosk.json.TestUtils.OneOfEach;
+import works.bosk.json.mapping.TypeMap;
+import works.bosk.json.mapping.spec.JsonValueSpec;
+import works.bosk.json.types.DataType;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.json.TestUtils.ONE_OF_EACH;
+import static works.bosk.json.TestUtils.expectedOneOfEach;
+import static works.bosk.json.codec.compiler.SpecCompilerTest.testTypeMap;
+
+class CodecTest {
+	TypeMap typeMap;
+	private JsonValueSpec spec;
+
+	@BeforeEach
+	void init() throws NoSuchMethodException, IllegalAccessException {
+		DataType type = DataType.of(OneOfEach.class);
+		typeMap = testTypeMap(type);
+		spec = typeMap.get(type);
+	}
+
+	@Test
+	void testParser() throws IOException {
+		LOGGER.debug("Spec: {}", spec);
+		Codec codec = CodecBuilder.of(typeMap).build(spec);
+		assertEquals(expectedOneOfEach(), codec.parse(new CharArrayReader(ONE_OF_EACH, 0)));
+	}
+
+	@Test
+	void roundTrip() throws IOException {
+		StringWriter sw = new StringWriter();
+
+		Codec codec = CodecBuilder.of(typeMap).build(spec);
+		codec.generate(sw, expectedOneOfEach());
+		var actual = codec.parse(new CharArrayReader(sw.toString()));
+		assertEquals(expectedOneOfEach(), actual);
+	}
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(CodecTest.class);
+}

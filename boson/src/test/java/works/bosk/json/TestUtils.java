@@ -1,0 +1,175 @@
+package works.bosk.json;
+
+import com.fasterxml.jackson.annotation.JsonValue;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.CharArrayReader;
+import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import works.bosk.json.mapping.Nullable;
+import works.bosk.json.mapping.spec.JsonValueSpec;
+import works.bosk.json.mapping.spec.ParseCallbackSpec;
+import works.bosk.json.mapping.spec.RepresentAsSpec;
+import works.bosk.json.mapping.spec.handles.TypedHandle;
+import works.bosk.json.mapping.spec.handles.TypedHandles;
+import works.bosk.json.types.DataType;
+import works.bosk.json.types.DataType.KnownType;
+
+import static java.lang.invoke.MethodHandles.explicitCastArguments;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+public class TestUtils {
+	public static final char[] ONE_OF_EACH = """
+		{
+			"nullField": null,
+			"trueField": true,
+			"falseField": false,
+			"integerField": 123,
+			"realField": 3.14,
+			"stringField": "hello 😎",
+			"stringArrayField": ["one", "two", "three"],
+			"mapField": {
+				"SECONDS": 1.0,
+				"MILLISECONDS": 1000.0
+			},
+			"monthField": 4
+		}
+		""".toCharArray();
+
+	public static final char[] JUST_SCALARS = """
+		{
+			"trueField": true,
+			"falseField": false,
+			"integerField": 123,
+			"realField": 3.14,
+			"stringField": "hello 😎"
+		}
+		""".toCharArray();
+
+	public static final String COMPUTED_FIELD_VALUE = "computed!";
+	public static final String ABSENT_FIELD_VALUE = "absent!";
+
+	public static OneOfEach expectedOneOfEach() throws IOException {
+		OneOfEach parsed = new ObjectMapper().readerFor(OneOfEach.class).readValue(new CharArrayReader(ONE_OF_EACH));
+		return parsed
+			.withComputedField(COMPUTED_FIELD_VALUE)
+			.withMaybeAbsentField(ABSENT_FIELD_VALUE)
+			;
+	}
+
+	public static JustScalars expectedScalars() throws IOException {
+		return new ObjectMapper().readerFor(JustScalars.class).readValue(new java.io.CharArrayReader(ONE_OF_EACH));
+	}
+
+	public record OneOfEach(
+		@Nullable String nullField,
+		boolean trueField,
+		boolean falseField,
+		long integerField,
+		double realField,
+		String stringField,
+		List<String> stringArrayField,
+		Map<TimeUnit, BigDecimal> mapField,
+		Month monthField,
+		String computedField,
+		String maybeAbsentField
+	){
+		public OneOfEach withComputedField(String computedField) {
+			return new OneOfEach(
+				nullField,
+				trueField,
+				falseField,
+				integerField,
+				realField,
+				stringField,
+				stringArrayField,
+				mapField,
+				monthField,
+				computedField,
+				maybeAbsentField);
+		}
+
+		public OneOfEach withMaybeAbsentField(String maybeAbsentField) {
+			return new OneOfEach(
+				nullField,
+				trueField,
+				falseField,
+				integerField,
+				realField,
+				stringField,
+				stringArrayField,
+				mapField,
+				monthField,
+				computedField,
+				maybeAbsentField);
+		}
+	}
+
+	public enum Month {
+		JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP, OCT, NOV, DEC;
+
+		@JsonValue
+		public int value() {
+			return 1 + ordinal();
+		}
+
+		public static Month fromValue(int value) {
+			// Note that Jackson does not use this; see javadocs for @JsonValue
+			return values()[value-1];
+		}
+
+		public static RepresentAsSpec specNode() {
+			return RepresentAsSpec.asInt(
+				DataType.of(Month.class),
+				Month::value,
+				Month::fromValue
+			);
+		}
+
+	}
+
+	public record JustScalars(
+		boolean trueField,
+		boolean falseField,
+		long integerField,
+		double realField,
+		String stringField
+	){}
+
+	public static ParseCallbackSpec testCallback(JsonValueSpec child) {
+		long callbackNumber = callbackCounter.getAndIncrement();
+		return new ParseCallbackSpec(
+			TypedHandles.constant(DataType.LONG, callbackNumber),
+			child,
+			CallbackChecker.from(callbackNumber, child.dataType())
+		);
+	}
+
+	record CallbackChecker(long expected) {
+		void assertCorrect(long actual, Object parsed) {
+			assertEquals(expected, actual);
+		}
+
+		static TypedHandle from(long expected, KnownType parsedObjectType) {
+			MethodType actualVirtualType = MethodType.methodType(void.class, long.class, Object.class);
+			MethodType requiredMethodType = MethodType.methodType(void.class, CallbackChecker.class, long.class, parsedObjectType.rawClass());
+			MethodHandle assertCorrect;
+			try {
+				assertCorrect = MethodHandles.lookup().findVirtual(CallbackChecker.class, "assertCorrect", actualVirtualType);
+			} catch (NoSuchMethodException | IllegalAccessException e) {
+				throw new AssertionError(e);
+			}
+			MethodHandle mh = explicitCastArguments(assertCorrect, requiredMethodType)
+				.bindTo(new CallbackChecker(expected));
+			return new TypedHandle(mh, DataType.VOID, List.of(DataType.LONG, parsedObjectType));
+		}
+	}
+
+	private static final AtomicLong callbackCounter = new AtomicLong(123);
+}
