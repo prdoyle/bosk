@@ -1,5 +1,7 @@
 package works.bosk.json.types;
 
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -39,7 +41,7 @@ class DataTypeCreationTest {
 	@Test
 	<T> void arrays() {
 		assertEquals(new ArrayType(INT), DataType.of(int[].class));
-		assertEquals(new ArrayType(DataType.of(String.class)), DataType.of(String[].class));
+		assertEquals(new ArrayType(DataType.known(String.class)), DataType.of(String[].class));
 		assertEquals(new ArrayType(new ArrayType(INT)), DataType.of(int[][].class));
 		assertEquals(new UnknownArrayType(new TypeVariable("T")), DataType.of(new TypeReference<T[]>(){}));
 	}
@@ -50,28 +52,33 @@ class DataTypeCreationTest {
 			List<String>
 			>() {});
 		assertEquals(
-			new BoundType(List.class, List.of(DataType.of(String.class))),
+			new BoundType(List.class, List.of(String.class)),
 			listType
 		);
 
-		DataType genericListType = DataType.of(new TypeReference<
-			List<T>
-			>() {});
-		assertEquals(
-			new BoundType(List.class, List.of(new TypeVariable("T"))),
-			genericListType
-		);
+		{
+			var ref = new TypeReference<List<T>>() {
+			};
+			DataType genericListType = DataType.of(ref);
+			assertEquals(
+				new BoundType(List.class, List.of(getActualTypeArguments(ref)[0])),
+				genericListType
+			);
+		}
 
-		DataType mapType = DataType.of(new TypeReference<
-			Map<String, List<Integer>>
-			>() {});
+		var ref = new TypeReference<Map<String, List<Integer>>>() { };
+		DataType mapType = DataType.of(ref);
 		assertEquals(
 			new BoundType(Map.class, List.of(
-				DataType.of(String.class),
-				new BoundType(List.class, List.of(DataType.of(Integer.class)))
+				String.class,
+				getActualTypeArguments(ref)[1]
 			)),
 			mapType
 		);
+	}
+
+	private static Type[] getActualTypeArguments(TypeReference<?> ref) {
+		return ((ParameterizedType) ref.reflectionType()).getActualTypeArguments();
 	}
 
 	@Test
@@ -81,38 +88,26 @@ class DataTypeCreationTest {
 		record Holder<V extends Number, W extends Comparable<W>>(
 			Generic<V, W> generic
 		) { }
-		var expectedType = new BoundType(
-			Generic.class,
-			List.of(
-				new TypeVariable("V"),
-				new TypeVariable("W")
-			)
-		);
-		assertEquals(expectedType, DataType.of(Holder.class.getRecordComponents()[0].getGenericType()));
+		ParameterizedType genericType = (ParameterizedType) Holder.class.getRecordComponents()[0].getGenericType();
+		var actual = (BoundType)DataType.of(genericType);
+		var actualV = (java.lang.reflect.TypeVariable<?>)genericType.getActualTypeArguments()[0];
+		var actualW = (java.lang.reflect.TypeVariable<?>)genericType.getActualTypeArguments()[1];
+		assertEquals(new TypeVariable("V", List.of(actualV.getBounds())),
+			actual.typeArgument(0));
+		assertEquals(new TypeVariable("W", List.of(actualW.getBounds())),
+			actual.typeArgument(1));
 	}
 
 	@Test
 	void wildcards() {
-		var unbounded = new TypeReference<List<?>>() { };
-		var expectedUnbounded = new BoundType(
-			List.class,
-			List.of(new UnboundedWildcardType())
-		);
-		assertEquals(expectedUnbounded, DataType.of(unbounded));
+		var unbounded = (BoundType)DataType.of(new TypeReference<List<?>>() { });
+		assertEquals(new UnboundedWildcardType(), unbounded.typeArgument(0));
 
-		var upperBounded = new TypeReference<List<? extends Number>>() { };
-		var expectedUpperBounded = new BoundType(
-			List.class,
-			List.of(new UpperBoundedWildcardType(new BoundType(Number.class, List.of())))
-		);
-		assertEquals(expectedUpperBounded, DataType.of(upperBounded));
+		var upperBounded = (BoundType)DataType.of(new TypeReference<List<? extends Number>>() { });
+		assertEquals((new UpperBoundedWildcardType(Number.class)), upperBounded.typeArgument(0));
 
-		var lowerBounded = new TypeReference<List<? super Integer>>() { };
-		var expectedLowerBounded = new BoundType(
-			List.class,
-			List.of(new LowerBoundedWildcardType(new BoundType(Integer.class, List.of())))
-		);
-		assertEquals(expectedLowerBounded, DataType.of(lowerBounded));
+		var lowerBounded = (BoundType)DataType.of(new TypeReference<List<? super Integer>>() { });
+		assertEquals((new LowerBoundedWildcardType(Integer.class)), lowerBounded.typeArgument(0));
 	}
 
 	@Test

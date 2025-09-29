@@ -2,6 +2,7 @@ package works.bosk.json.mapping.spec;
 
 import java.math.BigDecimal;
 import works.bosk.json.types.DataType;
+import works.bosk.json.types.DataType.KnownType;
 
 /**
  * Represents a JSON number as a {@link Number}
@@ -19,7 +20,7 @@ public record BigNumberNode(
 		return "BigNumber:" + numberClass.getSimpleName();
 	}
 
-	public DataType.KnownType dataType() {
-		return DataType.of(numberClass());
+	public KnownType dataType() {
+		return DataType.known(numberClass());
 	}
 }

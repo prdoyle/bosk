@@ -2,6 +2,7 @@ package works.bosk.json.mapping.spec;
 
 import java.util.Map;
 import works.bosk.json.types.DataType;
+import works.bosk.json.types.DataType.KnownType;
 
 /**
  * Represents a JSON number as a primitive number type.
@@ -26,7 +27,7 @@ public record PrimitiveNumberNode(
 		return "Primitive:" + targetClass.getSimpleName();
 	}
 
-	public DataType.KnownType dataType() {
-		return DataType.of(targetClass());
+	public KnownType dataType() {
+		return DataType.known(targetClass());
 	}
 }

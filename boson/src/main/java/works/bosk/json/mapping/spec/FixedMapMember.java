@@ -29,8 +29,8 @@ public record FixedMapMember(
 		} catch (IllegalAccessException e) {
 			throw new IllegalStateException(e);
 		}
-		KnownType componentType = DataType.of(rc.getType());
-		KnownType recordType = DataType.of(rc.getDeclaringRecord());
+		KnownType componentType = DataType.known(rc.getType());
+		KnownType recordType = DataType.known(rc.getDeclaringRecord());
 		return new FixedMapMember(
 			new TypeRefNode(componentType),
 			new TypedHandle(handle, componentType, List.of(recordType))

@@ -1,6 +1,7 @@
 package works.bosk.json.mapping.spec;
 
 import works.bosk.json.types.DataType;
+import works.bosk.json.types.DataType.KnownType;
 
 /**
  * Represents a JSON string as an enum value with the corresponding name.
@@ -19,7 +20,7 @@ public record EnumByNameNode(
 		return "Enum:" + enumType.getSimpleName();
 	}
 
-	public DataType.KnownType dataType() {
-		return DataType.of(enumType());
+	public KnownType dataType() {
+		return DataType.known(enumType());
 	}
 }

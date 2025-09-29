@@ -126,7 +126,7 @@ public class TestUtils {
 
 		public static RepresentAsSpec specNode() {
 			return RepresentAsSpec.asInt(
-				DataType.of(Month.class),
+				DataType.known(Month.class),
 				Month::value,
 				Month::fromValue
 			);

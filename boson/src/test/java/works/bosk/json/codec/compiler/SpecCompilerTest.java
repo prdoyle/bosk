@@ -78,7 +78,7 @@ public class SpecCompilerTest {
 	@Test
 	void testTypeRef() throws IOException {
 		enum TestEnum { TEST1, TEST2 }
-		KnownType type = DataType.of(TestEnum.class);
+		KnownType type = DataType.known(TestEnum.class);
 		TypeRefNode typeRefNode = new TypeRefNode(type);
 		TypeMap typeMap = new TypeScanner(DEFAULT)
 			.scan(type)
@@ -125,12 +125,12 @@ public class SpecCompilerTest {
 		TypedHandle absentFieldValue = constant(STRING, ABSENT_FIELD_VALUE);
 		TypedHandle getMaybeAbsentField = new TypedHandle(
 			MethodHandles.lookup().unreflect(OneOfEach.class.getMethod("maybeAbsentField")),
-			DataType.of(String.class),
-			List.of(DataType.of(OneOfEach.class))
+			DataType.known(String.class),
+			List.of(DataType.known(OneOfEach.class))
 		);
 		MemberPresenceCondition isPresent = memberValue(notEquals(constant(STRING, ABSENT_FIELD_VALUE)));
 		return new TypeScanner(new TypeMap.Settings(true, true, true, true))
-			.specify(DataType.of(Month.class), Month.specNode())
+			.specify(DataType.known(Month.class), Month.specNode())
 			.specifyRecordFields(OneOfEach.class, Map.of(
 				"computedField", new FixedMapMember(new ComputedSpec(computedFieldValue), computedFieldValue),
 				"maybeAbsentField", new FixedMapMember(new MaybeAbsentSpec(

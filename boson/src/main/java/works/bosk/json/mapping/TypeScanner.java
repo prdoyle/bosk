@@ -2,6 +2,7 @@ package works.bosk.json.mapping;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -39,7 +40,7 @@ import works.bosk.json.mapping.spec.handles.ObjectEmitter;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.DataType;
 import works.bosk.json.types.DataType.ArrayType;
-import works.bosk.json.types.DataType.InstanceType;
+import works.bosk.json.types.DataType.BoundType;
 import works.bosk.json.types.DataType.KnownType;
 import works.bosk.json.types.DataType.PrimitiveType;
 
@@ -131,7 +132,7 @@ public class TypeScanner {
 	private JsonValueSpec computeSpecNode(DataType type) {
 		return switch (type) {
 			case ArrayType t -> scanArray(t);
-			case InstanceType t -> scanClass(t);
+			case BoundType t -> scanClass(t);
 			case PrimitiveType t -> scanPrimitive(t);
 			default -> throw new IllegalStateException("Unsupported type: " + type);
 		};
@@ -164,7 +165,7 @@ public class TypeScanner {
 		throw new IllegalStateException("Unsupported primitive type: " + primitive);
 	}
 
-	private JsonValueSpec scanClass(InstanceType type) {
+	private JsonValueSpec scanClass(BoundType type) {
 		var clazz = type.rawClass();
 		if (clazz.isRecord()) {
 			return scanRecord(clazz);
@@ -188,7 +189,7 @@ public class TypeScanner {
 			);
 		}
 		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(Map.class)) {
-			StringSpec keySpec = scanStringParsingClass((InstanceType) type.parameterType(Map.class, 0));
+			StringSpec keySpec = scanStringParsingClass((KnownType) type.parameterType(Map.class, 0));
 			JsonValueSpec valueSpec = refNode(type.parameterType(Map.class, 1));
 			return new UniformMapNode(
 				keySpec,
@@ -203,8 +204,8 @@ public class TypeScanner {
 		throw new IllegalStateException("Not yet implemented");
 	}
 
-	private ArrayAccumulator listAccumulator(InstanceType type) {
-		assert type.rawClass().isAssignableFrom(ArrayList.class);
+	private ArrayAccumulator listAccumulator(BoundType arrayListType) {
+		assert arrayListType.rawClass().isAssignableFrom(ArrayList.class);
 		MethodHandle creator, listAdd, finisher;
 		try {
 			creator = MethodHandles.lookup().unreflectConstructor(ArrayList.class.getConstructor());
@@ -215,18 +216,19 @@ public class TypeScanner {
 		}
 		var upcastCreator = creator.asType(creator.type().changeReturnType(List.class));
 		var integrator = listAdd.asType(listAdd.type().changeReturnType(void.class));
-		var upcastFinisher = finisher.asType(finisher.type().changeReturnType(type.rawClass()));
+		var upcastFinisher = finisher.asType(finisher.type().changeReturnType(arrayListType.rawClass()));
+		var listType = new BoundType(List.class, arrayListType.bindings());
 		return new ArrayAccumulator(
-			new TypedHandle(upcastCreator, DataType.of(List.class), List.of()),
-			new TypedHandle(integrator, DataType.VOID, List.of(DataType.of(List.class), DataType.OBJECT)),
-			new TypedHandle(upcastFinisher, type, List.of(DataType.of(List.class)))
+			new TypedHandle(upcastCreator, listType, List.of()),
+			new TypedHandle(integrator, DataType.VOID, List.of(listType, DataType.OBJECT)),
+			new TypedHandle(upcastFinisher, arrayListType, List.of(listType))
 		);
 	}
 
-	private ArrayEmitter listEmitter(InstanceType type) {
-		assert List.class.isAssignableFrom(type.rawClass());
-		if (!(type.parameterType(List.class, 0) instanceof KnownType elementType)) {
-			throw new IllegalStateException("Can't emit from a list of unknown element type: " + type);
+	private ArrayEmitter listEmitter(BoundType listType) {
+		assert List.class.isAssignableFrom(listType.rawClass());
+		if (!(listType.parameterType(List.class, 0) instanceof KnownType elementType)) {
+			throw new IllegalStateException("Can't emit from a list of unknown element type: " + listType);
 		}
 		MethodHandle iterator, hasNext, next;
 		try {
@@ -237,15 +239,16 @@ public class TypeScanner {
 			throw new IllegalStateException("Unexpected error doing reflection on List", e);
 		}
 		var downcastNext = next.asType(next.type().changeReturnType(elementType.rawClass()));
+		var iteratorType = new BoundType(Iterator.class, listType.bindings());
 		return new ArrayEmitter(
-			new TypedHandle(iterator, DataType.of(Iterator.class), List.of(type)),
-			new TypedHandle(hasNext, DataType.BOOLEAN, List.of(DataType.of(Iterator.class))),
-			new TypedHandle(downcastNext, elementType, List.of(DataType.of(Iterator.class)))
+			new TypedHandle(iterator, iteratorType, List.of(listType)),
+			new TypedHandle(hasNext, DataType.BOOLEAN, List.of(iteratorType)),
+			new TypedHandle(downcastNext, elementType, List.of(iteratorType))
 		);
 	}
 
-	private ObjectAccumulator mapAccumulator(InstanceType type) {
-		assert type.rawClass().isAssignableFrom(LinkedHashMap.class);
+	private ObjectAccumulator mapAccumulator(BoundType linkedHashMapType) {
+		assert linkedHashMapType.rawClass().isAssignableFrom(LinkedHashMap.class);
 		MethodHandle creator, mapPut, finisher;
 		try {
 			creator = MethodHandles.lookup().unreflectConstructor(LinkedHashMap.class.getConstructor());
@@ -256,22 +259,25 @@ public class TypeScanner {
 		}
 		var upcastCreator = creator.asType(creator.type().changeReturnType(Map.class));
 		var integrator = mapPut.asType(mapPut.type().changeReturnType(void.class));
-		var upcastFinisher = finisher.asType(finisher.type().changeReturnType(type.rawClass()));
+		var upcastFinisher = finisher.asType(finisher.type().changeReturnType(linkedHashMapType.rawClass()));
+		var mapType = new BoundType(Map.class, linkedHashMapType.bindings());
 		return new ObjectAccumulator(
-			new TypedHandle(upcastCreator, DataType.of(Map.class), List.of()),
-			new TypedHandle(integrator, DataType.VOID, List.of(DataType.of(Map.class), DataType.OBJECT, DataType.OBJECT)),
-			new TypedHandle(upcastFinisher, type, List.of(DataType.of(Map.class)))
+			new TypedHandle(upcastCreator, mapType, List.of()),
+			new TypedHandle(integrator, DataType.VOID, List.of(mapType, DataType.OBJECT, DataType.OBJECT)),
+			new TypedHandle(upcastFinisher, linkedHashMapType, List.of(mapType))
 		);
 	}
 
-	private ObjectEmitter mapEmitter(InstanceType type) {
-		assert Map.class.isAssignableFrom(type.rawClass());
-		if (!(type.parameterType(Map.class, 0) instanceof KnownType keyType) ||
-			!(type.parameterType(Map.class, 1) instanceof KnownType valueType)) {
-			throw new IllegalStateException("Can't emit from a map of unknown key or value type: " + type);
+	private ObjectEmitter mapEmitter(BoundType mapType) {
+		assert Map.class.isAssignableFrom(mapType.rawClass());
+		if (!(mapType.parameterType(Map.class, 0) instanceof KnownType keyType) ||
+			!(mapType.parameterType(Map.class, 1) instanceof KnownType valueType)) {
+			throw new IllegalStateException("Can't emit from a map of unknown key or value type: " + mapType);
 		}
+		Method getIteratorMethod;
 		MethodHandle start, hasNext, next, getKey, getValue;
 		try {
+			getIteratorMethod = TypeScanner.class.getDeclaredMethod("getIterator", Map.class);
 			start = MethodHandles.lookup().unreflect(TypeScanner.class.getDeclaredMethod("getIterator", Map.class));
 			hasNext = MethodHandles.lookup().unreflect(Iterator.class.getMethod("hasNext"));
 			next = MethodHandles.lookup().unreflect(Iterator.class.getMethod("next"));
@@ -283,12 +289,14 @@ public class TypeScanner {
 		var downcastGetKey = getKey.asType(getKey.type().changeReturnType(keyType.rawClass()));
 		var downcastGetValue = getValue.asType(getValue.type().changeReturnType(valueType.rawClass()));
 		var downcastNext = next.asType(next.type().changeReturnType(Map.Entry.class));
+		var mapEntryType = new BoundType(Map.Entry.class, mapType.bindings());
+		var iteratorType = DataType.known(getIteratorMethod.getGenericReturnType()); // HEY this is wrong, it's Iterator<?>
 		return new ObjectEmitter(
-			new TypedHandle(start, DataType.of(Iterator.class), List.of(DataType.of(Map.class))),
-			new TypedHandle(hasNext, DataType.BOOLEAN, List.of(DataType.of(Iterator.class))),
-			new TypedHandle(downcastNext, DataType.of(Map.Entry.class), List.of(DataType.of(Iterator.class))),
-			new TypedHandle(downcastGetKey, keyType, List.of(DataType.of(Map.Entry.class))),
-			new TypedHandle(downcastGetValue, valueType, List.of(DataType.of(Map.Entry.class)))
+			new TypedHandle(start, iteratorType, List.of(mapType)),
+			new TypedHandle(hasNext, DataType.BOOLEAN, List.of(iteratorType)),
+			new TypedHandle(downcastNext, mapEntryType, List.of(iteratorType)),
+			new TypedHandle(downcastGetKey, keyType, List.of(mapEntryType)),
+			new TypedHandle(downcastGetValue, valueType, List.of(mapEntryType))
 		);
 	}
 
@@ -296,12 +304,12 @@ public class TypeScanner {
 		return map.entrySet().iterator();
 	}
 
-	private static boolean isStringParsingClass(InstanceType type) {
+	private static boolean isStringParsingClass(KnownType type) {
 		var clazz = type.rawClass();
 		return clazz.isEnum() || clazz == String.class;
 	}
 
-	private static StringSpec scanStringParsingClass(InstanceType type) {
+	private static StringSpec scanStringParsingClass(KnownType type) {
 		assert isStringParsingClass(type);
 		var clazz = type.rawClass();
 		if (clazz.isEnum()) {
@@ -346,7 +354,7 @@ public class TypeScanner {
 		} catch (NoSuchMethodException | IllegalAccessException e) {
 			throw new IllegalStateException("Unexpected error accessing record constructor for " + recordClass, e);
 		}
-		return new TypedHandle(constructor, DataType.of(recordClass), componentsByName.values().stream().map(FixedMapMember::dataType).toList());
+		return new TypedHandle(constructor, DataType.known(recordClass), componentsByName.values().stream().map(FixedMapMember::dataType).toList());
 	}
 
 	private FixedMapMember scanRecordComponent(RecordComponent c, Map<String, FixedMapMember> overrides) {
@@ -359,7 +367,7 @@ public class TypeScanner {
 		} catch (IllegalAccessException e) {
 			throw new IllegalStateException("Unexpected error accessing record component accessor for " + c, e);
 		}
-		var accessor = new TypedHandle(mh, DataType.of(c.getType()), List.of(DataType.of(c.getDeclaringRecord())));
+		var accessor = new TypedHandle(mh, DataType.known(c.getGenericType()), List.of(DataType.known(c.getDeclaringRecord())));
 
 		DataType type = DataType.of(c.getGenericType());
 		JsonValueSpec componentSpec = refNode(type);

@@ -1,6 +1,7 @@
 package works.bosk.json.mapping.spec;
 
 import works.bosk.json.types.DataType;
+import works.bosk.json.types.DataType.KnownType;
 
 import static works.bosk.json.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
 
@@ -11,8 +12,8 @@ public record BoxedPrimitiveSpec(PrimitiveNumberNode child) implements ScalarSpe
 	}
 
 	@Override
-	public DataType.KnownType dataType() {
-		return DataType.of(targetClass());
+	public KnownType dataType() {
+		return DataType.known(targetClass());
 	}
 
 	public Class<? extends Number> targetClass() {

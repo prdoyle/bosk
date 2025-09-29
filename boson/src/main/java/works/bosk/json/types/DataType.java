@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -21,17 +22,22 @@ public sealed interface DataType {
 	PrimitiveType FLOAT = new PrimitiveType(float.class);
 	PrimitiveType DOUBLE = new PrimitiveType(double.class);
 	PrimitiveType CHAR = new PrimitiveType(char.class);
-	InstanceType STRING = (InstanceType) DataType.of(String.class);
-	InstanceType OBJECT = (InstanceType) DataType.of(Object.class);
+	BoundType STRING = (BoundType) DataType.of(String.class);
+	BoundType OBJECT = (BoundType) DataType.of(Object.class);
 
-	static KnownType of(Class<?> type) {
-		return (KnownType) DataType.of((Type)type);
+	static KnownType known(Type type) {
+		return (KnownType) of(type);
 	}
 
 	static DataType of(Type type) {
 		if (type instanceof Class<?> clazz) {
 			if (clazz.isArray()) {
-				return new ArrayType(of(clazz.getComponentType()));
+				var ct = of(clazz.getComponentType());
+				if (ct instanceof KnownType kt) {
+					return new ArrayType(kt);
+				} else {
+					return new UnknownArrayType((UnknownType) ct);
+				}
 			} else if (clazz.isPrimitive()) {
 				return new PrimitiveType(clazz);
 			} else if (clazz.getTypeParameters().length == 0) {
@@ -39,12 +45,14 @@ public sealed interface DataType {
 			} else {
 				return new ErasedType(clazz);
 			}
-		} else if (type instanceof ParameterizedType parameterizedType) {
-			return ofParameterized(parameterizedType);
-		} else if (type instanceof java.lang.reflect.TypeVariable<?> typeVariable) {
-			return ofVariable(typeVariable);
-		} else if (type instanceof java.lang.reflect.WildcardType wildcardType) {
-			return ofWildcard(wildcardType);
+		} else if (type instanceof ParameterizedType pt) {
+			return new BoundType(
+				(Class<?>) pt.getRawType(),
+				Stream.of(pt.getActualTypeArguments()).toList());
+		} else if (type instanceof java.lang.reflect.TypeVariable<?> tv) {
+			return ofVariable(tv);
+		} else if (type instanceof java.lang.reflect.WildcardType w) {
+			return ofWildcard(w);
 		} else if (type instanceof GenericArrayType t) {
 			var elementType = DataType.of(t.getGenericComponentType());
 			return switch (elementType) {
@@ -59,11 +67,11 @@ public sealed interface DataType {
 		assert wildcardType.getLowerBounds().length <= 1 && wildcardType.getUpperBounds().length <= 1;
 		if (wildcardType.getLowerBounds().length == 1) {
 			assert wildcardType.getUpperBounds()[0].equals(Object.class);
-			return new LowerBoundedWildcardType(DataType.of(wildcardType.getLowerBounds()[0]));
+			return new LowerBoundedWildcardType(wildcardType.getLowerBounds()[0]);
 		} else if (wildcardType.getUpperBounds()[0].equals(Object.class)) {
 			return new UnboundedWildcardType();
 		} else {
-			return new UpperBoundedWildcardType(DataType.of(wildcardType.getUpperBounds()[0]));
+			return new UpperBoundedWildcardType(wildcardType.getUpperBounds()[0]);
 		}
 	}
 
@@ -71,42 +79,58 @@ public sealed interface DataType {
 		if (typeVariable.getBounds().length == 1 && typeVariable.getBounds()[0].equals(Object.class)) {
 			return new TypeVariable(typeVariable.getName(), List.of());
 		} else {
-			return new TypeVariable(typeVariable.getName(),
-				Stream.of(typeVariable.getBounds())
-					.map(DataType::of)
-					.toList());
+			return new TypeVariable(typeVariable.getName(), Stream.of(typeVariable.getBounds()).toList());
 		}
 	}
 
-	static BoundType ofParameterized(ParameterizedType parameterizedType) {
-		Class<?> rawType = (Class<?>) parameterizedType.getRawType();
-		List<DataType> typeArguments = Stream.of(parameterizedType.getActualTypeArguments())
-			.map(DataType::of)
-			.toList();
-		return new BoundType(rawType, typeArguments);
+	/**
+	 * Returns true if the given type is described by a {@link DataType}
+	 * containing known {@link UnknownType}s.
+	 */
+	private static boolean isFullyDeeplyKnown(Type type, Set<Type> memo) {
+		if (memo.add(type)) {
+			return switch (type) {
+				case Class<?> clazz -> {
+					if (clazz.isArray()) {
+						yield isFullyDeeplyKnown(clazz.getComponentType(), memo);
+					} else if (clazz.isPrimitive()) {
+						yield true;
+					} else {
+						// If this class has type parameters, then it has been erased,
+						// so it's unknown.
+						yield clazz.getTypeParameters().length == 0;
+					}
+				}
+				case ParameterizedType pt -> Stream.of(pt.getActualTypeArguments())
+					.allMatch(arg -> isFullyDeeplyKnown(arg, memo));
+				default -> false;
+			};
+		} else {
+			// This is the case where we hit a cycle before we hit a known type.
+			// We'd quit if we ever saw something unknown.
+			// If we're in a cycle, there's no need to sound the alarm yet.
+			// We will report the problem when we encounter it.
+			return true;
+		}
 	}
 
 	static DataType of(TypeReference<?> ref) {
 		return of(ref.reflectionType());
 	}
 
-	/**
-	 * A {@link DataType} whose {@link #rawClass} is known.
-	 */
-	sealed interface KnownType extends DataType {
-		Class<?> rawClass();
+	boolean isAssignableFrom(DataType other);
+
+	default boolean isAssignableFrom(Type type) {
+		return isAssignableFrom(DataType.of(type));
 	}
 
-	boolean isAssignableFrom(KnownType other);
+	default boolean isAssignableFrom(TypeReference<?> ref) {
+		return isAssignableFrom(DataType.of(ref));
+	}
 
 	/**
-	 * A {@link DataType} whose class is not known at compile time,
-	 * such as a {@link TypeVariable}.
-	 * <p>
-	 * In general, we have little use for these, so we don't keep rich
-	 * information about them.
-	 * In the context of high-performance JSON processing,
-	 * they should be avoided.
+	 * A {@link DataType} with at least one wildcard or type variable.
+	 * Also includes {@link ErasedType}.
 	 */
 	sealed interface UnknownType extends DataType { }
 
@@ -116,8 +140,9 @@ public sealed interface DataType {
 		}
 
 		@Override
-		public boolean isAssignableFrom(KnownType other) {
-			return rawClass.isAssignableFrom(other.rawClass());
+		public boolean isAssignableFrom(DataType other) {
+			return other instanceof PrimitiveType(var otherRawClass)
+				&& rawClass.isAssignableFrom(otherRawClass);
 		}
 
 		@Override
@@ -133,7 +158,7 @@ public sealed interface DataType {
 		}
 
 		@Override
-		public boolean isAssignableFrom(KnownType other) {
+		public boolean isAssignableFrom(DataType other) {
 			return other instanceof ArrayType(var otherElementType)
 				&& elementType.isAssignableFrom(otherElementType);
 		}
@@ -151,7 +176,7 @@ public sealed interface DataType {
 		}
 
 		@Override
-		public boolean isAssignableFrom(KnownType other) {
+		public boolean isAssignableFrom(DataType other) {
 			return switch (other) {
 				case ArrayType(var otherElementType) -> elementType.isAssignableFrom(otherElementType);
 				default -> false;
@@ -159,9 +184,17 @@ public sealed interface DataType {
 		}
 	}
 
-	sealed interface InstanceType extends KnownType {
+	/**
+	 * A {@link DataType} representing a class or interface type,
+	 */
+	sealed interface KnownType extends DataType {
 		Class<?> rawClass();
+	}
 
+	/**
+	 * Represents a class or interface type.
+	 */
+	sealed interface InstanceType extends KnownType {
 		/**
 		 * @return the type of the generic parameter of {@code targetClass} used by this type.
 		 * For example, if this type inherits (directly or indirectly) {@code List<String>),
@@ -169,10 +202,18 @@ public sealed interface DataType {
 		 */
 		default DataType parameterType(Class<?> targetClass, int parameterIndex) {
 			assert targetClass.isAssignableFrom(this.rawClass());
+			return DataType.of(parameterReflectionType(targetClass, parameterIndex));
+		}
+
+		/**
+		 * Like {@link #parameterType(Class, int)} but returns the {@link Type} directly.
+		 */
+		default Type parameterReflectionType(Class<?> targetClass, int parameterIndex) {
+			assert targetClass.isAssignableFrom(this.rawClass());
 			if (targetClass.equals(this.rawClass())) {
 				return switch (this) {
-					case BoundType g -> g.typeArguments().get(parameterIndex);
-					case ErasedType r -> DataType.ofVariable(r.rawClass().getTypeParameters()[parameterIndex]);
+					case BoundType g -> g.bindings.get(parameterIndex);
+					case ErasedType r -> r.rawClass().getTypeParameters()[parameterIndex];
 				};
 			} else {
 				// First, find some immediate supertype that is a subtype of targetClass.
@@ -198,28 +239,26 @@ public sealed interface DataType {
 				// The right answer is String.
 
 				// First, let's recurse into the superclass...
-				var candidate = immediateSuperType.parameterType(targetClass, parameterIndex);
+				var candidate = immediateSuperType.parameterReflectionType(targetClass, parameterIndex);
 
-				if (candidate instanceof TypeVariable(var tvName, _)) {
+				if (candidate instanceof java.lang.reflect.TypeVariable<?> tv) {
 					// Now the candidate type would be V, in which case
 					// we want to map that to String.
 					var typeParameters = rawClass().getTypeParameters();
 					for (int i = 0; i < typeParameters.length; i++) {
-						if (typeParameters[i].getName().equals(tvName)) {
-							return parameterType(rawClass(), i);
+						if (typeParameters[i].getName().equals(tv.getName())) {
+							return parameterReflectionType(rawClass(), i);
 						}
 					}
-					throw new IllegalStateException("Type variable " + tvName + " not found in " + targetClass);
+					throw new IllegalStateException("Type variable " + tv.getName() + " not found in " + targetClass);
 				} else {
 					return candidate;
 				}
 			}
-
 		}
 	}
-
 	/**
-	 * A {@link InstanceType} with at least some type information erased.
+	 * A {@link KnownType} with at least some type information erased.
 	 */
 	record ErasedType(Class<?> rawClass) implements InstanceType {
 		public ErasedType {
@@ -234,60 +273,55 @@ public sealed interface DataType {
 		}
 
 		@Override
-		public boolean isAssignableFrom(KnownType other) {
+		public boolean isAssignableFrom(DataType other) {
 			// More lax than most isAssignableFrom implementations.
 			// Erased types are used when the user wants to ignore generic type parameters.
-			return rawClass.isAssignableFrom(other.rawClass());
+			return other instanceof KnownType k && rawClass.isAssignableFrom(k.rawClass());
 		}
 	}
 
 	/**
-	 * A {@link InstanceType} accompanied by generic type information.
+	 * An {@link InstanceType} accompanied by generic type information.
 	 * <p>
 	 * The parameters could be {@link UnknownType}s, so this doesn't
 	 * necessarily mean it's a fully known type.
 	 * <p>
 	 * For ordinary classes, {@code typeArguments} will be empty,
-	 * indicating that the class has no type parameters,
-	 * yet we still call it a (trivial) "generic type"
-	 * to distinguish it from {@link ErasedType},
-	 * which asserts that there exist generic type parameters left unspecified,
-	 * which would be represented as one or more {@link TypeVariable}s.
+	 * indicating that the class has no type parameters.
 	 */
-	record BoundType(Class<?> rawClass, List<DataType> typeArguments) implements InstanceType {
-
-		@Override
-		public String toString() {
-			if (typeArguments.isEmpty()) {
-				return rawClass.getSimpleName();
-			} else {
-				return rawClass.getSimpleName() + "<"
-					+ typeArguments.stream().map(DataType::toString).collect(joining(","))
-					+ ">";
-			}
+	record BoundType(Class<?> rawClass, List<Type> bindings) implements InstanceType {
+		DataType typeArgument(int index) {
+			return DataType.of(bindings().get(index));
 		}
 
-		@Override
-		public boolean isAssignableFrom(KnownType candidate) {
-			if (!rawClass.isAssignableFrom(candidate.rawClass())) {
+		public Stream<DataType> typeArguments() {
+			return this.bindings().stream().map(DataType::of);
+		}
+
+		public boolean isAssignableFrom(DataType candidateType) {
+			if (!(candidateType instanceof KnownType candidate)) {
+				// Known types can't be assignable from unknown ones
+				return false;
+			}
+			if (!rawClass().isAssignableFrom(candidate.rawClass())) {
 				return false;
 			}
 
 			return switch (candidate) {
-				case ArrayType _ -> Object.class.equals(rawClass);
+				case ArrayType _ -> Object.class.equals(rawClass());
 				case PrimitiveType _ -> false; // No instance type matches any primitive
-				case ErasedType _ -> true; // TODO: is this too permissive?
 				case BoundType bt -> isAssignableFrom(bt);
+				case ErasedType _ -> true; // Seems aggressive, but people use erased types when they don't want to think about generics
 			};
 
 		}
 
 		private boolean isAssignableFrom(BoundType candidate) {
 			// Collect all type variable bindings.
-			Map<String, DataType> typeVariableBindings = new HashMap<>();
-			for (int i = 0; i < typeArguments.size(); i++) {
-				DataType patternArg = typeArguments.get(i);
-				DataType candidateParameter = candidate.parameterType(rawClass, i);
+			Map<String, Type> typeVariableBindings = new HashMap<>();
+			for (int i = 0; i < bindings().size(); i++) {
+				DataType patternArg = typeArgument(i);
+				Type candidateParameter = candidate.parameterReflectionType(rawClass(), i);
 				if (patternArg instanceof TypeVariable tv) {
 					var existing = typeVariableBindings.put(tv.name(), candidateParameter);
 					if (existing != null && !existing.equals(candidateParameter)) {
@@ -300,24 +334,24 @@ public sealed interface DataType {
 			// For each type argument with bounds that are themselves type variables,
 			// substitute the values of those bindings.
 			List<DataType> resolvedArguments = new ArrayList<>();
-			typeArguments.forEach(arg -> {
+			typeArguments().forEach(arg -> {
 				switch (arg) {
 					case UpperBoundedWildcardType(var upperBound)
-						when (upperBound instanceof TypeVariable(var boundName, _)) -> {
+						when (upperBound instanceof java.lang.reflect.TypeVariable<?> tv) -> {
 						resolvedArguments.add(new UpperBoundedWildcardType(
-							typeVariableBindings.getOrDefault(boundName, upperBound)
+							typeVariableBindings.getOrDefault(tv.getName(), upperBound)
 						));
 					}
 					case LowerBoundedWildcardType( var lowerBound)
-						when (lowerBound instanceof TypeVariable(var boundName, _)) -> {
+						when (lowerBound instanceof java.lang.reflect.TypeVariable<?> tv) -> {
 						resolvedArguments.add(new LowerBoundedWildcardType(
-							typeVariableBindings.getOrDefault(boundName, lowerBound)
+							typeVariableBindings.getOrDefault(tv.getName(), lowerBound)
 						));
 					}
 					case TypeVariable(var name, var bounds) -> {
 						TypeVariable resolved = new TypeVariable(name, bounds.stream().map(b -> {
-							if (b instanceof TypeVariable(var boundName, _)) {
-								return typeVariableBindings.getOrDefault(boundName, b);
+							if (b instanceof java.lang.reflect.TypeVariable<?> tv) {
+								return typeVariableBindings.getOrDefault(tv.getName(), b);
 							} else {
 								return b;
 							}
@@ -330,7 +364,7 @@ public sealed interface DataType {
 
 			for (int i = 0; i < resolvedArguments.size(); i++) {
 				DataType patternArg = resolvedArguments.get(i);
-				DataType candidateParameter = candidate.parameterType(rawClass, i);
+				DataType candidateParameter = candidate.parameterType(rawClass(), i);
 				if (!isAssignableTypeArgument(patternArg, candidateParameter)) {
 					return false;
 				}
@@ -353,21 +387,33 @@ public sealed interface DataType {
 			return switch (patternArg) {
 				case UnboundedWildcardType _ ->
 					true;
-				case UpperBoundedWildcardType(KnownType upperBound) ->
-					upperBound.isAssignableFrom(candidate);
-				case LowerBoundedWildcardType(KnownType lowerBound) ->
+				case UpperBoundedWildcardType(Type upperBound) ->
+					DataType.of(upperBound).isAssignableFrom(candidate);
+				case LowerBoundedWildcardType(Type lowerBound) ->
 					candidate.isAssignableFrom(lowerBound);
 				case TypeVariable tv ->
-					tv.upperBounds().stream().allMatch(bound -> bound.isAssignableFrom(candidate));
+					tv.upperBounds().stream().allMatch(bound -> DataType.of(bound).isAssignableFrom(candidate));
 				default ->
 					patternArg.equals(candidate); // Generics are neither covariant nor contravariant
 			};
 
 		}
 
+		@Override
+		public String toString() {
+			if (this.bindings().isEmpty()) {
+				return this.rawClass().getSimpleName();
+			} else {
+				return this.rawClass().getSimpleName() + "<"
+					+ this.bindings().stream()
+						.map(Type::toString)
+						.collect(joining(","))
+					+ ">";
+			}
+		}
 	}
 
-	record TypeVariable(String name, List<DataType> upperBounds) implements UnknownType {
+	record TypeVariable(String name, List<Type> upperBounds) implements UnknownType {
 
 		public TypeVariable(String name) {
 			this(name, List.of());
@@ -379,13 +425,14 @@ public sealed interface DataType {
 				return name;
 			} else {
 				return name + " extends "
-					+ upperBounds.stream().map(DataType::toString).collect(joining(" & "));
+					+ upperBounds.stream().map(Type::toString).collect(joining(" & "));
 			}
 		}
 
 		@Override
-		public boolean isAssignableFrom(KnownType other) {
-			return upperBounds.stream().allMatch(bound -> bound.isAssignableFrom(other));
+		public boolean isAssignableFrom(DataType other) {
+			return other instanceof KnownType
+				&& upperBounds.stream().allMatch(bound -> DataType.of(bound).isAssignableFrom(other));
 		}
 	}
 
@@ -398,37 +445,33 @@ public sealed interface DataType {
 		}
 
 		@Override
-		public boolean isAssignableFrom(KnownType other) {
-			return true;
+		public boolean isAssignableFrom(DataType other) {
+			return other instanceof KnownType;
 		}
 	}
 
-	record UpperBoundedWildcardType(DataType upperBound) implements WildcardType {
+	record UpperBoundedWildcardType(Type upperBound) implements WildcardType {
 		@Override
 		public String toString() {
 			return "? extends " + upperBound;
 		}
 
 		@Override
-		public boolean isAssignableFrom(KnownType other) {
-			return upperBound.isAssignableFrom(other);
+		public boolean isAssignableFrom(DataType other) {
+			return other instanceof KnownType && DataType.of(upperBound).isAssignableFrom(other);
 		}
 	}
 
-	record LowerBoundedWildcardType(DataType lowerBound) implements WildcardType {
+	record LowerBoundedWildcardType(Type lowerBound) implements WildcardType {
 		@Override
 		public String toString() {
 			return "? super " + lowerBound;
 		}
 
 		@Override
-		public boolean isAssignableFrom(KnownType other) {
-			return switch (lowerBound) {
-				case KnownType k -> k.isAssignableFrom(other);
-				case TypeVariable v -> v.upperBounds().stream().allMatch(b -> b.isAssignableFrom(other));
-				case WildcardType _ -> false; // Can't make sense of "? super ?"
-				case UnknownArrayType _ -> false; // Can't make sense of "? super T[]" for now
-			};
+		public boolean isAssignableFrom(DataType other) {
+			return other instanceof KnownType && other.isAssignableFrom(lowerBound);
 		}
 	}
+
 }

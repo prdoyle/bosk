@@ -7,6 +7,7 @@ import java.lang.reflect.RecordComponent;
 import java.util.List;
 import java.util.stream.Stream;
 import works.bosk.json.types.DataType;
+import works.bosk.json.types.DataType.KnownType;
 
 import static works.bosk.json.types.DataType.BOOLEAN;
 import static works.bosk.json.types.DataType.OBJECT;
@@ -25,14 +26,14 @@ public final class TypedHandles {
 		} catch (IllegalAccessException e) {
 			throw new IllegalArgumentException("Can't access canonical constructor of " + recordType);
 		}
-		DataType.KnownType recordDataType = DataType.of(recordType);
+		KnownType recordDataType = DataType.known(recordType); // Records can have unknown types! But we don't support that here.
 		return new TypedHandle(
 			mh,
 			recordDataType,
 			Stream.of(recordType.getRecordComponents())
 				.map(rc -> {
 					var dt = DataType.of(rc.getType());
-					if (dt instanceof DataType.KnownType kt) {
+					if (dt instanceof KnownType kt) {
 						return kt;
 					} else {
 						throw new IllegalArgumentException("Record component " + rc + " has unknown type " + dt);
@@ -49,10 +50,10 @@ public final class TypedHandles {
 		} catch (IllegalAccessException e) {
 			throw new IllegalArgumentException("Can't access accessor " + rc.getAccessor() + " of " + rc.getDeclaringRecord());
 		}
-		return new TypedHandle(mh, DataType.of(rc.getType()), List.of(DataType.of(rc.getDeclaringRecord())));
+		return new TypedHandle(mh, DataType.known(rc.getType()), List.of(DataType.known(rc.getDeclaringRecord())));
 	}
 
-	public static TypedHandle constant(DataType.KnownType type, Object value) {
+	public static TypedHandle constant(KnownType type, Object value) {
 		return new TypedHandle(MethodHandles.constant(type.rawClass(), value), type, List.of());
 	}
 

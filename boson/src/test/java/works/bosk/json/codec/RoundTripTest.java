@@ -134,7 +134,7 @@ public record RoundTripTest(Settings settings) {
 	@InjectedTest
 	void representAs() throws IOException {
 		var node = RepresentAsSpec.as(new StringNode(),
-			DataType.of(DayOfWeek.class),
+			DataType.known(DayOfWeek.class),
 			DayOfWeek::name,
 			DayOfWeek::valueOf
 		);

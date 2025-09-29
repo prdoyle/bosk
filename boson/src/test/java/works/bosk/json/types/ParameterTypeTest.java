@@ -24,35 +24,35 @@ class ParameterTypeTest {
 	@Test
 	void directSuper_interface_inheritedConcrete() {
 		interface C extends List<String> {}
-		InstanceType cType = (InstanceType) DataType.of(new TypeReference<C>() { });
+		InstanceType cType = instanceType(new TypeReference<C>() { });
 		assertEquals(STRING, cType.parameterType(List.class, 0));
 	}
 
 	@Test
 	void directSuper_interface_suppliedConcrete() {
 		interface C<C0> extends List<C0> {}
-		InstanceType cType = (InstanceType) DataType.of(new TypeReference<C<String>>() { });
+		InstanceType cType = instanceType(new TypeReference<C<String>>() { });
 		assertEquals(STRING, cType.parameterType(List.class, 0));
 	}
 
 	@Test
 	void directSuper_interface_suppliedWildcard() {
 		interface C<C0> extends List<C0> {}
-		InstanceType cType = (InstanceType) DataType.of(new TypeReference<C<?>>() { });
+		InstanceType cType = instanceType(new TypeReference<C<?>>() { });
 		assertEquals(new UnboundedWildcardType(), cType.parameterType(List.class, 0));
 	}
 
 	@Test
 	<V> void directSuper_interface_suppliedVariable() {
 		interface C<C0> extends List<C0> {}
-		InstanceType cType = (InstanceType) DataType.of(new TypeReference<C<V>>() { });
+		InstanceType cType = instanceType(new TypeReference<C<V>>() { });
 		assertEquals(VARIABLE_V, cType.parameterType(List.class, 0));
 	}
 
 	@Test
 	void directSuper_class_inheritedConcrete() {
 		class C extends ArrayList<String> {}
-		InstanceType cType = (InstanceType) DataType.of(new TypeReference<C>() { });
+		InstanceType cType = instanceType(new TypeReference<C>() { });
 		assertEquals(STRING, cType.parameterType(ArrayList.class, 0));
 		assertEquals(STRING, cType.parameterType(List.class, 0));
 	}
@@ -61,7 +61,7 @@ class ParameterTypeTest {
 	void indirectSuper_interface_inheritedConcrete() {
 		interface C extends List<String> {}
 		interface D extends C {}
-		InstanceType dType = (InstanceType) DataType.of(new TypeReference<D>() { });
+		InstanceType dType = instanceType(new TypeReference<D>() { });
 		assertEquals(STRING, dType.parameterType(List.class, 0));
 	}
 
@@ -69,7 +69,7 @@ class ParameterTypeTest {
 	void indirectSuper_interface_intermediateConcrete() {
 		interface C<C0> extends List<C0> {}
 		interface D extends C<String> {}
-		InstanceType dType = (InstanceType) DataType.of(new TypeReference<D>() { });
+		InstanceType dType = instanceType(new TypeReference<D>() { });
 		assertEquals(STRING, dType.parameterType(List.class, 0));
 	}
 
@@ -77,7 +77,7 @@ class ParameterTypeTest {
 	void indirectSuper_interface_suppliedConcrete() {
 		interface C<C0> extends List<C0> {}
 		interface D<D0> extends C<D0> {}
-		InstanceType dType = (InstanceType) DataType.of(new TypeReference<D<String>>() { });
+		InstanceType dType = instanceType(new TypeReference<D<String>>() { });
 		assertEquals(STRING, dType.parameterType(List.class, 0));
 	}
 
@@ -85,23 +85,22 @@ class ParameterTypeTest {
 	void indirectSuper_interface_suppliedWildcard() {
 		interface C<C0> extends List<C0> {}
 		interface D<D0> extends C<D0> {}
-		var string = DataType.of(String.class);
 
-		InstanceType unbounded = (InstanceType) DataType.of(new TypeReference<D<?>>() { });
+		InstanceType unbounded = instanceType(new TypeReference<D<?>>() { });
 		assertEquals(new UnboundedWildcardType(), unbounded.parameterType(List.class, 0));
 
-		InstanceType upperBounded = (InstanceType) DataType.of(new TypeReference<D<? extends String>>() { });
-		assertEquals(new UpperBoundedWildcardType(string), upperBounded.parameterType(List.class, 0));
+		InstanceType upperBounded = instanceType(new TypeReference<D<? extends String>>() { });
+		assertEquals(new UpperBoundedWildcardType(String.class), upperBounded.parameterType(List.class, 0));
 
-		InstanceType lowerBounded = (InstanceType) DataType.of(new TypeReference<D<? super String>>() { });
-		assertEquals(new LowerBoundedWildcardType(string), lowerBounded.parameterType(List.class, 0));
+		InstanceType lowerBounded = instanceType(new TypeReference<D<? super String>>() { });
+		assertEquals(new LowerBoundedWildcardType(String.class), lowerBounded.parameterType(List.class, 0));
 	}
 
 	@Test
 	<V> void indirectSuper_interface_suppliedVariable() {
 		interface C<C0> extends List<C0> {}
 		interface D<D0> extends C<D0> {}
-		InstanceType dType = (InstanceType) DataType.of(new TypeReference<D<V>>() { });
+		InstanceType dType = instanceType(new TypeReference<D<V>>() { });
 		assertEquals(VARIABLE_V, dType.parameterType(List.class, 0));
 	}
 
@@ -109,7 +108,7 @@ class ParameterTypeTest {
 	void indirectSuper_class_inheritedConcrete() {
 		class C extends ArrayList<String> {}
 		class D extends C {}
-		InstanceType dType = (InstanceType) DataType.of(new TypeReference<D>() { });
+		InstanceType dType = instanceType(new TypeReference<D>() { });
 		assertEquals(STRING, dType.parameterType(ArrayList.class, 0));
 		assertEquals(STRING, dType.parameterType(List.class, 0));
 	}
@@ -119,7 +118,7 @@ class ParameterTypeTest {
 		interface C<C0, C1> {}
 		interface D<D0, D1> extends C<D1, D0> {}
 		interface E<E0, E1> extends D<E1, E0> {}
-		InstanceType eType = (InstanceType) DataType.of(new TypeReference<E<String, Integer>>() { });
+		InstanceType eType = instanceType(new TypeReference<E<String, Integer>>() { });
 
 		assertEquals(STRING, eType.parameterType(E.class, 0));
 		assertEquals(INTEGER, eType.parameterType(E.class, 1));
@@ -128,4 +127,9 @@ class ParameterTypeTest {
 		assertEquals(STRING, eType.parameterType(C.class, 0));
 		assertEquals(INTEGER, eType.parameterType(C.class, 1));
 	}
+
+	public static InstanceType instanceType(TypeReference<?> ref) {
+		return (InstanceType) DataType.of(ref);
+	}
+
 }
