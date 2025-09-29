@@ -3,7 +3,10 @@ package works.bosk.json.types;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -53,22 +56,26 @@ public sealed interface DataType {
 	}
 
 	static DataType ofWildcard(java.lang.reflect.WildcardType wildcardType) {
+		assert wildcardType.getLowerBounds().length <= 1 && wildcardType.getUpperBounds().length <= 1;
 		if (wildcardType.getLowerBounds().length == 1) {
+			assert wildcardType.getUpperBounds()[0].equals(Object.class);
 			return new LowerBoundedWildcardType(DataType.of(wildcardType.getLowerBounds()[0]));
-		} else if (wildcardType.getUpperBounds().length == 1
-			&& !wildcardType.getUpperBounds()[0].equals(Object.class)) {
-			return new UpperBoundedWildcardType(DataType.of(wildcardType.getUpperBounds()[0]));
-		} else {
-			assert wildcardType.getLowerBounds().length == 0 && wildcardType.getUpperBounds().length == 0;
+		} else if (wildcardType.getUpperBounds()[0].equals(Object.class)) {
 			return new UnboundedWildcardType();
+		} else {
+			return new UpperBoundedWildcardType(DataType.of(wildcardType.getUpperBounds()[0]));
 		}
 	}
 
 	static TypeVariable ofVariable(java.lang.reflect.TypeVariable<?> typeVariable) {
-		return new TypeVariable(typeVariable.getName(),
-			Stream.of(typeVariable.getBounds())
-				.map(DataType::of)
-				.toList());
+		if (typeVariable.getBounds().length == 1 && typeVariable.getBounds()[0].equals(Object.class)) {
+			return new TypeVariable(typeVariable.getName(), List.of());
+		} else {
+			return new TypeVariable(typeVariable.getName(),
+				Stream.of(typeVariable.getBounds())
+					.map(DataType::of)
+					.toList());
+		}
 	}
 
 	static BoundType ofParameterized(ParameterizedType parameterizedType) {
@@ -248,6 +255,7 @@ public sealed interface DataType {
 	 * which would be represented as one or more {@link TypeVariable}s.
 	 */
 	record BoundType(Class<?> rawClass, List<DataType> typeArguments) implements InstanceType {
+
 		@Override
 		public String toString() {
 			if (typeArguments.isEmpty()) {
@@ -275,18 +283,55 @@ public sealed interface DataType {
 		}
 
 		private boolean isAssignableFrom(BoundType candidate) {
-			// Step 2 — Check type argument arity
-			List<DataType> candidateParams = candidate.typeArguments();
-			if (typeArguments.size() != candidateParams.size()) {
-				return false; // Arity mismatch
-			}
-
-			// Step 3 — Check each type argument according to containment rules
+			// Collect all type variable bindings.
+			Map<String, DataType> typeVariableBindings = new HashMap<>();
 			for (int i = 0; i < typeArguments.size(); i++) {
 				DataType patternArg = typeArguments.get(i);
-				DataType candidateArg = candidateParams.get(i);
+				DataType candidateParameter = candidate.parameterType(rawClass, i);
+				if (patternArg instanceof TypeVariable tv) {
+					var existing = typeVariableBindings.put(tv.name(), candidateParameter);
+					if (existing != null && !existing.equals(candidateParameter)) {
+						// Conflicting bindings for the same type variable
+						return false;
+					}
+				}
+			}
 
-				if (!isAssignableTypeArgument(patternArg, candidateArg)) {
+			// For each type argument with bounds that are themselves type variables,
+			// substitute the values of those bindings.
+			List<DataType> resolvedArguments = new ArrayList<>();
+			typeArguments.forEach(arg -> {
+				switch (arg) {
+					case UpperBoundedWildcardType(var upperBound)
+						when (upperBound instanceof TypeVariable(var boundName, _)) -> {
+						resolvedArguments.add(new UpperBoundedWildcardType(
+							typeVariableBindings.getOrDefault(boundName, upperBound)
+						));
+					}
+					case LowerBoundedWildcardType( var lowerBound)
+						when (lowerBound instanceof TypeVariable(var boundName, _)) -> {
+						resolvedArguments.add(new LowerBoundedWildcardType(
+							typeVariableBindings.getOrDefault(boundName, lowerBound)
+						));
+					}
+					case TypeVariable(var name, var bounds) -> {
+						TypeVariable resolved = new TypeVariable(name, bounds.stream().map(b -> {
+							if (b instanceof TypeVariable(var boundName, _)) {
+								return typeVariableBindings.getOrDefault(boundName, b);
+							} else {
+								return b;
+							}
+						}).toList());
+						resolvedArguments.add(resolved);
+					}
+					default -> resolvedArguments.add(arg);
+				}
+			});
+
+			for (int i = 0; i < resolvedArguments.size(); i++) {
+				DataType patternArg = resolvedArguments.get(i);
+				DataType candidateParameter = candidate.parameterType(rawClass, i);
+				if (!isAssignableTypeArgument(patternArg, candidateParameter)) {
 					return false;
 				}
 			}
@@ -295,8 +340,8 @@ public sealed interface DataType {
 		}
 
 		private boolean isAssignableTypeArgument(DataType patternArg, DataType candidateType) {
-			// Exact equality is trivially assignable
 			if (patternArg.equals(candidateType)) {
+				// Trivially assignable
 				return true;
 			}
 
@@ -305,33 +350,37 @@ public sealed interface DataType {
 				return false;
 			}
 
-			// Wildcard upper bound: candidate must be assignable to the bound
-			if (patternArg instanceof UpperBoundedWildcardType(KnownType upperBound)) {
-				return candidate.isAssignableFrom(upperBound);
-			}
+			return switch (patternArg) {
+				case UnboundedWildcardType _ ->
+					true;
+				case UpperBoundedWildcardType(KnownType upperBound) ->
+					upperBound.isAssignableFrom(candidate);
+				case LowerBoundedWildcardType(KnownType lowerBound) ->
+					candidate.isAssignableFrom(lowerBound);
+				case TypeVariable tv ->
+					tv.upperBounds().stream().allMatch(bound -> bound.isAssignableFrom(candidate));
+				default ->
+					patternArg.equals(candidate); // Generics are neither covariant nor contravariant
+			};
 
-			// Wildcard lower bound: bound must be assignable to candidate
-			if (patternArg instanceof LowerBoundedWildcardType(KnownType lowerBound)) {
-				return lowerBound.isAssignableFrom(candidate);
-			}
-
-			// Type variable: candidate must satisfy all upper bounds
-			if (patternArg instanceof TypeVariable tv) {
-				return tv.upperBounds().stream()
-					.allMatch(bound -> bound.isAssignableFrom(candidate));
-			}
-
-			// If the patterns are themselves parameterized,
-			// recurse to handle those.
-			return patternArg.isAssignableFrom(candidate);
 		}
 
 	}
 
 	record TypeVariable(String name, List<DataType> upperBounds) implements UnknownType {
+
+		public TypeVariable(String name) {
+			this(name, List.of());
+		}
+
 		@Override
 		public String toString() {
-			return "'" + name + "'";
+			if (upperBounds.isEmpty()) {
+				return name;
+			} else {
+				return name + " extends "
+					+ upperBounds.stream().map(DataType::toString).collect(joining(" & "));
+			}
 		}
 
 		@Override

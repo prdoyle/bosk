@@ -5,8 +5,11 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import works.bosk.json.types.DataType.ArrayType;
 import works.bosk.json.types.DataType.BoundType;
+import works.bosk.json.types.DataType.LowerBoundedWildcardType;
 import works.bosk.json.types.DataType.TypeVariable;
+import works.bosk.json.types.DataType.UnboundedWildcardType;
 import works.bosk.json.types.DataType.UnknownArrayType;
+import works.bosk.json.types.DataType.UpperBoundedWildcardType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -18,9 +21,8 @@ import static works.bosk.json.types.DataType.PrimitiveType.FLOAT;
 import static works.bosk.json.types.DataType.PrimitiveType.INT;
 import static works.bosk.json.types.DataType.PrimitiveType.LONG;
 import static works.bosk.json.types.DataType.PrimitiveType.SHORT;
-import static works.bosk.json.types.DataType.WILDCARD;
 
-class DataTypeTest {
+class DataTypeCreationTest {
 
 	@Test
 	void primitives() {
@@ -91,19 +93,24 @@ class DataTypeTest {
 
 	@Test
 	void wildcards() {
-		var upperBounded = new TypeReference<List<? extends Number>>() {
-		};
+		var unbounded = new TypeReference<List<?>>() { };
+		var expectedUnbounded = new BoundType(
+			List.class,
+			List.of(new UnboundedWildcardType())
+		);
+		assertEquals(expectedUnbounded, DataType.of(unbounded));
+
+		var upperBounded = new TypeReference<List<? extends Number>>() { };
 		var expectedUpperBounded = new BoundType(
 			List.class,
-			List.of(WILDCARD)
+			List.of(new UpperBoundedWildcardType(new BoundType(Number.class, List.of())))
 		);
 		assertEquals(expectedUpperBounded, DataType.of(upperBounded));
 
-		var lowerBounded = new TypeReference<List<? super Integer>>() {
-		};
+		var lowerBounded = new TypeReference<List<? super Integer>>() { };
 		var expectedLowerBounded = new BoundType(
 			List.class,
-			List.of(WILDCARD)
+			List.of(new LowerBoundedWildcardType(new BoundType(Integer.class, List.of())))
 		);
 		assertEquals(expectedLowerBounded, DataType.of(lowerBounded));
 	}
