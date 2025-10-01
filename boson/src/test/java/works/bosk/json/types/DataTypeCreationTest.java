@@ -7,11 +7,9 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import works.bosk.json.types.DataType.ArrayType;
 import works.bosk.json.types.DataType.BoundType;
-import works.bosk.json.types.DataType.LowerBoundedWildcardType;
 import works.bosk.json.types.DataType.TypeVariable;
-import works.bosk.json.types.DataType.UnboundedWildcardType;
 import works.bosk.json.types.DataType.UnknownArrayType;
-import works.bosk.json.types.DataType.UpperBoundedWildcardType;
+import works.bosk.json.types.DataType.WildcardType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -101,13 +99,13 @@ class DataTypeCreationTest {
 	@Test
 	void wildcards() {
 		var unbounded = (BoundType)DataType.of(new TypeReference<List<?>>() { });
-		assertEquals(new UnboundedWildcardType(), unbounded.typeArgument(0));
+		assertEquals(WildcardType.unbounded(), unbounded.typeArgument(0));
 
 		var upperBounded = (BoundType)DataType.of(new TypeReference<List<? extends Number>>() { });
-		assertEquals((new UpperBoundedWildcardType(Number.class)), upperBounded.typeArgument(0));
+		assertEquals((WildcardType.extends_(Number.class)), upperBounded.typeArgument(0));
 
 		var lowerBounded = (BoundType)DataType.of(new TypeReference<List<? super Integer>>() { });
-		assertEquals((new LowerBoundedWildcardType(Integer.class)), lowerBounded.typeArgument(0));
+		assertEquals((WildcardType.super_(Integer.class)), lowerBounded.typeArgument(0));
 	}
 
 	@Test

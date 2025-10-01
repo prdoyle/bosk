@@ -60,7 +60,7 @@ class TypeScannerTest {
 	void testTypeBound() throws IOException {
 		scanner.addLast(new Bundle(List.of(
 			new Directive(
-				new DataType.UpperBoundedWildcardType(Overridden.class),
+				DataType.WildcardType.extends_(Overridden.class),
 				t -> RepresentAsSpec.asInt(
 					t,
 					Overridden::value,

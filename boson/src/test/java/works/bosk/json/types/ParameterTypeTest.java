@@ -4,10 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import works.bosk.json.types.DataType.InstanceType;
-import works.bosk.json.types.DataType.LowerBoundedWildcardType;
 import works.bosk.json.types.DataType.TypeVariable;
-import works.bosk.json.types.DataType.UnboundedWildcardType;
-import works.bosk.json.types.DataType.UpperBoundedWildcardType;
+import works.bosk.json.types.DataType.WildcardType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -39,7 +37,7 @@ class ParameterTypeTest {
 	void directSuper_interface_suppliedWildcard() {
 		interface C<C0> extends List<C0> {}
 		InstanceType cType = instanceType(new TypeReference<C<?>>() { });
-		assertEquals(new UnboundedWildcardType(), cType.parameterType(List.class, 0));
+		assertEquals(WildcardType.unbounded(), cType.parameterType(List.class, 0));
 	}
 
 	@Test
@@ -87,13 +85,13 @@ class ParameterTypeTest {
 		interface D<D0> extends C<D0> {}
 
 		InstanceType unbounded = instanceType(new TypeReference<D<?>>() { });
-		assertEquals(new UnboundedWildcardType(), unbounded.parameterType(List.class, 0));
+		assertEquals(WildcardType.unbounded(), unbounded.parameterType(List.class, 0));
 
 		InstanceType upperBounded = instanceType(new TypeReference<D<? extends String>>() { });
-		assertEquals(new UpperBoundedWildcardType(String.class), upperBounded.parameterType(List.class, 0));
+		assertEquals(WildcardType.extends_(String.class), upperBounded.parameterType(List.class, 0));
 
 		InstanceType lowerBounded = instanceType(new TypeReference<D<? super String>>() { });
-		assertEquals(new LowerBoundedWildcardType(String.class), lowerBounded.parameterType(List.class, 0));
+		assertEquals(WildcardType.super_(String.class), lowerBounded.parameterType(List.class, 0));
 	}
 
 	@Test

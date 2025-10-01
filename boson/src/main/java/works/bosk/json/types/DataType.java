@@ -415,8 +415,8 @@ public sealed interface DataType {
 
 	record TypeVariable(String name, List<Type> upperBounds) implements UnknownType {
 
-		public TypeVariable(String name) {
-			this(name, List.of());
+		public TypeVariable(String name, Type...upperBounds) {
+			this(name, List.of(upperBounds));
 		}
 
 		@Override
@@ -436,7 +436,19 @@ public sealed interface DataType {
 		}
 	}
 
-	sealed interface WildcardType extends UnknownType { }
+	sealed interface WildcardType extends UnknownType {
+		static UnboundedWildcardType unbounded() {
+			return new UnboundedWildcardType();
+		}
+
+		static UpperBoundedWildcardType extends_(Type upperBound) {
+			return new UpperBoundedWildcardType(upperBound);
+		}
+
+		static LowerBoundedWildcardType super_(Type lowerBound) {
+			return new LowerBoundedWildcardType(lowerBound);
+		}
+	}
 
 	record UnboundedWildcardType() implements WildcardType {
 		@Override
