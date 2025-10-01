@@ -1,7 +1,9 @@
 package works.bosk.json.mapping.opt;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.SequencedMap;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.json.mapping.TypeMap;
@@ -31,32 +33,38 @@ import static works.bosk.json.mapping.spec.SpecNode.transform;
  */
 public class InlineScalarRefs {
 	final TypeMap typeMap;
+	final Set<JsonValueSpec> memo = new HashSet<>();
 
 	public InlineScalarRefs(TypeMap typeMap) {
 		this.typeMap = typeMap;
 	}
 
 	JsonValueSpec optimize(JsonValueSpec node) {
-		LOGGER.debug("Optimize {}", node);
-		JsonValueSpec result = switch (node) {
-			case TypeRefNode n -> maybeInline(n);
-			case ScalarSpec n -> n;
-			case MaybeNullSpec(MaybeNullSpec n) -> optimize(n); // Redundant nested MaybeNull
-			case MaybeNullSpec n -> transform(n, x ->
-				new MaybeNullSpec(optimize(x.child())));
-			case ParseCallbackSpec n -> transform(n, x ->
-				new ParseCallbackSpec(x.before(), optimize(x.child()), x.after()));
-			case RepresentAsSpec n -> transform(n, x ->
-				new RepresentAsSpec(optimize(x.representation()), x.toRepresentation(), x.fromRepresentation()));
-			case ArrayNode n -> transform(n, x ->
-				new ArrayNode(optimize(x.elementNode()), x.accumulator(), x.emitter()));
-			case UniformMapNode n -> transform(n, x ->
-				new UniformMapNode(x.keyNode(), optimize(x.valueNode()), x.accumulator(), x.emitter())); // TODO: optimize keyNode?
-			case FixedMapNode n -> transform(n, x ->
-				new FixedMapNode(optimizeMembers(x.memberSpecs()), x.finisher()));
-		};
-		LOGGER.debug("Optimized {}", result);
-		return result;
+		if (memo.add(node)) {
+			LOGGER.debug("Optimize {}", node);
+			JsonValueSpec result = switch (node) {
+				case TypeRefNode n -> maybeInline(n);
+				case ScalarSpec n -> n;
+				case MaybeNullSpec(MaybeNullSpec n) -> optimize(n); // Redundant nested MaybeNull
+				case MaybeNullSpec n -> transform(n, x ->
+					new MaybeNullSpec(optimize(x.child())));
+				case ParseCallbackSpec n -> transform(n, x ->
+					new ParseCallbackSpec(x.before(), optimize(x.child()), x.after()));
+				case RepresentAsSpec n -> transform(n, x ->
+					new RepresentAsSpec(optimize(x.representation()), x.toRepresentation(), x.fromRepresentation()));
+				case ArrayNode n -> transform(n, x ->
+					new ArrayNode(optimize(x.elementNode()), x.accumulator(), x.emitter()));
+				case UniformMapNode n -> transform(n, x ->
+					new UniformMapNode(x.keyNode(), optimize(x.valueNode()), x.accumulator(), x.emitter())); // TODO: optimize keyNode?
+				case FixedMapNode n -> transform(n, x ->
+					new FixedMapNode(optimizeMembers(x.memberSpecs()), x.finisher()));
+			};
+			LOGGER.debug("Optimized {}", result);
+			return result;
+		} else {
+			LOGGER.debug("Skipping {}", node);
+			return node;
+		}
 	}
 
 	SpecNode optimize(SpecNode node) {

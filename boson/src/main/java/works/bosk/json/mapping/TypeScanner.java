@@ -5,9 +5,11 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -55,6 +57,7 @@ import static works.bosk.json.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_
 public class TypeScanner {
 	final Map<KnownType, TypeRefNode> refs = new LinkedHashMap<>();
 	final TypeMap inProgress;
+	final Deque<Bundle> bundles = new ArrayDeque<>();
 	final Map<Class<? extends Record>, Map<String, FixedMapMember>> recordComponentOverrides = new HashMap<>();
 
 	public TypeScanner(TypeMap.Settings settings) {
@@ -98,9 +101,30 @@ public class TypeScanner {
 		}
 	}
 
+	/**
+	 * @param directives * are considered in order. The first matching directive is used.
+	 */
 	public record Bundle(List<Directive> directives) {}
 
-	public record Directive(DataType type, Function<KnownType, JsonValueSpec> spec) {}
+	public record Directive(DataType pattern, Function<KnownType, JsonValueSpec> spec) {}
+
+	/**
+	 * Adds a new configuration bundle that takes precedence over previously added bundles.
+	 * @return {@code this}
+	 */
+	public TypeScanner addFirst(Bundle bundle) {
+		bundles.addFirst(bundle);
+		return this;
+	}
+
+	/**
+	 * Adds a new configuration bundle that applies only if no directives from existing bundles match.
+	 * @return {@code this}
+	 */
+	public TypeScanner addLast(Bundle bundle) {
+		bundles.addLast(bundle);
+		return this;
+	}
 
 	public TypeScanner specifyRecordFields(Class<? extends Record> type, Map<String, FixedMapMember> componentsByName) {
 		var old = recordComponentOverrides.put(type, Map.copyOf(componentsByName));
@@ -135,12 +159,28 @@ public class TypeScanner {
 	}
 
 	private JsonValueSpec computeSpecNode(DataType type) {
+		if (type instanceof KnownType kt && findDirective(kt) instanceof Directive(var pattern, var spec)) {
+			LOGGER.debug("Type {} matched directive {}", type, pattern);
+			return spec.apply(kt);
+		}
 		return switch (type) {
 			case ArrayType t -> scanArray(t);
 			case BoundType t -> scanClass(t);
 			case PrimitiveType t -> scanPrimitive(t);
-			default -> throw new IllegalStateException("Unsupported type: " + type);
+			case DataType.UnknownType _, DataType.ErasedType _ ->
+				throw new IllegalStateException("Unsupported type: " + type);
 		};
+	}
+
+	private Directive findDirective(KnownType type) {
+		for (var bundle : bundles) {
+			for (var directive : bundle.directives()) {
+				if (directive.pattern().isAssignableFrom(type)) {
+					return directive;
+				}
+			}
+		}
+		return null;
 	}
 
 	private JsonValueSpec refNode(DataType type) {

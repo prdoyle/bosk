@@ -602,8 +602,8 @@ public class SpecInterpretingParser implements Parser {
 		private void assertNodeIsApplicable(SpecNode node) {
 			assert nodeIsApplicable(node): "Node must be applicable "
 				+ "@" + input.offset()
-				+ ": " + node
-				+ " |" + previewString() + "|";
+				+ " |" + previewString() + "|"
+				+ ": " + node;
 		}
 
 		private boolean nodeIsApplicable(SpecNode node) {
