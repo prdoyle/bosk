@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -96,6 +97,10 @@ public class TypeScanner {
 			throw new IllegalArgumentException("Multiple specifications for the same type " + type + ": " + old + " and " + spec);
 		}
 	}
+
+	public record Bundle(List<Directive> directives) {}
+
+	public record Directive(DataType type, Function<KnownType, JsonValueSpec> spec) {}
 
 	public TypeScanner specifyRecordFields(Class<? extends Record> type, Map<String, FixedMapMember> componentsByName) {
 		var old = recordComponentOverrides.put(type, Map.copyOf(componentsByName));
