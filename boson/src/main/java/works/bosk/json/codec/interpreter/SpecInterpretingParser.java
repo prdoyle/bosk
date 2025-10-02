@@ -205,7 +205,7 @@ public class SpecInterpretingParser implements Parser {
 							var acc = n.accumulator().creator().invoke();
 							resultValue = n.accumulator().finisher().invoke(acc);
 						} else {
-							stack.push(new MapAccumulator(n, parseScalar(n.keyNode())));
+							stack.push(new MapAccumulator(n, parseAny(n.keyNode())));
 							node = n.valueNode();
 							continue;
 						}
@@ -349,7 +349,7 @@ public class SpecInterpretingParser implements Parser {
 				if (nextTokenIs(END_OBJECT)) {
 					return n.accumulator().finisher().invoke(accumulator);
 				} else {
-					key = parseScalar(n.keyNode());
+					key = parseAny(n.keyNode());
 					return NO_RESULT;
 				}
 			}

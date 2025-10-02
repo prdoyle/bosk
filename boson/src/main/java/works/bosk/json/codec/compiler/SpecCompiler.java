@@ -55,9 +55,9 @@ import works.bosk.json.mapping.spec.MaybeNullSpec;
 import works.bosk.json.mapping.spec.ParseCallbackSpec;
 import works.bosk.json.mapping.spec.PrimitiveNumberNode;
 import works.bosk.json.mapping.spec.RepresentAsSpec;
+import works.bosk.json.mapping.spec.ScalarSpec;
 import works.bosk.json.mapping.spec.SpecNode;
 import works.bosk.json.mapping.spec.StringNode;
-import works.bosk.json.mapping.spec.StringSpec;
 import works.bosk.json.mapping.spec.TypeRefNode;
 import works.bosk.json.mapping.spec.UniformMapNode;
 import works.bosk.json.types.DataType;
@@ -300,10 +300,7 @@ public class SpecCompiler {
 
 			// Leaf nodes
 			case
-				BigNumberNode _,
-				BooleanNode _,
-				PrimitiveNumberNode _,
-				StringSpec _,
+				ScalarSpec _,
 				ComputedSpec _
 				-> { }
 		}

@@ -8,7 +8,7 @@ import works.bosk.json.types.DataType.KnownType;
  */
 public record EnumByNameNode(
 	Class<? extends Enum<?>> enumType
-) implements StringSpec {
+) implements ScalarSpec {
 	@SuppressWarnings("unchecked")
 	public static EnumByNameNode of(Class<?> enumType) {
 		assert Enum.class.isAssignableFrom(enumType);

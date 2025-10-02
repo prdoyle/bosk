@@ -75,6 +75,7 @@ public class TypeMap {
 		boolean fewerSwitches
 	) {
 		public static Settings DEFAULT = new Settings(true, false, true, false);
+		public static Settings RAW = new Settings(false, false, false, false);
 
 		public Settings withFewerSwitches() {
 			return new Settings(compiled, iterative, optimize, true);

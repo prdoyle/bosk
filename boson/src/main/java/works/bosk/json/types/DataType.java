@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import works.bosk.Catalog;
+import works.bosk.Entity;
 
 import static java.util.stream.Collectors.joining;
 
@@ -27,6 +29,10 @@ public sealed interface DataType {
 
 	static KnownType known(Type type) {
 		return (KnownType) of(type);
+	}
+
+	static KnownType known(TypeReference<Catalog<? extends Entity>> ref) {
+		return (KnownType) of(ref);
 	}
 
 	static DataType of(Type type) {
@@ -81,6 +87,16 @@ public sealed interface DataType {
 		} else {
 			return new TypeVariable(typeVariable.getName(), Stream.of(typeVariable.getBounds()).toList());
 		}
+	}
+
+	/**
+	 * @return a version of this {@link DataType} with all occurrences of {@code from}
+	 * replaced with {@code to}.
+	 */
+	default DataType substitute(Type from, Type to) {
+		return this.equals(DataType.of(from))
+			? DataType.of(to)
+			: this;
 	}
 
 	/**
@@ -158,6 +174,14 @@ public sealed interface DataType {
 		}
 
 		@Override
+		public DataType substitute(Type from, Type to) {
+			DataType fromDT = DataType.of(from);
+			return this.equals(fromDT)? DataType.of(to)
+				: elementType.equals(fromDT) ? new ArrayType((KnownType) DataType.of(to))
+				: this;
+		}
+
+		@Override
 		public boolean isAssignableFrom(DataType other) {
 			return other instanceof ArrayType(var otherElementType)
 				&& elementType.isAssignableFrom(otherElementType);
@@ -173,6 +197,14 @@ public sealed interface DataType {
 		@Override
 		public String toString() {
 			return elementType + "[]";
+		}
+
+		@Override
+		public DataType substitute(Type from, Type to) {
+			DataType fromDT = DataType.of(from);
+			return this.equals(fromDT)? DataType.of(to)
+				: elementType.equals(fromDT) ? new ArrayType((KnownType) DataType.of(to))
+				: this;
 		}
 
 		@Override
@@ -202,13 +234,13 @@ public sealed interface DataType {
 		 */
 		default DataType parameterType(Class<?> targetClass, int parameterIndex) {
 			assert targetClass.isAssignableFrom(this.rawClass());
-			return DataType.of(parameterReflectionType(targetClass, parameterIndex));
+			return DataType.of(parameterBinding(targetClass, parameterIndex));
 		}
 
 		/**
 		 * Like {@link #parameterType(Class, int)} but returns the {@link Type} directly.
 		 */
-		default Type parameterReflectionType(Class<?> targetClass, int parameterIndex) {
+		default Type parameterBinding(Class<?> targetClass, int parameterIndex) {
 			assert targetClass.isAssignableFrom(this.rawClass());
 			if (targetClass.equals(this.rawClass())) {
 				return switch (this) {
@@ -239,7 +271,7 @@ public sealed interface DataType {
 				// The right answer is String.
 
 				// First, let's recurse into the superclass...
-				var candidate = immediateSuperType.parameterReflectionType(targetClass, parameterIndex);
+				var candidate = immediateSuperType.parameterBinding(targetClass, parameterIndex);
 
 				if (candidate instanceof java.lang.reflect.TypeVariable<?> tv) {
 					// Now the candidate type would be V, in which case
@@ -247,7 +279,7 @@ public sealed interface DataType {
 					var typeParameters = rawClass().getTypeParameters();
 					for (int i = 0; i < typeParameters.length; i++) {
 						if (typeParameters[i].getName().equals(tv.getName())) {
-							return parameterReflectionType(rawClass(), i);
+							return parameterBinding(rawClass(), i);
 						}
 					}
 					throw new IllegalStateException("Type variable " + tv.getName() + " not found in " + targetClass);
@@ -298,6 +330,13 @@ public sealed interface DataType {
 			return this.bindings().stream().map(DataType::of);
 		}
 
+		@Override
+		public DataType substitute(Type from, Type to) {
+			DataType fromDT = DataType.of(from);
+			return this.equals(fromDT)? DataType.of(to)
+				: new BoundType(rawClass, bindings.stream().map(b -> (b.equals(from) ? to : b)).toList());
+		}
+
 		public boolean isAssignableFrom(DataType candidateType) {
 			if (!(candidateType instanceof KnownType candidate)) {
 				// Known types can't be assignable from unknown ones
@@ -321,7 +360,7 @@ public sealed interface DataType {
 			Map<String, Type> typeVariableBindings = new HashMap<>();
 			for (int i = 0; i < bindings().size(); i++) {
 				DataType patternArg = typeArgument(i);
-				Type candidateParameter = candidate.parameterReflectionType(rawClass(), i);
+				Type candidateParameter = candidate.parameterBinding(rawClass(), i);
 				if (patternArg instanceof TypeVariable tv) {
 					var existing = typeVariableBindings.put(tv.name(), candidateParameter);
 					if (existing != null && !existing.equals(candidateParameter)) {
@@ -430,6 +469,13 @@ public sealed interface DataType {
 		}
 
 		@Override
+		public DataType substitute(Type from, Type to) {
+			DataType fromDT = DataType.of(from);
+			return this.equals(fromDT)? DataType.of(to)
+				: new TypeVariable(name, upperBounds.stream().map(b -> (b.equals(from) ? to : b)).toList());
+		}
+
+		@Override
 		public boolean isAssignableFrom(DataType other) {
 			return other instanceof KnownType
 				&& upperBounds.stream().allMatch(bound -> DataType.of(bound).isAssignableFrom(other));
@@ -469,6 +515,14 @@ public sealed interface DataType {
 		}
 
 		@Override
+		public DataType substitute(Type from, Type to) {
+			DataType fromDT = DataType.of(from);
+			return this.equals(fromDT)? DataType.of(to)
+				: upperBound.equals(from)? new UpperBoundedWildcardType(to)
+				: this;
+		}
+
+		@Override
 		public boolean isAssignableFrom(DataType other) {
 			return other instanceof KnownType && DataType.of(upperBound).isAssignableFrom(other);
 		}
@@ -478,6 +532,14 @@ public sealed interface DataType {
 		@Override
 		public String toString() {
 			return "? super " + lowerBound;
+		}
+
+		@Override
+		public DataType substitute(Type from, Type to) {
+			DataType fromDT = DataType.of(from);
+			return this.equals(fromDT)? DataType.of(to)
+				: lowerBound.equals(from)? new LowerBoundedWildcardType(to)
+				: this;
 		}
 
 		@Override

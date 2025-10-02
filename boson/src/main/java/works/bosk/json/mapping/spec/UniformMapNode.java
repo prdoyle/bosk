@@ -4,13 +4,17 @@ import works.bosk.json.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.json.mapping.spec.handles.ObjectEmitter;
 import works.bosk.json.types.DataType;
 
+import static works.bosk.json.types.DataType.STRING;
+
 public record UniformMapNode(
-	StringSpec keyNode,
+	JsonValueSpec keyNode,
 	JsonValueSpec valueNode,
 	ObjectAccumulator accumulator,
 	ObjectEmitter emitter
 ) implements ObjectSpec {
 	public UniformMapNode {
+		assert keyNode.dataType().equals(STRING);
+
 		assert accumulator.keyType().isAssignableFrom(keyNode.dataType()):
 			"accumulator must accept keys of type " + keyNode.dataType();
 		assert accumulator.valueType().isAssignableFrom(valueNode.dataType()):

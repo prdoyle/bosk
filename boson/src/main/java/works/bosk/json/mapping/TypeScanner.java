@@ -32,8 +32,8 @@ import works.bosk.json.mapping.spec.FixedMapNode;
 import works.bosk.json.mapping.spec.JsonValueSpec;
 import works.bosk.json.mapping.spec.MaybeNullSpec;
 import works.bosk.json.mapping.spec.PrimitiveNumberNode;
+import works.bosk.json.mapping.spec.ScalarSpec;
 import works.bosk.json.mapping.spec.StringNode;
-import works.bosk.json.mapping.spec.StringSpec;
 import works.bosk.json.mapping.spec.TypeRefNode;
 import works.bosk.json.mapping.spec.UniformMapNode;
 import works.bosk.json.mapping.spec.handles.ArrayAccumulator;
@@ -234,7 +234,7 @@ public class TypeScanner {
 			);
 		}
 		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(Map.class)) {
-			StringSpec keySpec = scanStringParsingClass((KnownType) type.parameterType(Map.class, 0));
+			ScalarSpec keySpec = scanStringParsingClass((KnownType) type.parameterType(Map.class, 0));
 			JsonValueSpec valueSpec = refNode(type.parameterType(Map.class, 1));
 			return new UniformMapNode(
 				keySpec,
@@ -249,7 +249,7 @@ public class TypeScanner {
 		throw new IllegalStateException("Not yet implemented");
 	}
 
-	private ArrayAccumulator listAccumulator(BoundType arrayListType) {
+	public static ArrayAccumulator listAccumulator(BoundType arrayListType) {
 		assert arrayListType.rawClass().isAssignableFrom(ArrayList.class);
 		MethodHandle creator, listAdd, finisher;
 		try {
@@ -270,7 +270,7 @@ public class TypeScanner {
 		);
 	}
 
-	private ArrayEmitter listEmitter(BoundType listType) {
+	public static ArrayEmitter listEmitter(BoundType listType) {
 		assert List.class.isAssignableFrom(listType.rawClass());
 		if (!(listType.parameterType(List.class, 0) instanceof KnownType elementType)) {
 			throw new IllegalStateException("Can't emit from a list of unknown element type: " + listType);
@@ -292,7 +292,7 @@ public class TypeScanner {
 		);
 	}
 
-	private ObjectAccumulator mapAccumulator(BoundType linkedHashMapType) {
+	public static ObjectAccumulator mapAccumulator(BoundType linkedHashMapType) {
 		assert linkedHashMapType.rawClass().isAssignableFrom(LinkedHashMap.class);
 		MethodHandle creator, mapPut, finisher;
 		try {
@@ -313,7 +313,7 @@ public class TypeScanner {
 		);
 	}
 
-	private ObjectEmitter mapEmitter(BoundType mapType) {
+	public static ObjectEmitter mapEmitter(BoundType mapType) {
 		assert Map.class.isAssignableFrom(mapType.rawClass());
 		if (!(mapType.parameterType(Map.class, 0) instanceof KnownType keyType) ||
 			!(mapType.parameterType(Map.class, 1) instanceof KnownType valueType)) {
@@ -354,7 +354,7 @@ public class TypeScanner {
 		return clazz.isEnum() || clazz == String.class;
 	}
 
-	private static StringSpec scanStringParsingClass(KnownType type) {
+	private static ScalarSpec scanStringParsingClass(KnownType type) {
 		assert isStringParsingClass(type);
 		var clazz = type.rawClass();
 		if (clazz.isEnum()) {

@@ -10,7 +10,8 @@ public sealed interface ScalarSpec extends JsonValueSpec permits
 	BigNumberNode,
 	BooleanNode,
 	BoxedPrimitiveSpec,
+	EnumByNameNode,
 	PrimitiveNumberNode,
-	StringSpec
+	StringNode
 {
 }

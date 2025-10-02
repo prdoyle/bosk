@@ -6,7 +6,7 @@ import works.bosk.json.types.DataType.KnownType;
 /**
  * Represents a JSON string as a {@link String}.
  */
-public record StringNode() implements StringSpec {
+public record StringNode() implements ScalarSpec {
 	@Override
 	public String toString() {
 		return "String";

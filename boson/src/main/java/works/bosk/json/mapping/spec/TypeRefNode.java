@@ -1,5 +1,7 @@
 package works.bosk.json.mapping.spec;
 
+import java.lang.reflect.Type;
+import works.bosk.json.types.DataType;
 import works.bosk.json.types.DataType.KnownType;
 
 /**
@@ -15,6 +17,10 @@ import works.bosk.json.types.DataType.KnownType;
 public record TypeRefNode (
 	KnownType type
 ) implements JsonValueSpec {
+	public static TypeRefNode of(Type type) {
+		return new TypeRefNode(DataType.known(type));
+	}
+
 	@Override
 	public String toString() {
 		return "@" + type;
