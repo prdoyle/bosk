@@ -90,16 +90,6 @@ public sealed interface DataType {
 	}
 
 	/**
-	 * @return a version of this {@link DataType} with all occurrences of {@code from}
-	 * replaced with {@code to}.
-	 */
-	default DataType substitute(Type from, Type to) {
-		return this.equals(DataType.of(from))
-			? DataType.of(to)
-			: this;
-	}
-
-	/**
 	 * Returns true if the given type is described by a {@link DataType}
 	 * containing known {@link UnknownType}s.
 	 */
@@ -174,14 +164,6 @@ public sealed interface DataType {
 		}
 
 		@Override
-		public DataType substitute(Type from, Type to) {
-			DataType fromDT = DataType.of(from);
-			return this.equals(fromDT)? DataType.of(to)
-				: elementType.equals(fromDT) ? new ArrayType((KnownType) DataType.of(to))
-				: this;
-		}
-
-		@Override
 		public boolean isAssignableFrom(DataType other) {
 			return other instanceof ArrayType(var otherElementType)
 				&& elementType.isAssignableFrom(otherElementType);
@@ -197,14 +179,6 @@ public sealed interface DataType {
 		@Override
 		public String toString() {
 			return elementType + "[]";
-		}
-
-		@Override
-		public DataType substitute(Type from, Type to) {
-			DataType fromDT = DataType.of(from);
-			return this.equals(fromDT)? DataType.of(to)
-				: elementType.equals(fromDT) ? new ArrayType((KnownType) DataType.of(to))
-				: this;
 		}
 
 		@Override
@@ -328,13 +302,6 @@ public sealed interface DataType {
 
 		public Stream<DataType> typeArguments() {
 			return this.bindings().stream().map(DataType::of);
-		}
-
-		@Override
-		public DataType substitute(Type from, Type to) {
-			DataType fromDT = DataType.of(from);
-			return this.equals(fromDT)? DataType.of(to)
-				: new BoundType(rawClass, bindings.stream().map(b -> (b.equals(from) ? to : b)).toList());
 		}
 
 		public boolean isAssignableFrom(DataType candidateType) {
@@ -469,13 +436,6 @@ public sealed interface DataType {
 		}
 
 		@Override
-		public DataType substitute(Type from, Type to) {
-			DataType fromDT = DataType.of(from);
-			return this.equals(fromDT)? DataType.of(to)
-				: new TypeVariable(name, upperBounds.stream().map(b -> (b.equals(from) ? to : b)).toList());
-		}
-
-		@Override
 		public boolean isAssignableFrom(DataType other) {
 			return other instanceof KnownType
 				&& upperBounds.stream().allMatch(bound -> DataType.of(bound).isAssignableFrom(other));
@@ -515,14 +475,6 @@ public sealed interface DataType {
 		}
 
 		@Override
-		public DataType substitute(Type from, Type to) {
-			DataType fromDT = DataType.of(from);
-			return this.equals(fromDT)? DataType.of(to)
-				: upperBound.equals(from)? new UpperBoundedWildcardType(to)
-				: this;
-		}
-
-		@Override
 		public boolean isAssignableFrom(DataType other) {
 			return other instanceof KnownType && DataType.of(upperBound).isAssignableFrom(other);
 		}
@@ -532,14 +484,6 @@ public sealed interface DataType {
 		@Override
 		public String toString() {
 			return "? super " + lowerBound;
-		}
-
-		@Override
-		public DataType substitute(Type from, Type to) {
-			DataType fromDT = DataType.of(from);
-			return this.equals(fromDT)? DataType.of(to)
-				: lowerBound.equals(from)? new LowerBoundedWildcardType(to)
-				: this;
 		}
 
 		@Override

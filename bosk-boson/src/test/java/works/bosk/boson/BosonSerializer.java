@@ -77,7 +77,7 @@ public class BosonSerializer extends StateTreeSerializer {
 						preScan(
 							// TODO: This won't work. substitute works only on direct type parameters, not recursively.
 							DataType.of(new TypeReference<Map<Identifier, Entity>>() {})
-								.substitute(Entity.class, entityType)
+//								.substitute(Entity.class, entityType)
 						),
 						catalogType,
 						(Catalog<?> c) -> c.asMap(),
