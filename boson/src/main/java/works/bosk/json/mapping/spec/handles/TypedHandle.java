@@ -6,6 +6,9 @@ import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
+import works.bosk.json.types.DataType;
+import works.bosk.json.types.InstanceType;
 import works.bosk.json.types.KnownType;
 
 import static java.lang.invoke.MethodHandles.insertArguments;
@@ -69,5 +72,26 @@ public record TypedHandle(
 	@Override
 	public String toString() {
 		return "(" + String.join(", ", parameterTypes.stream().map(KnownType::toString).toList()) + ")->" + returnType;
+	}
+
+	public static <T,R> TypedHandle of(Function<T,R> function) {
+		var functionType = (InstanceType)DataType.known(function.getClass());
+		var argType = functionType.parameterBinding(Function.class, 0);
+		var returnType = functionType.parameterBinding(Function.class, 1);
+		return new TypedHandle(
+			FUNCTION_APPLY,
+			returnType.knownType(),
+			List.of(argType.knownType())
+		);
+	}
+
+	private static final MethodHandle FUNCTION_APPLY;
+
+	static {
+		try {
+			FUNCTION_APPLY = MethodHandles.lookup().findVirtual(Function.class, "apply", MethodType.methodType(Object.class, Object.class));
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new ExceptionInInitializerError(e);
+		}
 	}
 }

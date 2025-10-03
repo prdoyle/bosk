@@ -2,8 +2,11 @@ package works.bosk.boson;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedMap;
+import java.util.function.Function;
 import works.bosk.BoskInfo;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -16,17 +19,23 @@ import works.bosk.Path;
 import works.bosk.Reference;
 import works.bosk.SideTable;
 import works.bosk.StateTreeSerializer;
+import works.bosk.TaggedUnion;
+import works.bosk.VariantCase;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.TypeScanner.Directive;
 import works.bosk.json.mapping.spec.BooleanNode;
+import works.bosk.json.mapping.spec.FixedMapMember;
+import works.bosk.json.mapping.spec.FixedMapNode;
 import works.bosk.json.mapping.spec.JsonValueSpec;
 import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.StringNode;
 import works.bosk.json.mapping.spec.UniformMapNode;
+import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.BoundType;
 import works.bosk.json.types.DataType;
+import works.bosk.json.types.KnownType;
 import works.bosk.json.types.ParameterOrBound;
 import works.bosk.json.types.SpecifiedParameterOrBound;
 import works.bosk.json.types.TypeReference;
@@ -110,7 +119,39 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
-		// TODO: TaggedUnion
+		directives.add(new Directive(
+			DataType.of(new TypeReference<TaggedUnion<?>>(){}),
+			taggedUnionType -> switch (taggedUnionType) {
+				case BoundType bt -> {
+					var caseStaticType = (KnownType)bt.parameterType(TaggedUnion.class, 0);
+					MapValue<Type> variantCaseMap;
+					try {
+						variantCaseMap = StateTreeSerializer.getVariantCaseMap(caseStaticType.rawClass());
+					} catch (InvalidTypeException e) {
+						throw new IllegalArgumentException(e);
+					}
+					SequencedMap<String, FixedMapMember> members = new LinkedHashMap<>();
+					variantCaseMap.forEach((name, caseType) -> {
+						members.put(name, new FixedMapMember(
+							preScan(caseType),
+							TypedHandle.of((Function<TaggedUnion<?>, Object>) TaggedUnion::variant)
+						));
+					});
+					yield FixedMapNode.withArrayFinisher(
+						members,
+						(VariantCase[] args) -> {
+							for (var arg: args) {
+								if (arg != null) {
+									return TaggedUnion.of(arg);
+								}
+							}
+							throw new IllegalStateException("Hey, no variant");
+						}
+					);
+				}
+				default -> throw new IllegalStateException("Unexpected value: " + taggedUnionType);
+			}
+		));
 
 		// TODO: StateTreeNode / Optional / Phantom
 
