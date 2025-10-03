@@ -29,6 +29,8 @@ import works.bosk.json.mapping.spec.UniformMapNode;
 import works.bosk.json.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.DataType;
+import works.bosk.json.types.DataType.BoundType;
+import works.bosk.json.types.DataType.KnownType;
 import works.bosk.json.types.TypeReference;
 
 import static java.lang.invoke.MethodType.methodType;
@@ -69,10 +71,11 @@ public class BosonSerializer extends StateTreeSerializer {
 		directives.add(new Directive(
 			DataType.of(new TypeReference<Catalog<? extends Entity>>(){}),
 			catalogType -> switch (catalogType) {
-				case DataType.BoundType bt -> {
+				case BoundType bt -> {
 					var entityType = bt.parameterBinding(Catalog.class, 0);
 					yield RepresentAsSpec.as(
 						preScan(
+							// TODO: This won't work. substitute works only on direct type parameters, not recursively.
 							DataType.of(new TypeReference<Map<Identifier, Entity>>() {})
 								.substitute(Entity.class, entityType)
 						),
@@ -117,7 +120,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		directives.add(new Directive(
 			DataType.of(new TypeReference<MapValue<?>>(){}),
 			mapValueType -> switch (mapValueType) {
-				case DataType.BoundType bt -> {
+				case BoundType bt -> {
 					// It's just like a Map, only we want to instantiate MapValue instead of LinkedHashMap
 					var mapSpec = (UniformMapNode)preScan(
 						DataType.of(new TypeReference<Map<String, Entity>>(){})
@@ -186,6 +189,42 @@ public class BosonSerializer extends StateTreeSerializer {
 		@SuppressWarnings("rawtypes")
 		public SideTable toSideTable() {
 			return SideTable.copyOf(domain, this.valuesById());
+		}
+	}
+
+	interface Representation<V,R> {
+		R to(V value);
+		V from(R representation);
+	}
+
+	JsonValueSpec representedAs(Representation<?,?> representation, KnownType actualType) {
+		BoundType bt = (BoundType) DataType.known(representation.getClass());
+		Type valueType = bt
+			.parameterBinding(Representation.class, 0);
+		assert !(DataType.of(valueType) instanceof KnownType kt)
+			|| kt.rawClass().equals(actualType.rawClass());
+		Type repType = bt
+			.parameterBinding(Representation.class, 1);
+		KnownType rt = DataType.known(repType);
+		try {
+			return new RepresentAsSpec(
+				preScan(repType),
+				new TypedHandle(
+					MethodHandles.lookup().findVirtual(representation.getClass(), "to", methodType(Object.class, Object.class))
+						.bindTo(representation)
+						.asType(methodType(rt.rawClass(), actualType.rawClass())),
+					rt,
+					List.of(actualType)
+				),
+				new TypedHandle(
+					MethodHandles.lookup().findVirtual(representation.getClass(), "from", methodType(Object.class, Object.class))
+						.bindTo(representation)
+						.asType(methodType(actualType.rawClass(), rt.rawClass())),
+					actualType,
+					List.of(rt)
+			));
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new IllegalStateException("wat", e);
 		}
 	}
 }
