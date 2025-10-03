@@ -87,6 +87,7 @@ public sealed interface DataType permits KnownType, UnknownType {
 		return of(ref.reflectionType());
 	}
 
+	// TODO: I think we also want a kind of unification-match, where subtyping is not considered outside of type bounds
 	boolean isAssignableFrom(DataType other);
 
 	default boolean isAssignableFrom(Type type) {
