@@ -1,6 +1,5 @@
 package works.bosk.boson;
 
-import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,47 +25,18 @@ import works.bosk.json.mapping.spec.JsonValueSpec;
 import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.StringNode;
 import works.bosk.json.mapping.spec.UniformMapNode;
-import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.BoundType;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.KnownType;
 import works.bosk.json.types.ParameterOrBound;
 import works.bosk.json.types.SpecifiedParameterOrBound;
 import works.bosk.json.types.TypeReference;
 
-import static java.lang.invoke.MethodType.methodType;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 public class BosonSerializer extends StateTreeSerializer {
 
 	public <V> TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
 		var directives = new ArrayList<Directive>();
-
-		directives.add(new Directive(
-			DataType.known(Identifier.class),
-			identifierType -> RepresentAsSpec.as(
-				new StringNode(),
-				identifierType,
-				Identifier::toString,
-				Identifier::from
-			)
-		));
-
-		directives.add(new Directive(
-			DataType.of(new TypeReference<Reference<?>>(){}),
-			referenceType -> RepresentAsSpec.as(
-				new StringNode(),
-				referenceType,
-				(Reference<?> ref) -> ref.path().urlEncoded(),
-				(String str) -> {
-					try {
-						return bosk.rootReference().then(Object.class, Path.parse(str));
-					} catch (InvalidTypeException e) {
-						throw new IllegalStateException("Not yet implemented", e);
-					}
-				}
-			)
-		));
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<Catalog<? extends Entity>>(){}),
@@ -93,14 +63,30 @@ public class BosonSerializer extends StateTreeSerializer {
 				ListingRepresentation::fromListing,
 				ListingRepresentation::toListing
 		)));
-		
+
 		directives.add(new Directive(
-			DataType.of(new TypeReference<SideTable<?,?>>() { }),
-			sideTableType -> RepresentAsSpec.as(
-				preScan(SideTableRepresentation.class),
-				sideTableType,
-				SideTableRepresentation::fromSideTable,
-				SideTableRepresentation::toSideTable
+			DataType.of(new TypeReference<Reference<?>>(){}),
+			referenceType -> RepresentAsSpec.as(
+				new StringNode(),
+				referenceType,
+				(Reference<?> ref) -> ref.path().urlEncoded(),
+				(String str) -> {
+					try {
+						return bosk.rootReference().then(Object.class, Path.parse(str));
+					} catch (InvalidTypeException e) {
+						throw new IllegalStateException("Not yet implemented", e);
+					}
+				}
+			)
+		));
+
+		directives.add(new Directive(
+			DataType.known(Identifier.class),
+			identifierType -> RepresentAsSpec.as(
+				new StringNode(),
+				identifierType,
+				Identifier::toString,
+				Identifier::from
 			)
 		));
 
@@ -113,6 +99,20 @@ public class BosonSerializer extends StateTreeSerializer {
 				(Boolean _) -> LISTING_ENTRY
 			)
 		));
+
+		directives.add(new Directive(
+			DataType.of(new TypeReference<SideTable<?,?>>() { }),
+			sideTableType -> RepresentAsSpec.as(
+				preScan(SideTableRepresentation.class),
+				sideTableType,
+				SideTableRepresentation::fromSideTable,
+				SideTableRepresentation::toSideTable
+			)
+		));
+
+		// TODO: TaggedUnion
+
+		// TODO: StateTreeNode / Optional / Phantom
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<MapValue<?>>(){}),
@@ -182,39 +182,4 @@ public class BosonSerializer extends StateTreeSerializer {
 		}
 	}
 
-	interface Representation<V,R> {
-		R to(V value);
-		V from(R representation);
-	}
-
-	JsonValueSpec representedAs(Representation<?,?> representation, KnownType actualType) {
-		BoundType bt = (BoundType) DataType.known(representation.getClass());
-		ParameterOrBound valueType = bt
-			.parameterBinding(Representation.class, 0);
-		assert !(valueType.dataType() instanceof KnownType kt)
-			|| kt.rawClass().equals(actualType.rawClass());
-		ParameterOrBound repType = bt
-			.parameterBinding(Representation.class, 1);
-		KnownType rt = (KnownType) repType.dataType();
-		try {
-			return new RepresentAsSpec(
-				preScan(rt),
-				new TypedHandle(
-					MethodHandles.lookup().findVirtual(representation.getClass(), "to", methodType(Object.class, Object.class))
-						.bindTo(representation)
-						.asType(methodType(rt.rawClass(), actualType.rawClass())),
-					rt,
-					List.of(actualType)
-				),
-				new TypedHandle(
-					MethodHandles.lookup().findVirtual(representation.getClass(), "from", methodType(Object.class, Object.class))
-						.bindTo(representation)
-						.asType(methodType(actualType.rawClass(), rt.rawClass())),
-					actualType,
-					List.of(rt)
-			));
-		} catch (NoSuchMethodException | IllegalAccessException e) {
-			throw new IllegalStateException("wat", e);
-		}
-	}
 }
