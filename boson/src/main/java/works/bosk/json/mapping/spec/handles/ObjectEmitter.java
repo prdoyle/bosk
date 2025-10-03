@@ -1,7 +1,7 @@
 package works.bosk.json.mapping.spec.handles;
 
 import works.bosk.json.mapping.spec.UniformMapNode;
-import works.bosk.json.types.DataType;
+import works.bosk.json.types.KnownType;
 
 import static works.bosk.json.types.DataType.BOOLEAN;
 
@@ -58,7 +58,7 @@ public record ObjectEmitter(
 	/**
 	 * @return static type of the value being emitted
 	 */
-	public DataType.KnownType dataType() {
+	public KnownType dataType() {
 		return start.parameterTypes().getFirst();
 	}
 

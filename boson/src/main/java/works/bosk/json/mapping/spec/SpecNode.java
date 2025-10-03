@@ -1,7 +1,7 @@
 package works.bosk.json.mapping.spec;
 
 import java.util.function.UnaryOperator;
-import works.bosk.json.types.DataType;
+import works.bosk.json.types.KnownType;
 
 import static java.util.Objects.requireNonNull;
 
@@ -33,6 +33,6 @@ public sealed interface SpecNode permits JsonValueSpec, ComputedSpec, MaybeAbsen
 		}
 	}
 
-	DataType.KnownType dataType();
+	KnownType dataType();
 
 }

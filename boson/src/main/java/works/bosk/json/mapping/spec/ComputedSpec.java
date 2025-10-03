@@ -2,7 +2,7 @@ package works.bosk.json.mapping.spec;
 
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 /**
  * Represents a portion of the in-memory structure that is returned by {@code supplier} and

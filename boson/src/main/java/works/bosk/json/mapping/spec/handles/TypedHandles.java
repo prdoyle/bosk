@@ -7,7 +7,7 @@ import java.lang.reflect.RecordComponent;
 import java.util.List;
 import java.util.stream.Stream;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 import static works.bosk.json.types.DataType.BOOLEAN;
 import static works.bosk.json.types.DataType.OBJECT;

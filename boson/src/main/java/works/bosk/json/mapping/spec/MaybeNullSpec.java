@@ -1,6 +1,6 @@
 package works.bosk.json.mapping.spec;
 
-import works.bosk.json.types.DataType;
+import works.bosk.json.types.KnownType;
 
 /**
  * Represents a JSON <em>value</em> that may be <em>null</em>.
@@ -16,7 +16,7 @@ public record MaybeNullSpec(JsonValueSpec child) implements JsonValueSpec {
 		return child + "?";
 	}
 
-	public DataType.KnownType dataType() {
+	public KnownType dataType() {
 		return this.child().dataType();
 	}
 }

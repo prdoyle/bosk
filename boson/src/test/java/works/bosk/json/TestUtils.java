@@ -19,7 +19,7 @@ import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.mapping.spec.handles.TypedHandles;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 import static java.lang.invoke.MethodHandles.explicitCastArguments;
 import static org.junit.jupiter.api.Assertions.assertEquals;

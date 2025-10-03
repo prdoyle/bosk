@@ -61,7 +61,7 @@ import works.bosk.json.mapping.spec.StringNode;
 import works.bosk.json.mapping.spec.TypeRefNode;
 import works.bosk.json.mapping.spec.UniformMapNode;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.PrimitiveType;
+import works.bosk.json.types.PrimitiveType;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
 import static java.lang.classfile.Opcode.IFEQ;

@@ -1,7 +1,7 @@
 package works.bosk.json.mapping.spec;
 
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 /**
  * Represents a JSON string as an enum value with the corresponding name.

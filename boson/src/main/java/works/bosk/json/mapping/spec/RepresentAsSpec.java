@@ -8,7 +8,7 @@ import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 import static java.lang.invoke.MethodType.methodType;
 

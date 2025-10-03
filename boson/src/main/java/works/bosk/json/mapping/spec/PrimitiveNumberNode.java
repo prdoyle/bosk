@@ -2,7 +2,7 @@ package works.bosk.json.mapping.spec;
 
 import java.util.Map;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 /**
  * Represents a JSON number as a primitive number type.

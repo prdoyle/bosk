@@ -2,7 +2,7 @@ package works.bosk.json.mapping.spec;
 
 import works.bosk.json.mapping.spec.handles.ArrayAccumulator;
 import works.bosk.json.mapping.spec.handles.ArrayEmitter;
-import works.bosk.json.types.DataType;
+import works.bosk.json.types.KnownType;
 
 public record ArrayNode(
 	JsonValueSpec elementNode,
@@ -22,7 +22,7 @@ public record ArrayNode(
 	}
 
 	@Override
-	public DataType.KnownType dataType() {
+	public KnownType dataType() {
 		return accumulator.resultType();
 	}
 }

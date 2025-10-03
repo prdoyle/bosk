@@ -6,23 +6,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
-import works.bosk.json.types.DataType.ArrayType;
-import works.bosk.json.types.DataType.BoundType;
-import works.bosk.json.types.DataType.DeferredParameterOrBound;
-import works.bosk.json.types.DataType.TypeVariable;
-import works.bosk.json.types.DataType.UnknownArrayType;
-import works.bosk.json.types.DataType.WildcardType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static works.bosk.json.types.DataType.PrimitiveType.BOOLEAN;
-import static works.bosk.json.types.DataType.PrimitiveType.BYTE;
-import static works.bosk.json.types.DataType.PrimitiveType.CHAR;
-import static works.bosk.json.types.DataType.PrimitiveType.DOUBLE;
-import static works.bosk.json.types.DataType.PrimitiveType.FLOAT;
-import static works.bosk.json.types.DataType.PrimitiveType.INT;
-import static works.bosk.json.types.DataType.PrimitiveType.LONG;
-import static works.bosk.json.types.DataType.PrimitiveType.SHORT;
+import static works.bosk.json.types.PrimitiveType.BOOLEAN;
+import static works.bosk.json.types.PrimitiveType.BYTE;
+import static works.bosk.json.types.PrimitiveType.CHAR;
+import static works.bosk.json.types.PrimitiveType.DOUBLE;
+import static works.bosk.json.types.PrimitiveType.FLOAT;
+import static works.bosk.json.types.PrimitiveType.INT;
+import static works.bosk.json.types.PrimitiveType.LONG;
+import static works.bosk.json.types.PrimitiveType.SHORT;
 
 class DataTypeCreationTest {
 

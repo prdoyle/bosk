@@ -3,7 +3,7 @@ package works.bosk.json.mapping.spec;
 import java.util.Iterator;
 import java.util.SequencedMap;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 // TODO: Find a way to deal with unrecognized members
 public record FixedMapNode(

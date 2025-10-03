@@ -2,7 +2,7 @@ package works.bosk.json.mapping.spec.handles;
 
 import java.util.stream.Gatherer;
 import works.bosk.json.mapping.spec.ArrayNode;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 import static works.bosk.json.types.DataType.VOID;
 

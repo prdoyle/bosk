@@ -2,7 +2,7 @@ package works.bosk.json.mapping.spec.handles;
 
 import java.util.stream.Gatherer;
 import works.bosk.json.mapping.spec.UniformMapNode;
-import works.bosk.json.types.DataType;
+import works.bosk.json.types.KnownType;
 
 import static works.bosk.json.types.DataType.VOID;
 
@@ -49,15 +49,15 @@ public record ObjectAccumulator(
 		assert finisher.parameterTypes().getFirst().isAssignableFrom(creator.returnType());
 	}
 
-	public DataType.KnownType keyType() {
+	public KnownType keyType() {
 		return integrator.parameterTypes().get(1);
 	}
 
-	public DataType.KnownType valueType() {
+	public KnownType valueType() {
 		return integrator.parameterTypes().get(2);
 	}
 
-	public DataType.KnownType resultType() {
+	public KnownType resultType() {
 		return finisher.returnType();
 	}
 

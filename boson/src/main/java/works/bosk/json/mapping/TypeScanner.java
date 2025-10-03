@@ -42,10 +42,12 @@ import works.bosk.json.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.json.mapping.spec.handles.ObjectEmitter;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.ArrayType;
-import works.bosk.json.types.DataType.BoundType;
-import works.bosk.json.types.DataType.KnownType;
-import works.bosk.json.types.DataType.PrimitiveType;
+import works.bosk.json.types.ArrayType;
+import works.bosk.json.types.BoundType;
+import works.bosk.json.types.ErasedType;
+import works.bosk.json.types.KnownType;
+import works.bosk.json.types.PrimitiveType;
+import works.bosk.json.types.UnknownType;
 
 import static java.util.stream.Collectors.toSet;
 import static works.bosk.json.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
@@ -167,7 +169,7 @@ public class TypeScanner {
 			case ArrayType t -> scanArray(t);
 			case BoundType t -> scanClass(t);
 			case PrimitiveType t -> scanPrimitive(t);
-			case DataType.UnknownType _, DataType.ErasedType _ ->
+			case UnknownType _, ErasedType _ ->
 				throw new IllegalStateException("Unsupported type: " + type);
 		};
 	}

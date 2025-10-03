@@ -2,7 +2,7 @@ package works.bosk.json.mapping.spec;
 
 import java.lang.reflect.Type;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 /**
  * Specifies only that a JSON value should be represented by the given {@code type},

@@ -1,9 +1,10 @@
 /**
- * Specifies what a JSON document should contain
+ * An abstract datatype
+ * that specifies what a JSON document should contain
  * and how it relates to in-memory data structures.
  * The abstractions are suitable for both parsing and JSON generation.
  * <p>
- * A spec is composed of a tree of {@link works.bosk.json.mapping.spec.JsonValueSpec}s,
+ * A spec is composed of a tree of {@link works.bosk.json.mapping.spec.SpecNode}s,
  * each of which describes how a particular JSON value corresponds to an in-memory representation.
  * Usually, the parent-child relationship represents syntactic nesting,
  * as with {@link works.bosk.json.mapping.spec.ArrayNode},

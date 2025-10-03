@@ -13,6 +13,7 @@ import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.TypeRefNode;
 import works.bosk.json.types.DataType;
 import works.bosk.json.types.TypeReference;
+import works.bosk.json.types.WildcardType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -60,7 +61,7 @@ class TypeScannerTest {
 	void testTypeBound() throws IOException {
 		scanner.addLast(new Bundle(List.of(
 			new Directive(
-				DataType.WildcardType.extends_(Overridden.class),
+				WildcardType.extends_(Overridden.class),
 				t -> RepresentAsSpec.asInt(
 					t,
 					Overridden::value,

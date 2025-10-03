@@ -1,7 +1,7 @@
 package works.bosk.json.mapping.spec;
 
 import works.bosk.json.mapping.spec.handles.MemberPresenceCondition;
-import works.bosk.json.types.DataType;
+import works.bosk.json.types.KnownType;
 
 /**
  * Represents a JSON <em>object member</em> that can be omitted from the JSON representation.
@@ -20,7 +20,7 @@ public record MaybeAbsentSpec(
 		assert ifPresent.dataType().equals(ifAbsent.dataType());
 	}
 
-	public DataType.KnownType dataType() {
+	public KnownType dataType() {
 		return this.ifPresent().dataType();
 	}
 }

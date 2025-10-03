@@ -3,9 +3,6 @@ package works.bosk.json.types;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import works.bosk.json.types.DataType.InstanceType;
-import works.bosk.json.types.DataType.TypeVariable;
-import works.bosk.json.types.DataType.WildcardType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

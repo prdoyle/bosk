@@ -2,7 +2,7 @@ package works.bosk.json.mapping.spec;
 
 import works.bosk.json.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.json.mapping.spec.handles.ObjectEmitter;
-import works.bosk.json.types.DataType;
+import works.bosk.json.types.KnownType;
 
 /**
  * @param keyNode must specify a JSON <em>string</em>. Can also accept a {@link TypeRefNode}
@@ -30,7 +30,7 @@ public record UniformMapNode(
 	}
 
 	@Override
-	public DataType.KnownType dataType() {
+	public KnownType dataType() {
 		return accumulator.resultType();
 	}
 }

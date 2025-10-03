@@ -29,8 +29,8 @@ import works.bosk.json.mapping.spec.UniformMapNode;
 import works.bosk.json.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DataType.BoundType;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.BoundType;
+import works.bosk.json.types.KnownType;
 import works.bosk.json.types.TypeReference;
 
 import static java.lang.invoke.MethodType.methodType;

@@ -1,5 +1,7 @@
 /**
- * Provides the functionality that should have been present in the ridiculously
+ * An abstract datatype representing Java types, rooted at {@link works.bosk.json.types.DataType}.
+ * <p>
+ * Provides some of the functionality that should have been present in the ridiculously
  * underpowered {@link java.lang.reflect.Type}.
  */
 package works.bosk.json.types;

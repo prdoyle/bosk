@@ -6,7 +6,7 @@ import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.ArrayList;
 import java.util.List;
-import works.bosk.json.types.DataType.KnownType;
+import works.bosk.json.types.KnownType;
 
 import static java.lang.invoke.MethodHandles.insertArguments;
 import static java.util.Objects.requireNonNull;
