@@ -2,9 +2,11 @@ package works.bosk.boson;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.function.Function;
 import works.bosk.BoskInfo;
@@ -16,8 +18,10 @@ import works.bosk.Listing;
 import works.bosk.ListingEntry;
 import works.bosk.MapValue;
 import works.bosk.Path;
+import works.bosk.Phantom;
 import works.bosk.Reference;
 import works.bosk.SideTable;
+import works.bosk.StateTreeNode;
 import works.bosk.StateTreeSerializer;
 import works.bosk.TaggedUnion;
 import works.bosk.VariantCase;
@@ -26,21 +30,26 @@ import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.TypeScanner.Directive;
 import works.bosk.json.mapping.spec.BooleanNode;
+import works.bosk.json.mapping.spec.ComputedSpec;
 import works.bosk.json.mapping.spec.FixedMapMember;
 import works.bosk.json.mapping.spec.FixedMapNode;
 import works.bosk.json.mapping.spec.JsonValueSpec;
+import works.bosk.json.mapping.spec.MaybeAbsentSpec;
 import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.StringNode;
 import works.bosk.json.mapping.spec.UniformMapNode;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.BoundType;
 import works.bosk.json.types.DataType;
+import works.bosk.json.types.DeferredParameterOrBound;
 import works.bosk.json.types.KnownType;
 import works.bosk.json.types.ParameterOrBound;
 import works.bosk.json.types.SpecifiedParameterOrBound;
 import works.bosk.json.types.TypeReference;
+import works.bosk.json.types.UpperBoundedWildcardType;
 
 import static works.bosk.ListingEntry.LISTING_ENTRY;
+import static works.bosk.json.mapping.spec.handles.MemberPresenceCondition.memberValue;
 
 public class BosonSerializer extends StateTreeSerializer {
 
@@ -134,7 +143,7 @@ public class BosonSerializer extends StateTreeSerializer {
 					variantCaseMap.forEach((name, caseType) -> {
 						members.put(name, new FixedMapMember(
 							preScan(caseType),
-							TypedHandle.of((Function<TaggedUnion<?>, Object>) TaggedUnion::variant)
+							TypedHandle.ofFunction((Function<TaggedUnion<?>, Object>) TaggedUnion::variant)
 						));
 					});
 					yield FixedMapNode.withArrayFinisher(
@@ -153,7 +162,39 @@ public class BosonSerializer extends StateTreeSerializer {
 			}
 		));
 
-		// TODO: StateTreeNode / Optional / Phantom
+		directives.add(new Directive(
+			new UpperBoundedWildcardType(new DeferredParameterOrBound(StateTreeNode.class)),
+			stateTreeNodeType -> switch (stateTreeNodeType) {
+				case BoundType bt -> {
+					// Configure the preScan so it does the right thing with special components
+					Class<? extends Record> recordClass = bt.rawClass().asSubclass(Record.class);
+					Map<String, FixedMapMember> componentsByName = new HashMap<>();
+					for (var rc: recordClass.getRecordComponents()) {
+						if (Optional.class.isAssignableFrom(rc.getType())) {
+							var ifPresent = preScan(rc.getGenericType());
+							var ifAbsent = new ComputedSpec(TypedHandle.ofSupplier(Optional::empty));
+							var presenceCondition = memberValue(TypedHandle.<Optional<?>>ofPredicate(Optional::isPresent));
+							componentsByName.put(rc.getName(), new FixedMapMember(
+								new MaybeAbsentSpec(ifPresent, ifAbsent, presenceCondition),
+								TypedHandle.ofComponentAccessor(rc)
+							));
+						} else if (Phantom.class.isAssignableFrom(rc.getType())) {
+							componentsByName.put(rc.getName(), new FixedMapMember(
+								new ComputedSpec(TypedHandle.ofSupplier(Phantom::empty)),
+								TypedHandle.ofComponentAccessor(rc)
+							));
+						}
+					}
+
+					// Now, with this in place, a shallow preScan returns the right thing
+					yield preScan(bt,
+						new TypeScanner(TypeMap.Settings.SHALLOW)
+							.specifyRecordFields(recordClass, componentsByName)
+					);
+				}
+				default -> throw new IllegalStateException("Unexpected StateTreeNode type: " + stateTreeNodeType);
+			}
+		));
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<MapValue<?>>(){}),
@@ -190,9 +231,11 @@ public class BosonSerializer extends StateTreeSerializer {
 	}
 
 	private static JsonValueSpec preScan(DataType dataType) {
-		var ts = new TypeScanner(TypeMap.Settings.RAW)
-			.scan(dataType);
-		return ts.build().get(dataType);
+		return preScan(dataType, new TypeScanner(TypeMap.Settings.SHALLOW));
+	}
+
+	private static JsonValueSpec preScan(DataType dataType, TypeScanner typeScanner) {
+		return typeScanner.scan(dataType).build().get(dataType);
 	}
 
 	public record ListingRepresentation(CatalogReference<?> domain, List<Identifier> ids){

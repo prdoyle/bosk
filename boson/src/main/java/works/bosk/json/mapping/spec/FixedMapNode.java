@@ -34,7 +34,7 @@ public record FixedMapNode(
 	) {
 		InstanceType finisherType = (InstanceType) DataType.of(arrayFinisher.getClass());
 		Class<?> finisherArgumentArrayClass = finisherType.parameterBinding(Function.class, 0).knownType().rawClass();
-		var finisherHandle = TypedHandle.of(arrayFinisher);
+		var finisherHandle = TypedHandle.ofFunction(arrayFinisher);
 		var collectorMH = finisherHandle.handle()
 			.asCollector(finisherArgumentArrayClass, memberSpecs.size());
 		var castMH = collectorMH.asType(
