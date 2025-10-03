@@ -26,11 +26,12 @@ import works.bosk.json.mapping.spec.JsonValueSpec;
 import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.StringNode;
 import works.bosk.json.mapping.spec.UniformMapNode;
-import works.bosk.json.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
-import works.bosk.json.types.DataType;
 import works.bosk.json.types.BoundType;
+import works.bosk.json.types.DataType;
 import works.bosk.json.types.KnownType;
+import works.bosk.json.types.ParameterOrBound;
+import works.bosk.json.types.SpecifiedParameterOrBound;
 import works.bosk.json.types.TypeReference;
 
 import static java.lang.invoke.MethodType.methodType;
@@ -38,18 +39,17 @@ import static works.bosk.ListingEntry.LISTING_ENTRY;
 
 public class BosonSerializer extends StateTreeSerializer {
 
-	public TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
+	public <V> TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
 		var directives = new ArrayList<Directive>();
 
-		var identifierSpec = RepresentAsSpec.as(
-			new StringNode(),
-			DataType.known(Identifier.class),
-			Identifier::toString,
-			Identifier::from
-		);
 		directives.add(new Directive(
 			DataType.known(Identifier.class),
-			_ -> identifierSpec
+			identifierType -> RepresentAsSpec.as(
+				new StringNode(),
+				identifierType,
+				Identifier::toString,
+				Identifier::from
+			)
 		));
 
 		directives.add(new Directive(
@@ -72,13 +72,10 @@ public class BosonSerializer extends StateTreeSerializer {
 			DataType.of(new TypeReference<Catalog<? extends Entity>>(){}),
 			catalogType -> switch (catalogType) {
 				case BoundType bt -> {
-					var entityType = bt.parameterBinding(Catalog.class, 0);
+					JsonValueSpec representation = mapWithIdentifierKeys(
+						bt.parameterBinding(Catalog.class, 0));
 					yield RepresentAsSpec.as(
-						preScan(
-							// TODO: This won't work. substitute works only on direct type parameters, not recursively.
-							DataType.of(new TypeReference<Map<Identifier, Entity>>() {})
-//								.substitute(Entity.class, entityType)
-						),
+						representation,
 						catalogType,
 						(Catalog<?> c) -> c.asMap(),
 						(Map<Identifier, ? extends Entity> map) -> Catalog.of(map.values())
@@ -109,9 +106,9 @@ public class BosonSerializer extends StateTreeSerializer {
 
 		directives.add(new Directive(
 			DataType.of(ListingEntry.class),
-			_ -> RepresentAsSpec.as(
+			listingEntryType -> RepresentAsSpec.as(
 				new BooleanNode(),
-				DataType.known(ListingEntry.class),
+				listingEntryType,
 				(ListingEntry _) -> true,
 				(Boolean _) -> LISTING_ENTRY
 			)
@@ -121,35 +118,28 @@ public class BosonSerializer extends StateTreeSerializer {
 			DataType.of(new TypeReference<MapValue<?>>(){}),
 			mapValueType -> switch (mapValueType) {
 				case BoundType bt -> {
-					// It's just like a Map, only we want to instantiate MapValue instead of LinkedHashMap
-					var mapSpec = (UniformMapNode)preScan(
-						DataType.of(new TypeReference<Map<String, Entity>>(){})
-							.substitute(Entity.class, bt.parameterBinding(MapValue.class, 1)));
-					try {
-						yield new UniformMapNode(
-							mapSpec.keyNode(),
-							mapSpec.valueNode(),
-							new ObjectAccumulator(
-								mapSpec.accumulator().creator(),
-								mapSpec.accumulator().integrator(),
-								new TypedHandle( // here's our change
-									MethodHandles.lookup().findStatic(MapValue.class, "copyOf", methodType(MapValue.class, Map.class)),
-									mapValueType,
-									List.of(mapSpec.dataType())
-								)
-							),
-							mapSpec.emitter()
-						);
-					} catch (NoSuchMethodException | IllegalAccessException e) {
-						throw new IllegalStateException("Unexpected problem trying to access MapValue.copyOf", e);
-					}
+					var mapSpec = mapWithIdentifierKeys(bt.parameterBinding(MapValue.class, 1));
+					yield RepresentAsSpec.as(
+						mapSpec,
+						mapValueType,
+						(MapValue<V> mv) -> mv, // MapValue is a Map
+						MapValue::copyOf
+					);
 				}
 				default -> throw new IllegalStateException("Unexpected MapValue type: " + mapValueType);
 			}));
 
 		return new TypeScanner.Bundle(List.copyOf(directives));
 	}
-	
+
+	private static UniformMapNode mapWithIdentifierKeys(ParameterOrBound e2) {
+		return (UniformMapNode)preScan(
+			new BoundType(Map.class, List.of(
+				new SpecifiedParameterOrBound(DataType.known(Identifier.class)),
+				e2
+			)));
+	}
+
 	private JsonValueSpec preScan(Type type) {
 		return preScan(DataType.of(type));
 	}
@@ -199,16 +189,16 @@ public class BosonSerializer extends StateTreeSerializer {
 
 	JsonValueSpec representedAs(Representation<?,?> representation, KnownType actualType) {
 		BoundType bt = (BoundType) DataType.known(representation.getClass());
-		Type valueType = bt
+		ParameterOrBound valueType = bt
 			.parameterBinding(Representation.class, 0);
-		assert !(DataType.of(valueType) instanceof KnownType kt)
+		assert !(valueType.dataType() instanceof KnownType kt)
 			|| kt.rawClass().equals(actualType.rawClass());
-		Type repType = bt
+		ParameterOrBound repType = bt
 			.parameterBinding(Representation.class, 1);
-		KnownType rt = DataType.known(repType);
+		KnownType rt = (KnownType) repType.dataType();
 		try {
 			return new RepresentAsSpec(
-				preScan(repType),
+				preScan(rt),
 				new TypedHandle(
 					MethodHandles.lookup().findVirtual(representation.getClass(), "to", methodType(Object.class, Object.class))
 						.bindTo(representation)
