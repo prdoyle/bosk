@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 import works.bosk.Catalog;
 import works.bosk.Entity;
@@ -89,36 +88,6 @@ public sealed interface DataType {
 		}
 	}
 
-	/**
-	 * Returns true if the given type is described by a {@link DataType}
-	 * containing known {@link UnknownType}s.
-	 */
-	private static boolean isFullyDeeplyKnown(Type type, Set<Type> memo) {
-		if (memo.add(type)) {
-			return switch (type) {
-				case Class<?> clazz -> {
-					if (clazz.isArray()) {
-						yield isFullyDeeplyKnown(clazz.getComponentType(), memo);
-					} else if (clazz.isPrimitive()) {
-						yield true;
-					} else {
-						// If this class has type parameters, then it has been erased,
-						// so it's unknown.
-						yield clazz.getTypeParameters().length == 0;
-					}
-				}
-				case ParameterizedType pt -> Stream.of(pt.getActualTypeArguments())
-					.allMatch(arg -> isFullyDeeplyKnown(arg, memo));
-				default -> false;
-			};
-		} else {
-			// This is the case where we hit a cycle before we hit a known type.
-			// We'd quit if we ever saw something unknown.
-			// If we're in a cycle, there's no need to sound the alarm yet.
-			// We will report the problem when we encounter it.
-			return true;
-		}
-	}
 
 	static DataType of(TypeReference<?> ref) {
 		return of(ref.reflectionType());
