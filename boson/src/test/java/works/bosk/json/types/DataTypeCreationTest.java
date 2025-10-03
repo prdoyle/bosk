@@ -4,9 +4,11 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import works.bosk.json.types.DataType.ArrayType;
 import works.bosk.json.types.DataType.BoundType;
+import works.bosk.json.types.DataType.DeferredParameterOrBound;
 import works.bosk.json.types.DataType.TypeVariable;
 import works.bosk.json.types.DataType.UnknownArrayType;
 import works.bosk.json.types.DataType.WildcardType;
@@ -50,7 +52,7 @@ class DataTypeCreationTest {
 			List<String>
 			>() {});
 		assertEquals(
-			new BoundType(List.class, List.of(String.class)),
+			new BoundType(List.class, List.of(new DeferredParameterOrBound(String.class))),
 			listType
 		);
 
@@ -59,7 +61,7 @@ class DataTypeCreationTest {
 			};
 			DataType genericListType = DataType.of(ref);
 			assertEquals(
-				new BoundType(List.class, List.of(getActualTypeArguments(ref)[0])),
+				new BoundType(List.class, List.of(new DeferredParameterOrBound(getActualTypeArguments(ref)[0]))),
 				genericListType
 			);
 		}
@@ -67,10 +69,10 @@ class DataTypeCreationTest {
 		var ref = new TypeReference<Map<String, List<Integer>>>() { };
 		DataType mapType = DataType.of(ref);
 		assertEquals(
-			new BoundType(Map.class, List.of(
+			new BoundType(Map.class, Stream.of(
 				String.class,
 				getActualTypeArguments(ref)[1]
-			)),
+			).map(DeferredParameterOrBound::new).toList()),
 			mapType
 		);
 	}
@@ -90,9 +92,9 @@ class DataTypeCreationTest {
 		var actual = (BoundType)DataType.of(genericType);
 		var actualV = (java.lang.reflect.TypeVariable<?>)genericType.getActualTypeArguments()[0];
 		var actualW = (java.lang.reflect.TypeVariable<?>)genericType.getActualTypeArguments()[1];
-		assertEquals(new TypeVariable("V", List.of(actualV.getBounds())),
+		assertEquals(new TypeVariable("V", Stream.of(actualV.getBounds()).map(DeferredParameterOrBound::new).toList()),
 			actual.typeArgument(0));
-		assertEquals(new TypeVariable("W", List.of(actualW.getBounds())),
+		assertEquals(new TypeVariable("W", Stream.of(actualW.getBounds()).map(DeferredParameterOrBound::new).toList()),
 			actual.typeArgument(1));
 	}
 

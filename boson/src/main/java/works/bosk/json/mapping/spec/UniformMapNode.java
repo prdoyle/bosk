@@ -4,8 +4,10 @@ import works.bosk.json.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.json.mapping.spec.handles.ObjectEmitter;
 import works.bosk.json.types.DataType;
 
-import static works.bosk.json.types.DataType.STRING;
-
+/**
+ * @param keyNode must specify a JSON <em>string</em>. Can also accept a {@link TypeRefNode}
+ *                that maps to a spec that specifies a <em>string</em>.
+ */
 public record UniformMapNode(
 	JsonValueSpec keyNode,
 	JsonValueSpec valueNode,
@@ -13,7 +15,8 @@ public record UniformMapNode(
 	ObjectEmitter emitter
 ) implements ObjectSpec {
 	public UniformMapNode {
-		assert keyNode.dataType().equals(STRING);
+		// TODO: How to assert that keyNode can accept strings?
+		// TypeRef makes this almost impossible to check until we have a TypeMap.
 
 		assert accumulator.keyType().isAssignableFrom(keyNode.dataType()):
 			"accumulator must accept keys of type " + keyNode.dataType();

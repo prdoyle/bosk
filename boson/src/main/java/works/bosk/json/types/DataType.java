@@ -53,7 +53,7 @@ public sealed interface DataType {
 		} else if (type instanceof ParameterizedType pt) {
 			return new BoundType(
 				(Class<?>) pt.getRawType(),
-				Stream.of(pt.getActualTypeArguments()).toList());
+				Stream.of(pt.getActualTypeArguments()).map(DeferredParameterOrBound::new).toList());
 		} else if (type instanceof java.lang.reflect.TypeVariable<?> tv) {
 			return ofVariable(tv);
 		} else if (type instanceof java.lang.reflect.WildcardType w) {
@@ -72,11 +72,11 @@ public sealed interface DataType {
 		assert wildcardType.getLowerBounds().length <= 1 && wildcardType.getUpperBounds().length <= 1;
 		if (wildcardType.getLowerBounds().length == 1) {
 			assert wildcardType.getUpperBounds()[0].equals(Object.class);
-			return new LowerBoundedWildcardType(wildcardType.getLowerBounds()[0]);
+			return new LowerBoundedWildcardType(new DeferredParameterOrBound(wildcardType.getLowerBounds()[0]));
 		} else if (wildcardType.getUpperBounds()[0].equals(Object.class)) {
 			return new UnboundedWildcardType();
 		} else {
-			return new UpperBoundedWildcardType(wildcardType.getUpperBounds()[0]);
+			return new UpperBoundedWildcardType(new DeferredParameterOrBound(wildcardType.getUpperBounds()[0]));
 		}
 	}
 
@@ -84,10 +84,38 @@ public sealed interface DataType {
 		if (typeVariable.getBounds().length == 1 && typeVariable.getBounds()[0].equals(Object.class)) {
 			return new TypeVariable(typeVariable.getName(), List.of());
 		} else {
-			return new TypeVariable(typeVariable.getName(), Stream.of(typeVariable.getBounds()).toList());
+			return new TypeVariable(typeVariable.getName(), Stream.of(typeVariable.getBounds()).map(DeferredParameterOrBound::new).toList());
 		}
 	}
 
+	sealed interface ParameterOrBound {
+		DataType dataType();
+	}
+
+	/**
+	 * Only usable for types that are not self-referential.
+	 */
+	record SpecifiedParameterOrBound(DataType dataType) implements ParameterOrBound {
+		@Override
+		public String toString() {
+			return dataType.toString();
+		}
+	}
+
+	/**
+	 * Self-referential types can use this to avoid infinite recursion during construction.
+	 */
+	record DeferredParameterOrBound(Type type) implements ParameterOrBound {
+		@Override
+		public DataType dataType() {
+			return DataType.of(type);
+		}
+
+		@Override
+		public String toString() {
+			return type.toString();
+		}
+	}
 
 	static DataType of(TypeReference<?> ref) {
 		return of(ref.reflectionType());
@@ -177,18 +205,18 @@ public sealed interface DataType {
 		 */
 		default DataType parameterType(Class<?> targetClass, int parameterIndex) {
 			assert targetClass.isAssignableFrom(this.rawClass());
-			return DataType.of(parameterBinding(targetClass, parameterIndex));
+			return parameterBinding(targetClass, parameterIndex).dataType();
 		}
 
 		/**
 		 * Like {@link #parameterType(Class, int)} but returns the {@link Type} directly.
 		 */
-		default Type parameterBinding(Class<?> targetClass, int parameterIndex) {
+		default ParameterOrBound parameterBinding(Class<?> targetClass, int parameterIndex) {
 			assert targetClass.isAssignableFrom(this.rawClass());
 			if (targetClass.equals(this.rawClass())) {
 				return switch (this) {
 					case BoundType g -> g.bindings.get(parameterIndex);
-					case ErasedType r -> r.rawClass().getTypeParameters()[parameterIndex];
+					case ErasedType r -> new DeferredParameterOrBound(r.rawClass().getTypeParameters()[parameterIndex]);
 				};
 			} else {
 				// First, find some immediate supertype that is a subtype of targetClass.
@@ -216,16 +244,16 @@ public sealed interface DataType {
 				// First, let's recurse into the superclass...
 				var candidate = immediateSuperType.parameterBinding(targetClass, parameterIndex);
 
-				if (candidate instanceof java.lang.reflect.TypeVariable<?> tv) {
+				if (candidate.dataType() instanceof TypeVariable tv) {
 					// Now the candidate type would be V, in which case
 					// we want to map that to String.
 					var typeParameters = rawClass().getTypeParameters();
 					for (int i = 0; i < typeParameters.length; i++) {
-						if (typeParameters[i].getName().equals(tv.getName())) {
+						if (typeParameters[i].getName().equals(tv.name())) {
 							return parameterBinding(rawClass(), i);
 						}
 					}
-					throw new IllegalStateException("Type variable " + tv.getName() + " not found in " + targetClass);
+					throw new IllegalStateException("Type variable " + tv.name() + " not found in " + targetClass);
 				} else {
 					return candidate;
 				}
@@ -264,13 +292,13 @@ public sealed interface DataType {
 	 * For ordinary classes, {@code typeArguments} will be empty,
 	 * indicating that the class has no type parameters.
 	 */
-	record BoundType(Class<?> rawClass, List<Type> bindings) implements InstanceType {
+	record BoundType(Class<?> rawClass, List<? extends ParameterOrBound> bindings) implements InstanceType {
 		DataType typeArgument(int index) {
-			return DataType.of(bindings().get(index));
+			return bindings().get(index).dataType();
 		}
 
 		public Stream<DataType> typeArguments() {
-			return this.bindings().stream().map(DataType::of);
+			return this.bindings().stream().map(ParameterOrBound::dataType);
 		}
 
 		public boolean isAssignableFrom(DataType candidateType) {
@@ -293,10 +321,10 @@ public sealed interface DataType {
 
 		private boolean isAssignableFrom(BoundType candidate) {
 			// Collect all type variable bindings.
-			Map<String, Type> typeVariableBindings = new HashMap<>();
+			Map<String, ParameterOrBound> typeVariableBindings = new HashMap<>();
 			for (int i = 0; i < bindings().size(); i++) {
 				DataType patternArg = typeArgument(i);
-				Type candidateParameter = candidate.parameterBinding(rawClass(), i);
+				var candidateParameter = candidate.parameterBinding(rawClass(), i);
 				if (patternArg instanceof TypeVariable tv) {
 					var existing = typeVariableBindings.put(tv.name(), candidateParameter);
 					if (existing != null && !existing.equals(candidateParameter)) {
@@ -312,21 +340,21 @@ public sealed interface DataType {
 			typeArguments().forEach(arg -> {
 				switch (arg) {
 					case UpperBoundedWildcardType(var upperBound)
-						when (upperBound instanceof java.lang.reflect.TypeVariable<?> tv) -> {
+						when (upperBound.dataType() instanceof TypeVariable tv) -> {
 						resolvedArguments.add(new UpperBoundedWildcardType(
-							typeVariableBindings.getOrDefault(tv.getName(), upperBound)
+							typeVariableBindings.getOrDefault(tv.name(), upperBound)
 						));
 					}
-					case LowerBoundedWildcardType( var lowerBound)
-						when (lowerBound instanceof java.lang.reflect.TypeVariable<?> tv) -> {
+					case LowerBoundedWildcardType(var lowerBound)
+						when (lowerBound.dataType() instanceof TypeVariable tv) -> {
 						resolvedArguments.add(new LowerBoundedWildcardType(
-							typeVariableBindings.getOrDefault(tv.getName(), lowerBound)
+							typeVariableBindings.getOrDefault(tv.name(), lowerBound)
 						));
 					}
 					case TypeVariable(var name, var bounds) -> {
 						TypeVariable resolved = new TypeVariable(name, bounds.stream().map(b -> {
-							if (b instanceof java.lang.reflect.TypeVariable<?> tv) {
-								return typeVariableBindings.getOrDefault(tv.getName(), b);
+							if (b.dataType() instanceof TypeVariable tv) {
+								return typeVariableBindings.getOrDefault(tv.name(), b);
 							} else {
 								return b;
 							}
@@ -362,12 +390,12 @@ public sealed interface DataType {
 			return switch (patternArg) {
 				case UnboundedWildcardType _ ->
 					true;
-				case UpperBoundedWildcardType(Type upperBound) ->
-					DataType.of(upperBound).isAssignableFrom(candidate);
-				case LowerBoundedWildcardType(Type lowerBound) ->
-					candidate.isAssignableFrom(lowerBound);
+				case UpperBoundedWildcardType(ParameterOrBound upperBound) ->
+					upperBound.dataType().isAssignableFrom(candidate);
+				case LowerBoundedWildcardType(ParameterOrBound lowerBound) ->
+					candidate.isAssignableFrom(lowerBound.dataType());
 				case TypeVariable tv ->
-					tv.upperBounds().stream().allMatch(bound -> DataType.of(bound).isAssignableFrom(candidate));
+					tv.upperBounds().stream().allMatch(bound -> bound.dataType().isAssignableFrom(candidate));
 				default ->
 					patternArg.equals(candidate); // Generics are neither covariant nor contravariant
 			};
@@ -381,17 +409,17 @@ public sealed interface DataType {
 			} else {
 				return this.rawClass().getSimpleName() + "<"
 					+ this.bindings().stream()
-						.map(Type::toString)
+						.map(ParameterOrBound::toString)
 						.collect(joining(","))
 					+ ">";
 			}
 		}
 	}
 
-	record TypeVariable(String name, List<Type> upperBounds) implements UnknownType {
+	record TypeVariable(String name, List<? extends ParameterOrBound> upperBounds) implements UnknownType {
 
 		public TypeVariable(String name, Type...upperBounds) {
-			this(name, List.of(upperBounds));
+			this(name, Stream.of(upperBounds).map(DeferredParameterOrBound::new).toList());
 		}
 
 		@Override
@@ -400,14 +428,14 @@ public sealed interface DataType {
 				return name;
 			} else {
 				return name + " extends "
-					+ upperBounds.stream().map(Type::toString).collect(joining(" & "));
+					+ upperBounds.stream().map(ParameterOrBound::toString).collect(joining(" & "));
 			}
 		}
 
 		@Override
 		public boolean isAssignableFrom(DataType other) {
 			return other instanceof KnownType
-				&& upperBounds.stream().allMatch(bound -> DataType.of(bound).isAssignableFrom(other));
+				&& upperBounds.stream().allMatch(bound -> bound.dataType().isAssignableFrom(other));
 		}
 	}
 
@@ -417,11 +445,11 @@ public sealed interface DataType {
 		}
 
 		static UpperBoundedWildcardType extends_(Type upperBound) {
-			return new UpperBoundedWildcardType(upperBound);
+			return new UpperBoundedWildcardType(new DeferredParameterOrBound(upperBound));
 		}
 
 		static LowerBoundedWildcardType super_(Type lowerBound) {
-			return new LowerBoundedWildcardType(lowerBound);
+			return new LowerBoundedWildcardType(new DeferredParameterOrBound(lowerBound));
 		}
 	}
 
@@ -437,7 +465,7 @@ public sealed interface DataType {
 		}
 	}
 
-	record UpperBoundedWildcardType(Type upperBound) implements WildcardType {
+	record UpperBoundedWildcardType(ParameterOrBound upperBound) implements WildcardType {
 		@Override
 		public String toString() {
 			return "? extends " + upperBound;
@@ -445,11 +473,11 @@ public sealed interface DataType {
 
 		@Override
 		public boolean isAssignableFrom(DataType other) {
-			return other instanceof KnownType && DataType.of(upperBound).isAssignableFrom(other);
+			return other instanceof KnownType && upperBound.dataType().isAssignableFrom(other);
 		}
 	}
 
-	record LowerBoundedWildcardType(Type lowerBound) implements WildcardType {
+	record LowerBoundedWildcardType(ParameterOrBound lowerBound) implements WildcardType {
 		@Override
 		public String toString() {
 			return "? super " + lowerBound;
@@ -457,7 +485,7 @@ public sealed interface DataType {
 
 		@Override
 		public boolean isAssignableFrom(DataType other) {
-			return other instanceof KnownType && other.isAssignableFrom(lowerBound);
+			return other instanceof KnownType && other.isAssignableFrom(lowerBound.dataType());
 		}
 	}
 

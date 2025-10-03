@@ -234,6 +234,8 @@ public class TypeScanner {
 			);
 		}
 		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(Map.class)) {
+			// Note: keySpec need not support TypeRefNode: since there's no possibility
+			// of recursion through map keys, we can insist that map keys be ScalarSpec.
 			ScalarSpec keySpec = scanStringParsingClass((KnownType) type.parameterType(Map.class, 0));
 			JsonValueSpec valueSpec = refNode(type.parameterType(Map.class, 1));
 			return new UniformMapNode(
