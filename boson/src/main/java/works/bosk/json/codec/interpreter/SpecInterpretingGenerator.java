@@ -40,8 +40,8 @@ public class SpecInterpretingGenerator implements Generator {
 	 * @param typeMap used to resolve {@link TypeRefNode}s
 	 */
 	public SpecInterpretingGenerator(JsonValueSpec spec, TypeMap typeMap) {
-		this.spec = spec;
 		this.typeMap = typeMap;
+		this.spec = spec;
 	}
 
 	@Override

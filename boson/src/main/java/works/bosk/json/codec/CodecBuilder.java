@@ -1,7 +1,5 @@
 package works.bosk.json.codec;
 
-import java.io.IOException;
-import java.io.Writer;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.util.HashMap;
@@ -44,18 +42,16 @@ public class CodecBuilder {
 		return this;
 	}
 
-	public Codec buildInterpreter(JsonValueSpec spec) {
-		var parser = new SpecInterpretingParser(spec, typeMap);
-		var generator = new SpecInterpretingGenerator(spec, typeMap);
+	public Codec buildInterpreter() {
 		return new Codec() {
 			@Override
-			public void generate(Writer out, Object value) {
-				generator.generate(out, value);
+			public Parser parserFor(JsonValueSpec spec) {
+				return new SpecInterpretingParser(spec, typeMap);
 			}
 
 			@Override
-			public Object parse(CharArrayReader json) throws IOException {
-				return parser.parse(json);
+			public Generator generatorFor(JsonValueSpec spec) {
+				return new SpecInterpretingGenerator(spec, typeMap);
 			}
 		};
 	}
@@ -68,7 +64,7 @@ public class CodecBuilder {
 	public Codec build(JsonValueSpec spec) {
 		return typeMap.settings().compiled()
 			? buildCompiled(spec)
-			: buildInterpreter(spec);
+			: buildInterpreter();
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(CodecBuilder.class);

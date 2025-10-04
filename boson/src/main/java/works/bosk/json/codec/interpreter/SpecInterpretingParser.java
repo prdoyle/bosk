@@ -67,8 +67,8 @@ public class SpecInterpretingParser implements Parser {
 	final TypeMap typeMap;
 
 	public SpecInterpretingParser(JsonValueSpec spec, TypeMap typeMap) {
-		this.spec = spec;
 		this.typeMap = typeMap;
+		this.spec = spec;
 	}
 
 	@Override

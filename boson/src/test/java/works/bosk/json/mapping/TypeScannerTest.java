@@ -9,6 +9,7 @@ import works.bosk.json.codec.Codec;
 import works.bosk.json.codec.CodecBuilder;
 import works.bosk.json.mapping.TypeScanner.Bundle;
 import works.bosk.json.mapping.TypeScanner.Directive;
+import works.bosk.json.mapping.spec.JsonValueSpec;
 import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.TypeRefNode;
 import works.bosk.json.types.DataType;
@@ -43,8 +44,9 @@ class TypeScannerTest {
 			.scan(DataType.FLOAT)
 			.scan(DataType.known(FloatAsString.class))
 			.build();
-		Codec codec = CodecBuilder.of(typeMap).build(typeMap.get(DataType.FLOAT));
-		Object actual = codec.parse(new CharArrayReader(
+		JsonValueSpec spec = typeMap.get(DataType.FLOAT);
+		Codec codec = CodecBuilder.of(typeMap).build(spec);
+		Object actual = codec.parserFor(spec).parse(new CharArrayReader(
 			"""
 			{ "text": "123.45" }
 			"""));
@@ -73,8 +75,9 @@ class TypeScannerTest {
 			.scan(DataType.INT)
 			.scan(implType) // This seems unfortunate
 			.build();
-		Codec codec = CodecBuilder.of(typeMap).build(typeMap.get(implType));
-		Object actual = codec.parse(new CharArrayReader(
+		JsonValueSpec spec = typeMap.get(implType);
+		Codec codec = CodecBuilder.of(typeMap).build(spec);
+		Object actual = codec.parserFor(spec).parse(new CharArrayReader(
 			"""
 			[ 123, 456 ]
 			"""));

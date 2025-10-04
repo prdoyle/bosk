@@ -1,7 +1,6 @@
 module works.bosk.json {
 	requires org.slf4j;
 	requires works.bosk.core;
-	requires works.bosk.json;
 	exports works.bosk.json.codec;
 	exports works.bosk.json.mapping;
 	exports works.bosk.json.mapping.spec;

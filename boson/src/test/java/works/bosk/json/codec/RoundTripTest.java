@@ -111,7 +111,7 @@ public record RoundTripTest(Settings settings) {
 	}
 
 	/**
-	 * {@link Codec#parse} can't return a primitive, so to really test them,
+	 * {@link Parser#parse} can't return a primitive, so to really test them,
 	 * we need to put them in a record.
 	 * <p>
 	 * Also acts as a test for {@link FixedMapNode}.
@@ -145,24 +145,25 @@ public record RoundTripTest(Settings settings) {
 		DataType type = DataType.of(recordClass);
 		TypeScanner typeScanner = new TypeScanner(settings);
 		TypeMap typeMap = typeScanner.scan(type).build();
-		Codec codec = CodecBuilder.of(typeMap).using(MethodHandles.lookup()).build(typeMap.get(type));
-		var parsed = codec.parse(new CharArrayReader(json));
+		JsonValueSpec spec = typeMap.get(type);
+		Codec codec = CodecBuilder.of(typeMap).using(MethodHandles.lookup()).build(spec);
+		var parsed = codec.parserFor(spec).parse(new CharArrayReader(json));
 		assertEquals(value, parsed);
-		assertEquals(json, generateJson(codec, parsed));
+		assertEquals(json, generateJson(codec, parsed, spec));
 	}
 
 	private void testRoundTrip(JsonValueSpec node, String json, Object value) throws IOException {
 		TypeScanner typeScanner = new TypeScanner(settings);
 		TypeMap typeMap = typeScanner.scan(node.dataType()).build();
 		Codec codec = CodecBuilder.of(typeMap).build(node);
-		var parsed = codec.parse(new CharArrayReader(json));
+		var parsed = codec.parserFor(node).parse(new CharArrayReader(json));
 		assertEquals(value, parsed);
-		assertEquals(json, generateJson(codec, parsed));
+		assertEquals(json, generateJson(codec, parsed, node));
 	}
 
-	private static String generateJson(Codec codec, Object parsed) {
+	private static String generateJson(Codec codec, Object parsed, JsonValueSpec spec) {
 		var writer = new CharArrayWriter();
-		codec.generate(writer, parsed);
+		codec.generatorFor(spec).generate(writer, parsed);
 		return writer.toString();
 	}
 

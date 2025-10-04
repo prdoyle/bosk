@@ -11,6 +11,7 @@ import works.bosk.json.TestUtils.Month;
 import works.bosk.json.TestUtils.OneOfEach;
 import works.bosk.json.codec.CharArrayReader;
 import works.bosk.json.codec.Codec;
+import works.bosk.json.codec.Parser;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.spec.ComputedSpec;
@@ -33,6 +34,8 @@ import static works.bosk.json.mapping.TypeMap.Settings.DEFAULT;
 import static works.bosk.json.mapping.spec.handles.MemberPresenceCondition.memberValue;
 import static works.bosk.json.mapping.spec.handles.TypedHandles.constant;
 import static works.bosk.json.mapping.spec.handles.TypedHandles.notEquals;
+import static works.bosk.json.types.DataType.BOOLEAN;
+import static works.bosk.json.types.DataType.INT;
 import static works.bosk.json.types.DataType.STRING;
 
 public class SpecCompilerTest {
@@ -41,37 +44,37 @@ public class SpecCompilerTest {
 
 	@Test
 	void testBoolean() throws IOException, NoSuchMethodException, IllegalAccessException {
-		Codec codec = compiledCodec(DataType.of(boolean.class));
-		Boolean actual = (Boolean) codec.parse(new CharArrayReader("true"));
+		Parser parser = compiledParser(BOOLEAN);
+		Boolean actual = (Boolean) parser.parse(new CharArrayReader("true"));
 		assertEquals(Boolean.TRUE, actual);
 	}
 
 	@Test
 	void testString() throws IOException, NoSuchMethodException, IllegalAccessException {
-		Codec codec = compiledCodec(DataType.of(String.class));
-		String actual = (String) codec.parse(new CharArrayReader("\"testing\""));
+		Parser parser = compiledParser(STRING);
+		String actual = (String) parser.parse(new CharArrayReader("\"testing\""));
 		assertEquals("testing", actual);
 	}
 
 	@Test
 	void testInt() throws IOException, NoSuchMethodException, IllegalAccessException {
-		Codec codec = compiledCodec(DataType.of(int.class));
-		int actual = (int) codec.parse(new CharArrayReader("123"));
+		Parser parser = compiledParser(INT);
+		int actual = (int) parser.parse(new CharArrayReader("123"));
 		assertEquals(123, actual);
 	}
 
 	@Test
 	void testBigDecimal() throws IOException, NoSuchMethodException, IllegalAccessException {
-		Codec codec = compiledCodec(DataType.of(BigDecimal.class));
-		BigDecimal actual = (BigDecimal) codec.parse(new CharArrayReader("123.456"));
+		Parser parser = compiledParser(DataType.of(BigDecimal.class));
+		BigDecimal actual = (BigDecimal) parser.parse(new CharArrayReader("123.456"));
 		assertEquals(new BigDecimal("123.456"), actual);
 	}
 
 	@Test
 	void testEnum() throws IOException, NoSuchMethodException, IllegalAccessException {
 		enum TestEnum { TEST1, TEST2 }
-		Codec codec = compiledCodec(DataType.of(TestEnum.class));
-		TestEnum actual = (TestEnum) codec.parse(new CharArrayReader("\"TEST1\""));
+		Parser parser = compiledParser(DataType.of(TestEnum.class));
+		TestEnum actual = (TestEnum) parser.parse(new CharArrayReader("\"TEST1\""));
 		assertEquals(TestEnum.TEST1, actual);
 	}
 
@@ -87,7 +90,8 @@ public class SpecCompilerTest {
 		// Compiling a reference node should work exactly the same as
 		// whatever node the typeScanner would return for TestEnum.
 		Codec codec = new SpecCompiler(typeMap, LOOKUP_MAP).compile(typeRefNode);
-		TestEnum actual = (TestEnum) codec.parse(new CharArrayReader("\"TEST1\""));
+		Parser parser = codec.parserFor(typeRefNode);
+		TestEnum actual = (TestEnum) parser.parse(new CharArrayReader("\"TEST1\""));
 		assertEquals(TestEnum.TEST1, actual);
 	}
 
@@ -96,28 +100,28 @@ public class SpecCompilerTest {
 
 	@Test
 	void testRecord() throws IOException, NoSuchMethodException, IllegalAccessException {
-		Codec codec = compiledCodec(DataType.of(OuterRecord.class));
+		Parser parser = compiledParser(DataType.of(OuterRecord.class));
 		String json = """
 				{
 					"i1": 123,
 					"inner": { "i2": 456 }
 				}
 			""";
-		OuterRecord actual = (OuterRecord) codec.parse(new CharArrayReader(json));
+		OuterRecord actual = (OuterRecord) parser.parse(new CharArrayReader(json));
 		OuterRecord expected = new ObjectMapper().readerFor(OuterRecord.class).readValue(json);
 		assertEquals(expected, actual);
 	}
 
 	@Test
 	void testOneOfEach() throws IOException, NoSuchMethodException, IllegalAccessException {
-		Codec codec = compiledCodec(DataType.of(OneOfEach.class));
-		OneOfEach actual = (OneOfEach) codec.parse(new CharArrayReader(ONE_OF_EACH, 0));
+		Parser parser = compiledParser(DataType.of(OneOfEach.class));
+		OneOfEach actual = (OneOfEach) parser.parse(new CharArrayReader(ONE_OF_EACH, 0));
 		assertEquals(expectedOneOfEach(), actual);
 	}
 
-	private Codec compiledCodec(DataType dataType) throws NoSuchMethodException, IllegalAccessException {
+	private Parser compiledParser(DataType dataType) throws NoSuchMethodException, IllegalAccessException {
 		var typeMap = testTypeMap(dataType);
-		return new SpecCompiler(typeMap, LOOKUP_MAP).compile(typeMap.get(dataType));
+		return new SpecCompiler(typeMap, LOOKUP_MAP).compile(typeMap.get(dataType)).parserFor(typeMap.get(dataType));
 	}
 
 	public static TypeMap testTypeMap(DataType dataType) throws NoSuchMethodException, IllegalAccessException {

@@ -31,7 +31,7 @@ class CodecTest {
 	void testParser() throws IOException {
 		LOGGER.debug("Spec: {}", spec);
 		Codec codec = CodecBuilder.of(typeMap).build(spec);
-		assertEquals(expectedOneOfEach(), codec.parse(new CharArrayReader(ONE_OF_EACH, 0)));
+		assertEquals(expectedOneOfEach(), codec.parserFor(spec).parse(new CharArrayReader(ONE_OF_EACH, 0)));
 	}
 
 	@Test
@@ -39,8 +39,8 @@ class CodecTest {
 		StringWriter sw = new StringWriter();
 
 		Codec codec = CodecBuilder.of(typeMap).build(spec);
-		codec.generate(sw, expectedOneOfEach());
-		var actual = codec.parse(new CharArrayReader(sw.toString()));
+		codec.generatorFor(spec).generate(sw, expectedOneOfEach());
+		var actual = codec.parserFor(spec).parse(new CharArrayReader(sw.toString()));
 		assertEquals(expectedOneOfEach(), actual);
 	}
 
