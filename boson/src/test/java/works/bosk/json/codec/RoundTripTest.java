@@ -146,7 +146,7 @@ public record RoundTripTest(Settings settings) {
 		TypeScanner typeScanner = new TypeScanner(settings);
 		TypeMap typeMap = typeScanner.scan(type).build();
 		JsonValueSpec spec = typeMap.get(type);
-		Codec codec = CodecBuilder.of(typeMap).using(MethodHandles.lookup()).build(spec);
+		Codec codec = CodecBuilder.of(typeMap).using(MethodHandles.lookup()).build();
 		var parsed = codec.parserFor(spec).parse(new CharArrayReader(json));
 		assertEquals(value, parsed);
 		assertEquals(json, generateJson(codec, parsed, spec));

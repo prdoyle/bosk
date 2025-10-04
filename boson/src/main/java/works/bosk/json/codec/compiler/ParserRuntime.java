@@ -15,7 +15,7 @@ import static works.bosk.json.mapping.Token.INSIGNIFICANT;
  * Generated parser classes extend this.
  * It represents a single parse session, parsing a given {@link CharArrayReader}.
  */
-public abstract class ParserRuntime extends ParserSessionImpl implements CodecSession {
+public abstract class ParserRuntime extends ParserSessionImpl {
 	private static final AtomicLong curriedArrayCounter = new AtomicLong(0);
 	private static final Map<Long, Object[]> curriedArrays = new HashMap<>();
 

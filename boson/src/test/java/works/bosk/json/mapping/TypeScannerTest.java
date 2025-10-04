@@ -45,7 +45,7 @@ class TypeScannerTest {
 			.scan(DataType.known(FloatAsString.class))
 			.build();
 		JsonValueSpec spec = typeMap.get(DataType.FLOAT);
-		Codec codec = CodecBuilder.of(typeMap).build(spec);
+		Codec codec = CodecBuilder.of(typeMap).build();
 		Object actual = codec.parserFor(spec).parse(new CharArrayReader(
 			"""
 			{ "text": "123.45" }
@@ -76,7 +76,7 @@ class TypeScannerTest {
 			.scan(implType) // This seems unfortunate
 			.build();
 		JsonValueSpec spec = typeMap.get(implType);
-		Codec codec = CodecBuilder.of(typeMap).build(spec);
+		Codec codec = CodecBuilder.of(typeMap).build();
 		Object actual = codec.parserFor(spec).parse(new CharArrayReader(
 			"""
 			[ 123, 456 ]

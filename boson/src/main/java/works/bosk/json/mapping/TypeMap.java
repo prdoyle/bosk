@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import works.bosk.json.mapping.spec.JsonValueSpec;
 import works.bosk.json.types.DataType;
@@ -43,6 +44,10 @@ public class TypeMap {
 		return Set.copyOf(memo.keySet());
 	}
 
+	public Set<JsonValueSpec> knownSpecs() {
+		return Set.copyOf(memo.values());
+	}
+
 	/**
 	 * @throws IllegalArgumentException if there's no node for the given type
 	 */
@@ -66,6 +71,10 @@ public class TypeMap {
 			throw new IllegalStateException("TypeMap is frozen");
 		}
 		return memo.put(type, requireNonNull(newValue));
+	}
+
+	public void forEach(BiConsumer<DataType, JsonValueSpec> action) {
+		memo.forEach(action);
 	}
 
 	public record Settings(

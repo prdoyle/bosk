@@ -16,7 +16,7 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 				.addLast(new BosonSerializer().bundleFor(b))
 				.build();
 			var rootType = DataType.of(b.rootReference().targetType());
-			Codec codec = CodecBuilder.of(typeMap).build(typeMap.get(rootType));
+			Codec codec = CodecBuilder.of(typeMap).build();
 			return new AbstractRoundTripTest.PreprocessingDriver(d) {
 				@Override
 				protected <T> T preprocess(Reference<T> reference, T newValue) {

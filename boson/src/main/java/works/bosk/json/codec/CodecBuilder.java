@@ -11,6 +11,7 @@ import works.bosk.json.codec.interpreter.SpecInterpretingGenerator;
 import works.bosk.json.codec.interpreter.SpecInterpretingParser;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.spec.JsonValueSpec;
+import works.bosk.json.mapping.spec.SpecNode;
 
 import static java.util.Objects.requireNonNull;
 
@@ -42,6 +43,10 @@ public class CodecBuilder {
 		return this;
 	}
 
+	public CodecBuilder with(SpecNode... nodes) {
+		return this;
+	}
+
 	public Codec buildInterpreter() {
 		return new Codec() {
 			@Override
@@ -56,14 +61,14 @@ public class CodecBuilder {
 		};
 	}
 
-	public Codec buildCompiled(JsonValueSpec spec) {
-		return compiler.compile(spec);
+	public Codec buildCompiled(JsonValueSpec... extraNodes) {
+		return compiler.compile(extraNodes);
 	}
 
 	// TODO: We need to build one thing that can handle many types; Codec only handles one.
-	public Codec build(JsonValueSpec spec) {
+	public Codec build(JsonValueSpec... extraNodes) {
 		return typeMap.settings().compiled()
-			? buildCompiled(spec)
+			? buildCompiled(extraNodes)
 			: buildInterpreter();
 	}
 

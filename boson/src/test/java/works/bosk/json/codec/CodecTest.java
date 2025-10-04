@@ -30,7 +30,7 @@ class CodecTest {
 	@Test
 	void testParser() throws IOException {
 		LOGGER.debug("Spec: {}", spec);
-		Codec codec = CodecBuilder.of(typeMap).build(spec);
+		Codec codec = CodecBuilder.of(typeMap).build();
 		assertEquals(expectedOneOfEach(), codec.parserFor(spec).parse(new CharArrayReader(ONE_OF_EACH, 0)));
 	}
 
@@ -38,7 +38,7 @@ class CodecTest {
 	void roundTrip() throws IOException {
 		StringWriter sw = new StringWriter();
 
-		Codec codec = CodecBuilder.of(typeMap).build(spec);
+		Codec codec = CodecBuilder.of(typeMap).build();
 		codec.generatorFor(spec).generate(sw, expectedOneOfEach());
 		var actual = codec.parserFor(spec).parse(new CharArrayReader(sw.toString()));
 		assertEquals(expectedOneOfEach(), actual);

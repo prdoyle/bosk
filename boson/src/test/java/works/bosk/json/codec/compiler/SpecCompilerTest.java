@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import works.bosk.json.TestUtils.Month;
 import works.bosk.json.TestUtils.OneOfEach;
 import works.bosk.json.codec.CharArrayReader;
-import works.bosk.json.codec.Codec;
 import works.bosk.json.codec.Parser;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
@@ -89,8 +88,7 @@ public class SpecCompilerTest {
 
 		// Compiling a reference node should work exactly the same as
 		// whatever node the typeScanner would return for TestEnum.
-		Codec codec = new SpecCompiler(typeMap, LOOKUP_MAP).compile(typeRefNode);
-		Parser parser = codec.parserFor(typeRefNode);
+		Parser parser = new SpecCompiler(typeMap, LOOKUP_MAP).compile().parserFor(typeRefNode);
 		TestEnum actual = (TestEnum) parser.parse(new CharArrayReader("\"TEST1\""));
 		assertEquals(TestEnum.TEST1, actual);
 	}
@@ -121,7 +119,7 @@ public class SpecCompilerTest {
 
 	private Parser compiledParser(DataType dataType) throws NoSuchMethodException, IllegalAccessException {
 		var typeMap = testTypeMap(dataType);
-		return new SpecCompiler(typeMap, LOOKUP_MAP).compile(typeMap.get(dataType)).parserFor(typeMap.get(dataType));
+		return new SpecCompiler(typeMap, LOOKUP_MAP).compile().parserFor(typeMap.get(dataType));
 	}
 
 	public static TypeMap testTypeMap(DataType dataType) throws NoSuchMethodException, IllegalAccessException {
