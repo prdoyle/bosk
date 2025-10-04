@@ -64,6 +64,7 @@ public class CodecBuilder {
 		return compiler.compile(spec);
 	}
 
+	// TODO: We need to build one thing that can handle many types; Codec only handles one.
 	public Codec build(JsonValueSpec spec) {
 		return typeMap.settings().compiled()
 			? buildCompiled(spec)
