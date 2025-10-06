@@ -297,7 +297,7 @@ public class TypeScanner {
 		if (isStringParsingClass(type)) {
 			return scanStringParsingClass(type);
 		}
-		throw new IllegalStateException("Not yet implemented: " + type);
+		return new TypeRefNode(type);
 	}
 
 	public static ArrayAccumulator listAccumulator(BoundType arrayListType) {
