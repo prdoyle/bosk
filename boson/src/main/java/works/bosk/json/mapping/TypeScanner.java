@@ -230,6 +230,14 @@ public class TypeScanner {
 				}
 			}
 		}
+		LOGGER.debug("Type {} did not match any directive in {}", type,
+			bundles.stream()
+				.flatMap(b -> b.directives().stream())
+				.map(Directive::pattern)
+				.map(Object::toString)
+				.distinct()
+				.sorted()
+				.toList());
 		return null;
 	}
 
@@ -464,7 +472,9 @@ public class TypeScanner {
 		} catch (IllegalAccessException e) {
 			throw new IllegalStateException("Unexpected error accessing record component accessor for " + c, e);
 		}
-		var accessor = new TypedHandle(mh, DataType.known(c.getGenericType()), List.of(DataType.known(c.getDeclaringRecord())));
+		KnownType returnType = DataType.known(c.getGenericType());
+		KnownType parameterType = DataType.known(c.getDeclaringRecord());
+		var accessor = new TypedHandle(mh, returnType, List.of(parameterType));
 
 		DataType type = DataType.of(c.getGenericType());
 		JsonValueSpec componentSpec = refNode(type);

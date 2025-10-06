@@ -94,7 +94,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		// The remainder are more complex, and so they benefit from leveraging the TypeScanner
 		// to do an initial data structure scan which we then modify.
 		// We call this the "pre-scan", and it benefits from having the simple types above available.
-		TypeScanner.Bundle preScanBundle = new TypeScanner.Bundle(List.copyOf(directives));
+		TypeScanner.Bundle simpleScanBundle = new TypeScanner.Bundle(List.copyOf(directives));
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<Catalog<? extends Entity>>(){}),
@@ -107,7 +107,7 @@ public class BosonSerializer extends StateTreeSerializer {
 							bt.parameterType(Catalog.class, 0)
 						));
 					yield RepresentAsSpec.as(
-						preScan(representation, preScanBundle),
+						preScan(representation, simpleScanBundle),
 						catalogType,
 						(Catalog<?> c) -> c.asMap(),
 						(Map<Identifier, ? extends Entity> map) -> Catalog.of(map.values())
@@ -125,7 +125,7 @@ public class BosonSerializer extends StateTreeSerializer {
 						ListingRepresentation.class,
 						bt.bindings());
 					yield RepresentAsSpec.as(
-						preScan(representation, preScanBundle),
+						preScan(representation, simpleScanBundle),
 						listingType,
 						(Listing<?> listing) -> ListingRepresentation.fromListing(listing),
 						ListingRepresentation::toListing
@@ -141,7 +141,7 @@ public class BosonSerializer extends StateTreeSerializer {
 				case BoundType bt -> {
 					var representation = new BoundType(SideTableRepresentation.class, bt.bindings());
 					yield RepresentAsSpec.as(
-						preScan(representation, preScanBundle),
+						preScan(representation, simpleScanBundle),
 						sideTableType,
 						(SideTable<?,?> st) -> SideTableRepresentation.fromSideTable(st),
 						SideTableRepresentation::toSideTable
@@ -166,7 +166,7 @@ public class BosonSerializer extends StateTreeSerializer {
 					SequencedMap<String, FixedMapMember> members = new LinkedHashMap<>();
 					variantCaseMap.forEach((name, caseType) -> {
 						members.put(name, new FixedMapMember(
-							preScan(caseType, preScanBundle),
+							preScan(caseType, simpleScanBundle),
 							TypedHandle.<TaggedUnion<?>, Object>ofFunction(taggedUnionType, DataType.known(caseType), TaggedUnion::variant)
 						));
 					});
@@ -220,7 +220,7 @@ public class BosonSerializer extends StateTreeSerializer {
 					// Now, with this in place, a shallow preScan returns the right thing
 					yield preScan(bt,
 						new TypeScanner(TypeMap.Settings.SHALLOW)
-							.specifyRecordFields(recordClass, componentsByName), preScanBundle
+							.specifyRecordFields(recordClass, componentsByName), simpleScanBundle
 					);
 				}
 				default -> throw new IllegalStateException("Unexpected StateTreeNode type: " + stateTreeNodeType);
@@ -232,7 +232,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			listValueType -> switch (listValueType) {
 				case BoundType bt -> {
 					var elementType = bt.parameterType(ListValue.class, 0);
-					var listSpec = preScan(new BoundType(ArrayList.class, List.of(elementType)), preScanBundle);
+					var listSpec = preScan(new BoundType(ArrayList.class, List.of(elementType)), simpleScanBundle);
 					yield RepresentAsSpec.as(
 						listSpec,
 						listValueType,
@@ -256,7 +256,7 @@ public class BosonSerializer extends StateTreeSerializer {
 						)
 					);
 					yield RepresentAsSpec.as(
-						preScan(representation, preScanBundle),
+						preScan(representation, simpleScanBundle),
 						mapValueType,
 						(MapValue<?> mv) -> mv, // MapValue is a Map
 						MapValue::copyOf

@@ -20,7 +20,11 @@ public sealed interface DataType permits KnownType, UnknownType {
 	BoundType OBJECT = (BoundType) DataType.of(Object.class);
 
 	static KnownType known(Type type) {
-		return (KnownType) of(type);
+		if (of(type) instanceof KnownType kt) {
+			return kt;
+		} else {
+			throw new IllegalArgumentException("Type is not a KnownType: " + type);
+		}
 	}
 
 	static KnownType known(TypeReference<?> ref) {
