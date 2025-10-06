@@ -1,6 +1,6 @@
 package works.bosk.json.types;
 
-public record LowerBoundedWildcardType(ParameterOrBound lowerBound) implements WildcardType {
+public record LowerBoundedWildcardType(DataType lowerBound) implements WildcardType {
 	@Override
 	public String toString() {
 		return "? super " + lowerBound;
@@ -8,6 +8,6 @@ public record LowerBoundedWildcardType(ParameterOrBound lowerBound) implements W
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return other instanceof KnownType && other.isAssignableFrom(lowerBound.dataType());
+		return other instanceof KnownType && other.isAssignableFrom(lowerBound);
 	}
 }

@@ -77,22 +77,28 @@ public class TypeMap {
 		memo.forEach(action);
 	}
 
+	/**
+	 * @param shallowScan this is different from the others. They represent experimental options,
+	 *                    but this is an important type scanner mode used to avoid unwanted
+	 *                    premature scanning of types we're not ready to scan yet.
+	 */
 	public record Settings(
 		boolean compiled,
 		boolean iterative,
 		boolean optimize,
-		boolean fewerSwitches
+		boolean fewerSwitches,
+		boolean shallowScan
 	) {
-		public static Settings DEFAULT = new Settings(true, false, true, false);
+		public static Settings DEFAULT = new Settings(true, false, true, false, false);
 
 		/**
 		 * Makes no effort to recurse into structures,
 		 * instead using {@link works.bosk.json.types.TypeReference} for any types encountered.
 		 */
-		public static Settings SHALLOW = new Settings(false, false, false, false);
+		public static Settings SHALLOW = new Settings(false, false, false, false, true);
 
 		public Settings withFewerSwitches() {
-			return new Settings(compiled, iterative, optimize, true);
+			return new Settings(compiled, iterative, optimize, true, shallowScan);
 		}
 	}
 

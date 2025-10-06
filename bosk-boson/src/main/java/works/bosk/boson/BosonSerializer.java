@@ -42,9 +42,7 @@ import works.bosk.json.mapping.spec.TypeRefNode;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.BoundType;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.DeferredParameterOrBound;
 import works.bosk.json.types.KnownType;
-import works.bosk.json.types.SpecifiedParameterOrBound;
 import works.bosk.json.types.TypeReference;
 import works.bosk.json.types.UpperBoundedWildcardType;
 
@@ -105,8 +103,8 @@ public class BosonSerializer extends StateTreeSerializer {
 					KnownType representation = new BoundType(
 						Map.class,
 						List.of(
-							new SpecifiedParameterOrBound(DataType.known(Identifier.class)),
-							bt.parameterBinding(Catalog.class, 0)
+							DataType.known(Identifier.class),
+							bt.parameterType(Catalog.class, 0)
 						));
 					yield RepresentAsSpec.as(
 						preScan(representation, preScanBundle),
@@ -158,7 +156,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			DataType.of(new TypeReference<TaggedUnion<?>>(){}),
 			taggedUnionType -> switch (taggedUnionType) {
 				case BoundType bt -> {
-					var caseStaticType = (KnownType)bt.parameterType(TaggedUnion.class, 0);
+					var caseStaticType = (KnownType) bt.parameterType(TaggedUnion.class, 0);
 					MapValue<Type> variantCaseMap;
 					try {
 						variantCaseMap = StateTreeSerializer.getVariantCaseMap(caseStaticType.rawClass());
@@ -189,7 +187,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(new Directive(
-			new UpperBoundedWildcardType(new DeferredParameterOrBound(StateTreeNode.class)),
+			new UpperBoundedWildcardType(DataType.of(StateTreeNode.class)),
 			stateTreeNodeType -> switch (stateTreeNodeType) {
 				case BoundType bt -> {
 					// Configure the preScan so it does the right thing with special components
@@ -233,7 +231,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			DataType.of(new TypeReference<ListValue<?>>(){}),
 			listValueType -> switch (listValueType) {
 				case BoundType bt -> {
-					var elementType = bt.parameterBinding(ListValue.class, 0);
+					var elementType = bt.parameterType(ListValue.class, 0);
 					var listSpec = preScan(new BoundType(ArrayList.class, List.of(elementType)), preScanBundle);
 					yield RepresentAsSpec.as(
 						listSpec,
@@ -253,8 +251,8 @@ public class BosonSerializer extends StateTreeSerializer {
 					KnownType representation = new BoundType(
 						Map.class,
 						List.of(
-							new SpecifiedParameterOrBound(DataType.known(String.class)),
-							bt.parameterBinding(MapValue.class, 0)
+							DataType.known(String.class),
+							bt.parameterType(MapValue.class, 0)
 						)
 					);
 					yield RepresentAsSpec.as(

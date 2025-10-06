@@ -1,6 +1,6 @@
 package works.bosk.json.types;
 
-public record UpperBoundedWildcardType(ParameterOrBound upperBound) implements WildcardType {
+public record UpperBoundedWildcardType(DataType upperBound) implements WildcardType {
 	@Override
 	public String toString() {
 		return "? extends " + upperBound;
@@ -8,6 +8,6 @@ public record UpperBoundedWildcardType(ParameterOrBound upperBound) implements W
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return other instanceof KnownType && upperBound.dataType().isAssignableFrom(other);
+		return other instanceof KnownType && upperBound.isAssignableFrom(other);
 	}
 }

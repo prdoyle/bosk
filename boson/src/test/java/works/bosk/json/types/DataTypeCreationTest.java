@@ -46,7 +46,7 @@ class DataTypeCreationTest {
 			List<String>
 			>() {});
 		assertEquals(
-			new BoundType(List.class, List.of(new DeferredParameterOrBound(String.class))),
+			new BoundType(List.class, List.of(DataType.STRING)),
 			listType
 		);
 
@@ -55,7 +55,7 @@ class DataTypeCreationTest {
 			};
 			DataType genericListType = DataType.of(ref);
 			assertEquals(
-				new BoundType(List.class, List.of(new DeferredParameterOrBound(getActualTypeArguments(ref)[0]))),
+				new BoundType(List.class, List.of(DataType.of(getActualTypeArguments(ref)[0]))),
 				genericListType
 			);
 		}
@@ -66,7 +66,7 @@ class DataTypeCreationTest {
 			new BoundType(Map.class, Stream.of(
 				String.class,
 				getActualTypeArguments(ref)[1]
-			).map(DeferredParameterOrBound::new).toList()),
+			).map(DataType::of).toList()),
 			mapType
 		);
 	}
@@ -86,9 +86,9 @@ class DataTypeCreationTest {
 		var actual = (BoundType)DataType.of(genericType);
 		var actualV = (java.lang.reflect.TypeVariable<?>)genericType.getActualTypeArguments()[0];
 		var actualW = (java.lang.reflect.TypeVariable<?>)genericType.getActualTypeArguments()[1];
-		assertEquals(new TypeVariable("V", Stream.of(actualV.getBounds()).map(DeferredParameterOrBound::new).toList()),
+		assertEquals(new TypeVariable("V"),
 			actual.typeArgument(0));
-		assertEquals(new TypeVariable("W", Stream.of(actualW.getBounds()).map(DeferredParameterOrBound::new).toList()),
+		assertEquals(new TypeVariable("W"),
 			actual.typeArgument(1));
 	}
 

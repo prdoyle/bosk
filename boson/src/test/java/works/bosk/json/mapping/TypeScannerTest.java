@@ -23,7 +23,7 @@ class TypeScannerTest {
 
 	@BeforeEach
 	void setUp() {
-		scanner = new TypeScanner(new TypeMap.Settings(false, false, false, false));
+		scanner = new TypeScanner(new TypeMap.Settings(false, false, false, false, false));
 	}
 
 	public record FloatAsString(String text) {}

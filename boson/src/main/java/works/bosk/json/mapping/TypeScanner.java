@@ -150,14 +150,13 @@ public class TypeScanner {
 	}
 
 	public TypeMap build() {
+		scanRefs();
+		inProgress.freeze();
 		if (settings().optimize()) {
-			scanRefs();
-			inProgress.freeze();
 			TypeMap optimized = new Optimizer().optimize(inProgress);
 			optimized.freeze();
 			return optimized;
 		} else {
-			inProgress.freeze();
 			return inProgress;
 		}
 	}
@@ -182,19 +181,18 @@ public class TypeScanner {
 		if (type instanceof KnownType kt && findDirective(kt) instanceof Directive(var pattern, var specFunction)) {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
 			JsonValueSpec spec = specFunction.apply(kt);
-			scrapeRefs(spec);
-			return spec;
+			return scrapeRefs(spec);
 		}
 		return switch (type) {
 			case ArrayType t -> scanArray(t);
-			case BoundType t -> scanClass(t);
+			case BoundType t -> scrapeRefs(scanClass(t));
 			case PrimitiveType t -> scanPrimitive(t);
 			case UnknownType _, ErasedType _ ->
 				throw new IllegalStateException("Unsupported type: " + type);
 		};
 	}
 
-	private void scrapeRefs(SpecNode spec) {
+	private <T extends SpecNode> T scrapeRefs(T spec) {
 		LOGGER.debug("Scraping refs from {}", spec);
 		switch (spec) {
 			case TypeRefNode n -> {
@@ -221,6 +219,7 @@ public class TypeScanner {
 			}
 			case ScalarSpec _, ComputedSpec _ -> { }
 		}
+		return spec;
 	}
 
 	private Directive findDirective(KnownType type) {

@@ -46,9 +46,9 @@ public sealed interface DataType permits KnownType, UnknownType {
 		} else if (type instanceof ParameterizedType pt) {
 			return new BoundType(
 				(Class<?>) pt.getRawType(),
-				Stream.of(pt.getActualTypeArguments()).map(DeferredParameterOrBound::new).toList());
+				Stream.of(pt.getActualTypeArguments()).map(DataType::of).toList());
 		} else if (type instanceof java.lang.reflect.TypeVariable<?> tv) {
-			return ofVariable(tv);
+			return new TypeVariable(tv.getName());
 		} else if (type instanceof java.lang.reflect.WildcardType w) {
 			return ofWildcard(w);
 		} else if (type instanceof GenericArrayType t) {
@@ -65,19 +65,11 @@ public sealed interface DataType permits KnownType, UnknownType {
 		assert wildcardType.getLowerBounds().length <= 1 && wildcardType.getUpperBounds().length <= 1;
 		if (wildcardType.getLowerBounds().length == 1) {
 			assert wildcardType.getUpperBounds()[0].equals(Object.class);
-			return new LowerBoundedWildcardType(new DeferredParameterOrBound(wildcardType.getLowerBounds()[0]));
+			return new LowerBoundedWildcardType(DataType.of(wildcardType.getLowerBounds()[0]));
 		} else if (wildcardType.getUpperBounds()[0].equals(Object.class)) {
 			return new UnboundedWildcardType();
 		} else {
-			return new UpperBoundedWildcardType(new DeferredParameterOrBound(wildcardType.getUpperBounds()[0]));
-		}
-	}
-
-	static TypeVariable ofVariable(java.lang.reflect.TypeVariable<?> typeVariable) {
-		if (typeVariable.getBounds().length == 1 && typeVariable.getBounds()[0].equals(Object.class)) {
-			return new TypeVariable(typeVariable.getName(), List.of());
-		} else {
-			return new TypeVariable(typeVariable.getName(), Stream.of(typeVariable.getBounds()).map(DeferredParameterOrBound::new).toList());
+			return new UpperBoundedWildcardType(DataType.of(wildcardType.getUpperBounds()[0]));
 		}
 	}
 

@@ -17,13 +17,13 @@ import static java.util.stream.Collectors.joining;
  * For ordinary classes, {@code typeArguments} will be empty,
  * indicating that the class has no type parameters.
  */
-public record BoundType(Class<?> rawClass, List<? extends ParameterOrBound> bindings) implements InstanceType {
+public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) implements InstanceType {
 	DataType typeArgument(int index) {
-		return bindings().get(index).dataType();
+		return bindings().get(index);
 	}
 
-	public Stream<DataType> typeArguments() {
-		return this.bindings().stream().map(ParameterOrBound::dataType);
+	public Stream<? extends DataType> typeArguments() {
+		return this.bindings().stream();
 	}
 
 	public boolean isAssignableFrom(DataType candidateType) {
@@ -46,10 +46,10 @@ public record BoundType(Class<?> rawClass, List<? extends ParameterOrBound> bind
 
 	private boolean isAssignableFrom(works.bosk.json.types.BoundType candidate) {
 		// Collect all type variable bindings.
-		Map<String, ParameterOrBound> typeVariableBindings = new HashMap<>();
+		Map<String, DataType> typeVariableBindings = new HashMap<>();
 		for (int i = 0; i < bindings().size(); i++) {
 			DataType patternArg = typeArgument(i);
-			var candidateParameter = candidate.parameterBinding(rawClass(), i);
+			var candidateParameter = candidate.parameterType(rawClass(), i);
 			if (patternArg instanceof TypeVariable tv) {
 				var existing = typeVariableBindings.put(tv.name(), candidateParameter);
 				if (existing != null && !existing.equals(candidateParameter)) {
@@ -65,26 +65,16 @@ public record BoundType(Class<?> rawClass, List<? extends ParameterOrBound> bind
 		typeArguments().forEach(arg -> {
 			switch (arg) {
 				case UpperBoundedWildcardType(var upperBound)
-					when (upperBound.dataType() instanceof TypeVariable tv) -> {
+					when (upperBound instanceof TypeVariable(String name)) -> {
 					resolvedArguments.add(new UpperBoundedWildcardType(
-						typeVariableBindings.getOrDefault(tv.name(), upperBound)
+						typeVariableBindings.getOrDefault(name, upperBound)
 					));
 				}
 				case LowerBoundedWildcardType(var lowerBound)
-					when (lowerBound.dataType() instanceof TypeVariable tv) -> {
+					when (lowerBound instanceof TypeVariable(String name)) -> {
 					resolvedArguments.add(new LowerBoundedWildcardType(
-						typeVariableBindings.getOrDefault(tv.name(), lowerBound)
+						typeVariableBindings.getOrDefault(name, lowerBound)
 					));
-				}
-				case TypeVariable(var name, var bounds) -> {
-					TypeVariable resolved = new TypeVariable(name, bounds.stream().map(b -> {
-						if (b.dataType() instanceof TypeVariable tv) {
-							return typeVariableBindings.getOrDefault(tv.name(), b);
-						} else {
-							return b;
-						}
-					}).toList());
-					resolvedArguments.add(resolved);
 				}
 				default -> resolvedArguments.add(arg);
 			}
@@ -92,7 +82,7 @@ public record BoundType(Class<?> rawClass, List<? extends ParameterOrBound> bind
 
 		for (int i = 0; i < resolvedArguments.size(); i++) {
 			DataType patternArg = resolvedArguments.get(i);
-			DataType candidateParameter = candidate.parameterType(rawClass(), i);
+			DataType candidateParameter = candidate.parameterType(this.rawClass(), i);
 			if (!isAssignableTypeArgument(patternArg, candidateParameter)) {
 				return false;
 			}
@@ -113,10 +103,9 @@ public record BoundType(Class<?> rawClass, List<? extends ParameterOrBound> bind
 		}
 
 		return switch (patternArg) {
-			case UnboundedWildcardType _ -> true;
-			case UpperBoundedWildcardType(ParameterOrBound upperBound) -> upperBound.dataType().isAssignableFrom(candidate);
-			case LowerBoundedWildcardType(ParameterOrBound lowerBound) -> candidate.isAssignableFrom(lowerBound.dataType());
-			case TypeVariable tv -> tv.upperBounds().stream().allMatch(bound -> bound.dataType().isAssignableFrom(candidate));
+			case UnboundedWildcardType _, TypeVariable _ -> true;
+			case UpperBoundedWildcardType(var upperBound) -> upperBound.isAssignableFrom(candidate);
+			case LowerBoundedWildcardType(var lowerBound) -> candidate.isAssignableFrom(lowerBound);
 			default -> patternArg.equals(candidate); // Generics are neither covariant nor contravariant
 		};
 
@@ -129,7 +118,7 @@ public record BoundType(Class<?> rawClass, List<? extends ParameterOrBound> bind
 		} else {
 			return this.rawClass().getSimpleName() + "<"
 				+ this.bindings().stream()
-				.map(ParameterOrBound::toString)
+				.map(DataType::toString)
 				.collect(joining(","))
 				+ ">";
 		}

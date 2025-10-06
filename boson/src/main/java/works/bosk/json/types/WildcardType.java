@@ -8,10 +8,10 @@ sealed public interface WildcardType extends UnknownType permits LowerBoundedWil
 	}
 
 	static UpperBoundedWildcardType extends_(Type upperBound) {
-		return new UpperBoundedWildcardType(new DeferredParameterOrBound(upperBound));
+		return new UpperBoundedWildcardType(DataType.of(upperBound));
 	}
 
 	static LowerBoundedWildcardType super_(Type lowerBound) {
-		return new LowerBoundedWildcardType(new DeferredParameterOrBound(lowerBound));
+		return new LowerBoundedWildcardType(DataType.of(lowerBound));
 	}
 }

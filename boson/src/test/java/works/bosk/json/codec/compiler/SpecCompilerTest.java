@@ -131,7 +131,7 @@ public class SpecCompilerTest {
 			List.of(DataType.known(OneOfEach.class))
 		);
 		MemberPresenceCondition isPresent = memberValue(notEquals(constant(STRING, ABSENT_FIELD_VALUE)));
-		return new TypeScanner(new TypeMap.Settings(true, true, true, true))
+		return new TypeScanner(new TypeMap.Settings(true, true, true, true, false))
 			.specify(DataType.known(Month.class), Month.specNode())
 			.specifyRecordFields(OneOfEach.class, Map.of(
 				"computedField", new FixedMapMember(new ComputedSpec(computedFieldValue), computedFieldValue),

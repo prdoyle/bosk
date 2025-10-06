@@ -176,11 +176,11 @@ public record RoundTripTest(Settings settings) {
 		@Override
 		public List<Object> values() {
 			return List.of(
-				new Settings(false, false, false, false),
-				new Settings(true, false, false, false),
-				new Settings(true, false, false, true),
-				new Settings(true, false, true, false),
-				new Settings(true, true, true, true)
+				new Settings(false, false, false, false, false),
+				new Settings(true, false, false, false, false),
+				new Settings(true, false, false, true, false),
+				new Settings(true, false, true, false, false),
+				new Settings(true, true, true, true, false)
 			);
 		}
 	}
