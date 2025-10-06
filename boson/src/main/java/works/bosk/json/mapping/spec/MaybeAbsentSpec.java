@@ -17,7 +17,9 @@ public record MaybeAbsentSpec(
 	MemberPresenceCondition presenceCondition
 ) implements SpecNode {
 	public MaybeAbsentSpec {
-		assert ifPresent.dataType().equals(ifAbsent.dataType());
+		assert ifPresent.dataType().equals(ifAbsent.dataType()):
+			"ifPresent type " + ifPresent.dataType() +
+				" does not match ifAbsent type " + ifAbsent.dataType();;
 	}
 
 	public KnownType dataType() {

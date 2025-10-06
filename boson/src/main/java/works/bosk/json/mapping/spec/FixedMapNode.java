@@ -5,8 +5,8 @@ import java.util.SequencedMap;
 import java.util.function.Function;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.DataType;
-import works.bosk.json.types.InstanceType;
 import works.bosk.json.types.KnownType;
+import works.bosk.json.types.TypeReference;
 
 import static java.lang.invoke.MethodType.methodType;
 
@@ -32,13 +32,15 @@ public record FixedMapNode(
 		SequencedMap<String, FixedMapMember> memberSpecs,
 		Function<T[], ?> arrayFinisher
 	) {
-		InstanceType finisherType = (InstanceType) DataType.of(arrayFinisher.getClass());
-		Class<?> finisherArgumentArrayClass = finisherType.parameterBinding(Function.class, 0).knownType().rawClass();
-		var finisherHandle = TypedHandle.ofFunction(arrayFinisher);
+		KnownType objectArray = DataType.known(new TypeReference<Object[]>() {});
+		var finisherHandle = TypedHandle.ofFunction(
+			objectArray,
+			DataType.OBJECT,
+			arrayFinisher);
 		var collectorMH = finisherHandle.handle()
-			.asCollector(finisherArgumentArrayClass, memberSpecs.size());
+			.asCollector(Object[].class, memberSpecs.size());
 		var castMH = collectorMH.asType(
-			methodType(finisherHandle.returnType().rawClass(),
+			methodType(Object.class,
 				memberSpecs.values().stream()
 					.map(FixedMapMember::valueSpec)
 					.map(SpecNode::dataType)

@@ -26,13 +26,18 @@ import works.bosk.json.mapping.spec.ArrayNode;
 import works.bosk.json.mapping.spec.BigNumberNode;
 import works.bosk.json.mapping.spec.BooleanNode;
 import works.bosk.json.mapping.spec.BoxedPrimitiveSpec;
+import works.bosk.json.mapping.spec.ComputedSpec;
 import works.bosk.json.mapping.spec.EnumByNameNode;
 import works.bosk.json.mapping.spec.FixedMapMember;
 import works.bosk.json.mapping.spec.FixedMapNode;
 import works.bosk.json.mapping.spec.JsonValueSpec;
+import works.bosk.json.mapping.spec.MaybeAbsentSpec;
 import works.bosk.json.mapping.spec.MaybeNullSpec;
+import works.bosk.json.mapping.spec.ParseCallbackSpec;
 import works.bosk.json.mapping.spec.PrimitiveNumberNode;
+import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.ScalarSpec;
+import works.bosk.json.mapping.spec.SpecNode;
 import works.bosk.json.mapping.spec.StringNode;
 import works.bosk.json.mapping.spec.TypeRefNode;
 import works.bosk.json.mapping.spec.UniformMapNode;
@@ -41,9 +46,9 @@ import works.bosk.json.mapping.spec.handles.ArrayEmitter;
 import works.bosk.json.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.json.mapping.spec.handles.ObjectEmitter;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
-import works.bosk.json.types.DataType;
 import works.bosk.json.types.ArrayType;
 import works.bosk.json.types.BoundType;
+import works.bosk.json.types.DataType;
 import works.bosk.json.types.ErasedType;
 import works.bosk.json.types.KnownType;
 import works.bosk.json.types.PrimitiveType;
@@ -106,7 +111,15 @@ public class TypeScanner {
 	/**
 	 * @param directives * are considered in order. The first matching directive is used.
 	 */
-	public record Bundle(List<Directive> directives) {}
+	public record Bundle(List<Directive> directives) {
+		public static Bundle concat(Bundle... bundles) {
+			var allDirectives = new ArrayList<Directive>();
+			for (var b : bundles) {
+				allDirectives.addAll(b.directives());
+			}
+			return new Bundle(List.copyOf(allDirectives));
+		}
+	}
 
 	public record Directive(DataType pattern, Function<KnownType, JsonValueSpec> spec) {}
 
@@ -137,11 +150,16 @@ public class TypeScanner {
 	}
 
 	public TypeMap build() {
-		scanRefs();
-		inProgress.freeze();
-		TypeMap optimized = new Optimizer().optimize(inProgress);
-		optimized.freeze();
-		return optimized;
+		if (settings().optimize()) {
+			scanRefs();
+			inProgress.freeze();
+			TypeMap optimized = new Optimizer().optimize(inProgress);
+			optimized.freeze();
+			return optimized;
+		} else {
+			inProgress.freeze();
+			return inProgress;
+		}
 	}
 
 	/**
@@ -161,9 +179,11 @@ public class TypeScanner {
 	}
 
 	private JsonValueSpec computeSpecNode(DataType type) {
-		if (type instanceof KnownType kt && findDirective(kt) instanceof Directive(var pattern, var spec)) {
+		if (type instanceof KnownType kt && findDirective(kt) instanceof Directive(var pattern, var specFunction)) {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
-			return spec.apply(kt);
+			JsonValueSpec spec = specFunction.apply(kt);
+			scrapeRefs(spec);
+			return spec;
 		}
 		return switch (type) {
 			case ArrayType t -> scanArray(t);
@@ -172,6 +192,35 @@ public class TypeScanner {
 			case UnknownType _, ErasedType _ ->
 				throw new IllegalStateException("Unsupported type: " + type);
 		};
+	}
+
+	private void scrapeRefs(SpecNode spec) {
+		LOGGER.debug("Scraping refs from {}", spec);
+		switch (spec) {
+			case TypeRefNode n -> {
+				LOGGER.debug("Found type reference to {}", n.type());
+				if (n.type().rawClass().equals(Map.class)) {
+					LOGGER.trace("IT'S A MAP");
+				}
+				refs.putIfAbsent(n.type(), n);
+			}
+			case MaybeNullSpec(var inner) -> scrapeRefs(inner);
+			case ArrayNode(var elementSpec, _, _) -> scrapeRefs(elementSpec);
+			case ParseCallbackSpec(_, var child, _) -> scrapeRefs(child);
+			case RepresentAsSpec(var representation, _, _) -> scrapeRefs(representation);
+			case FixedMapNode(var members, var _) -> {
+				members.values().forEach(m -> scrapeRefs(m.valueSpec()));
+			}
+			case UniformMapNode(var keySpec, var valueSpec, _, _) -> {
+				scrapeRefs(keySpec);
+				scrapeRefs(valueSpec);
+			}
+			case MaybeAbsentSpec(var ifPresent, var ifAbsent, _) -> {
+				scrapeRefs(ifPresent);
+				scrapeRefs(ifAbsent);
+			}
+			case ScalarSpec _, ComputedSpec _ -> { }
+		}
 	}
 
 	private Directive findDirective(KnownType type) {
@@ -213,9 +262,10 @@ public class TypeScanner {
 	}
 
 	private JsonValueSpec scanClass(BoundType type) {
+		LOGGER.debug("scanClass({})", type);
 		var clazz = type.rawClass();
 		if (clazz.isRecord()) {
-			return scanRecord(clazz);
+			return scanRecord(type);
 		}
 		if (Number.class.isAssignableFrom(clazz)) {
 			if (clazz == BigDecimal.class) {
@@ -236,10 +286,8 @@ public class TypeScanner {
 			);
 		}
 		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(Map.class)) {
-			// Note: keySpec need not support TypeRefNode: since there's no possibility
-			// of recursion through map keys, we can insist that map keys be ScalarSpec.
-			ScalarSpec keySpec = scanStringParsingClass((KnownType) type.parameterType(Map.class, 0));
-			JsonValueSpec valueSpec = refNode(type.parameterType(Map.class, 1));
+			var keySpec = refNode(type.parameterType(Map.class, 0));
+			var valueSpec = refNode(type.parameterType(Map.class, 1));
 			return new UniformMapNode(
 				keySpec,
 				valueSpec,
@@ -250,7 +298,7 @@ public class TypeScanner {
 		if (isStringParsingClass(type)) {
 			return scanStringParsingClass(type);
 		}
-		throw new IllegalStateException("Not yet implemented");
+		throw new IllegalStateException("Not yet implemented: " + type);
 	}
 
 	public static ArrayAccumulator listAccumulator(BoundType arrayListType) {
@@ -370,7 +418,8 @@ public class TypeScanner {
 		throw new IllegalStateException("Unsupported type: " + clazz);
 	}
 
-	private JsonValueSpec scanRecord(Class<?> recordClass) {
+	private JsonValueSpec scanRecord(BoundType recordType) {
+		Class<?> recordClass = recordType.rawClass();
 		var componentOverrides = recordComponentOverrides.getOrDefault(recordClass, Map.of());
 		SequencedMap<String, FixedMapMember> collect = Stream.of(recordClass.getRecordComponents())
 			.collect(

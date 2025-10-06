@@ -5,8 +5,6 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.stream.Stream;
-import works.bosk.Catalog;
-import works.bosk.Entity;
 
 public sealed interface DataType permits KnownType, UnknownType {
 	KnownType VOID = new PrimitiveType(void.class);
@@ -25,7 +23,7 @@ public sealed interface DataType permits KnownType, UnknownType {
 		return (KnownType) of(type);
 	}
 
-	static KnownType known(TypeReference<Catalog<? extends Entity>> ref) {
+	static KnownType known(TypeReference<?> ref) {
 		return (KnownType) of(ref);
 	}
 

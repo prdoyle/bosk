@@ -19,7 +19,7 @@ public record FixedMapMember(
 ) {
 	public FixedMapMember {
 		assert valueSpec.dataType().isAssignableFrom(accessor.returnType()):
-			"emitter must supply values of type " + valueSpec.dataType();
+			"emitter must supply values of type " + valueSpec.dataType() + ", not " + accessor.returnType();
 	}
 
 	public static FixedMapMember forComponent(RecordComponent rc, MethodHandles.Lookup lookup) {
