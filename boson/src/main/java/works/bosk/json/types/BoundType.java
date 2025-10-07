@@ -19,6 +19,11 @@ import static java.util.stream.Collectors.joining;
  * indicating that the class has no type parameters.
  */
 public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) implements InstanceType {
+
+	public BoundType(Class<?> rawClass, DataType... bindings) {
+		this(rawClass, List.of(bindings));
+	}
+
 	DataType typeArgument(int index) {
 		return bindings().get(index);
 	}

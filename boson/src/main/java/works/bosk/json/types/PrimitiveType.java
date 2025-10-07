@@ -14,12 +14,12 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 	}
 
 	@Override
-	public String toString() {
-		return rawClass.getSimpleName();
+	public PrimitiveType substitute(Map<String, DataType> actualArguments) {
+		return this;
 	}
 
 	@Override
-	public PrimitiveType substitute(Map<String, DataType> actualArguments) {
-		return this;
+	public String toString() {
+		return rawClass.getSimpleName();
 	}
 }

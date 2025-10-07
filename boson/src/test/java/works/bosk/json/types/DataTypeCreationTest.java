@@ -46,7 +46,7 @@ class DataTypeCreationTest {
 			List<String>
 			>() {});
 		assertEquals(
-			new BoundType(List.class, List.of(DataType.STRING)),
+			new BoundType(List.class, DataType.STRING),
 			listType
 		);
 
@@ -55,7 +55,7 @@ class DataTypeCreationTest {
 			};
 			DataType genericListType = DataType.of(ref);
 			assertEquals(
-				new BoundType(List.class, List.of(DataType.of(getActualTypeArguments(ref)[0]))),
+				new BoundType(List.class, DataType.of(getActualTypeArguments(ref)[0])),
 				genericListType
 			);
 		}
@@ -84,8 +84,6 @@ class DataTypeCreationTest {
 		) { }
 		ParameterizedType genericType = (ParameterizedType) Holder.class.getRecordComponents()[0].getGenericType();
 		var actual = (BoundType)DataType.of(genericType);
-		var actualV = (java.lang.reflect.TypeVariable<?>)genericType.getActualTypeArguments()[0];
-		var actualW = (java.lang.reflect.TypeVariable<?>)genericType.getActualTypeArguments()[1];
 		assertEquals(new TypeVariable("V"),
 			actual.typeArgument(0));
 		assertEquals(new TypeVariable("W"),
