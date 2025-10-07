@@ -145,7 +145,9 @@ public class BosonSerializer extends StateTreeSerializer {
 		// The remainder are more complex, and so they benefit from leveraging the TypeScanner
 		// to do an initial data structure scan which we then modify.
 		// We call this the "pre-scan", and it benefits from having the simple types above available.
-		TypeScanner.Bundle simpleScanBundle = new TypeScanner.Bundle(List.copyOf(directives));
+		TypeScanner.Bundle simpleScanBundle = new TypeScanner.Bundle(
+			List.of(DataType.of(ListingEntry.class)),
+			List.copyOf(directives));
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<Catalog<? extends Entity>>(){}),
@@ -303,8 +305,8 @@ public class BosonSerializer extends StateTreeSerializer {
 					yield RepresentAsSpec.as(
 						listSpec,
 						listValueType,
-						(ListValue<?> lv) -> lv, // ListValue is a List
-						(List<?> coll) -> ListValue.from(coll)
+						(ListValue<?> lv) -> (List<?>)lv,
+						ListValue::from
 					);
 				}
 				default -> throw new IllegalStateException("Unexpected ListValue type: " + listValueType);
@@ -325,14 +327,16 @@ public class BosonSerializer extends StateTreeSerializer {
 					yield RepresentAsSpec.as(
 						preScan(representation, simpleScanBundle),
 						mapValueType,
-						(MapValue<?> mv) -> mv, // MapValue is a Map
+						(MapValue<?> mv) -> (Map<String,?>) mv,
 						MapValue::copyOf
 					);
 				}
 				default -> throw new IllegalStateException("Unexpected MapValue type: " + mapValueType);
 			}));
 
-		return new TypeScanner.Bundle(List.copyOf(directives));
+		return new TypeScanner.Bundle(
+			List.of(DataType.of(ListingEntry.class)),
+			List.copyOf(directives));
 	}
 
 	private JsonValueSpec preScan(Type type, TypeScanner.Bundle prescanBundle) {

@@ -123,15 +123,10 @@ public class TypeScanner {
 	/**
 	 * @param directives * are considered in order. The first matching directive is used.
 	 */
-	public record Bundle(List<Directive> directives) {
-		public static Bundle concat(Bundle... bundles) {
-			var allDirectives = new ArrayList<Directive>();
-			for (var b : bundles) {
-				allDirectives.addAll(b.directives());
-			}
-			return new Bundle(List.copyOf(allDirectives));
-		}
-	}
+	public record Bundle(
+		List<DataType> types,
+		List<Directive> directives
+	) { }
 
 	// TODO: A variant of Directive that takes a Supplier. Then we know we can use the same JsonValueSpec every time
 	// rather than being required to ask this spec function to generate a new one each time
@@ -165,6 +160,7 @@ public class TypeScanner {
 
 	public TypeMap build() {
 		scanRefs();
+		scanBundleTypes();
 		inProgress.freeze();
 		LOGGER.debug("Initial TypeMap:\n{}", inProgress.knownTypes().stream()
 			.sorted(comparing(Object::toString))
@@ -177,6 +173,10 @@ public class TypeScanner {
 		} else {
 			return inProgress;
 		}
+	}
+
+	private void scanBundleTypes() {
+		bundles.forEach(bundle -> bundle.types().forEach(this::scan));
 	}
 
 	/**
