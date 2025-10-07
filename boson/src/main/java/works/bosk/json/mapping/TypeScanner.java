@@ -88,7 +88,16 @@ public class TypeScanner {
 	 * @return this
 	 */
 	public TypeScanner scan(DataType type) {
-		inProgress.computeIfAbsent(type, this::computeSpecNode);
+		var node = inProgress.computeIfAbsent(type, this::computeSpecNode);
+
+		// Automatic boxing/unboxing
+		if (node instanceof PrimitiveNumberNode pnn) {
+			var boxed = new BoxedPrimitiveSpec(pnn);
+			inProgress.put(boxed.dataType(), boxed);
+		} else if (node instanceof BoxedPrimitiveSpec(PrimitiveNumberNode child)) {
+			inProgress.put(child.dataType(), child);
+		}
+
 		return this;
 	}
 
