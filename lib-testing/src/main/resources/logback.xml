@@ -13,9 +13,9 @@
 	<!-- This emits warnings that matter in production but not in tests -->
 	<logger name="works.bosk.drivers.mongo.MongoDriver.uninitializedCollection" level="ERROR"/>
 
-    <logger name="works.bosk.json" level="DEBUG"/>
 	<!-- How to add more tracing during unit tests
 	<logger name="works.bosk" level="INFO"/>
+	<logger name="works.bosk.json" level="DEBUG"/>
 	<logger name="works.bosk.drivers.mongo" level="DEBUG"/>
 	<logger name="works.bosk.drivers.sql" level="DEBUG"/>
 	<logger name="works.bosk.test.drivers.DriverConformanceTest" level="DEBUG"/>
