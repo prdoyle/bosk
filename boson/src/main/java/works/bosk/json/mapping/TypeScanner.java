@@ -90,12 +90,64 @@ public class TypeScanner {
 	public TypeScanner scan(DataType type) {
 		var node = inProgress.computeIfAbsent(type, this::computeSpecNode);
 
+		// TODO: The following happens every time we scan a type, even if we've scanned it before.
+
 		// Automatic boxing/unboxing
 		if (node instanceof PrimitiveNumberNode pnn) {
 			var boxed = new BoxedPrimitiveSpec(pnn);
 			inProgress.put(boxed.dataType(), boxed);
 		} else if (node instanceof BoxedPrimitiveSpec(PrimitiveNumberNode child)) {
 			inProgress.put(child.dataType(), child);
+		} else if (type.equals(DataType.CHAR)) {
+			inProgress.put(
+				DataType.of(Character.class),
+				RepresentAsSpec.as(
+					node,
+					DataType.known(Character.class),
+					Character::charValue,
+					Character::valueOf
+				)
+			);
+		} else if (type.equals(DataType.of(Character.class))) {
+			inProgress.put(
+				DataType.CHAR,
+				RepresentAsSpec.as(
+					node,
+					DataType.CHAR,
+					Character::valueOf,
+					Character::charValue
+				)
+			);
+		} else if (type.equals(DataType.BOOLEAN)) {
+			inProgress.put(
+				DataType.of(Boolean.class),
+				RepresentAsSpec.as(
+					node,
+					DataType.known(Boolean.class),
+					Boolean::booleanValue,
+					Boolean::valueOf
+				)
+			);
+		} else if (type.equals(DataType.of(Boolean.class))) {
+			inProgress.put(
+				DataType.BOOLEAN,
+				RepresentAsSpec.as(
+					node,
+					DataType.BOOLEAN,
+					Boolean::valueOf,
+					Boolean::booleanValue
+				)
+			);
+		} else if (type.equals(DataType.of(Boolean.class))) {
+			inProgress.put(
+				DataType.BOOLEAN,
+				RepresentAsSpec.as(
+					node,
+					DataType.BOOLEAN,
+					Boolean::valueOf,
+					Boolean::booleanValue
+				)
+			);
 		}
 
 		return this;

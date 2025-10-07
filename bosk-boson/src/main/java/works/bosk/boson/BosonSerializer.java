@@ -45,7 +45,6 @@ import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.BoundType;
 import works.bosk.json.types.DataType;
 import works.bosk.json.types.KnownType;
-import works.bosk.json.types.PrimitiveType;
 import works.bosk.json.types.TypeReference;
 import works.bosk.json.types.UpperBoundedWildcardType;
 
@@ -126,18 +125,22 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(new Directive(
-			new PrimitiveType(char.class),
+			DataType.of(char.class),
 			charType -> RepresentAsSpec.as(
 				new StringNode(),
 				charType,
 				Object::toString,
-				(String s) -> {
-					if (s.length() == 1) {
-						return s.charAt(0);
-					} else {
-						throw new IllegalArgumentException("Expected single-character string, got: " + s);
-					}
-				}
+				BosonSerializer::stringToChar
+			)
+		));
+
+		directives.add(new Directive(
+			DataType.of(Character.class),
+			charType -> RepresentAsSpec.as(
+				new StringNode(),
+				charType,
+				Object::toString,
+				BosonSerializer::stringToChar
 			)
 		));
 
@@ -337,6 +340,14 @@ public class BosonSerializer extends StateTreeSerializer {
 		return new TypeScanner.Bundle(
 			List.of(DataType.of(ListingEntry.class)),
 			List.copyOf(directives));
+	}
+
+	private static char stringToChar(String s) {
+		if (s.length() == 1) {
+			return s.charAt(0);
+		} else {
+			throw new IllegalArgumentException("Expected single-character string, got: " + s);
+		}
 	}
 
 	private JsonValueSpec preScan(Type type, TypeScanner.Bundle prescanBundle) {
