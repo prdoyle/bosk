@@ -61,36 +61,24 @@ public class BosonSerializer extends StateTreeSerializer {
 			referenceType -> {
 				switch (referenceType) {
 					case BoundType bt -> {
-						Function<String, Reference<?>> fromRepresentation =
-						switch (bt.parameterType(Reference.class, 0)) {
-							case BoundType t when Catalog.class.isAssignableFrom(t.rawClass()) -> str -> {
-								try {
-									return bosk.rootReference().thenCatalog(Entity.class, Path.parse(str));
-								} catch (InvalidTypeException e) {
-									throw new IllegalStateException("Not yet implemented", e);
-								}
+						// TODO: This wouldn't be necessary if 'then' would return the appropriate subtype
+						ReferenceParser parser =
+							switch (bt.parameterType(Reference.class, 0)) {
+								case BoundType t when Catalog.class.isAssignableFrom(t.rawClass()) -> str ->
+									bosk.rootReference().thenCatalog(Entity.class, Path.parse(str));
+								case BoundType t when Listing.class.isAssignableFrom(t.rawClass()) -> str ->
+									bosk.rootReference().thenListing(Entity.class, Path.parse(str));
+								case BoundType t when SideTable.class.isAssignableFrom(t.rawClass()) -> str ->
+									bosk.rootReference().thenSideTable(Entity.class, Object.class, Path.parse(str));
+								default -> str ->
+									bosk.rootReference().then(Object.class, Path.parse(str));
 							};
-							case BoundType t when Listing.class.isAssignableFrom(t.rawClass()) -> str -> {
-								try {
-									return bosk.rootReference().thenListing(Entity.class, Path.parse(str));
-								} catch (InvalidTypeException e) {
-									throw new IllegalStateException("Not yet implemented", e);
-								}
-							};
-							case BoundType t when SideTable.class.isAssignableFrom(t.rawClass()) -> str -> {
-								try {
-									return bosk.rootReference().thenSideTable(Entity.class, Object.class, Path.parse(str));
-								} catch (InvalidTypeException e) {
-									throw new IllegalStateException("Not yet implemented", e);
-								}
-							};
-							default -> str -> {
-								try {
-									return bosk.rootReference().then(Object.class, Path.parse(str));
-								} catch (InvalidTypeException e) {
-									throw new IllegalStateException("Not yet implemented", e);
-								}
-							};
+						Function<String, Reference<?>> fromRepresentation = str -> {
+							try {
+								return parser.parse(str);
+							} catch (InvalidTypeException e) {
+								throw new IllegalArgumentException("Failed to parse Reference path: " + str, e);
+							}
 						};
 						return RepresentAsSpec.as(
 							new StringNode(),
@@ -338,6 +326,10 @@ public class BosonSerializer extends StateTreeSerializer {
 		} else {
 			throw new IllegalArgumentException("Expected single-character string, got: " + s);
 		}
+	}
+
+	interface ReferenceParser {
+		Reference<?> parse(String path) throws InvalidTypeException;
 	}
 
 	private JsonValueSpec preScan(Type type, TypeScanner.Bundle prescanBundle) {
