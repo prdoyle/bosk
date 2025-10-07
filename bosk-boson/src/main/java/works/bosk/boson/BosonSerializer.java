@@ -134,16 +134,6 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
-		directives.add(new Directive(
-			DataType.of(Character.class),
-			charType -> RepresentAsSpec.as(
-				new StringNode(),
-				charType,
-				Object::toString,
-				BosonSerializer::stringToChar
-			)
-		));
-
 		// At this point, we have a few simple types available.
 		// The remainder are more complex, and so they benefit from leveraging the TypeScanner
 		// to do an initial data structure scan which we then modify.
