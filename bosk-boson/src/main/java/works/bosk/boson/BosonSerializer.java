@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
+import java.util.function.Function;
 import works.bosk.BoskInfo;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -39,10 +40,12 @@ import works.bosk.json.mapping.spec.MaybeAbsentSpec;
 import works.bosk.json.mapping.spec.RepresentAsSpec;
 import works.bosk.json.mapping.spec.StringNode;
 import works.bosk.json.mapping.spec.TypeRefNode;
+import works.bosk.json.mapping.spec.handles.MemberPresenceCondition;
 import works.bosk.json.mapping.spec.handles.TypedHandle;
 import works.bosk.json.types.BoundType;
 import works.bosk.json.types.DataType;
 import works.bosk.json.types.KnownType;
+import works.bosk.json.types.PrimitiveType;
 import works.bosk.json.types.TypeReference;
 import works.bosk.json.types.UpperBoundedWildcardType;
 
@@ -56,18 +59,50 @@ public class BosonSerializer extends StateTreeSerializer {
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<Reference<?>>(){}),
-			referenceType -> RepresentAsSpec.as(
-				new StringNode(),
-				referenceType,
-				(Reference<?> ref) -> ref.path().urlEncoded(),
-				(String str) -> {
-					try {
-						return bosk.rootReference().then(Object.class, Path.parse(str));
-					} catch (InvalidTypeException e) {
-						throw new IllegalStateException("Not yet implemented", e);
+			referenceType -> {
+				switch (referenceType) {
+					case BoundType bt -> {
+						Function<String, Reference<?>> fromRepresentation =
+						switch (bt.parameterType(Reference.class, 0)) {
+							case BoundType t when Catalog.class.isAssignableFrom(t.rawClass()) -> str -> {
+								try {
+									return bosk.rootReference().thenCatalog(Entity.class, Path.parse(str));
+								} catch (InvalidTypeException e) {
+									throw new IllegalStateException("Not yet implemented", e);
+								}
+							};
+							case BoundType t when Listing.class.isAssignableFrom(t.rawClass()) -> str -> {
+								try {
+									return bosk.rootReference().thenListing(Entity.class, Path.parse(str));
+								} catch (InvalidTypeException e) {
+									throw new IllegalStateException("Not yet implemented", e);
+								}
+							};
+							case BoundType t when SideTable.class.isAssignableFrom(t.rawClass()) -> str -> {
+								try {
+									return bosk.rootReference().thenSideTable(Entity.class, Object.class, Path.parse(str));
+								} catch (InvalidTypeException e) {
+									throw new IllegalStateException("Not yet implemented", e);
+								}
+							};
+							default -> str -> {
+								try {
+									return bosk.rootReference().then(Object.class, Path.parse(str));
+								} catch (InvalidTypeException e) {
+									throw new IllegalStateException("Not yet implemented", e);
+								}
+							};
+						};
+						return RepresentAsSpec.as(
+							new StringNode(),
+							referenceType,
+							(Reference<?> ref) -> ref.path().urlEncoded(),
+							fromRepresentation
+						);
 					}
+					default -> throw new IllegalStateException("Unexpected Reference type: " + referenceType);
 				}
-			)
+			}
 		));
 
 		directives.add(new Directive(
@@ -87,6 +122,22 @@ public class BosonSerializer extends StateTreeSerializer {
 				listingEntryType,
 				(ListingEntry _) -> true,
 				(Boolean _) -> LISTING_ENTRY
+			)
+		));
+
+		directives.add(new Directive(
+			new PrimitiveType(char.class),
+			charType -> RepresentAsSpec.as(
+				new StringNode(),
+				charType,
+				Object::toString,
+				(String s) -> {
+					if (s.length() == 1) {
+						return s.charAt(0);
+					} else {
+						throw new IllegalArgumentException("Expected single-character string, got: " + s);
+					}
+				}
 			)
 		));
 
@@ -165,17 +216,33 @@ public class BosonSerializer extends StateTreeSerializer {
 					}
 					SequencedMap<String, FixedMapMember> members = new LinkedHashMap<>();
 					variantCaseMap.forEach((name, caseType) -> {
+						var ifPresent = preScan(caseType, simpleScanBundle);
+						var ifAbsent = new ComputedSpec(TypedHandle.ofSupplier(
+							DataType.known(caseType),
+							() -> null)); // This is a signal to the finisher that the case is absent
+						var presenceCondition = MemberPresenceCondition.enclosingObject(
+							TypedHandle.<TaggedUnion<?>, Boolean>ofFunction(
+								taggedUnionType,
+								DataType.BOOLEAN,
+								tu -> name.equals(tu.variant().tag())));
+						var accessor = TypedHandle.<TaggedUnion<?>, Object>ofFunction(
+							taggedUnionType,
+							DataType.known(caseType),
+							TaggedUnion::variant);
 						members.put(name, new FixedMapMember(
-							preScan(caseType, simpleScanBundle),
-							TypedHandle.<TaggedUnion<?>, Object>ofFunction(taggedUnionType, DataType.known(caseType), TaggedUnion::variant)
+							new MaybeAbsentSpec(
+								ifPresent,
+								ifAbsent,
+								presenceCondition),
+							accessor
 						));
 					});
 					yield FixedMapNode.withArrayFinisher(
 						members,
-						(VariantCase[] args) -> {
+						(Object[] args) -> {
 							for (var arg: args) {
-								if (arg != null) {
-									return TaggedUnion.of(arg);
+								if (arg instanceof VariantCase vc) {
+									return TaggedUnion.of(vc);
 								}
 							}
 							throw new IllegalStateException("Hey, no variant");
@@ -232,7 +299,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			listValueType -> switch (listValueType) {
 				case BoundType bt -> {
 					var elementType = bt.parameterType(ListValue.class, 0);
-					var listSpec = preScan(new BoundType(ArrayList.class, List.of(elementType)), simpleScanBundle);
+					var listSpec = preScan(new BoundType(List.class, List.of(elementType)), simpleScanBundle);
 					yield RepresentAsSpec.as(
 						listSpec,
 						listValueType,

@@ -53,6 +53,7 @@ public class Optimizer {
 
 	private static void postorderWalk(DataType type, TypeMap typeMap, Set<DataType> checklist, List<DataType> postorder) {
 		if (checklist.add(type)) {
+			LOGGER.debug("(Will walk {})", type);
 			postorderWalk(typeMap.get(type), typeMap, checklist, postorder);
 			LOGGER.debug("Walk {}", type);
 			postorder.add(type);

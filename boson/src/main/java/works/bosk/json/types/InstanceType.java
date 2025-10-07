@@ -1,5 +1,7 @@
 package works.bosk.json.types;
 
+import java.util.Map;
+
 /**
  * Represents a class or interface type.
  */
@@ -58,4 +60,7 @@ sealed public interface InstanceType extends KnownType permits BoundType, Erased
 			}
 		}
 	}
+
+	@Override
+	InstanceType substitute(Map<String, DataType> actualArguments);
 }

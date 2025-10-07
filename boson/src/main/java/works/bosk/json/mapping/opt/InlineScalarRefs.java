@@ -92,7 +92,12 @@ public class InlineScalarRefs {
 			case RepresentAsSpec target -> optimize(target);
 			case ScalarSpec target -> target;
 			case ArraySpec _, ObjectSpec _ -> original;
-			case TypeRefNode target -> maybeInline(target); // Continue down the rabbit hole
+			case TypeRefNode _ -> {
+				// If the typeMap takes us to a TypeRefMode, we're in danger of
+				// infinite recursion. Let's bail out for now until we have more
+				// sophisticated cycle detection.
+				yield original;
+			}
 		};
 	}
 

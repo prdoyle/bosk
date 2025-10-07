@@ -28,9 +28,9 @@ public record FixedMapNode(
 	 * accepts a single array of {@link Object} instead of the individual parameters.
 	 * This will naturally be less efficient, as it requires an array allocation.
 	 */
-	public static <T> FixedMapNode withArrayFinisher(
+	public static FixedMapNode withArrayFinisher(
 		SequencedMap<String, FixedMapMember> memberSpecs,
-		Function<T[], ?> arrayFinisher
+		Function<Object[], ?> arrayFinisher
 	) {
 		KnownType objectArray = DataType.known(new TypeReference<Object[]>() {});
 		var finisherHandle = TypedHandle.ofFunction(

@@ -54,6 +54,9 @@ import works.bosk.json.types.KnownType;
 import works.bosk.json.types.PrimitiveType;
 import works.bosk.json.types.UnknownType;
 
+import static java.lang.invoke.MethodType.methodType;
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static works.bosk.json.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
 
@@ -121,6 +124,8 @@ public class TypeScanner {
 		}
 	}
 
+	// TODO: A variant of Directive that takes a Supplier. Then we know we can use the same JsonValueSpec every time
+	// rather than being required to ask this spec function to generate a new one each time
 	public record Directive(DataType pattern, Function<KnownType, JsonValueSpec> spec) {}
 
 	/**
@@ -152,6 +157,10 @@ public class TypeScanner {
 	public TypeMap build() {
 		scanRefs();
 		inProgress.freeze();
+		LOGGER.debug("Initial TypeMap:\n{}", inProgress.knownTypes().stream()
+			.sorted(comparing(Object::toString))
+			.map(t -> "\t" + t + " -> " + inProgress.get(t))
+			.collect(joining("\n")));
 		if (settings().optimize()) {
 			TypeMap optimized = new Optimizer().optimize(inProgress);
 			optimized.freeze();
@@ -181,6 +190,7 @@ public class TypeScanner {
 		if (type instanceof KnownType kt && findDirective(kt) instanceof Directive(var pattern, var specFunction)) {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
 			JsonValueSpec spec = specFunction.apply(kt);
+			LOGGER.debug("Type {} using {}", type, spec);
 			return scrapeRefs(spec);
 		}
 		return switch (type) {
@@ -426,13 +436,14 @@ public class TypeScanner {
 	}
 
 	private JsonValueSpec scanRecord(BoundType recordType) {
+		var actualTypeArguments = recordType.actualArguments();
 		Class<?> recordClass = recordType.rawClass();
 		var componentOverrides = recordComponentOverrides.getOrDefault(recordClass, Map.of());
 		SequencedMap<String, FixedMapMember> collect = Stream.of(recordClass.getRecordComponents())
 			.collect(
 				Collectors.toMap(
 					RecordComponent::getName,
-					c -> scanRecordComponent(c, componentOverrides),
+					c -> scanRecordComponent(c, actualTypeArguments, componentOverrides),
 					(_,_) -> { throw new IllegalStateException("Duplicate record component name"); },
 					LinkedHashMap::new
 				)
@@ -459,10 +470,14 @@ public class TypeScanner {
 		} catch (NoSuchMethodException | IllegalAccessException e) {
 			throw new IllegalStateException("Unexpected error accessing record constructor for " + recordClass, e);
 		}
-		return new TypedHandle(constructor, DataType.known(recordClass), componentsByName.values().stream().map(FixedMapMember::dataType).toList());
+		List<KnownType> memberTypes = componentsByName.values().stream().map(FixedMapMember::dataType).toList();
+		return new TypedHandle(
+			constructor.asType(methodType(recordClass, memberTypes.stream().map(KnownType::rawClass).toArray(Class<?>[]::new))),
+			DataType.known(recordClass),
+			memberTypes);
 	}
 
-	private FixedMapMember scanRecordComponent(RecordComponent c, Map<String, FixedMapMember> overrides) {
+	private FixedMapMember scanRecordComponent(RecordComponent c, Map<String, DataType> recordTypeArguments, Map<String, FixedMapMember> overrides) {
 		if (overrides.get(c.getName()) instanceof FixedMapMember n) {
 			return n;
 		}
@@ -472,11 +487,14 @@ public class TypeScanner {
 		} catch (IllegalAccessException e) {
 			throw new IllegalStateException("Unexpected error accessing record component accessor for " + c, e);
 		}
-		KnownType returnType = DataType.known(c.getGenericType());
-		KnownType parameterType = DataType.known(c.getDeclaringRecord());
-		var accessor = new TypedHandle(mh, returnType, List.of(parameterType));
+		KnownType returnType = (KnownType) DataType.of(c.getGenericType()).substitute(recordTypeArguments);
+		KnownType parameterType = (KnownType) DataType.of(c.getDeclaringRecord()).substitute(recordTypeArguments);
+		var accessor = new TypedHandle(
+			mh.asType(methodType(returnType.rawClass(), parameterType.rawClass())),
+			returnType,
+			List.of(parameterType));
 
-		DataType type = DataType.of(c.getGenericType());
+		DataType type = DataType.of(c.getGenericType()).substitute(recordTypeArguments);
 		JsonValueSpec componentSpec = refNode(type);
 		if (c.isAnnotationPresent(Nullable.class)) {
 			return new FixedMapMember(new MaybeNullSpec(componentSpec), accessor);

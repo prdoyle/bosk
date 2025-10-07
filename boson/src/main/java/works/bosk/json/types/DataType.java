@@ -4,6 +4,7 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 public sealed interface DataType permits KnownType, UnknownType {
@@ -92,4 +93,5 @@ public sealed interface DataType permits KnownType, UnknownType {
 		return isAssignableFrom(DataType.of(ref));
 	}
 
+	DataType substitute(Map<String, DataType> actualArguments);
 }

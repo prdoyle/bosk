@@ -609,14 +609,17 @@ public class SpecInterpretingParser implements Parser {
 		private boolean nodeIsApplicable(SpecNode node) {
 			if (node instanceof JsonValueSpec valueSpec) {
 				int offset = input.offset();
-				Token nextToken;
+				int codePoint;
 				try {
-					nextToken = Token.startingWith(nextSignificant());
+					codePoint = nextSignificant();
 				} catch (IOException e) {
 					throw new IllegalStateException(e);
 				}
-				boolean result = expectedTokens(valueSpec).contains(nextToken);
+				Token nextToken = Token.startingWith(codePoint);
+				Set<Token> expected = expectedTokens(valueSpec);
+				boolean result = expected.contains(nextToken);
 				input.seek(offset);
+				LOGGER.debug("nodeIsApplicable: ({},{},'{}',{}) -> {}", node, expected, Character.toString(codePoint), nextToken, result);
 				return result;
 			} else {
 				// Besides JsonValueSpec, other specs don't correspond to JSON values,

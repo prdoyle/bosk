@@ -100,6 +100,10 @@ public class TypeMap {
 		public Settings withFewerSwitches() {
 			return new Settings(compiled, iterative, optimize, true, shallowScan);
 		}
+
+		public Settings withCompiled(boolean compiled) {
+			return new Settings(compiled, iterative, optimize, fewerSwitches, shallowScan);
+		}
 	}
 
 	/**

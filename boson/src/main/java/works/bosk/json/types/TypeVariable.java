@@ -1,5 +1,7 @@
 package works.bosk.json.types;
 
+import java.util.Map;
+
 /**
  * Note that we don't handle type bounds here. This is very subtle.
  * <p>
@@ -21,5 +23,15 @@ public record TypeVariable(String name) implements UnknownType {
 	@Override
 	public boolean isAssignableFrom(DataType other) {
 		return true;
+	}
+
+	@Override
+	public DataType substitute(Map<String, DataType> actualArguments) {
+		DataType candidate = actualArguments.get(name);
+		if (candidate != null) {
+			return candidate;
+		} else {
+			return this;
+		}
 	}
 }

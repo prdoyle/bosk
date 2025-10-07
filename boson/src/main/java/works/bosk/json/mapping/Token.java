@@ -31,7 +31,7 @@ public enum Token {
 			case 'n', 'N' -> NULL;
 			case 'f', 'F' -> FALSE;
 			case 't', 'T' -> TRUE;
-			case '1', '2', '3', '4', '5', '6', '7', '8', '9', '-' -> NUMBER;
+			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-' -> NUMBER; // Multi-digit numbers can't technically start with a zero
 			case '{' -> START_OBJECT;
 			case '}' -> END_OBJECT;
 			case '[' -> START_ARRAY;

@@ -744,7 +744,7 @@ public class SpecCompiler {
 					local.load(codeBuilder);
 					if (local.typeKind() == REFERENCE) {
 						Class<?> expectedType = node.dataType().rawClass();
-						LOGGER.debug("typeKind is {} for {}", local.typeKind(), expectedType);
+						LOGGER.trace("typeKind is {} for {}", local.typeKind(), expectedType);
 						codeBuilder.checkcast(cd(expectedType));
 					}
 				});

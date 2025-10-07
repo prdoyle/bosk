@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableMap;
 import static java.util.stream.Collectors.joining;
 
 /**
@@ -122,5 +123,22 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 				.collect(joining(","))
 				+ ">";
 		}
+	}
+
+	public Map<String, DataType> actualArguments() {
+		var typeParameters = rawClass().getTypeParameters();
+		assert typeParameters.length == bindings.size();
+		Map<String, DataType> map = new HashMap<>();
+		for (int i = 0; i < typeParameters.length; i++) {
+			map.put(typeParameters[i].getName(), bindings.get(i));
+		}
+		return unmodifiableMap(map);
+	}
+
+	@Override
+	public BoundType substitute(Map<String, DataType> actualArguments) {
+		return new BoundType(rawClass, bindings.stream()
+			.map(ta -> ta.substitute(actualArguments))
+			.toList());
 	}
 }

@@ -1,5 +1,7 @@
 package works.bosk.json.types;
 
+import java.util.Map;
+
 public record UnboundedWildcardType() implements WildcardType {
 	@Override
 	public String toString() {
@@ -9,5 +11,10 @@ public record UnboundedWildcardType() implements WildcardType {
 	@Override
 	public boolean isAssignableFrom(DataType other) {
 		return other instanceof KnownType;
+	}
+
+	@Override
+	public UnboundedWildcardType substitute(Map<String, DataType> actualArguments) {
+		return this;
 	}
 }

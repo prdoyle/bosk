@@ -79,7 +79,7 @@ public class ParserSessionImpl {
 	}
 
 	protected String previewString() {
-		if (LOGGER.isTraceEnabled()) {
+		if (LOGGER.isDebugEnabled()) {
 			return input.previewString(10)
 				.replace('\n', ' ')
 				.replace('\r', ' ');
@@ -136,7 +136,6 @@ public class ParserSessionImpl {
 		do {
 			result = read();
 		} while (fast_isInsignificant(result));
-		logEntry("nextSignificant");
 		return result;
 	}
 

@@ -4,6 +4,8 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.json.codec.Generator;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.spec.ArrayNode;
@@ -46,6 +48,7 @@ public class SpecInterpretingGenerator implements Generator {
 
 	@Override
 	public void generate(Writer out, Object value) {
+		LOGGER.debug("Generating JSON for value of type {} using spec {}", value.getClass(), spec);
 		PrintWriter printStream;
 		if (out instanceof PrintWriter pw) {
 			printStream = pw;
@@ -138,6 +141,7 @@ public class SpecInterpretingGenerator implements Generator {
 		}
 
 		private void generateFixedMap(FixedMapNode node, Object map) {
+			LOGGER.debug("Generating fixed map for value of type {} using spec {}", map.getClass(), node);
 			out.print("{");
 			String sep = "";
 			for (Map.Entry<String, FixedMapMember> entry : node.memberSpecs().entrySet()) {
@@ -150,16 +154,16 @@ public class SpecInterpretingGenerator implements Generator {
 					}
 					case ComputedSpec _ -> {}
 					case MaybeAbsentSpec(var v, _, var presenceCondition) -> {
-						Object value = member.accessor().invoke(map);
+						// TODO: Call the accessor at most once
 						boolean isPresent = switch (presenceCondition) {
 							case Nullary(var h) -> (boolean) h.invoke();
 							case EnclosingObject(var h)-> (boolean) h.invoke(map);
-							case MemberValue(var h) -> (boolean) h.invoke(value);
+							case MemberValue(var h) -> (boolean) h.invoke(member.accessor().invoke(map));
 						};
 						if (isPresent) {
 							out.print(sep);
 							sep = ",";
-							generateFixedMapMember(entry.getKey(), v, value);
+							generateFixedMapMember(entry.getKey(), v, member.accessor().invoke(map));
 						}
 					}
 				}
@@ -209,4 +213,5 @@ public class SpecInterpretingGenerator implements Generator {
 
 	}
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(SpecInterpretingGenerator.class);
 }

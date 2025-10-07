@@ -1,5 +1,7 @@
 package works.bosk.json.types;
 
+import java.util.Map;
+
 public record PrimitiveType(Class<?> rawClass) implements KnownType {
 	public PrimitiveType {
 		assert rawClass.isPrimitive();
@@ -14,5 +16,10 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 	@Override
 	public String toString() {
 		return rawClass.getSimpleName();
+	}
+
+	@Override
+	public PrimitiveType substitute(Map<String, DataType> actualArguments) {
+		return this;
 	}
 }
