@@ -48,7 +48,7 @@ public class SpecInterpretingGenerator implements Generator {
 
 	@Override
 	public void generate(Writer out, Object value) {
-		LOGGER.debug("Generating JSON for value of type {} using spec {}", value.getClass(), spec);
+		LOGGER.debug("Generating JSON for value of {} using spec {}", (value == null)? "null" : value.getClass(), spec);
 		PrintWriter printStream;
 		if (out instanceof PrintWriter pw) {
 			printStream = pw;
