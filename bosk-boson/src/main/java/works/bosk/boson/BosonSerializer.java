@@ -1,7 +1,10 @@
 package works.bosk.boson;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,6 +51,7 @@ import works.bosk.json.types.KnownType;
 import works.bosk.json.types.TypeReference;
 import works.bosk.json.types.UpperBoundedWildcardType;
 
+import static java.lang.invoke.MethodType.methodType;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.json.mapping.spec.handles.MemberPresenceCondition.memberValue;
 
@@ -156,14 +160,35 @@ public class BosonSerializer extends StateTreeSerializer {
 			DataType.of(new TypeReference<Listing<?>>(){}),
 			listingType -> switch (listingType) {
 				case BoundType bt -> {
-					KnownType representation = new BoundType(
-						ListingRepresentation.class,
-						bt.bindings());
-					yield RepresentAsSpec.<Listing<?>, ListingRepresentation<?>>as(
-						preScan(representation, simpleScanBundle),
-						listingType,
-						ListingRepresentation::fromListing,
-						ListingRepresentation::toListing
+					var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
+
+					var entryType = (KnownType) bt.parameterType(Listing.class, 0);
+					var domainRefType = new BoundType(
+						Reference.class,
+						new BoundType(Catalog.class, entryType));
+					TypedHandle domainAccessor = TypedHandle.<Listing<?>, Reference<?>>ofFunction(
+						DataType.known(Listing.class),
+						domainRefType,
+						Listing::domain);
+					memberSpecs.put("domain", new FixedMapMember(new TypeRefNode(domainRefType), domainAccessor));
+
+					var idsType = new BoundType(List.class, DataType.known(Identifier.class));
+					TypedHandle idsAccessor = TypedHandle.<Listing<?>, List<?>>ofFunction(
+						DataType.known(Listing.class),
+						idsType,
+						listing -> List.copyOf(listing.ids()));
+					memberSpecs.put("ids", new FixedMapMember(new TypeRefNode(idsType), idsAccessor));
+
+					yield new FixedMapNode(
+						memberSpecs,
+						new TypedHandle(
+							LISTING_OF.asType(methodType(
+								listingType.rawClass(),
+								domainRefType.rawClass(),
+								idsType.rawClass()
+							)),
+							listingType, List.of(domainRefType, idsType)
+						)
 					);
 				}
 				default -> throw new IllegalStateException("Unexpected Listing type: " + listingType);
@@ -378,4 +403,13 @@ public class BosonSerializer extends StateTreeSerializer {
 		}
 	}
 
+	private static final MethodHandle LISTING_OF;
+
+	static {
+		try {
+			LISTING_OF = MethodHandles.lookup().findStatic(Listing.class, "of", methodType(Listing.class, Reference.class, Collection.class));
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new ExceptionInInitializerError(e);
+		}
+	}
 }
