@@ -102,6 +102,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
+		// TODO: I wonder why this is necessary? When do we ever actually encounter a ListingEntry?
 		directives.add(new Directive(
 			DataType.of(ListingEntry.class),
 			listingEntryType -> RepresentAsSpec.as(
@@ -140,11 +141,11 @@ public class BosonSerializer extends StateTreeSerializer {
 							DataType.known(Identifier.class),
 							bt.parameterType(Catalog.class, 0)
 						));
-					yield RepresentAsSpec.as(
+					yield RepresentAsSpec.<Catalog<?>, Map<Identifier, ? extends Entity>>as(
 						preScan(representation, simpleScanBundle),
 						catalogType,
-						(Catalog<?> c) -> c.asMap(),
-						(Map<Identifier, ? extends Entity> map) -> Catalog.of(map.values())
+						Catalog::asMap,
+						map -> Catalog.of(map.values()) // TODO: validate ids?
 					);
 				}
 				default -> throw new IllegalStateException("Unexpected Catalog type: " + catalogType);
@@ -158,10 +159,10 @@ public class BosonSerializer extends StateTreeSerializer {
 					KnownType representation = new BoundType(
 						ListingRepresentation.class,
 						bt.bindings());
-					yield RepresentAsSpec.as(
+					yield RepresentAsSpec.<Listing<?>, ListingRepresentation<?>>as(
 						preScan(representation, simpleScanBundle),
 						listingType,
-						(Listing<?> listing) -> ListingRepresentation.fromListing(listing),
+						ListingRepresentation::fromListing,
 						ListingRepresentation::toListing
 					);
 				}
@@ -174,10 +175,10 @@ public class BosonSerializer extends StateTreeSerializer {
 			sideTableType -> switch (sideTableType) {
 				case BoundType bt -> {
 					var representation = new BoundType(SideTableRepresentation.class, bt.bindings());
-					yield RepresentAsSpec.as(
+					yield RepresentAsSpec.<SideTable<?,?>, SideTableRepresentation<?,?>>as(
 						preScan(representation, simpleScanBundle),
 						sideTableType,
-						(SideTable<?,?> st) -> SideTableRepresentation.fromSideTable(st),
+						SideTableRepresentation::fromSideTable,
 						SideTableRepresentation::toSideTable
 					);
 				}
@@ -240,17 +241,17 @@ public class BosonSerializer extends StateTreeSerializer {
 			new UpperBoundedWildcardType(DataType.of(StateTreeNode.class)),
 			stateTreeNodeType -> switch (stateTreeNodeType) {
 				case BoundType bt -> {
-					// Configure the preScan so it does the right thing with special components
+					// Configure the preScan so it does the right thing with Optional and Phantom components
 					Class<? extends Record> recordClass = bt.rawClass().asSubclass(Record.class);
 					Map<String, FixedMapMember> componentsByName = new HashMap<>();
 					for (var rc: recordClass.getRecordComponents()) {
 						if (Optional.class.isAssignableFrom(rc.getType())) {
 							var valueType = ReferenceUtils.parameterType(rc.getGenericType(), Optional.class, 0);
 							var elementType = new TypeRefNode(DataType.known(valueType));
-							var ifPresent = RepresentAsSpec.as(
+							var ifPresent = RepresentAsSpec.<Optional<?>,Object>as(
 								elementType,
 								DataType.known(rc.getGenericType()),
-								(Optional<?> o) -> o.get(),
+								Optional::get,
 								Optional::of
 							);
 							var ifAbsent = new ComputedSpec(TypedHandle.ofSupplier(DataType.known(rc.getGenericType()), Optional::empty));
@@ -270,7 +271,8 @@ public class BosonSerializer extends StateTreeSerializer {
 					// Now, with this in place, a shallow preScan returns the right thing
 					yield preScan(bt,
 						new TypeScanner(TypeMap.Settings.SHALLOW)
-							.specifyRecordFields(recordClass, componentsByName), simpleScanBundle
+							.specifyRecordFields(recordClass, componentsByName),
+						simpleScanBundle
 					);
 				}
 				default -> throw new IllegalStateException("Unexpected StateTreeNode type: " + stateTreeNodeType);
@@ -334,10 +336,6 @@ public class BosonSerializer extends StateTreeSerializer {
 
 	private JsonValueSpec preScan(Type type, TypeScanner.Bundle prescanBundle) {
 		return preScan(DataType.of(type), prescanBundle);
-	}
-
-	private JsonValueSpec preScan(TypeReference<?> ref, TypeScanner.Bundle prescanBundle) {
-		return preScan(DataType.of(ref), prescanBundle);
 	}
 
 	private static JsonValueSpec preScan(DataType dataType, TypeScanner.Bundle prescanBundle) {
