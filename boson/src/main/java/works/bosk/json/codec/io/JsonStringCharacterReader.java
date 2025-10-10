@@ -6,10 +6,15 @@ package works.bosk.json.codec.io;
  * This class handles UTF-8 decoding and escape sequences,
  * returning the characters that should appear in the string's value,
  * as opposed to its JSON representation.
+ * <p>
+ * Using this to process string characters has the effect of
+ * consuming those characters from the underlying {@link JsonReader}.
+ *
  */
-public interface JsonStringCharacterReader {
+public sealed interface JsonStringCharacterReader permits JsonStringCharacterReaderImpl {
 
 	/**
+	 * Advances to the next character in the string.
 	 * @return next decoded codepoint of the string,
 	 * or -1 to indicate the end of the string,
 	 * at which point the closing quote has been consumed.

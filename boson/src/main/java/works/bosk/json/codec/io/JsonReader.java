@@ -1,10 +1,16 @@
 package works.bosk.json.codec.io;
 
+import java.nio.channels.ReadableByteChannel;
+
 /**
  * A streaming JSON reader abstraction for high-performance parsing.
  * Designed to work on top of an overlapped buffer fetcher.
  */
-public interface JsonReader {
+public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl {
+
+	static JsonReader create(ReadableByteChannel channel) {
+		return new JsonReaderImpl(channel);
+	}
 
 	/**
 	 * Advances to the next token in the JSON stream.

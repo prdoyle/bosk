@@ -17,7 +17,7 @@ import static works.bosk.json.codec.io.JsonReader.Token.TRUE;
 /**
  * {@link JsonReader} that uses an OverlappedPrefetcher for high-throughput buffer management.
  */
-public final class JsonReaderImpl implements JsonReader {
+final class JsonReaderImpl implements JsonReader {
 	private final OverlappedPrefetcher prefetcher;
 	private ByteBuffer buffer;
 
@@ -129,7 +129,7 @@ public final class JsonReaderImpl implements JsonReader {
 	}
 
 	byte peekByte() {
-		if (ensureRemaining()) {
+		if (hasRemaining()) {
 			return buffer.get(buffer.position());
 		} else {
 			return -1;
@@ -137,12 +137,12 @@ public final class JsonReaderImpl implements JsonReader {
 	}
 
 	void advance() {
-		if (ensureRemaining()) {
+		if (hasRemaining()) {
 			buffer.get();
 		}
 	}
 
-	private boolean ensureRemaining() {
+	private boolean hasRemaining() {
 		while (!buffer.hasRemaining()) {
 			buffer = prefetcher.nextBuffer();
 			if (buffer == null) {
@@ -160,5 +160,10 @@ public final class JsonReaderImpl implements JsonReader {
 				default -> { break loop; }
 			}
 		}
+	}
+
+	@Override
+	public void close() {
+		prefetcher.close();
 	}
 }

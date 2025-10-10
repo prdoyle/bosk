@@ -1,6 +1,5 @@
 package works.bosk.json.codec.io;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -8,7 +7,11 @@ import java.nio.channels.ReadableByteChannel;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-final class OverlappedPrefetcher implements Closeable {
+/**
+ * Uses a virtual thread to read from a channel in the background
+ * while the foreground thread processes previously read data.
+ */
+final class OverlappedPrefetcher implements AutoCloseable {
 	private final ReadableByteChannel channel;
 	private final ArrayBlockingQueue<ByteBuffer> emptyBuffers;
 	private final ArrayBlockingQueue<ByteBuffer> filledBuffers;
@@ -50,7 +53,7 @@ final class OverlappedPrefetcher implements Closeable {
 				buffer.flip();
 				filledBuffers.put(buffer);
 			}
-		} catch (ClosedChannelException ignored) {
+		} catch (ClosedChannelException _) {
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		} catch (IOException e) {
