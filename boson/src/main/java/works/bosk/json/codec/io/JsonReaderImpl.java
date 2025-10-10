@@ -20,12 +20,10 @@ import static works.bosk.json.codec.io.JsonReader.Token.TRUE;
 public final class JsonReaderImpl implements JsonReader {
 	private final OverlappedPrefetcher prefetcher;
 	private ByteBuffer buffer;
-	private int pos;
 
 	public JsonReaderImpl(ReadableByteChannel channel) {
 		this.prefetcher = new OverlappedPrefetcher(channel);
 		this.buffer = this.prefetcher.nextBuffer();
-		this.pos = 0;
 	}
 
 	@Override
@@ -74,7 +72,7 @@ public final class JsonReaderImpl implements JsonReader {
 
 	@Override
 	public CharSequence numberChars() {
-		int startPos = pos;
+		int startPos = buffer.position();
 		var startBuffer = buffer;
 
 		while (true) {
@@ -90,7 +88,7 @@ public final class JsonReaderImpl implements JsonReader {
 				return numberStringBuilder(startPos);
 			} else {
 				assert startBuffer == buffer;
-				return new AsciiBufferCharSequence(buffer, startPos, pos-startPos);
+				return new AsciiBufferCharSequence(buffer, startPos, buffer.position()-startPos);
 			}
 		}
 	}
@@ -108,7 +106,7 @@ public final class JsonReaderImpl implements JsonReader {
 		StringBuilder sb = new StringBuilder();
 	
 		// Back up to the start of the number
-		buffer.position(pos = startPos);
+		buffer.position(startPos);
 
 		for (byte b = peekByte(); isNumberChar(b); b = peekByte()) {
 			sb.append((char) b);
@@ -134,7 +132,7 @@ public final class JsonReaderImpl implements JsonReader {
 
 	byte peekByte() {
 		if (ensureRemaining()) {
-			return buffer.get(pos);
+			return buffer.get(buffer.position());
 		} else {
 			return -1;
 		}
@@ -142,7 +140,7 @@ public final class JsonReaderImpl implements JsonReader {
 
 	void advance() {
 		if (ensureRemaining()) {
-			buffer.position(++pos);
+			buffer.get();
 		}
 	}
 
@@ -152,7 +150,6 @@ public final class JsonReaderImpl implements JsonReader {
 			if (buffer == null) {
 				return false;
 			}
-			pos = 0;
 		}
 		return true;
 	}
