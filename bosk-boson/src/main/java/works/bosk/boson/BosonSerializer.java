@@ -2,6 +2,7 @@ package works.bosk.boson;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -308,13 +309,15 @@ public class BosonSerializer extends StateTreeSerializer {
 			DataType.of(new TypeReference<ListValue<?>>(){}),
 			listValueType -> switch (listValueType) {
 				case BoundType bt -> {
-					var elementType = bt.parameterType(ListValue.class, 0);
+					KnownType elementType = (KnownType) bt.parameterType(ListValue.class, 0);
+					Function<Object[], ? extends ListValue<Object>> factory = listValueFactory((Class<ListValue<Object>>)listValueType.rawClass());
+					Object[] arrayArchetype = (Object[]) Array.newInstance(elementType.rawClass(), 0);
 					var listSpec = preScan(new BoundType(List.class, List.of(elementType)), simpleScanBundle);
-					yield RepresentAsSpec.as(
+					yield RepresentAsSpec.<ListValue<?>,List<?>>as(
 						listSpec,
 						listValueType,
-						(ListValue<?> lv) -> (List<?>)lv,
-						ListValue::from
+						lv -> lv,
+						list -> factory.apply(list.toArray(arrayArchetype))
 					);
 				}
 				default -> throw new IllegalStateException("Unexpected ListValue type: " + listValueType);
