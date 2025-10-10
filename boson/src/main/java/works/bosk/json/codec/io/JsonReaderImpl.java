@@ -15,21 +15,24 @@ import static works.bosk.json.codec.io.JsonReader.Token.STRING;
 import static works.bosk.json.codec.io.JsonReader.Token.TRUE;
 
 /**
- * {@link JsonReader} that uses an OverlappedPrefetcher for high-throughput buffer management.
+ * {@link JsonReader} that uses an {@link OverlappedPrefetcher} for high-throughput buffer management.
+ * <p>
+ * Calling {@link #close()} will close the underlying channel.
  */
 final class JsonReaderImpl implements JsonReader {
 	private final OverlappedPrefetcher prefetcher;
-	private ByteBuffer buffer;
+	private ByteBuffer currentBuf;
 
 	public JsonReaderImpl(ReadableByteChannel channel) {
 		this.prefetcher = new OverlappedPrefetcher(channel);
-		this.buffer = this.prefetcher.nextBuffer();
+		// TODO: Not ideal. There's no reason to block here until we actually need data.
+		this.currentBuf = this.prefetcher.nextBuffer();
 	}
 
 	@Override
 	public Token nextToken() {
 		skipInsignificant();
-		if (buffer == null) {
+		if (currentBuf == null) {
 			return END_DOCUMENT;
 		}
 
@@ -72,11 +75,11 @@ final class JsonReaderImpl implements JsonReader {
 
 	@Override
 	public CharSequence numberChars() {
-		int startPos = buffer.position();
-		var startBuffer = buffer;
+		int startPos = currentBuf.position();
+		var startBuffer = currentBuf;
 
 		while (true) {
-			if (!buffer.hasRemaining()) {
+			if (!currentBuf.hasRemaining()) {
 				// We've run out of buffer
 				return numberStringBuilder(startPos);
 			}
@@ -85,8 +88,8 @@ final class JsonReaderImpl implements JsonReader {
 				advance();
 			} else {
 				// End of the number
-				assert startBuffer == buffer;
-				return new AsciiBufferCharSequence(buffer, startPos, buffer.position()-startPos);
+				assert startBuffer == currentBuf;
+				return new AsciiBufferCharSequence(currentBuf, startPos, currentBuf.position()-startPos);
 			}
 		}
 	}
@@ -104,7 +107,7 @@ final class JsonReaderImpl implements JsonReader {
 		StringBuilder sb = new StringBuilder();
 	
 		// Back up to the start of the number
-		buffer.position(startPos);
+		currentBuf.position(startPos);
 
 		for (byte b = peekByte(); isNumberChar(b); b = peekByte()) {
 			sb.append((char) b);
@@ -130,7 +133,7 @@ final class JsonReaderImpl implements JsonReader {
 
 	byte peekByte() {
 		if (hasRemaining()) {
-			return buffer.get(buffer.position());
+			return currentBuf.get(currentBuf.position());
 		} else {
 			return -1;
 		}
@@ -138,14 +141,14 @@ final class JsonReaderImpl implements JsonReader {
 
 	void advance() {
 		if (hasRemaining()) {
-			buffer.get();
+			currentBuf.get();
 		}
 	}
 
 	private boolean hasRemaining() {
-		while (!buffer.hasRemaining()) {
-			buffer = prefetcher.nextBuffer();
-			if (buffer == null) {
+		while (!currentBuf.hasRemaining()) {
+			currentBuf = prefetcher.nextBuffer();
+			if (currentBuf == null) {
 				return false;
 			}
 		}

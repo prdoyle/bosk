@@ -1,15 +1,15 @@
 package works.bosk.json.codec.io;
 
 /**
- * Reads characters out of a JSON string literal.
- * This is the only place in JSON where non-ASCII characters can appear.
+ * Reads characters out of a JSON literal string value.
  * This class handles UTF-8 decoding and escape sequences,
  * returning the characters that should appear in the string's value,
  * as opposed to its JSON representation.
  * <p>
  * Using this to process string characters has the effect of
  * consuming those characters from the underlying {@link JsonReader}.
- *
+ * <p>
+ * Notably, this is the only place in JSON where non-ASCII characters can appear.
  */
 public sealed interface JsonStringCharacterReader permits JsonStringCharacterReaderImpl {
 

@@ -10,6 +10,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Uses a virtual thread to read from a channel in the background
  * while the foreground thread processes previously read data.
+ * <p>
+ * Calling {@link #close()} will close the underlying channel.
  */
 final class OverlappedPrefetcher implements AutoCloseable {
 	private final ReadableByteChannel channel;
