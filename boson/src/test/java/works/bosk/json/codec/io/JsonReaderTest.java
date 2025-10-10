@@ -7,16 +7,16 @@ import static java.nio.channels.Channels.newChannel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static works.bosk.json.codec.io.JsonReader.Token.BEGIN_ARRAY;
-import static works.bosk.json.codec.io.JsonReader.Token.BEGIN_OBJECT;
-import static works.bosk.json.codec.io.JsonReader.Token.END_ARRAY;
-import static works.bosk.json.codec.io.JsonReader.Token.END_DOCUMENT;
-import static works.bosk.json.codec.io.JsonReader.Token.END_OBJECT;
-import static works.bosk.json.codec.io.JsonReader.Token.FALSE;
-import static works.bosk.json.codec.io.JsonReader.Token.NULL;
-import static works.bosk.json.codec.io.JsonReader.Token.NUMBER;
-import static works.bosk.json.codec.io.JsonReader.Token.STRING;
-import static works.bosk.json.codec.io.JsonReader.Token.TRUE;
+import static works.bosk.json.mapping.Token.END_ARRAY;
+import static works.bosk.json.mapping.Token.END_OBJECT;
+import static works.bosk.json.mapping.Token.END_TEXT;
+import static works.bosk.json.mapping.Token.FALSE;
+import static works.bosk.json.mapping.Token.NULL;
+import static works.bosk.json.mapping.Token.NUMBER;
+import static works.bosk.json.mapping.Token.START_ARRAY;
+import static works.bosk.json.mapping.Token.START_OBJECT;
+import static works.bosk.json.mapping.Token.STRING;
+import static works.bosk.json.mapping.Token.TRUE;
 
 class JsonReaderTest {
 
@@ -25,7 +25,7 @@ class JsonReaderTest {
 		try (JsonReader reader = readerFor("\"hello\"")) {
 			assertEquals(STRING, reader.nextToken());
 			assertEquals("hello", reader.readString());
-			assertEquals(END_DOCUMENT, reader.nextToken());
+			assertEquals(END_TEXT, reader.nextToken());
 		}
 	}
 
@@ -72,29 +72,29 @@ class JsonReaderTest {
 	@Test
 	void structuralTokens() {
 		try (JsonReader reader = readerFor("{\"a\": [1, 2]}")) {
-			assertEquals(BEGIN_OBJECT, reader.nextToken());
+			assertEquals(START_OBJECT, reader.nextToken());
 			assertEquals(STRING, reader.nextToken());
 			assertEquals("a", reader.readString());
-			assertEquals(BEGIN_ARRAY, reader.nextToken());
+			assertEquals(START_ARRAY, reader.nextToken());
 			assertEquals(NUMBER, reader.nextToken());
 			assertEquals("1", reader.numberChars().toString());
 			assertEquals(NUMBER, reader.nextToken());
 			assertEquals("2", reader.numberChars().toString());
 			assertEquals(END_ARRAY, reader.nextToken());
 			assertEquals(END_OBJECT, reader.nextToken());
-			assertEquals(END_DOCUMENT, reader.nextToken());
+			assertEquals(END_TEXT, reader.nextToken());
 		}
 	}
 
 	@Test
 	void trueFalseNull() {
 		try (JsonReader reader = readerFor("[true,false,null]")) {
-			assertEquals(BEGIN_ARRAY, reader.nextToken());
+			assertEquals(START_ARRAY, reader.nextToken());
 			assertEquals(TRUE, reader.nextToken());
 			assertEquals(FALSE, reader.nextToken());
 			assertEquals(NULL, reader.nextToken());
 			assertEquals(END_ARRAY, reader.nextToken());
-			assertEquals(END_DOCUMENT, reader.nextToken());
+			assertEquals(END_TEXT, reader.nextToken());
 		}
 	}
 

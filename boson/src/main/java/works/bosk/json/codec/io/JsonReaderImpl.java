@@ -2,17 +2,19 @@ package works.bosk.json.codec.io;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
+import works.bosk.json.mapping.Token;
 
-import static works.bosk.json.codec.io.JsonReader.Token.BEGIN_ARRAY;
-import static works.bosk.json.codec.io.JsonReader.Token.BEGIN_OBJECT;
-import static works.bosk.json.codec.io.JsonReader.Token.END_ARRAY;
-import static works.bosk.json.codec.io.JsonReader.Token.END_DOCUMENT;
-import static works.bosk.json.codec.io.JsonReader.Token.END_OBJECT;
-import static works.bosk.json.codec.io.JsonReader.Token.FALSE;
-import static works.bosk.json.codec.io.JsonReader.Token.NULL;
-import static works.bosk.json.codec.io.JsonReader.Token.NUMBER;
-import static works.bosk.json.codec.io.JsonReader.Token.STRING;
-import static works.bosk.json.codec.io.JsonReader.Token.TRUE;
+import static works.bosk.json.mapping.Token.END_ARRAY;
+import static works.bosk.json.mapping.Token.END_OBJECT;
+import static works.bosk.json.mapping.Token.END_TEXT;
+import static works.bosk.json.mapping.Token.FALSE;
+import static works.bosk.json.mapping.Token.NULL;
+import static works.bosk.json.mapping.Token.NUMBER;
+import static works.bosk.json.mapping.Token.START_ARRAY;
+import static works.bosk.json.mapping.Token.START_OBJECT;
+import static works.bosk.json.mapping.Token.STRING;
+import static works.bosk.json.mapping.Token.TRUE;
+
 
 /**
  * {@link JsonReader} that uses an {@link OverlappedPrefetcher} for high-throughput buffer management.
@@ -33,15 +35,15 @@ final class JsonReaderImpl implements JsonReader {
 	public Token nextToken() {
 		skipInsignificant();
 		if (currentBuf == null) {
-			return END_DOCUMENT;
+			return END_TEXT;
 		}
 
 		byte b = peekByte();
 
 		switch (b) {
-			case '{': { advance(); return BEGIN_OBJECT; }
+			case '{': { advance(); return START_OBJECT; }
 			case '}': { advance(); return END_OBJECT; }
-			case '[': { advance(); return BEGIN_ARRAY; }
+			case '[': { advance(); return START_ARRAY; }
 			case ']': { advance(); return END_ARRAY; }
 			case '"': { advance(); return STRING; }
 			case 't': {

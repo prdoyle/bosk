@@ -1,6 +1,7 @@
 package works.bosk.json.codec.io;
 
 import java.nio.channels.ReadableByteChannel;
+import works.bosk.json.mapping.Token;
 
 /**
  * A streaming JSON reader abstraction for high-performance parsing.
@@ -59,14 +60,4 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 
 	@Override void close(); // No throws Exception
 
-	/**
-	 * Token types for JSON parsing.
-	 */
-	enum Token {
-		BEGIN_OBJECT, END_OBJECT,
-		BEGIN_ARRAY, END_ARRAY,
-		STRING, NUMBER,
-		TRUE, FALSE, NULL,
-		END_DOCUMENT
-	}
 }
