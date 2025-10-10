@@ -83,10 +83,8 @@ public final class JsonReaderImpl implements JsonReader {
 			byte b = peekByte();
 			if (isNumberChar(b)) {
 				advance();
-			} else if (b < 0) {
-				// We've found a non-ASCII character
-				return numberStringBuilder(startPos);
 			} else {
+				// End of the number
 				assert startBuffer == buffer;
 				return new AsciiBufferCharSequence(buffer, startPos, buffer.position()-startPos);
 			}
