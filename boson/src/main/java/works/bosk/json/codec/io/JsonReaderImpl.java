@@ -5,6 +5,8 @@ import java.nio.channels.ReadableByteChannel;
 import works.bosk.json.mapping.Token;
 
 import static works.bosk.json.mapping.Token.END_TEXT;
+import static works.bosk.json.mapping.Token.NUMBER;
+import static works.bosk.json.mapping.Token.STRING;
 
 
 /**
@@ -25,33 +27,30 @@ final class JsonReaderImpl implements JsonReader {
 	@Override
 	public Token peekToken() {
 		skipInsignificant();
+		return peekRawToken();
+	}
+
+	/**
+	 * May return {@link Token#INSIGNIFICANT}.
+	 */
+	private Token peekRawToken() {
 		if (currentBuf == null) {
 			return END_TEXT;
+		} else {
+			return Token.startingWith(peekByte());
 		}
-		return Token.startingWith(peekByte());
 	}
 
 	@Override
-	public Token advanceToken() {
-		Token result = peekToken();
-		
-		// Now move past the token
-		switch (result) {
-			case NULL, FALSE, TRUE,
-				 START_OBJECT, END_OBJECT,
-				 START_ARRAY, END_ARRAY ->
-				skip(result.fixedRepresentation().length());
-			case STRING -> skip(1); // Content processing expects to be past the opening quote
-			case NUMBER -> {} // numberChars() will consume all the characters
-			case END_TEXT -> {} // Nothing to do
-			default -> throw new IllegalStateException("Unexpected token: " + result);
-		}
-
-		return result;
+	public void consumeFixedToken(Token token) {
+		assert peekRawToken() == token;
+		assert token.hasFixedRepresentation();
+		skip(token.fixedRepresentation().length());
 	}
 
 	@Override
-	public CharSequence numberChars() {
+	public CharSequence consumeNumber() {
+		assert peekRawToken() == NUMBER;
 		int startPos = currentBuf.position();
 		var startBuffer = currentBuf;
 
@@ -72,7 +71,9 @@ final class JsonReaderImpl implements JsonReader {
 	}
 
 	@Override
-	public JsonStringCharacterReader stringCharacterReader() {
+	public JsonStringCharacterReader consumeString() {
+		assert peekRawToken() == STRING;
+		skip(1); // Opening quote
 		return new JsonStringCharacterReaderImpl(this);
 	}
 
@@ -123,6 +124,10 @@ final class JsonReaderImpl implements JsonReader {
 	}
 	
 	void skip(int n) {
+		if (n == 0) {
+			// This case needs to work even if currentBuf is null
+			return;
+		}
 		if (n < 0) {
 			throw new IllegalArgumentException("Can't skip a negative number of bytes: " + n);
 		}

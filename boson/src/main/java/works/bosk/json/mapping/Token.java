@@ -41,6 +41,18 @@ public enum Token {
 		};
 	}
 
+	/**
+	 * @return true for tokens that are always represented in JSON with the same sequence of characters
+	 */
+	public boolean hasFixedRepresentation() {
+		return switch (this) {
+			case END_TEXT, NULL, FALSE, TRUE, START_OBJECT, END_OBJECT, START_ARRAY, END_ARRAY ->
+				true;
+			default ->
+				false;
+		};
+	}
+
 	public String fixedRepresentation() {
 		return switch (this) {
 			case END_TEXT -> "";

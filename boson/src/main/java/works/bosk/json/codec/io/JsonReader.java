@@ -5,7 +5,11 @@ import works.bosk.json.mapping.Token;
 
 /**
  * A streaming JSON reader abstraction for high-performance parsing.
- * Designed to work on top of an overlapped buffer fetcher.
+ * This interface is rather unfriendly by design.
+ * Methods mutate the reader's internal state in ways that are not obvious
+ * from the outside.
+ * The rather stringent rules are documented here, and if you don't follow them,
+ * you will get confusing behaviour.
  */
 public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl {
 
@@ -18,70 +22,72 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	}
 
 	/**
-	 * Indicates what the next token will be, but does not consume it
-	 * like {@link #advanceToken} does.
-	 * Skips all syntactically insignificant characters first,
-	 * including colons and commas.
+	 * Skips insignificant characters and returns the next token encountered.
 	 * <p>
-	 * This can be called only in circumstances where {@link #advanceToken} would also
-	 * be valid.
-	 * Usually, it is followed by a call to {@link #advanceToken}
-	 * to actually consume the token.
-	 * <p>
+	 * Depending on the token returned, the next method called must be one of the following:
+	 * <ul>
+	 *     <li>
+	 *         for any token with a {@link Token#fixedRepresentation fixed representation},
+	 *         call {@link #consumeFixedToken};
+	 *     </li>
+	 *     <li>
+	 *         for {@link Token#NUMBER}, call {@link #consumeNumber}; or
+	 *     </li>
+	 *     <li>
+	 *         for {@link Token#STRING}, call {@link #consumeString}.
+	 *     </li>
+	 * </ul>
+	 *
 	 * This method is idempotent; calling it repeatedly will return the same result.
 	 */
 	Token peekToken();
 
 	/**
-	 * Advances to the next token in the JSON stream.
-	 * Skips all syntactically insignificant characters first,
-	 * including colons and commas.
-	 * <p>
-	 * If this returns {@link Token#NUMBER}, call {@link #numberChars} next
-	 * to get the character data before calling {@code advanceToken} again.
-	 * <p>
-	 * If this returns {@link Token#STRING}, call {@link #stringCharacterReader} next
-	 * and use it to read the string's character data before calling {@code advanceToken} again.
-	 * <p>
-	 * All other tokens stand alone; there is no additional data to read.
+	 * After {@link #peekToken} returns a token with a {@link Token#hasFixedRepresentation fixed representation},
+	 * this consumes that token from the input, leaving the reader
+	 * ready for the next call to {@link #peekToken}.
+	 *
+	 * @param token must be the last token returned by {@link #peekToken}
 	 */
-	Token advanceToken();
+	void consumeFixedToken(Token token);
 
 	/**
-	 * After {@link #advanceToken} returns NUMBER,
+	 * After {@link #peekToken} returns {@link Token#NUMBER NUMBER},
 	 * this returns the character data
 	 * comprising the text representation of the number.
 	 * <p>
 	 * Consumes the number from the input, leaving the reader
-	 * ready for the next call to {@link #advanceToken}.
+	 * ready for the next call to {@link #peekToken}.
 	 */
-	CharSequence numberChars();
+	CharSequence consumeNumber();
 
 	/**
-	 * After {@link #advanceToken} returns STRING,
+	 * After {@link #peekToken} returns {@link Token#STRING STRING},
 	 * this returns the characters comprising the string's value.
 	 * Useful when there are opportunities to inspect only parts of the string's contents,
 	 * such as when it's known to be an element of a fixed set of strings,
 	 * leading to highly efficient parsing.
 	 * <p>
-	 * Consumes the string input, leaving the reader
-	 * ready for the next call to {@link #advanceToken}.
+	 * The string input is not actually consumed
+	 * until the returned {@link JsonStringCharacterReader} itself is consumed,
+	 * either by calling {@link JsonStringCharacterReader#skipToEnd() skipToEnd}
+	 * or when {@link JsonStringCharacterReader#nextChar()} returns -1.
 	 *
-	 * @see #readStringContents()
+	 * @see #consumeStringContents()
 	 */
-	JsonStringCharacterReader stringCharacterReader();
+	JsonStringCharacterReader consumeString();
 
 	/**
-	 * After {@link #advanceToken} STRING, returns the string's value as a CharSequence.
+	 * A variant of {@link #consumeString} that returns the entire string's contents as a {@link CharSequence}.
 	 * Handy if you need the entire string.
 	 * <p>
 	 * Consumes the string input, leaving the reader
-	 * ready for the next call to {@link #advanceToken}.
+	 * ready for the next call to {@link #peekToken}.
 	 *
-	 * @see #stringCharacterReader()
+	 * @see #consumeString()
 	 */
-	default CharSequence readStringContents() {
-		JsonStringCharacterReader sr = stringCharacterReader();
+	default CharSequence consumeStringContents() {
+		JsonStringCharacterReader sr = consumeString();
 		StringBuilder sb = new StringBuilder();
 		int c;
 		while ((c = sr.nextChar()) != -1) {
@@ -91,7 +97,7 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	}
 
 	default String readString() {
-		return readStringContents().toString();
+		return consumeStringContents().toString();
 	}
 
 	@Override void close(); // No throws Exception
