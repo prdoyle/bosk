@@ -1,4 +1,7 @@
-package works.bosk.json.codec.io;
+package works.bosk.json.codec;
+
+import works.bosk.json.codec.io.CharArrayJsonReader;
+import works.bosk.json.codec.io.JsonStringCharacterReaderImpl;
 
 /**
  * Reads characters out of a JSON literal string value.

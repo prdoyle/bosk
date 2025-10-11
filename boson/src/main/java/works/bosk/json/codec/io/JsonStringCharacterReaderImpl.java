@@ -1,9 +1,11 @@
 package works.bosk.json.codec.io;
 
+import works.bosk.json.codec.JsonStringCharacterReader;
+
 /**
  * Implementation of JsonStringCharacterReader.
  */
-final class JsonStringCharacterReaderImpl implements JsonStringCharacterReader {
+public final class JsonStringCharacterReaderImpl implements JsonStringCharacterReader {
 	private final ByteBufferJsonReader reader;
 
 	public JsonStringCharacterReaderImpl(ByteBufferJsonReader reader) {

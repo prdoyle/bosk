@@ -4,11 +4,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 
-class SynchronousBufferFiller implements BufferFiller {
+public class SynchronousBufferFiller implements BufferFiller {
 	final ReadableByteChannel channel;
 	final ByteBuffer buffer;
 
-	SynchronousBufferFiller(ReadableByteChannel channel) {
+	public SynchronousBufferFiller(ReadableByteChannel channel) {
 		this(channel, 16*1024);
 	}
 

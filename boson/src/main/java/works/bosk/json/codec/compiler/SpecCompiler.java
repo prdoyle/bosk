@@ -34,9 +34,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.json.codec.CharArrayReader;
 import works.bosk.json.codec.Codec;
 import works.bosk.json.codec.Generator;
+import works.bosk.json.codec.JsonReader;
+import works.bosk.json.codec.JsonStringCharacterReader;
 import works.bosk.json.codec.Parser;
 import works.bosk.json.codec.compiler.LocalVariableAllocator.LocalVariable;
 import works.bosk.json.codec.interpreter.SpecInterpretingGenerator;
@@ -72,6 +73,8 @@ import static works.bosk.json.codec.ParserSessionImpl.PRIMITIVE_PARSE_METHOD_NAM
 import static works.bosk.json.mapping.Token.END_ARRAY;
 import static works.bosk.json.mapping.Token.END_OBJECT;
 import static works.bosk.json.mapping.Token.NULL;
+import static works.bosk.json.mapping.Token.START_ARRAY;
+import static works.bosk.json.mapping.Token.START_OBJECT;
 import static works.bosk.json.mapping.Token.STRING;
 import static works.bosk.json.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
 
@@ -114,7 +117,7 @@ public class SpecCompiler {
 				specsToEmit.forEach(node -> emitParseMethod(classBuilder, node, currier));
 
 				classBuilder.withMethod("<init>",
-					MethodTypeDesc.of(VOID, cd(CharArrayReader.class)),
+					MethodTypeDesc.of(VOID, cd(JsonReader.class)),
 					PUBLIC.mask(),
 					mb -> mb.withCode(cb -> {
 						cb.loadLocal(REFERENCE, 0);
@@ -124,7 +127,7 @@ public class SpecCompiler {
 							classBuilder.constantPool().methodRefEntry(
 								cd(ParserRuntime.class),
 								"<init>",
-								MethodTypeDesc.of(VOID, cd(CharArrayReader.class))
+								MethodTypeDesc.of(VOID, cd(JsonReader.class))
 							)
 						);
 						cb.return_();
@@ -174,7 +177,7 @@ public class SpecCompiler {
 
 		MethodHandle ctor;
 		try {
-			ctor = MethodHandles.lookup().findConstructor(generatedClass, MethodType.methodType(void.class, CharArrayReader.class));
+			ctor = MethodHandles.lookup().findConstructor(generatedClass, MethodType.methodType(void.class, JsonReader.class));
 		} catch (Exception e) {
 			throw new IllegalStateException("Failed to instantiate the generated Codec class", e);
 		}
@@ -485,18 +488,14 @@ public class SpecCompiler {
 				Label endArray = codeBuilder.newLabel();
 				Label error = codeBuilder.newLabel();
 
-				// Eat START_ARRAY
-				_nextToken();
-				_skipToken();
+				_skipToken(START_ARRAY);
 
 				LocalVariable accumulator = locals.allocate(REFERENCE);
 				_invokeExact(curryAndLoad(acc.creator().handle(), "acc_creator"));
 				accumulator.store(codeBuilder);
 
 				codeBuilder.labelBinding(loop);
-				_nextSignificant();
-				_tokenStartingWith();
-				_tokenOrdinal();
+				_peekTokenOrdinal();
 				codeBuilder.lookupswitch(element,
 					List.of(
 						SwitchCase.of(END_ARRAY.ordinal(), endArray)
@@ -504,7 +503,6 @@ public class SpecCompiler {
 				);
 
 				codeBuilder.labelBinding(element);
-				_skip(-1);
 				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
 				accumulator.load(codeBuilder);
 				_parseAny(node.elementNode());
@@ -536,18 +534,14 @@ public class SpecCompiler {
 				Label endObject = codeBuilder.newLabel();
 				Label error = codeBuilder.newLabel();
 
-				// Eat START_OBJECT
-				_nextToken();
-				_skipToken();
+				_skipToken(START_OBJECT);
 
 				LocalVariable accumulator = locals.allocate(REFERENCE);
 				_invokeExact(curryAndLoad(acc.creator().handle(), "acc_creator"));
 				accumulator.store(codeBuilder);
 
 				codeBuilder.labelBinding(loop);
-				_nextSignificant();
-				_tokenStartingWith();
-				_tokenOrdinal();
+				_peekTokenOrdinal();
 				codeBuilder.lookupswitch(error,
 					List.of(
 						SwitchCase.of(STRING.ordinal(), member),
@@ -556,7 +550,6 @@ public class SpecCompiler {
 				);
 
 				codeBuilder.labelBinding(member);
-				_skip(-1);
 				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
 				accumulator.load(codeBuilder);
 				_parseAny(node.keyNode());
@@ -579,24 +572,16 @@ public class SpecCompiler {
 			}
 		}
 
-		private void _skip(int i) {
-			_loadRuntime();
-			codeBuilder.loadConstant(i);
-			lineInfo(codeBuilder, 1);
-			_callRuntime("skip", int.class);
-		}
-
 		private void _parseMaybeNull(MaybeNullSpec node) {
 			Label done = codeBuilder.newLabel();
-			_nextSignificant();
-			codeBuilder.loadConstant(NULL.fixedRepresentation().charAt(0));
+			_peekTokenOrdinal();
+			codeBuilder.loadConstant(NULL.ordinal());
 			codeBuilder.isub();
 			codeBuilder.ifThen(IFEQ, block-> {
 				_skipToken(NULL);
 				block.aconst_null();
 				block.goto_w(done);
 			});
-			_skip(-1);
 			_parseAny(node.child());
 			var type = node.child().dataType();
 			if (type instanceof PrimitiveType p) {
@@ -665,11 +650,10 @@ public class SpecCompiler {
 			String parseMethodName = PRIMITIVE_PARSE_METHOD_NAMES.get(node.targetClass());
 
 			// Read the number as a string
-			_nextSignificant();
-			_readNumberAsStringBuilder();
+			_readNumberAsCharSequence();
 			lineInfo(codeBuilder);
-			codeBuilder.invokevirtual(
-				cd(StringBuilder.class),
+			codeBuilder.invokeinterface(
+				cd(CharSequence.class),
 				"toString",
 				mtd(String.class)
 			);
@@ -713,13 +697,10 @@ public class SpecCompiler {
 				});
 
 				// Eat START_OBJECT
-				_nextToken();
-				_skipToken();
+				_skipToken(START_OBJECT);
 
 				codeBuilder.labelBinding(loop);
-				_nextSignificant();
-				_tokenStartingWith();
-				_tokenOrdinal();
+				_peekTokenOrdinal();
 				codeBuilder.lookupswitch(error,
 					List.of(
 						SwitchCase.of(STRING.ordinal(), member),
@@ -728,10 +709,13 @@ public class SpecCompiler {
 				);
 
 				codeBuilder.labelBinding(member);
-				generateCodePointSwitch(trie, fixedMapNode, componentLocalsByName, loop, error);
+				LocalVariable stringChars = locals.allocate(REFERENCE);
+				_processString();
+				stringChars.store(codeBuilder);
+				generateCodePointSwitch(trie, fixedMapNode, componentLocalsByName, loop, error, stringChars);
 
 				codeBuilder.labelBinding(error);
-				_throwParseError("Unexpected character");
+				_throwParseError("Unexpected character; was expecting one of " + fixedMapNode.memberSpecs().keySet());
 
 				codeBuilder.labelBinding(endObject);
 				_skipToken(END_OBJECT);
@@ -752,6 +736,12 @@ public class SpecCompiler {
 			}
 		}
 
+		private void _processString() {
+			_loadRuntime();
+			lineInfo(codeBuilder);
+			_callRuntime(JsonStringCharacterReader.class, "processString");
+		}
+
 		private void _loadDefault(TypeKind typeKind) {
 			switch (typeKind.asLoadable()) {
 				case INT -> codeBuilder.iconst_0();
@@ -766,11 +756,11 @@ public class SpecCompiler {
 		/**
 		 * Recursively a nest of switches to match the strings described by the given trie.
 		 */
-		private void generateCodePointSwitch(TrieNode node, FixedMapNode fixedMapNode, Map<String, LocalVariable> componentLocalsByName, Label loop, Label error) {
+		private void generateCodePointSwitch(TrieNode node, FixedMapNode fixedMapNode, Map<String, LocalVariable> componentLocalsByName, Label loop, Label error, LocalVariable stringChars) {
 			LOGGER.debug("generateCodePointSwitch({})", node);
 			switch (node) {
 				case TrieNode.LeafNode(String memberName, int matchedPrefix) -> {
-					_skipRemainderOfString(memberName.length() - matchedPrefix);
+					_skipToEnd(memberName.length() - matchedPrefix, stringChars);
 					var child = fixedMapNode.memberSpecs().get(memberName);
 					LOGGER.debug("-> leaf({})", child);
 					switch (child.valueSpec()) {
@@ -798,11 +788,11 @@ public class SpecCompiler {
 							child = childEdges.getFirst().child();
 						}
 						LOGGER.debug("-> skip({})", numSkips);
-						_skip(numSkips);
-						generateCodePointSwitch(child, fixedMapNode, componentLocalsByName, loop, error);
+						_skipChars(numSkips, stringChars);
+						generateCodePointSwitch(child, fixedMapNode, componentLocalsByName, loop, error, stringChars);
 					} else {
 						LOGGER.debug("-> switch({})", edges.stream().map(TrieEdge::codePoint).toList());
-						_read();
+						_nextChar(stringChars);
 						var cases = edges.stream()
 							.map(e -> SwitchCase.of(e.codePoint(), codeBuilder.newLabel()))
 							.toList();
@@ -810,25 +800,43 @@ public class SpecCompiler {
 						Iterator<TrieEdge> iter = edges.iterator();
 						cases.forEach(c -> {
 							codeBuilder.labelBinding(c.target());
-							generateCodePointSwitch(iter.next().child(), fixedMapNode, componentLocalsByName, loop, error);
+							generateCodePointSwitch(iter.next().child(), fixedMapNode, componentLocalsByName, loop, error, stringChars);
 						});
 					}
 				}
 			}
 		}
 
-		private void _skipRemainderOfString(int remainingLength) {
-			_loadRuntime();
-			codeBuilder.loadConstant(remainingLength);
+		private void _nextChar(LocalVariable stringChars) {
+			stringChars.load(codeBuilder);
 			lineInfo(codeBuilder, 1);
-			_callRuntime("skipRemainderOfString", int.class);
+			codeBuilder.invokeinterface(classBuilder.constantPool().interfaceMethodRefEntry(
+				cd(JsonStringCharacterReader.class),
+				"nextChar",
+				mtd(int.class))
+			);
 		}
 
-		private void _skipToken() {
-			_loadRuntime();
-			codeBuilder.swap();
+		private void _skipChars(int numCharsToSkip, LocalVariable stringChars) {
+			stringChars.load(codeBuilder);
+			codeBuilder.loadConstant(numCharsToSkip);
 			lineInfo(codeBuilder, 1);
-			_callRuntime("skipToken", Token.class);
+			codeBuilder.invokeinterface(classBuilder.constantPool().interfaceMethodRefEntry(
+				cd(JsonStringCharacterReader.class),
+				"skipChars",
+				mtd(VOID, int.class))
+			);
+		}
+
+		private void _skipToEnd(int remainingLength, LocalVariable stringChars) {
+			// TODO: Take advantage of knowing the length
+			stringChars.load(codeBuilder);
+			lineInfo(codeBuilder, 1);
+			codeBuilder.invokeinterface(classBuilder.constantPool().interfaceMethodRefEntry(
+				cd(JsonStringCharacterReader.class),
+				"skipToEnd",
+				mtd(VOID))
+			);
 		}
 
 		private void _skipToken(Token token) {
@@ -844,14 +852,10 @@ public class SpecCompiler {
 			_callRuntime(String.class, "parseString");
 		}
 
-		/**
-		 * Expects the first char on the operand stack already
-		 */
-		private void _readNumberAsStringBuilder() {
+		private void _readNumberAsCharSequence() {
 			_loadRuntime();
-			codeBuilder.swap();
 			lineInfo(codeBuilder, 1);
-			_callRuntime(StringBuilder.class, "readNumber", int.class);
+			_callRuntime(CharSequence.class, "readNumber");
 		}
 
 		private void _throwParseError(String message) {
@@ -880,37 +884,10 @@ public class SpecCompiler {
 			codeBuilder.loadLocal(REFERENCE, 0);
 		}
 
-		private void _read() {
+		private void _peekTokenOrdinal() {
 			_loadRuntime();
-			_callRuntime(int.class, "read");
-		}
-
-		private void _nextSignificant() {
-			_loadRuntime();
-			_callRuntime(int.class, "nextSignificant");
-		}
-
-		private void _nextToken() {
-			_loadRuntime();
-			_callRuntime(Token.class, "nextToken");
-		}
-
-		private void _tokenOrdinal() {
 			lineInfo(codeBuilder);
-			codeBuilder.invokevirtual(classBuilder.constantPool().methodRefEntry(
-				cd(Token.class),
-				"ordinal",
-				mtd(int.class)
-			));
-		}
-
-		private void _tokenStartingWith() {
-			lineInfo(codeBuilder);
-			codeBuilder.invokestatic(classBuilder.constantPool().methodRefEntry(
-				cd(Token.class),
-				"startingWith",
-				mtd(Token.class, int.class))
-			);
+			_callRuntime(int.class, "peekTokenOrdinal");
 		}
 
 		private void _callRuntime(Class<?> returnType, String methodName, Class<?>... parameterTypes) {

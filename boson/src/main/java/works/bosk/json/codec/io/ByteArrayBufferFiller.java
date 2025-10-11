@@ -2,7 +2,7 @@ package works.bosk.json.codec.io;
 
 import java.nio.ByteBuffer;
 
-class ByteArrayBufferFiller implements BufferFiller {
+public class ByteArrayBufferFiller implements BufferFiller {
 	final ByteBuffer buffer;
 
 	public ByteArrayBufferFiller(byte[] bytes) {

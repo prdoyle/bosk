@@ -15,9 +15,9 @@ import org.openjdk.jmh.annotations.Warmup;
 import works.bosk.json.TestUtils.JustScalars;
 import works.bosk.json.TestUtils.Month;
 import works.bosk.json.TestUtils.OneOfEach;
-import works.bosk.json.codec.CharArrayReader;
 import works.bosk.json.codec.CodecBuilder;
 import works.bosk.json.codec.Parser;
+import works.bosk.json.codec.io.CharArrayJsonReader;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.spec.JsonValueSpec;
@@ -94,21 +94,21 @@ public class ParseBenchmark {
 
 //	@Benchmark
 	public Object interpreter_default() throws IOException {
-		return interpreter.parse(new CharArrayReader(json, 0));
+		return interpreter.parse(new CharArrayJsonReader(json));
 	}
 
 //	@Benchmark
 	public Object interpreter_experimental() throws IOException {
-		return interpreterExperimental.parse(new CharArrayReader(json, 0));
+		return interpreterExperimental.parse(new CharArrayJsonReader(json));
 	}
 
 //	@Benchmark
 	public Object compiled_default() throws IOException {
-		return compiled.parse(new CharArrayReader(json, 0));
+		return compiled.parse(new CharArrayJsonReader(json));
 	}
 
 	@Benchmark
 	public Object compiled_experimental() throws IOException {
-		return compiledExperimental.parse(new CharArrayReader(json, 0));
+		return compiledExperimental.parse(new CharArrayJsonReader(json));
 	}
 }

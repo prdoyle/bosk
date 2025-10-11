@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import works.bosk.json.TestUtils.Month;
-import works.bosk.json.codec.io.JsonReader;
+import works.bosk.json.codec.JsonReader;
 import works.bosk.json.mapping.Token;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

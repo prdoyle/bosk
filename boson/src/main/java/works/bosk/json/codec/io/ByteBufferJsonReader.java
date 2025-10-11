@@ -1,8 +1,11 @@
 package works.bosk.json.codec.io;
 
 import java.nio.ByteBuffer;
+import works.bosk.json.codec.JsonReader;
+import works.bosk.json.codec.JsonStringCharacterReader;
 import works.bosk.json.mapping.Token;
 
+import static java.lang.Math.min;
 import static works.bosk.json.mapping.Token.END_TEXT;
 import static works.bosk.json.mapping.Token.NUMBER;
 import static works.bosk.json.mapping.Token.STRING;
@@ -13,9 +16,10 @@ import static works.bosk.json.mapping.Token.STRING;
  * <p>
  * Calling {@link #close()} will close the underlying channel.
  */
-final class ByteBufferJsonReader implements JsonReader {
+public final class ByteBufferJsonReader implements JsonReader {
 	private final BufferFiller filler;
 	private ByteBuffer currentBuf;
+	private long currentBufStartOffset = 0;
 
 	public ByteBufferJsonReader(BufferFiller bufferFiller) {
 		this.filler = bufferFiller;
@@ -74,6 +78,17 @@ final class ByteBufferJsonReader implements JsonReader {
 		assert peekRawToken() == STRING;
 		skip(1); // Opening quote
 		return new JsonStringCharacterReaderImpl(this);
+	}
+
+	@Override
+	public String previewString(int requestedLength) {
+		int actualLength = min(requestedLength, currentBuf.limit() - currentBuf.position() - 1);
+		StringBuilder sb = new StringBuilder(actualLength);
+		for (int i = 0; i < actualLength; i++) {
+			byte b = currentBuf.get(currentBuf.position() + i);
+			sb.append((char) b); // Only works for ASCII
+		}
+		return sb.toString();
 	}
 
 	/**
@@ -139,6 +154,8 @@ final class ByteBufferJsonReader implements JsonReader {
 	}
 
 	private boolean nextBuffer() {
+		assert currentBuf != null;
+		currentBufStartOffset += currentBuf.limit();
 		filler.recycleBuffer(currentBuf);
 		currentBuf = filler.nextBuffer();
 		return currentBuf != null;
@@ -153,5 +170,10 @@ final class ByteBufferJsonReader implements JsonReader {
 	@Override
 	public void close() {
 		filler.close();
+	}
+
+	@Override
+	public long currentOffset() {
+		return currentBufStartOffset + (currentBuf == null ? 0 : currentBuf.position());
 	}
 }

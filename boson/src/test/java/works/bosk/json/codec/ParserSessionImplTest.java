@@ -1,10 +1,10 @@
 package works.bosk.json.codec;
 
 import org.junit.jupiter.api.Test;
+import works.bosk.json.mapping.Token;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static works.bosk.json.codec.ParserSessionImpl.fast_isInsignificant;
-import static works.bosk.json.codec.ParserSessionImpl.isInsignificant;
+import static works.bosk.json.codec.io.Util.fast_isInsignificant;
 
 class ParserSessionImplTest {
 
@@ -16,6 +16,10 @@ class ParserSessionImplTest {
 				assertEquals(isInsignificant(i+delta), fast_isInsignificant(i+delta), i + "+" + delta);
 			}
 		}
+	}
+
+	private boolean isInsignificant(int codePoint) {
+		return Token.startingWith(codePoint) == Token.INSIGNIFICANT;
 	}
 
 }

@@ -1,6 +1,10 @@
-package works.bosk.json.codec.io;
+package works.bosk.json.codec;
 
 import java.nio.channels.ReadableByteChannel;
+import works.bosk.json.codec.io.ByteArrayBufferFiller;
+import works.bosk.json.codec.io.ByteBufferJsonReader;
+import works.bosk.json.codec.io.CharArrayJsonReader;
+import works.bosk.json.codec.io.SynchronousBufferFiller;
 import works.bosk.json.mapping.Token;
 
 /**
@@ -136,6 +140,16 @@ public sealed interface JsonReader extends AutoCloseable permits ByteBufferJsonR
 		return sb.toString();
 	}
 
+	/**
+	 * On a best-effort basis, return the upcoming characters in the input.
+	 */
+	String previewString(int requestedLength);
+
 	@Override void close(); // No throws Exception
 
+	/**
+	 * TODO: Tighten this up
+	 * @return some notion of the current offset in the input
+	 */
+	long currentOffset();
 }

@@ -2,6 +2,7 @@ package works.bosk.json.codec.io;
 
 import java.io.ByteArrayInputStream;
 import org.junit.jupiter.api.Test;
+import works.bosk.json.codec.JsonReader;
 import works.bosk.json.mapping.Token;
 
 import static java.nio.channels.Channels.newChannel;

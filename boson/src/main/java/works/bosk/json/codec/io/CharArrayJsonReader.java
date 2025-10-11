@@ -1,13 +1,21 @@
 package works.bosk.json.codec.io;
 
+import works.bosk.json.codec.JsonReader;
+import works.bosk.json.codec.JsonStringCharacterReader;
 import works.bosk.json.mapping.Token;
 
-final class CharArrayJsonReader implements JsonReader {
+import static java.lang.Math.min;
+
+public final class CharArrayJsonReader implements JsonReader {
 	final char[] chars;
 	int pos = 0;
 
-	CharArrayJsonReader(char[] chars) {
+	public CharArrayJsonReader(char[] chars) {
 		this.chars = chars;
+	}
+
+	public static CharArrayJsonReader forString(String s) {
+		return new CharArrayJsonReader(s.toCharArray());
 	}
 
 	@Override
@@ -77,6 +85,17 @@ final class CharArrayJsonReader implements JsonReader {
 		}
 	}
 
+	@Override
+	public String previewString(int requestedLength) {
+		int actualLength = min(requestedLength, chars.length - pos - 1);
+		return new String(chars, pos, actualLength);
+	}
+
+	@Override
+	public long currentOffset() {
+		return pos;
+	}
+
 	private class CharArraySequence implements CharSequence {
 		private final int start;
 		private final int stop;
@@ -111,7 +130,7 @@ final class CharArrayJsonReader implements JsonReader {
 		}
 	}
 
-	final class StringCharacterReader implements JsonStringCharacterReader {
+	public final class StringCharacterReader implements JsonStringCharacterReader {
 		@Override
 		public int nextChar() {
 			if (pos >= chars.length) {

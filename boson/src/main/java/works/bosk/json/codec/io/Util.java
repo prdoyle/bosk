@@ -15,7 +15,7 @@ public class Util {
 	 * The parameter need not be an actual code point: it can also be a surrogate character.
 	 * This correctly returns true in that case. All significant characters are ASCII.
 	 */
-	static boolean fast_isInsignificant(int codePoint) {
+	public static boolean fast_isInsignificant(int codePoint) {
 		// The position to check in INSIGNIFICANT_CHARS
 		long bit = 1L << codePoint;
 

@@ -4,9 +4,9 @@ import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import works.bosk.json.codec.CharArrayReader;
 import works.bosk.json.codec.Codec;
 import works.bosk.json.codec.CodecBuilder;
+import works.bosk.json.codec.io.CharArrayJsonReader;
 import works.bosk.json.mapping.TypeScanner.Bundle;
 import works.bosk.json.mapping.TypeScanner.Directive;
 import works.bosk.json.mapping.spec.JsonValueSpec;
@@ -47,7 +47,7 @@ class TypeScannerTest {
 			.build();
 		JsonValueSpec spec = typeMap.get(DataType.FLOAT);
 		Codec codec = CodecBuilder.of(typeMap).build();
-		Object actual = codec.parserFor(spec).parse(new CharArrayReader(
+		Object actual = codec.parserFor(spec).parse(CharArrayJsonReader.forString(
 			"""
 			{ "text": "123.45" }
 			"""));
@@ -78,7 +78,7 @@ class TypeScannerTest {
 			.build();
 		JsonValueSpec spec = typeMap.get(implType);
 		Codec codec = CodecBuilder.of(typeMap).build();
-		Object actual = codec.parserFor(spec).parse(new CharArrayReader(
+		Object actual = codec.parserFor(spec).parse(CharArrayJsonReader.forString(
 			"""
 			[ 123, 456 ]
 			"""));

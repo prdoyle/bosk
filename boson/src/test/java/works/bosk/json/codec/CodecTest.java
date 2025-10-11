@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.json.TestUtils.OneOfEach;
+import works.bosk.json.codec.io.CharArrayJsonReader;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.spec.JsonValueSpec;
 import works.bosk.json.types.DataType;
@@ -31,7 +32,7 @@ class CodecTest {
 	void testParser() throws IOException {
 		LOGGER.debug("Spec: {}", spec);
 		Codec codec = CodecBuilder.of(typeMap).build();
-		assertEquals(expectedOneOfEach(), codec.parserFor(spec).parse(new CharArrayReader(ONE_OF_EACH.toCharArray(), 0)));
+		assertEquals(expectedOneOfEach(), codec.parserFor(spec).parse(CharArrayJsonReader.forString(ONE_OF_EACH)));
 	}
 
 	@Test
@@ -40,7 +41,7 @@ class CodecTest {
 
 		Codec codec = CodecBuilder.of(typeMap).build();
 		codec.generatorFor(spec).generate(sw, expectedOneOfEach());
-		var actual = codec.parserFor(spec).parse(new CharArrayReader(sw.toString()));
+		var actual = codec.parserFor(spec).parse(CharArrayJsonReader.forString(sw.toString()));
 		assertEquals(expectedOneOfEach(), actual);
 	}
 

@@ -9,8 +9,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import works.bosk.json.TestUtils.Month;
 import works.bosk.json.TestUtils.OneOfEach;
-import works.bosk.json.codec.CharArrayReader;
 import works.bosk.json.codec.Parser;
+import works.bosk.json.codec.io.CharArrayJsonReader;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.spec.ComputedSpec;
@@ -44,28 +44,28 @@ public class SpecCompilerTest {
 	@Test
 	void testBoolean() throws IOException, NoSuchMethodException, IllegalAccessException {
 		Parser parser = compiledParser(BOOLEAN);
-		Boolean actual = (Boolean) parser.parse(new CharArrayReader("true"));
+		Boolean actual = (Boolean) parser.parse(CharArrayJsonReader.forString("true"));
 		assertEquals(Boolean.TRUE, actual);
 	}
 
 	@Test
 	void testString() throws IOException, NoSuchMethodException, IllegalAccessException {
 		Parser parser = compiledParser(STRING);
-		String actual = (String) parser.parse(new CharArrayReader("\"testing\""));
+		String actual = (String) parser.parse(CharArrayJsonReader.forString("\"testing\""));
 		assertEquals("testing", actual);
 	}
 
 	@Test
 	void testInt() throws IOException, NoSuchMethodException, IllegalAccessException {
 		Parser parser = compiledParser(INT);
-		int actual = (int) parser.parse(new CharArrayReader("123"));
+		int actual = (int) parser.parse(CharArrayJsonReader.forString("123"));
 		assertEquals(123, actual);
 	}
 
 	@Test
 	void testBigDecimal() throws IOException, NoSuchMethodException, IllegalAccessException {
 		Parser parser = compiledParser(DataType.of(BigDecimal.class));
-		BigDecimal actual = (BigDecimal) parser.parse(new CharArrayReader("123.456"));
+		BigDecimal actual = (BigDecimal) parser.parse(CharArrayJsonReader.forString("123.456"));
 		assertEquals(new BigDecimal("123.456"), actual);
 	}
 
@@ -73,7 +73,7 @@ public class SpecCompilerTest {
 	void testEnum() throws IOException, NoSuchMethodException, IllegalAccessException {
 		enum TestEnum { TEST1, TEST2 }
 		Parser parser = compiledParser(DataType.of(TestEnum.class));
-		TestEnum actual = (TestEnum) parser.parse(new CharArrayReader("\"TEST1\""));
+		TestEnum actual = (TestEnum) parser.parse(CharArrayJsonReader.forString("\"TEST1\""));
 		assertEquals(TestEnum.TEST1, actual);
 	}
 
@@ -89,7 +89,7 @@ public class SpecCompilerTest {
 		// Compiling a reference node should work exactly the same as
 		// whatever node the typeScanner would return for TestEnum.
 		Parser parser = new SpecCompiler(typeMap, LOOKUP_MAP).compile().parserFor(typeRefNode);
-		TestEnum actual = (TestEnum) parser.parse(new CharArrayReader("\"TEST1\""));
+		TestEnum actual = (TestEnum) parser.parse(CharArrayJsonReader.forString("\"TEST1\""));
 		assertEquals(TestEnum.TEST1, actual);
 	}
 
@@ -105,7 +105,7 @@ public class SpecCompilerTest {
 					"inner": { "i2": 456 }
 				}
 			""";
-		OuterRecord actual = (OuterRecord) parser.parse(new CharArrayReader(json));
+		OuterRecord actual = (OuterRecord) parser.parse(CharArrayJsonReader.forString(json));
 		OuterRecord expected = new ObjectMapper().readerFor(OuterRecord.class).readValue(json);
 		assertEquals(expected, actual);
 	}
@@ -113,7 +113,7 @@ public class SpecCompilerTest {
 	@Test
 	void testOneOfEach() throws IOException, NoSuchMethodException, IllegalAccessException {
 		Parser parser = compiledParser(DataType.of(OneOfEach.class));
-		OneOfEach actual = (OneOfEach) parser.parse(new CharArrayReader(ONE_OF_EACH.toCharArray(), 0));
+		OneOfEach actual = (OneOfEach) parser.parse(CharArrayJsonReader.forString(ONE_OF_EACH));
 		assertEquals(expectedOneOfEach(), actual);
 	}
 

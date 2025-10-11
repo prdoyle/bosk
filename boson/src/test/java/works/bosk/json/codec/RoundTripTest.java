@@ -9,6 +9,7 @@ import java.time.DayOfWeek;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import works.bosk.json.codec.io.CharArrayJsonReader;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeMap.Settings;
 import works.bosk.json.mapping.TypeScanner;
@@ -147,7 +148,7 @@ public record RoundTripTest(Settings settings) {
 		TypeMap typeMap = typeScanner.scan(type).build();
 		JsonValueSpec spec = typeMap.get(type);
 		Codec codec = CodecBuilder.of(typeMap).using(MethodHandles.lookup()).build();
-		var parsed = codec.parserFor(spec).parse(new CharArrayReader(json));
+		var parsed = codec.parserFor(spec).parse(CharArrayJsonReader.forString(json));
 		assertEquals(value, parsed);
 		assertEquals(json, generateJson(codec, parsed, spec));
 	}
@@ -156,7 +157,7 @@ public record RoundTripTest(Settings settings) {
 		TypeScanner typeScanner = new TypeScanner(settings);
 		TypeMap typeMap = typeScanner.scan(node.dataType()).build();
 		Codec codec = CodecBuilder.of(typeMap).build(node);
-		var parsed = codec.parserFor(node).parse(new CharArrayReader(json));
+		var parsed = codec.parserFor(node).parse(CharArrayJsonReader.forString(json));
 		assertEquals(value, parsed);
 		assertEquals(json, generateJson(codec, parsed, node));
 	}

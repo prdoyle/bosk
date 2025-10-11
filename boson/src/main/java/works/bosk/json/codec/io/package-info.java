@@ -1,6 +1,6 @@
 /**
  * An efficient library for reading JSON text specifically.
- * The main abstraction is {@link works.bosk.json.codec.io.JsonReader},
+ * The main abstraction is {@link works.bosk.json.codec.JsonReader},
  * which provides an efficient way to read JSON tokens from a
  * {@link java.nio.channels.ReadableByteChannel}.
  * It knows just enough about JSON syntax to avoid doing unnecessary work,

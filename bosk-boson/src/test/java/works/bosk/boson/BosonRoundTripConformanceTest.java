@@ -10,11 +10,11 @@ import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
 import works.bosk.Entity;
 import works.bosk.Reference;
-import works.bosk.json.codec.CharArrayReader;
 import works.bosk.json.codec.Codec;
 import works.bosk.json.codec.CodecBuilder;
 import works.bosk.json.codec.Generator;
 import works.bosk.json.codec.Parser;
+import works.bosk.json.codec.io.CharArrayJsonReader;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.spec.JsonValueSpec;
@@ -54,7 +54,7 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 			generator.generate(writer, newValue);
 			Parser parser = codec.parserFor(targetSpec);
 			try {
-				Object parsed = parser.parse(new CharArrayReader(writer.toString()));
+				Object parsed = parser.parse(CharArrayJsonReader.forString(writer.toString()));
 				return reference.targetClass().cast(parsed);
 			} catch (IOException e) {
 				throw new AssertionError("Unexpected exception", e);

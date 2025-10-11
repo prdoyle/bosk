@@ -15,7 +15,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.json.codec.CharArrayReader;
+import works.bosk.json.codec.JsonReader;
 import works.bosk.json.codec.Parser;
 import works.bosk.json.codec.ParserSessionImpl;
 import works.bosk.json.mapping.Token;
@@ -72,17 +72,17 @@ public class SpecInterpretingParser implements Parser {
 	}
 
 	@Override
-	public Object parse(CharArrayReader json) throws IOException {
+	public Object parse(JsonReader json) throws IOException {
 		return new Session(json, typeMap).parseAny(spec);
 	}
 
 	/**
-	 * A single parsing operation, consuming text from a given {@link CharArrayReader}.
+	 * A single parsing operation, consuming text from a given {@link JsonReader}.
 	 */
 	private static class Session extends ParserSessionImpl {
 		final TypeMap typeMap;
 
-		private Session(CharArrayReader input, TypeMap typeMap) {
+		private Session(JsonReader input, TypeMap typeMap) {
 			super(input);
 			this.typeMap = typeMap;
 		}
@@ -468,11 +468,9 @@ public class SpecInterpretingParser implements Parser {
 		}
 
 		private Object parseMaybeNull(MaybeNullSpec node) throws IOException {
-			if (nextToken() == NULL) {
-				skipToken(NULL);
+			if (nextTokenIs(NULL)) {
 				return null;
 			} else {
-				input.skip(-1);
 				return parseAny(node.child());
 			}
 		}
@@ -496,29 +494,26 @@ public class SpecInterpretingParser implements Parser {
 
 		private Object parseArray(ArrayNode node) throws IOException {
 			logEntry("parseArray", node);
-			int startArrayChar = nextSignificant();
-			assert Token.startingWith(startArrayChar) == START_ARRAY;
+			input.expectFixedToken(START_ARRAY);
 			works.bosk.json.mapping.spec.handles.ArrayAccumulator acc = node.accumulator();
 			Object accumulator = acc.creator().invoke();
-			while (Token.startingWith(nextSignificant()) != END_ARRAY) {
-				input.skip(-1);
+			while (input.peekToken() != END_ARRAY) {
 				Object element = parseAny(node.elementNode());
 				var returned = acc.integrator().invoke(accumulator, element);
 				if (acc.integrator().returnType() != VOID) {
 					accumulator = returned;
 				}
 			}
+			input.consumeFixedToken(END_ARRAY);
 			return acc.finisher().invoke(accumulator);
 		}
 
 		private Object parseUniformMap(UniformMapNode node) throws IOException {
 			logEntry("parseUniformMap", node);
-			int startObjectChar = nextSignificant();
-			assert Token.startingWith(startObjectChar) == START_OBJECT;
+			input.expectFixedToken(START_OBJECT);
 			ObjectAccumulator acc = node.accumulator();
 			Object accumulator = acc.creator().invoke();
-			while (Token.startingWith(nextSignificant()) != END_OBJECT) {
-				input.skip(-1);
+			while (input.peekToken() != END_OBJECT) {
 				Object key = parseAny(node.keyNode());
 				Object value = parseAny(node.valueNode());
 				LOGGER.debug("| member [{}:{}]: |{}|", key, value, previewString());
@@ -527,6 +522,7 @@ public class SpecInterpretingParser implements Parser {
 					accumulator = returned;
 				}
 			}
+			input.consumeFixedToken(END_OBJECT);
 			return acc.finisher().invoke(accumulator);
 		}
 
@@ -539,8 +535,7 @@ public class SpecInterpretingParser implements Parser {
 
 		private Object parseFixedMap(FixedMapNode node) throws IOException {
 			logEntry("parseFixedMap", node);
-			int startObjectChar = nextSignificant();
-			assert Token.startingWith(startObjectChar) == START_OBJECT;
+			input.expectFixedToken(START_OBJECT);
 			List<Object> memberValues = readMembers(node.memberSpecs());
 			return node.finisher().invoke(memberValues.toArray());
 		}
@@ -554,9 +549,8 @@ public class SpecInterpretingParser implements Parser {
 					case JsonValueSpec _ -> {} // No default
 				}
 			});
-			int c;
-			while (Token.startingWith(c = nextSignificant()) != END_OBJECT) {
-				String memberName = readString(c);
+			while (input.peekToken() != END_OBJECT) {
+				String memberName = input.consumeString();
 				var memberNode = componentsByName.get(memberName);
 				LOGGER.debug("| member [{}:{}]: |{}|", memberName, memberNode, previewString());
 				Object value = switch (memberNode.valueSpec()) {
@@ -566,16 +560,12 @@ public class SpecInterpretingParser implements Parser {
 				};
 				memberValues.put(memberName, value);
 			}
+			input.consumeFixedToken(END_OBJECT);
 			return componentsByName.keySet().stream().map(memberValues::get).toList();
 		}
 
 		private void expect(Token expectedToken) throws IOException {
-			Token readToken = nextToken();
-			if (readToken == expectedToken) {
-				skipToken(readToken);
-			} else {
-				throw new IllegalStateException("Unexpected token " + readToken + " @ " + input.offset() + "; expected " + expectedToken);
-			}
+			input.expectFixedToken(expectedToken);
 		}
 
 		/**
@@ -583,43 +573,34 @@ public class SpecInterpretingParser implements Parser {
 		 *
 		 * @return true if the token was the expected one
 		 */
-		private boolean nextTokenIs(Token expectedToken) throws IOException {
-			Token readToken = nextToken();
+		private boolean nextTokenIs(Token expectedToken) {
+			Token readToken = input.peekToken();
 			if (readToken == expectedToken) {
-				skipToken(readToken);
+				input.consumeFixedToken(readToken);
 				return true;
 			} else {
-				skip(-1);
 				return false;
 			}
 		}
 
 		private void logEntry(String methodName, SpecNode node) {
-			LOGGER.debug("{}({}) @ {}: |{}|", methodName, node, input.offset(), previewString());
+			LOGGER.debug("{}({}) @ {}: |{}|", methodName, node, input.currentOffset(), previewString());
 			assertNodeIsApplicable(node);
 		}
 
 		private void assertNodeIsApplicable(SpecNode node) {
 			assert nodeIsApplicable(node): "Node must be applicable "
-				+ "@" + input.offset()
+				+ "@" + input.currentOffset()
 				+ " |" + previewString() + "|"
 				+ ": " + node;
 		}
 
 		private boolean nodeIsApplicable(SpecNode node) {
 			if (node instanceof JsonValueSpec valueSpec) {
-				int offset = input.offset();
-				int codePoint;
-				try {
-					codePoint = nextSignificant();
-				} catch (IOException e) {
-					throw new IllegalStateException(e);
-				}
-				Token nextToken = Token.startingWith(codePoint);
+				Token nextToken = input.peekToken();
 				Set<Token> expected = expectedTokens(valueSpec);
 				boolean result = expected.contains(nextToken);
-				input.seek(offset);
-				LOGGER.debug("nodeIsApplicable: ({},{},'{}',{}) -> {}", node, expected, Character.toString(codePoint), nextToken, result);
+				LOGGER.debug("nodeIsApplicable: ({},{},{}) -> {}", node, expected, nextToken, result);
 				return result;
 			} else {
 				// Besides JsonValueSpec, other specs don't correspond to JSON values,
