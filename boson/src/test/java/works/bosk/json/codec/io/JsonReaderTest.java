@@ -23,16 +23,16 @@ class JsonReaderTest {
 	@Test
 	void simpleString() {
 		try (JsonReader reader = readerFor("\"hello\"")) {
-			assertEquals(STRING, reader.nextToken());
+			assertEquals(STRING, reader.advanceToken());
 			assertEquals("hello", reader.readString());
-			assertEquals(END_TEXT, reader.nextToken());
+			assertEquals(END_TEXT, reader.advanceToken());
 		}
 	}
 
 	@Test
 	void stringWithEscapes() {
 		try (JsonReader reader = readerFor("\"he\\\"llo\\nworld\\\\\"")) {
-			assertEquals(STRING, reader.nextToken());
+			assertEquals(STRING, reader.advanceToken());
 			assertEquals("he\"llo\nworld\\", reader.readString());
 		}
 	}
@@ -40,7 +40,7 @@ class JsonReaderTest {
 	@Test
 	void unicodeEscape() {
 		try (JsonReader reader = readerFor("\"\\u0041\\u0042\\u0043\"")) {
-			assertEquals(STRING, reader.nextToken());
+			assertEquals(STRING, reader.advanceToken());
 			assertEquals("ABC", reader.readString());
 		}
 	}
@@ -48,7 +48,7 @@ class JsonReaderTest {
 	@Test
 	void emptyString() {
 		try (JsonReader reader = readerFor("\"\"")) {
-			assertEquals(STRING, reader.nextToken());
+			assertEquals(STRING, reader.advanceToken());
 			assertEquals("", reader.readString());
 		}
 	}
@@ -56,7 +56,7 @@ class JsonReaderTest {
 	@Test
 	void numberToken() {
 		try (JsonReader reader = readerFor("12345")) {
-			assertEquals(NUMBER, reader.nextToken());
+			assertEquals(NUMBER, reader.advanceToken());
 			assertEquals("12345", reader.numberChars().toString());
 		}
 	}
@@ -64,7 +64,7 @@ class JsonReaderTest {
 	@Test
 	void negativeAndFractionalNumber() {
 		try (JsonReader reader = readerFor("-12.34e+5")) {
-			assertEquals(NUMBER, reader.nextToken());
+			assertEquals(NUMBER, reader.advanceToken());
 			assertEquals("-12.34e+5", reader.numberChars().toString());
 		}
 	}
@@ -72,36 +72,36 @@ class JsonReaderTest {
 	@Test
 	void structuralTokens() {
 		try (JsonReader reader = readerFor("{\"a\": [1, 2]}")) {
-			assertEquals(START_OBJECT, reader.nextToken());
-			assertEquals(STRING, reader.nextToken());
+			assertEquals(START_OBJECT, reader.advanceToken());
+			assertEquals(STRING, reader.advanceToken());
 			assertEquals("a", reader.readString());
-			assertEquals(START_ARRAY, reader.nextToken());
-			assertEquals(NUMBER, reader.nextToken());
+			assertEquals(START_ARRAY, reader.advanceToken());
+			assertEquals(NUMBER, reader.advanceToken());
 			assertEquals("1", reader.numberChars().toString());
-			assertEquals(NUMBER, reader.nextToken());
+			assertEquals(NUMBER, reader.advanceToken());
 			assertEquals("2", reader.numberChars().toString());
-			assertEquals(END_ARRAY, reader.nextToken());
-			assertEquals(END_OBJECT, reader.nextToken());
-			assertEquals(END_TEXT, reader.nextToken());
+			assertEquals(END_ARRAY, reader.advanceToken());
+			assertEquals(END_OBJECT, reader.advanceToken());
+			assertEquals(END_TEXT, reader.advanceToken());
 		}
 	}
 
 	@Test
 	void trueFalseNull() {
 		try (JsonReader reader = readerFor("[true,false,null]")) {
-			assertEquals(START_ARRAY, reader.nextToken());
-			assertEquals(TRUE, reader.nextToken());
-			assertEquals(FALSE, reader.nextToken());
-			assertEquals(NULL, reader.nextToken());
-			assertEquals(END_ARRAY, reader.nextToken());
-			assertEquals(END_TEXT, reader.nextToken());
+			assertEquals(START_ARRAY, reader.advanceToken());
+			assertEquals(TRUE, reader.advanceToken());
+			assertEquals(FALSE, reader.advanceToken());
+			assertEquals(NULL, reader.advanceToken());
+			assertEquals(END_ARRAY, reader.advanceToken());
+			assertEquals(END_TEXT, reader.advanceToken());
 		}
 	}
 
 	@Test
 	void stringWithAllEscapes() {
 		try (JsonReader reader = readerFor("\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"")) {
-			assertEquals(STRING, reader.nextToken());
+			assertEquals(STRING, reader.advanceToken());
 			assertEquals("\"\\/\b\f\n\r\t", reader.readString());
 		}
 	}
@@ -109,7 +109,7 @@ class JsonReaderTest {
 	@Test
 	void unterminatedStringThrows() {
 		try (JsonReader reader = readerFor("\"abc")) {
-			assertEquals(STRING, reader.nextToken());
+			assertEquals(STRING, reader.advanceToken());
 			assertThrows(IllegalStateException.class, reader::readString);
 		}
 	}
@@ -117,7 +117,7 @@ class JsonReaderTest {
 	@Test
 	void invalidEscapeThrows() {
 		try (JsonReader reader = readerFor("\"abc\\x\"")) {
-			assertEquals(STRING, reader.nextToken());
+			assertEquals(STRING, reader.advanceToken());
 			assertThrows(IllegalStateException.class, reader::readString);
 		}
 	}

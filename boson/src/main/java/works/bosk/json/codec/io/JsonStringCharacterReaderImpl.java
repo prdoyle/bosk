@@ -42,19 +42,22 @@ final class JsonStringCharacterReaderImpl implements JsonStringCharacterReader {
 
 	@Override
 	public void skipChars(int n) {
-		for (int i = 0; i < n; i++) {
+		if (n < 0) {
+			throw new IllegalArgumentException("Must skip a non-negative number of characters, got " + n);
+		}
+		for (int i = n; i > 0; --i) {
 			int c = nextChar();
 			if (c == -1) {
-				throw new IllegalStateException("Unexpected end of string while skipping characters");
+				if (i != 1) {
+					throw new IllegalStateException("Unexpected end of string while skipping characters");
+				}
 			}
 		}
 	}
 
 	@Override
-	public void skipToEnd(int n) {
-		skipChars(n);
-		byte delimiter = reader.peekByte();
-		assert delimiter == '"';
+	public void skipToEnd() {
+		while (nextChar() != -1) {}
 	}
 
 	private int decodeUnicodeEscape() {

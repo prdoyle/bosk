@@ -1,7 +1,6 @@
 package works.bosk.json.mapping;
 
 public enum Token {
-	START_TEXT,
 	END_TEXT,
 	NULL,
 	FALSE,
@@ -44,7 +43,7 @@ public enum Token {
 
 	public String fixedRepresentation() {
 		return switch (this) {
-			case START_TEXT, END_TEXT -> "";
+			case END_TEXT -> "";
 			case NULL -> "null";
 			case FALSE -> "false";
 			case TRUE -> "true";

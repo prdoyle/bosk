@@ -4,16 +4,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import works.bosk.json.mapping.Token;
 
-import static works.bosk.json.mapping.Token.END_ARRAY;
-import static works.bosk.json.mapping.Token.END_OBJECT;
 import static works.bosk.json.mapping.Token.END_TEXT;
-import static works.bosk.json.mapping.Token.FALSE;
-import static works.bosk.json.mapping.Token.NULL;
-import static works.bosk.json.mapping.Token.NUMBER;
-import static works.bosk.json.mapping.Token.START_ARRAY;
-import static works.bosk.json.mapping.Token.START_OBJECT;
-import static works.bosk.json.mapping.Token.STRING;
-import static works.bosk.json.mapping.Token.TRUE;
 
 
 /**
@@ -32,47 +23,31 @@ final class JsonReaderImpl implements JsonReader {
 	}
 
 	@Override
-	public Token nextToken() {
+	public Token peekToken() {
 		skipInsignificant();
 		if (currentBuf == null) {
 			return END_TEXT;
 		}
+		return Token.startingWith(peekByte());
+	}
 
-		byte b = peekByte();
-
-		switch (b) {
-			case '{': { advance(); return START_OBJECT; }
-			case '}': { advance(); return END_OBJECT; }
-			case '[': { advance(); return START_ARRAY; }
-			case ']': { advance(); return END_ARRAY; }
-			case '"': { advance(); return STRING; }
-			case 't': {
-				if (matchLiteral("true")) {
-					return TRUE;
-				}
-				break;
-			}
-			case 'f': {
-				if (matchLiteral("false")) {
-					return FALSE;
-				}
-				break;
-			}
-			case 'n': {
-				if (matchLiteral("null")) {
-					return NULL;
-				}
-				break;
-			}
-			default: {
-				if (b == '-' || (b >= '0' && b <= '9')) {
-					return NUMBER;
-				}
-				break;
-			}
+	@Override
+	public Token advanceToken() {
+		Token result = peekToken();
+		
+		// Now move past the token
+		switch (result) {
+			case NULL, FALSE, TRUE,
+				 START_OBJECT, END_OBJECT,
+				 START_ARRAY, END_ARRAY ->
+				skip(result.fixedRepresentation().length());
+			case STRING -> skip(1); // Content processing expects to be past the opening quote
+			case NUMBER -> {} // numberChars() will consume all the characters
+			case END_TEXT -> {} // Nothing to do
+			default -> throw new IllegalStateException("Unexpected token: " + result);
 		}
 
-		throw new IllegalStateException("Unexpected JSON token: " + (char) b);
+		return result;
 	}
 
 	@Override
@@ -146,15 +121,37 @@ final class JsonReaderImpl implements JsonReader {
 			currentBuf.get();
 		}
 	}
+	
+	void skip(int n) {
+		if (n < 0) {
+			throw new IllegalArgumentException("Can't skip a negative number of bytes: " + n);
+		}
+		int remaining;
+		while (n >= (remaining = currentBuf.remaining())) {
+			n -= remaining;
+			if (!nextBuffer()) {
+				return;
+			}
+		}
+		currentBuf.position(currentBuf.position() + n);
+	}
 
 	private boolean hasRemaining() {
+		if (currentBuf == null) {
+			return false;
+		}
 		while (!currentBuf.hasRemaining()) {
-			currentBuf = prefetcher.nextBuffer();
-			if (currentBuf == null) {
+			if (!nextBuffer()) {
 				return false;
 			}
 		}
 		return true;
+	}
+
+	private boolean nextBuffer() {
+		prefetcher.recycleBuffer(currentBuf);
+		currentBuf = prefetcher.nextBuffer();
+		return currentBuf != null;
 	}
 
 	private void skipInsignificant() {
