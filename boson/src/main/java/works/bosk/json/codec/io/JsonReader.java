@@ -14,22 +14,22 @@ import works.bosk.json.mapping.Token;
  * its precise requirements in a way that allows the implementation to avoid
  * all unnecessary work.
  */
-public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl {
+public sealed interface JsonReader extends AutoCloseable permits ByteBufferJsonReader, CharArrayJsonReader {
 
 	/**
 	 * @return a new JsonReader that reads from the given channel.
 	 * The channel will be closed when the reader is closed.
 	 */
 	static JsonReader create(ReadableByteChannel channel) {
-		return new JsonReaderImpl(new SynchronousBufferFiller(channel));
+		return new ByteBufferJsonReader(new SynchronousBufferFiller(channel));
 	}
 
-	/**
-	 * @return a new JsonReader that reads from the given channel.
-	 * The channel will be closed when the reader is closed.
-	 */
 	static JsonReader create(byte[] utf8Bytes) {
-		return new JsonReaderImpl(new ByteArrayBufferFiller(utf8Bytes));
+		return new ByteBufferJsonReader(new ByteArrayBufferFiller(utf8Bytes));
+	}
+
+	static JsonReader create(char[] utf16Chars) {
+		return new CharArrayJsonReader(utf16Chars);
 	}
 
 	/**

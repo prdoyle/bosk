@@ -4,9 +4,9 @@ package works.bosk.json.codec.io;
  * Implementation of JsonStringCharacterReader.
  */
 final class JsonStringCharacterReaderImpl implements JsonStringCharacterReader {
-	private final JsonReaderImpl reader;
+	private final ByteBufferJsonReader reader;
 
-	public JsonStringCharacterReaderImpl(JsonReaderImpl reader) {
+	public JsonStringCharacterReaderImpl(ByteBufferJsonReader reader) {
 		this.reader = reader;
 	}
 

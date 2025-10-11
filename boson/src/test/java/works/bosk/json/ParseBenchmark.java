@@ -31,9 +31,9 @@ import static works.bosk.json.mapping.TypeMap.Settings.DEFAULT;
 
 @BenchmarkMode(Throughput)
 @State(Scope.Thread)
-@Fork(0)
+@Fork(3)
 @Warmup(iterations = 8, time = 1)
-@Measurement(iterations = 3, time = 30, timeUnit = SECONDS)
+@Measurement(iterations = 3, time = 1, timeUnit = SECONDS)
 public class ParseBenchmark {
 	private char[] json;
 	private ObjectReader objectReader;
@@ -81,7 +81,7 @@ public class ParseBenchmark {
 			.buildCompiled().parserFor(experimentalSpec);
 	}
 
-//	@Benchmark
+	@Benchmark
 	public Object jackson() throws IOException {
 		return objectReader.readValue(new java.io.CharArrayReader(json));
 	}
@@ -107,7 +107,7 @@ public class ParseBenchmark {
 		return compiled.parse(new CharArrayReader(json, 0));
 	}
 
-//	@Benchmark
+	@Benchmark
 	public Object compiled_experimental() throws IOException {
 		return compiledExperimental.parse(new CharArrayReader(json, 0));
 	}

@@ -11,7 +11,7 @@ package works.bosk.json.codec.io;
  * <p>
  * Notably, this is the only place in JSON where non-ASCII characters can appear.
  */
-public sealed interface JsonStringCharacterReader permits JsonStringCharacterReaderImpl {
+public sealed interface JsonStringCharacterReader permits CharArrayJsonReader.StringCharacterReader, JsonStringCharacterReaderImpl {
 
 	/**
 	 * Advances to the next character (code point) in the string.
