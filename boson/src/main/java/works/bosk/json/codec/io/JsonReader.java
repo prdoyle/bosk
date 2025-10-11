@@ -25,6 +25,7 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	}
 
 	/**
+	 * Start by calling this.
 	 * Skips insignificant characters and returns the next token encountered.
 	 * <p>
 	 * Depending on the token returned, the next method called must be one of the following:
@@ -63,6 +64,9 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	 * representation without first creating a {@link CharSequence},
 	 * so there's nothing to be gained by trying to avoid that allocation,
 	 * nor the first-pass scan required to compute the {@link CharSequence#length() length}.
+	 * We might as well do all that inside this abstraction, where we can optimize
+	 * the construction of the {@link CharSequence} based on the locations
+	 * of buffer boundaries and such.
 	 * <p>
 	 * Consumes the number from the input, leaving the reader
 	 * ready for the next call to {@link #peekToken}.
