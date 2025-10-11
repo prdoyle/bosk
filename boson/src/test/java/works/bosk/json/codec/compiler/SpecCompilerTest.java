@@ -113,7 +113,7 @@ public class SpecCompilerTest {
 	@Test
 	void testOneOfEach() throws IOException, NoSuchMethodException, IllegalAccessException {
 		Parser parser = compiledParser(DataType.of(OneOfEach.class));
-		OneOfEach actual = (OneOfEach) parser.parse(new CharArrayReader(ONE_OF_EACH, 0));
+		OneOfEach actual = (OneOfEach) parser.parse(new CharArrayReader(ONE_OF_EACH.toCharArray(), 0));
 		assertEquals(expectedOneOfEach(), actual);
 	}
 

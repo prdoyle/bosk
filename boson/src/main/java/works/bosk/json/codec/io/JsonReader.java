@@ -46,6 +46,13 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	 */
 	Token peekToken();
 
+	default void peekToken(Token expected) {
+		Token actual = peekToken();
+		if (actual != expected) {
+			throw new IllegalStateException("Expected " + expected + " but got " + actual);
+		}
+	}
+
 	/**
 	 * After {@link #peekToken} returns a token with a {@link Token#hasFixedRepresentation fixed representation},
 	 * this consumes that token from the input, leaving the reader

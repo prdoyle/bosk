@@ -2,8 +2,8 @@ package works.bosk.json;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.CharArrayReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -25,7 +25,7 @@ import static java.lang.invoke.MethodHandles.explicitCastArguments;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class TestUtils {
-	public static final char[] ONE_OF_EACH = """
+	public static final String ONE_OF_EACH = """
 		{
 			"nullField": null,
 			"trueField": true,
@@ -40,7 +40,7 @@ public class TestUtils {
 			},
 			"monthField": 4
 		}
-		""".toCharArray();
+		""";
 
 	public static final char[] JUST_SCALARS = """
 		{
@@ -56,7 +56,7 @@ public class TestUtils {
 	public static final String ABSENT_FIELD_VALUE = "absent!";
 
 	public static OneOfEach expectedOneOfEach() throws IOException {
-		OneOfEach parsed = new ObjectMapper().readerFor(OneOfEach.class).readValue(new CharArrayReader(ONE_OF_EACH));
+		OneOfEach parsed = new ObjectMapper().readerFor(OneOfEach.class).readValue(new StringReader(ONE_OF_EACH));
 		return parsed
 			.withComputedField(COMPUTED_FIELD_VALUE)
 			.withMaybeAbsentField(ABSENT_FIELD_VALUE)
@@ -64,7 +64,7 @@ public class TestUtils {
 	}
 
 	public static JustScalars expectedScalars() throws IOException {
-		return new ObjectMapper().readerFor(JustScalars.class).readValue(new java.io.CharArrayReader(ONE_OF_EACH));
+		return new ObjectMapper().readerFor(JustScalars.class).readValue(new StringReader(ONE_OF_EACH));
 	}
 
 	public record OneOfEach(

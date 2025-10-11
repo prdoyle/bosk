@@ -31,7 +31,7 @@ class CodecTest {
 	void testParser() throws IOException {
 		LOGGER.debug("Spec: {}", spec);
 		Codec codec = CodecBuilder.of(typeMap).build();
-		assertEquals(expectedOneOfEach(), codec.parserFor(spec).parse(new CharArrayReader(ONE_OF_EACH, 0)));
+		assertEquals(expectedOneOfEach(), codec.parserFor(spec).parse(new CharArrayReader(ONE_OF_EACH.toCharArray(), 0)));
 	}
 
 	@Test

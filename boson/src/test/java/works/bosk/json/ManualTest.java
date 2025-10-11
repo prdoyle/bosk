@@ -1,5 +1,6 @@
 package works.bosk.json;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -8,17 +9,22 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import works.bosk.json.TestUtils.Month;
-import works.bosk.json.codec.CharArrayReader;
+import works.bosk.json.codec.io.JsonReader;
+import works.bosk.json.codec.io.JsonStringCharacterReader;
 import works.bosk.json.mapping.Token;
 
+import static java.nio.channels.Channels.newChannel;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.json.TestUtils.ABSENT_FIELD_VALUE;
 import static works.bosk.json.TestUtils.COMPUTED_FIELD_VALUE;
+import static works.bosk.json.TestUtils.ONE_OF_EACH;
+import static works.bosk.json.mapping.Token.END_ARRAY;
 import static works.bosk.json.mapping.Token.END_OBJECT;
 import static works.bosk.json.mapping.Token.FALSE;
-import static works.bosk.json.mapping.Token.INSIGNIFICANT;
 import static works.bosk.json.mapping.Token.NULL;
 import static works.bosk.json.mapping.Token.NUMBER;
+import static works.bosk.json.mapping.Token.START_ARRAY;
 import static works.bosk.json.mapping.Token.START_OBJECT;
 import static works.bosk.json.mapping.Token.STRING;
 import static works.bosk.json.mapping.Token.TRUE;
@@ -27,19 +33,12 @@ public class ManualTest {
 	/**
 	 * Needs pushback only so we can read numbers!
 	 */
-	private CharArrayReader input;
+	private JsonReader input;
 
 	@BeforeEach
 	void init() {
-		input = new CharArrayReader(TestUtils.ONE_OF_EACH, 0);
-	}
-
-	private int read() throws IOException {
-		return input.read();
-	}
-
-	private void skip(int n) throws IOException {
-		input.skip(n);
+		input = JsonReader.create(newChannel(new ByteArrayInputStream(
+			ONE_OF_EACH.getBytes(UTF_8))));
 	}
 
 	@Test
@@ -63,38 +62,40 @@ public class ManualTest {
 		String computedField = COMPUTED_FIELD_VALUE;
 		String maybeAbsentField = ABSENT_FIELD_VALUE;
 
-		expect(START_OBJECT);
+		input.peekToken(START_OBJECT);
+		input.consumeFixedToken(START_OBJECT);
 		loop: while (true) {
 			Token token = nextToken();
 			switch (token) {
 				case STRING -> { // member name
-					switch (read()) {
-						case 'n' -> nullField = (String) readAnyValue(firstMemberValueChar());
-						case 't' -> trueField = (Boolean) readAnyValue(firstMemberValueChar());
-						case 'f' -> falseField = (Boolean) readAnyValue(firstMemberValueChar());
-						case 'i' -> integerField = readInteger(firstMemberValueChar());
-						case 'r' -> realField = readDecimal(firstMemberValueChar());
+					var stringChars = input.processString();
+					switch (stringChars.nextChar()) {
+						case 'n' -> nullField = (String) readAnyValue(finishMemberName(stringChars));
+						case 't' -> trueField = (Boolean) readAnyValue(finishMemberName(stringChars));
+						case 'f' -> falseField = (Boolean) readAnyValue(finishMemberName(stringChars));
+						case 'i' -> integerField = readInteger(finishMemberName(stringChars));
+						case 'r' -> realField = readDecimal(finishMemberName(stringChars));
 						case 'm' -> {
-							switch (read()) {
+							switch (stringChars.nextChar()) {
 								case 'a' -> {
-									switch (read()) {
-										case 'p' -> mapField = readTimeUnitToBigDecimalMap(firstMemberValueChar());
-										case 'y' -> maybeAbsentField = readString(firstMemberValueChar());
+									switch (stringChars.nextChar()) {
+										case 'p' -> mapField = readTimeUnitToBigDecimalMap(finishMemberName(stringChars));
+										case 'y' -> maybeAbsentField = readString(finishMemberName(stringChars));
 									}
 								}
-								case 'o' -> monthField = Month.fromValue((int)readInteger(firstMemberValueChar()));
+								case 'o' -> monthField = Month.fromValue((int)readInteger(finishMemberName(stringChars)));
 							}
 						}
 						case 's' -> {
-							skip(5);
-							switch (read()) {
+							stringChars.skipChars(5);
+							switch (stringChars.nextChar()) {
 								case 'F' -> {
 									// stringField
-									stringField = readString(firstMemberValueChar());
+									stringField = readString(finishMemberName(stringChars));
 								}
 								case 'A' -> {
 									// stringArrayField
-									stringArrayField = readStringList(firstMemberValueChar());
+									stringArrayField = readStringList(finishMemberName(stringChars));
 								}
 								default -> {
 									throw new IllegalStateException("Parse error");
@@ -129,47 +130,58 @@ public class ManualTest {
 			maybeAbsentField);
 	}
 
-	private Map<TimeUnit, BigDecimal> readTimeUnitToBigDecimalMap(int firstChar) throws IOException {
-		assert Token.startingWith(firstChar) == Token.START_OBJECT;
+	private Object finishMemberName(JsonStringCharacterReader charReader) {
+		charReader.skipToEnd();
+		return null;
+	}
+
+	private Map<TimeUnit, BigDecimal> readTimeUnitToBigDecimalMap(Object dummy) throws IOException {
+		input.peekToken(START_OBJECT);
+		input.consumeFixedToken(START_OBJECT);
 		Map<TimeUnit, BigDecimal> result = new java.util.LinkedHashMap<>();
 		int c;
-		while (Token.startingWith(c = nextSignificant()) != END_OBJECT) {
-			var member = readString(c);
-			var value = readBigNumber(nextSignificant());
+		while (input.peekToken() != END_OBJECT) {
+			var member = readString(null);
+			var value = readBigNumber(null);
 			result.put(TimeUnit.valueOf(member), (BigDecimal) value);
 		}
+		input.consumeFixedToken(END_OBJECT);
 		return result;
 	}
 
-	private List<String> readStringList(int firstChar) throws IOException {
-		assert Token.startingWith(firstChar) == Token.START_ARRAY;
+	private List<String> readStringList(Object dummy) {
+		input.peekToken(START_ARRAY);
+		input.consumeFixedToken(START_ARRAY);
 		List<String> result = new java.util.ArrayList<>();
-		int c;
-		while (Token.startingWith(c = nextSignificant()) != Token.END_ARRAY) {
-			result.add(readString(c));
+		while (input.peekToken() != Token.END_ARRAY) {
+			result.add(input.consumeString());
 		}
+		input.consumeFixedToken(END_ARRAY);
 		return result;
 	}
 
-	private List<Object> readAnyList(int firstChar) throws IOException {
-		assert Token.startingWith(firstChar) == Token.START_ARRAY;
+	private List<Object> readAnyList(Object dummy) throws IOException {
+		input.peekToken(START_ARRAY);
+		input.consumeFixedToken(START_ARRAY);
 		List<Object> result = new java.util.ArrayList<>();
 		int c;
-		while (Token.startingWith(c = nextSignificant()) != Token.END_ARRAY) {
-			result.add(readAnyValue(c));
+		while (input.peekToken() != Token.END_ARRAY) {
+			result.add(readAnyValue(null));
 		}
+		input.consumeFixedToken(END_ARRAY);
 		return result;
 	}
 
-	private Map<String, Object> readAnyMap(int firstChar) throws IOException {
-		assert Token.startingWith(firstChar) == Token.START_OBJECT;
+	private Map<String, Object> readAnyMap(Object dummy) throws IOException {
+		input.peekToken(START_OBJECT);
+		input.consumeFixedToken(START_OBJECT);
 		Map<String, Object> result = new java.util.LinkedHashMap<>();
-		int c;
-		while (Token.startingWith(c = nextSignificant()) != END_OBJECT) {
-			var member = readString(c);
-			var value = readAnyValue(nextSignificant());
+		while (input.peekToken() != END_OBJECT) {
+			var member = readString(null);
+			var value = readAnyValue(null);
 			result.put(member, value);
 		}
+		input.consumeFixedToken(END_OBJECT);
 		return result;
 	}
 
@@ -177,55 +189,16 @@ public class ManualTest {
 	 * When positioned at either the start of a token or an {@link Token#INSIGNIFICANT},
 	 * advance to the next character that is not insignificant and return its token.
 	 */
-	private Token nextToken() throws IOException {
-		Token result;
-		do {
-			int read = read();
-			result = Token.startingWith(read);
-		} while (result == INSIGNIFICANT);
-		return result;
-	}
-
-	private int firstMemberValueChar() throws IOException {
-		eatMemberName();
-		return nextSignificant();
-	}
-
-	private int nextSignificant() throws IOException {
-		int result;
-		do {
-			result = read();
-		} while (Token.startingWith(result) == INSIGNIFICANT);
-		return result;
-	}
-
-	/**
-	 * Skips the rest of the string.
-	 */
-	protected void eatMemberName() throws IOException {
-		int c;
-		while ((c= read()) != '"') {
-			if (c == '\\') {
-				input.skip(1);
-			}
-		}
+	private Token nextToken() {
+		return input.peekToken();
 	}
 
 	private void skipToken(Token readToken) throws IOException {
-		input.skip(readToken.fixedRepresentation().length() - 1);
+		input.consumeFixedToken(readToken);
 	}
 
-	private void expect(Token expectedToken) throws IOException {
-		Token readToken = nextToken();
-		if (readToken == expectedToken) {
-			skipToken(readToken);
-		} else {
-			throw new IllegalStateException("Unexpected token " + readToken + "; expected " + expectedToken);
-		}
-	}
-
-	private Object readAnyValue(int firstChar) throws IOException {
-		switch (Token.startingWith(firstChar)) {
+	private Object readAnyValue(Object dummy) throws IOException {
+		switch (input.peekToken()) {
 			case NULL -> {
 				skipToken(NULL);
 				return null;
@@ -239,16 +212,16 @@ public class ManualTest {
 				return Boolean.TRUE;
 			}
 			case NUMBER -> {
-				return readBigNumber(firstChar);
+				return readBigNumber(dummy);
 			}
 			case START_OBJECT -> {
-				return readAnyMap(firstChar);
+				return readAnyMap(dummy);
 			}
 			case START_ARRAY -> {
-				return readAnyList(firstChar);
+				return readAnyList(dummy);
 			}
 			case STRING -> {
-				return readString(nextSignificant());
+				return readString(dummy);
 			}
 			default -> {
 				throw new IllegalStateException();
@@ -256,54 +229,25 @@ public class ManualTest {
 		}
 	}
 
-	private String readString(int firstChar) throws IOException {
-		assert Token.startingWith(firstChar) == STRING;
-		StringBuilder sb = new StringBuilder();
-		int c;
-		while ((c = read()) != '"') {
-			if (c == '\\') {
-				sb.append((char)read());
-			} else {
-				sb.append((char)c);
-			}
-		}
-		return sb.toString();
+	private String readString(Object dummy) {
+		input.peekToken(STRING);
+		return input.consumeString();
 	}
 
-	private long readInteger(int firstChar) throws IOException {
-		CharSequence s = readNumber(firstChar);
+	private long readInteger(Object dummy) throws IOException {
+		input.peekToken(NUMBER);
+		CharSequence s = input.consumeNumber();
 		return Long.parseLong(s, 0, s.length(), 10);
 	}
 
-	private double readDecimal(int firstChar) throws IOException {
-		return Double.parseDouble(readNumber(firstChar).toString());
+	private double readDecimal(Object dummy) {
+		input.peekToken(NUMBER);
+		return Double.parseDouble(input.consumeNumber().toString());
 	}
 
-	private Number readBigNumber(int firstChar) throws IOException {
-		String string = readNumber(firstChar).toString();
-		return new BigDecimal(string);
-	}
-
-	/**
-	 * Parsing numbers is a pain in the ass for many reasons.
-	 * Just get the digits into a {@link CharSequence} and get on with life.
-	 */
-	private StringBuilder readNumber(int firstChar) throws IOException {
-		assert Token.startingWith(firstChar) == NUMBER;
-		StringBuilder sb = new StringBuilder();
-		sb.appendCodePoint(firstChar);
-		for (int c = read(); ; c = read()) {
-			switch (c) {
-				case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-					 '-', '.', 'e', 'E' -> sb.appendCodePoint(c);
-				default -> {
-					// And suddenly, without warning, we have walked off
-					// the end of the number.
-					input.skip(-1);
-					return sb;
-				}
-			}
-		}
+	private Number readBigNumber(Object dummy) {
+		input.peekToken(NUMBER);
+		return new BigDecimal(input.consumeNumber().toString());
 	}
 
 }
