@@ -5,11 +5,14 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Uses a virtual thread to read from a channel in the background
  * while the foreground thread processes previously read data.
+ * This ensures that the parsing runs at the full speed of either
+ * the processing or the I/O, whichever is slower.
+ * Without the background thread, the processing and I/O would
+ * be interleaved, so neither would run at full speed.
  * <p>
  * Calling {@link #close()} will close the underlying channel.
  */
@@ -18,7 +21,6 @@ final class OverlappedPrefetcher implements AutoCloseable {
 	private final ArrayBlockingQueue<ByteBuffer> emptyBuffers;
 	private final ArrayBlockingQueue<ByteBuffer> filledBuffers;
 	private final Thread backgroundThread;
-	private final AtomicBoolean running = new AtomicBoolean(true);
 
 	OverlappedPrefetcher(ReadableByteChannel channel) {
 		this(channel, 16*1024, 2);
@@ -43,12 +45,11 @@ final class OverlappedPrefetcher implements AutoCloseable {
 
 	private void fillBuffers() {
 		try {
-			while (running.get()) {
+			while (true) {
 				ByteBuffer buffer = emptyBuffers.take();
 				int read = channel.read(buffer);
 				if (read == -1) {
 					filledBuffers.put(EOF_SENTINEL);
-					running.set(false);
 					break;
 				}
 
@@ -91,11 +92,10 @@ final class OverlappedPrefetcher implements AutoCloseable {
 
 	@Override
 	public void close() {
-		running.set(false);
+		backgroundThread.interrupt();
 		try {
 			channel.close();
-		} catch (IOException ignored) {}
-		backgroundThread.interrupt();
+		} catch (IOException _) {}
 	}
 
 	private static final ByteBuffer EOF_SENTINEL = ByteBuffer.allocate(0);

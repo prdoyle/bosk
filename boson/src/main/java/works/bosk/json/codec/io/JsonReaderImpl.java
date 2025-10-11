@@ -10,7 +10,7 @@ import static works.bosk.json.mapping.Token.STRING;
 
 
 /**
- * {@link JsonReader} that uses an {@link OverlappedPrefetcher} for high-throughput buffer management.
+ * {@link JsonReader} that uses an {@link OverlappedPrefetcher} to read from a {@link ReadableByteChannel}.
  * <p>
  * Calling {@link #close()} will close the underlying channel.
  */
