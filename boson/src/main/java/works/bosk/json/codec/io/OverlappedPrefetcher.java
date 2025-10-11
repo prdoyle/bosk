@@ -4,7 +4,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ReadableByteChannel;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Uses a virtual thread to read from a channel in the background
@@ -16,10 +17,10 @@ import java.util.concurrent.ArrayBlockingQueue;
  * <p>
  * Calling {@link #close()} will close the underlying channel.
  */
-final class OverlappedPrefetcher implements AutoCloseable {
+final class OverlappedPrefetcher implements BufferFiller {
 	private final ReadableByteChannel channel;
-	private final ArrayBlockingQueue<ByteBuffer> emptyBuffers;
-	private final ArrayBlockingQueue<ByteBuffer> filledBuffers;
+	private final BlockingQueue<ByteBuffer> emptyBuffers;
+	private final BlockingQueue<ByteBuffer> filledBuffers;
 	private final Thread backgroundThread;
 
 	OverlappedPrefetcher(ReadableByteChannel channel) {
@@ -31,11 +32,11 @@ final class OverlappedPrefetcher implements AutoCloseable {
 	 */
 	OverlappedPrefetcher(ReadableByteChannel channel, int bufferSize, int numBuffers) {
 		this.channel = channel;
-		this.emptyBuffers = new ArrayBlockingQueue<>(numBuffers);
-		this.filledBuffers = new ArrayBlockingQueue<>(numBuffers);
+		this.emptyBuffers = new LinkedBlockingQueue<>(numBuffers);
+		this.filledBuffers = new LinkedBlockingQueue<>(numBuffers);
 
 		for (int i = 0; i < numBuffers; i++) {
-			emptyBuffers.add(ByteBuffer.allocateDirect(bufferSize));
+			emptyBuffers.add(ByteBuffer.allocate(bufferSize));
 		}
 
 		backgroundThread = Thread.ofVirtual()
@@ -67,6 +68,7 @@ final class OverlappedPrefetcher implements AutoCloseable {
 	/**
 	 * @return the next filled buffer, or null if EOF.
 	 */
+	@Override
 	public ByteBuffer nextBuffer() {
 		ByteBuffer result;
 		try {
@@ -85,6 +87,7 @@ final class OverlappedPrefetcher implements AutoCloseable {
 	/**
 	 * Recycle a buffer after use.
 	 */
+	@Override
 	public void recycleBuffer(ByteBuffer buffer) {
 		buffer.clear();
 		emptyBuffers.offer(buffer);

@@ -1,27 +1,28 @@
 package works.bosk.json.codec.io;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.ReadableByteChannel;
+import java.util.stream.LongStream;
 import works.bosk.json.mapping.Token;
 
 import static works.bosk.json.mapping.Token.END_TEXT;
+import static works.bosk.json.mapping.Token.INSIGNIFICANT;
 import static works.bosk.json.mapping.Token.NUMBER;
 import static works.bosk.json.mapping.Token.STRING;
 
 
 /**
- * {@link JsonReader} that uses an {@link OverlappedPrefetcher} to read from a {@link ReadableByteChannel}.
+ * {@link JsonReader} that uses a {@link BufferFiller}.
  * <p>
  * Calling {@link #close()} will close the underlying channel.
  */
 final class JsonReaderImpl implements JsonReader {
-	private final OverlappedPrefetcher prefetcher;
+	private final BufferFiller filler;
 	private ByteBuffer currentBuf;
 
-	public JsonReaderImpl(ReadableByteChannel channel) {
-		this.prefetcher = new OverlappedPrefetcher(channel);
+	public JsonReaderImpl(BufferFiller bufferFiller) {
+		this.filler = bufferFiller;
 		// TODO: Not ideal. There's no reason to block here until we actually need data.
-		this.currentBuf = this.prefetcher.nextBuffer();
+		this.currentBuf = this.filler.nextBuffer();
 	}
 
 	@Override
@@ -154,23 +155,44 @@ final class JsonReaderImpl implements JsonReader {
 	}
 
 	private boolean nextBuffer() {
-		prefetcher.recycleBuffer(currentBuf);
-		currentBuf = prefetcher.nextBuffer();
+		filler.recycleBuffer(currentBuf);
+		currentBuf = filler.nextBuffer();
 		return currentBuf != null;
 	}
 
 	private void skipInsignificant() {
-		loop: while (true) {
-			byte b = peekByte();
-			switch (b) {
-				case ' ', '\n', '\r', '\t', ':', ',' -> advance();
-				default -> { break loop; }
-			}
+		while (fast_isInsignificant(peekByte())) {
+			advance();
 		}
 	}
 
+	static boolean fast_isInsignificant(int codePoint) {
+		// The position to check in INSIGNIFICANT_CHARS
+		long bit = 1L << codePoint;
+
+		// Zero if definitely significant
+		// Can have false positives
+		long bitIsSet = INSIGNIFICANT_CHARS & bit;
+
+		// All ones if codePoint is greater than the largest insignificant char
+		long isNegative = (long)codePoint >> 63; // Note: -1 represents EOF
+		long isTooBig = (63L - codePoint) >> 63;
+
+		// Zero if significant
+		long answer = bitIsSet & ~(isNegative | isTooBig);
+
+		boolean result = (answer != 0);
+		assert result == (Token.startingWith(codePoint) == INSIGNIFICANT);
+		return result;
+	}
+
+	private static final long INSIGNIFICANT_CHARS = LongStream
+		.of(0x20, 0x0A, 0x0D, 0x09, ',', ':')
+		.map(n -> 1L << n)
+		.sum();
+
 	@Override
 	public void close() {
-		prefetcher.close();
+		filler.close();
 	}
 }

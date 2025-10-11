@@ -21,7 +21,15 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	 * The channel will be closed when the reader is closed.
 	 */
 	static JsonReader create(ReadableByteChannel channel) {
-		return new JsonReaderImpl(channel);
+		return new JsonReaderImpl(new SynchronousBufferFiller(channel));
+	}
+
+	/**
+	 * @return a new JsonReader that reads from the given channel.
+	 * The channel will be closed when the reader is closed.
+	 */
+	static JsonReader create(byte[] utf8Bytes) {
+		return new JsonReaderImpl(new ByteArrayBufferFiller(utf8Bytes));
 	}
 
 	/**

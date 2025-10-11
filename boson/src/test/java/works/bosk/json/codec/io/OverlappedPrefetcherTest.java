@@ -19,7 +19,7 @@ class OverlappedPrefetcherTest {
 	@Order(1) // If this doesn't work, we're pretty hosed
 	void eof() {
 		byte[] data = new byte[0];
-		try (OverlappedPrefetcher prefetcher = new OverlappedPrefetcher(channelFromBytes(data))) {
+		try (BufferFiller prefetcher = new OverlappedPrefetcher(channelFromBytes(data))) {
 			assertNull(prefetcher.nextBuffer());
 		}
 	}
@@ -27,7 +27,7 @@ class OverlappedPrefetcherTest {
 	@Test
 	void singleSmallBuffer() {
 		byte[] data = "abc".getBytes();
-		try (OverlappedPrefetcher prefetcher = new OverlappedPrefetcher(channelFromBytes(data), 2, 1)) {
+		try (BufferFiller prefetcher = new OverlappedPrefetcher(channelFromBytes(data), 2, 1)) {
 			ByteBuffer buf1 = prefetcher.nextBuffer();
 			assertEquals(2, buf1.remaining());
 			assertEquals((byte) 'a', buf1.get());
@@ -46,7 +46,7 @@ class OverlappedPrefetcherTest {
 	@Test
 	void multipleTinyBuffers() {
 		byte[] data = "abcdef".getBytes();
-		try (OverlappedPrefetcher prefetcher = new OverlappedPrefetcher(channelFromBytes(data), 1, 3)) {
+		try (BufferFiller prefetcher = new OverlappedPrefetcher(channelFromBytes(data), 1, 3)) {
 			List<Byte> read = new ArrayList<>();
 			for (int i = 0; i < 6; i++) {
 				ByteBuffer buf = prefetcher.nextBuffer();
@@ -62,7 +62,7 @@ class OverlappedPrefetcherTest {
 	@Test
 	void recycleAllowsReuse() {
 		byte[] data = "xy".getBytes();
-		try (OverlappedPrefetcher prefetcher = new OverlappedPrefetcher(channelFromBytes(data), 1, 1)) {
+		try (BufferFiller prefetcher = new OverlappedPrefetcher(channelFromBytes(data), 1, 1)) {
 			ByteBuffer buf1 = prefetcher.nextBuffer();
 			assertEquals(1, buf1.remaining());
 			assertEquals((byte) 'x', buf1.get());

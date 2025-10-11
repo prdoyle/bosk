@@ -1,6 +1,5 @@
 package works.bosk.json;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -12,7 +11,6 @@ import works.bosk.json.TestUtils.Month;
 import works.bosk.json.codec.io.JsonReader;
 import works.bosk.json.mapping.Token;
 
-import static java.nio.channels.Channels.newChannel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.json.TestUtils.ABSENT_FIELD_VALUE;
@@ -36,8 +34,7 @@ public class ManualTest {
 
 	@BeforeEach
 	void init() {
-		input = JsonReader.create(newChannel(new ByteArrayInputStream(
-			ONE_OF_EACH.getBytes(UTF_8))));
+		input = JsonReader.create(ONE_OF_EACH.getBytes(UTF_8));
 	}
 
 	@Test
