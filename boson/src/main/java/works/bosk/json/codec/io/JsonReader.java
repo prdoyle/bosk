@@ -62,6 +62,12 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	 */
 	void consumeFixedToken(Token token);
 
+	default void expectFixedToken(Token expected) {
+		assert expected.hasFixedRepresentation();
+		peekToken(expected);
+		consumeFixedToken(expected);
+	}
+
 	/**
 	 * After {@link #peekToken} returns {@link Token#NUMBER NUMBER},
 	 * this returns the character data

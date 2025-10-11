@@ -62,10 +62,9 @@ public class ManualTest {
 		String computedField = COMPUTED_FIELD_VALUE;
 		String maybeAbsentField = ABSENT_FIELD_VALUE;
 
-		input.peekToken(START_OBJECT);
-		input.consumeFixedToken(START_OBJECT);
+		input.expectFixedToken(START_OBJECT);
 		loop: while (true) {
-			Token token = nextToken();
+			Token token = input.peekToken();
 			switch (token) {
 				case STRING -> { // member name
 					var stringChars = input.processString();
@@ -115,7 +114,7 @@ public class ManualTest {
 				}
 			}
 		}
-		skipToken(END_OBJECT);
+		input.consumeFixedToken(END_OBJECT);
 		return new TestUtils.OneOfEach(
 			nullField,
 			trueField,
@@ -136,10 +135,8 @@ public class ManualTest {
 	}
 
 	private Map<TimeUnit, BigDecimal> readTimeUnitToBigDecimalMap(Object dummy) throws IOException {
-		input.peekToken(START_OBJECT);
-		input.consumeFixedToken(START_OBJECT);
+		input.expectFixedToken(START_OBJECT);
 		Map<TimeUnit, BigDecimal> result = new java.util.LinkedHashMap<>();
-		int c;
 		while (input.peekToken() != END_OBJECT) {
 			var member = readString(null);
 			var value = readBigNumber(null);
@@ -150,8 +147,7 @@ public class ManualTest {
 	}
 
 	private List<String> readStringList(Object dummy) {
-		input.peekToken(START_ARRAY);
-		input.consumeFixedToken(START_ARRAY);
+		input.expectFixedToken(START_ARRAY);
 		List<String> result = new java.util.ArrayList<>();
 		while (input.peekToken() != Token.END_ARRAY) {
 			result.add(input.consumeString());
@@ -161,10 +157,8 @@ public class ManualTest {
 	}
 
 	private List<Object> readAnyList(Object dummy) throws IOException {
-		input.peekToken(START_ARRAY);
-		input.consumeFixedToken(START_ARRAY);
+		input.expectFixedToken(START_ARRAY);
 		List<Object> result = new java.util.ArrayList<>();
-		int c;
 		while (input.peekToken() != Token.END_ARRAY) {
 			result.add(readAnyValue(null));
 		}
@@ -173,8 +167,7 @@ public class ManualTest {
 	}
 
 	private Map<String, Object> readAnyMap(Object dummy) throws IOException {
-		input.peekToken(START_OBJECT);
-		input.consumeFixedToken(START_OBJECT);
+		input.expectFixedToken(START_OBJECT);
 		Map<String, Object> result = new java.util.LinkedHashMap<>();
 		while (input.peekToken() != END_OBJECT) {
 			var member = readString(null);
@@ -185,30 +178,18 @@ public class ManualTest {
 		return result;
 	}
 
-	/**
-	 * When positioned at either the start of a token or an {@link Token#INSIGNIFICANT},
-	 * advance to the next character that is not insignificant and return its token.
-	 */
-	private Token nextToken() {
-		return input.peekToken();
-	}
-
-	private void skipToken(Token readToken) throws IOException {
-		input.consumeFixedToken(readToken);
-	}
-
 	private Object readAnyValue(Object dummy) throws IOException {
 		switch (input.peekToken()) {
 			case NULL -> {
-				skipToken(NULL);
+				input.consumeFixedToken(NULL);
 				return null;
 			}
 			case FALSE -> {
-				skipToken(FALSE);
+				input.consumeFixedToken(FALSE);
 				return Boolean.FALSE;
 			}
 			case TRUE -> {
-				skipToken(TRUE);
+				input.consumeFixedToken(TRUE);
 				return Boolean.TRUE;
 			}
 			case NUMBER -> {
