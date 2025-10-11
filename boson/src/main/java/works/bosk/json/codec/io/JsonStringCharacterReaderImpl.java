@@ -36,8 +36,14 @@ final class JsonStringCharacterReaderImpl implements JsonStringCharacterReader {
 		}
 
 		// Normal character
-		reader.advance();
-		return b;
+		if ((b & 0x80) == 0) {
+			// ASCII fast path
+			reader.advance();
+			return b;
+		} else {
+			// Decode UTF-8 multibyte sequence
+			return decodeUtf8Char();
+		}
 	}
 
 	@Override
@@ -83,5 +89,36 @@ final class JsonStringCharacterReaderImpl implements JsonStringCharacterReader {
 			case 't' -> '\t';
 			default -> throw new IllegalStateException("Invalid escape: \\" + (char) b);
 		};
+	}
+
+	private int decodeUtf8Char() {
+		// First byte tells us what we're dealing with
+		int b1 = reader.peekByte();
+		reader.advance();
+
+		int codePoint;
+		int sequenceLength;
+		if ((b1 & 0xE0) == 0xC0) {
+			sequenceLength = 2;
+			codePoint = b1 & 0x1F;
+		} else if ((b1 & 0xF0) == 0xE0) {
+			sequenceLength = 3;
+			codePoint = b1 & 0x0F;
+		} else if ((b1 & 0xF8) == 0xF0) {
+			sequenceLength = 4;
+			codePoint = b1 & 0x07;
+		} else {
+			throw new IllegalStateException("Invalid UTF-8 start byte: " + b1);
+		}
+
+		for (int i = 1; i < sequenceLength; i++) {
+			int bx = reader.peekByte();
+			reader.advance();
+			if ((bx & 0xC0) != 0x80) {
+				throw new IllegalStateException("Invalid UTF-8 continuation byte: " + bx);
+			}
+			codePoint = (codePoint << 6) | (bx & 0x3F);
+		}
+		return codePoint;
 	}
 }

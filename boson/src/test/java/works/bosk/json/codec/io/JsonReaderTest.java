@@ -31,6 +31,15 @@ class JsonReaderTest {
 	}
 
 	@Test
+	void stringWithUnicode() {
+		try (JsonReader reader = readerFor("\"hello 😎\"")) {
+			assertEquals(STRING, peekToken(reader));
+			assertEquals("hello 😎", reader.consumeString());
+			assertEquals(END_TEXT, consumeToken(reader));
+		}
+	}
+
+	@Test
 	void stringWithEscapes() {
 		try (JsonReader reader = readerFor("\"he\\\"llo\\nworld\\\\\"")) {
 			assertEquals(STRING, peekToken(reader));
@@ -39,7 +48,7 @@ class JsonReaderTest {
 	}
 
 	@Test
-	void unicodeEscape() {
+	void stringWithUnicodeEscape() {
 		try (JsonReader reader = readerFor("\"\\u0041\\u0042\\u0043\"")) {
 			assertEquals(STRING, peekToken(reader));
 			assertEquals("ABC", reader.consumeString());
