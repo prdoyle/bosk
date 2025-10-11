@@ -13,10 +13,11 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import works.bosk.json.TestUtils.JustScalars;
+import works.bosk.json.TestUtils.Month;
 import works.bosk.json.TestUtils.OneOfEach;
 import works.bosk.json.codec.CharArrayReader;
-import works.bosk.json.codec.Codec;
 import works.bosk.json.codec.CodecBuilder;
+import works.bosk.json.codec.Parser;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.spec.JsonValueSpec;
@@ -30,24 +31,24 @@ import static works.bosk.json.mapping.TypeMap.Settings.DEFAULT;
 
 @BenchmarkMode(Throughput)
 @State(Scope.Thread)
-@Fork(3)
+@Fork(0)
 @Warmup(iterations = 8, time = 1)
 @Measurement(iterations = 3, time = 1, timeUnit = SECONDS)
 public class ParseBenchmark {
 	private char[] json;
 	private ObjectReader objectReader;
 	private ManualTest manualTest;
-	private Codec interpreter;
-	private Codec interpreterExperimental;
-	private Codec compiled;
-	private Codec compiledExperimental;
+	private Parser interpreter;
+	private Parser interpreterExperimental;
+	private Parser compiled;
+	private Parser compiledExperimental;
 
 	@Setup(Level.Iteration) // Called once per iteration
 	public void setup() {
 		Class<?> targetClass;
 		if (true) {
 			targetClass = OneOfEach.class;
-			json = ONE_OF_EACH;
+			json = ONE_OF_EACH.toCharArray();
 		} else {
 			targetClass = JustScalars.class;
 			json = JUST_SCALARS;
@@ -60,22 +61,24 @@ public class ParseBenchmark {
 		DataType targetType = DataType.of(targetClass);
 
 		TypeScanner defaultTS = new TypeScanner(DEFAULT);
+		defaultTS.specify(DataType.of(Month.class), Month.specNode());
 		defaultTS.scan(targetType);
 		TypeMap defaultTypeMap = defaultTS.build();
 		JsonValueSpec defaultSpec = defaultTypeMap.get(targetType);
 		interpreter = CodecBuilder.of(defaultTypeMap)
-			.buildInterpreter(defaultSpec);
+			.buildInterpreter().parserFor(defaultSpec);
 		compiled = CodecBuilder.of(defaultTypeMap)
-			.buildCompiled(defaultSpec);
+			.buildCompiled().parserFor(defaultSpec);
 
 		TypeScanner experimentalTS = new TypeScanner(DEFAULT.withFewerSwitches());
+		experimentalTS.specify(DataType.of(Month.class), Month.specNode());
 		experimentalTS.scan(targetType);
 		var experimentalTypeMap = experimentalTS.build();
 		JsonValueSpec experimentalSpec = experimentalTypeMap.get(targetType);
 		interpreterExperimental = CodecBuilder.of(experimentalTypeMap)
-			.buildInterpreter(experimentalSpec);
+			.buildInterpreter().parserFor(experimentalSpec);
 		compiledExperimental = CodecBuilder.of(experimentalTypeMap)
-			.buildCompiled(experimentalSpec);
+			.buildCompiled().parserFor(experimentalSpec);
 	}
 
 	@Benchmark

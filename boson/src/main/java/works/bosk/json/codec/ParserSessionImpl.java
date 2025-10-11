@@ -190,7 +190,7 @@ public class ParserSessionImpl {
 	 * Assumes the first character has already been consumed while
 	 * identifying the token.
 	 */
-	protected void skipToken(Token readToken) throws IOException {
+	protected void skipToken(Token readToken) {
 		input.skip(readToken.fixedRepresentation().length() - 1);
 	}
 
@@ -224,6 +224,8 @@ public class ParserSessionImpl {
 					default:
 						throw new IllegalStateException("Invalid escape character: \\" + (char)escapeCode);
 				}
+			} else if (c == -1) {
+				throw new IllegalStateException("Unterminated string");
 			} else {
 				sb.append((char) c);
 			}

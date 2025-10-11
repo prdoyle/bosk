@@ -10,7 +10,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import works.bosk.json.TestUtils.Month;
 import works.bosk.json.codec.io.JsonReader;
-import works.bosk.json.codec.io.JsonStringCharacterReader;
 import works.bosk.json.mapping.Token;
 
 import static java.nio.channels.Channels.newChannel;
@@ -69,32 +68,56 @@ public class ManualTest {
 				case STRING -> { // member name
 					var stringChars = input.processString();
 					switch (stringChars.nextChar()) {
-						case 'n' -> nullField = (String) readAnyValue(finishMemberName(stringChars));
-						case 't' -> trueField = (Boolean) readAnyValue(finishMemberName(stringChars));
-						case 'f' -> falseField = (Boolean) readAnyValue(finishMemberName(stringChars));
-						case 'i' -> integerField = readInteger(finishMemberName(stringChars));
-						case 'r' -> realField = readDecimal(finishMemberName(stringChars));
+						case 'n' -> {
+							stringChars.skipToEnd();
+							nullField = (String) readAnyValue();
+						}
+						case 't' -> {
+							stringChars.skipToEnd();
+							trueField = (Boolean) readAnyValue();
+						}
+						case 'f' -> {
+							stringChars.skipToEnd();
+							falseField = (Boolean) readAnyValue();
+						}
+						case 'i' -> {
+							stringChars.skipToEnd();
+							integerField = readInteger();
+						}
+						case 'r' -> {
+							stringChars.skipToEnd();
+							realField = readDecimal();
+						}
 						case 'm' -> {
 							switch (stringChars.nextChar()) {
 								case 'a' -> {
 									switch (stringChars.nextChar()) {
-										case 'p' -> mapField = readTimeUnitToBigDecimalMap(finishMemberName(stringChars));
-										case 'y' -> maybeAbsentField = readString(finishMemberName(stringChars));
+										case 'p' -> {
+											stringChars.skipToEnd();
+											mapField = readTimeUnitToBigDecimalMap();
+										}
+										case 'y' -> {
+											stringChars.skipToEnd();
+											maybeAbsentField = readString();
+										}
 									}
 								}
-								case 'o' -> monthField = Month.fromValue((int)readInteger(finishMemberName(stringChars)));
+								case 'o' -> {
+									stringChars.skipToEnd();
+									monthField = Month.fromValue((int) readInteger());
+								}
 							}
 						}
 						case 's' -> {
 							stringChars.skipChars(5);
 							switch (stringChars.nextChar()) {
 								case 'F' -> {
-									// stringField
-									stringField = readString(finishMemberName(stringChars));
+									stringChars.skipToEnd();
+									stringField = readString();
 								}
 								case 'A' -> {
-									// stringArrayField
-									stringArrayField = readStringList(finishMemberName(stringChars));
+									stringChars.skipToEnd();
+									stringArrayField = readStringList();
 								}
 								default -> {
 									throw new IllegalStateException("Parse error");
@@ -129,24 +152,19 @@ public class ManualTest {
 			maybeAbsentField);
 	}
 
-	private Object finishMemberName(JsonStringCharacterReader charReader) {
-		charReader.skipToEnd();
-		return null;
-	}
-
-	private Map<TimeUnit, BigDecimal> readTimeUnitToBigDecimalMap(Object dummy) throws IOException {
+	private Map<TimeUnit, BigDecimal> readTimeUnitToBigDecimalMap() throws IOException {
 		input.expectFixedToken(START_OBJECT);
 		Map<TimeUnit, BigDecimal> result = new java.util.LinkedHashMap<>();
 		while (input.peekToken() != END_OBJECT) {
-			var member = readString(null);
-			var value = readBigNumber(null);
+			var member = readString();
+			var value = readBigNumber();
 			result.put(TimeUnit.valueOf(member), (BigDecimal) value);
 		}
 		input.consumeFixedToken(END_OBJECT);
 		return result;
 	}
 
-	private List<String> readStringList(Object dummy) {
+	private List<String> readStringList() {
 		input.expectFixedToken(START_ARRAY);
 		List<String> result = new java.util.ArrayList<>();
 		while (input.peekToken() != Token.END_ARRAY) {
@@ -156,29 +174,29 @@ public class ManualTest {
 		return result;
 	}
 
-	private List<Object> readAnyList(Object dummy) throws IOException {
+	private List<Object> readAnyList() throws IOException {
 		input.expectFixedToken(START_ARRAY);
 		List<Object> result = new java.util.ArrayList<>();
 		while (input.peekToken() != Token.END_ARRAY) {
-			result.add(readAnyValue(null));
+			result.add(readAnyValue());
 		}
 		input.consumeFixedToken(END_ARRAY);
 		return result;
 	}
 
-	private Map<String, Object> readAnyMap(Object dummy) throws IOException {
+	private Map<String, Object> readAnyMap() throws IOException {
 		input.expectFixedToken(START_OBJECT);
 		Map<String, Object> result = new java.util.LinkedHashMap<>();
 		while (input.peekToken() != END_OBJECT) {
-			var member = readString(null);
-			var value = readAnyValue(null);
+			var member = readString();
+			var value = readAnyValue();
 			result.put(member, value);
 		}
 		input.consumeFixedToken(END_OBJECT);
 		return result;
 	}
 
-	private Object readAnyValue(Object dummy) throws IOException {
+	private Object readAnyValue() throws IOException {
 		switch (input.peekToken()) {
 			case NULL -> {
 				input.consumeFixedToken(NULL);
@@ -193,16 +211,16 @@ public class ManualTest {
 				return Boolean.TRUE;
 			}
 			case NUMBER -> {
-				return readBigNumber(dummy);
+				return readBigNumber();
 			}
 			case START_OBJECT -> {
-				return readAnyMap(dummy);
+				return readAnyMap();
 			}
 			case START_ARRAY -> {
-				return readAnyList(dummy);
+				return readAnyList();
 			}
 			case STRING -> {
-				return readString(dummy);
+				return readString();
 			}
 			default -> {
 				throw new IllegalStateException();
@@ -210,23 +228,23 @@ public class ManualTest {
 		}
 	}
 
-	private String readString(Object dummy) {
+	private String readString() {
 		input.peekToken(STRING);
 		return input.consumeString();
 	}
 
-	private long readInteger(Object dummy) throws IOException {
+	private long readInteger() {
 		input.peekToken(NUMBER);
 		CharSequence s = input.consumeNumber();
 		return Long.parseLong(s, 0, s.length(), 10);
 	}
 
-	private double readDecimal(Object dummy) {
+	private double readDecimal() {
 		input.peekToken(NUMBER);
 		return Double.parseDouble(input.consumeNumber().toString());
 	}
 
-	private Number readBigNumber(Object dummy) {
+	private Number readBigNumber() {
 		input.peekToken(NUMBER);
 		return new BigDecimal(input.consumeNumber().toString());
 	}
