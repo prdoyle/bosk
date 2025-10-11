@@ -25,7 +25,7 @@ class JsonReaderTest {
 	void simpleString() {
 		try (JsonReader reader = readerFor("\"hello\"")) {
 			assertEquals(STRING, peekToken(reader));
-			assertEquals("hello", reader.consumeAsString());
+			assertEquals("hello", reader.consumeString());
 			assertEquals(END_TEXT, consumeToken(reader));
 		}
 	}
@@ -34,7 +34,7 @@ class JsonReaderTest {
 	void stringWithEscapes() {
 		try (JsonReader reader = readerFor("\"he\\\"llo\\nworld\\\\\"")) {
 			assertEquals(STRING, peekToken(reader));
-			assertEquals("he\"llo\nworld\\", reader.consumeAsString());
+			assertEquals("he\"llo\nworld\\", reader.consumeString());
 		}
 	}
 
@@ -42,7 +42,7 @@ class JsonReaderTest {
 	void unicodeEscape() {
 		try (JsonReader reader = readerFor("\"\\u0041\\u0042\\u0043\"")) {
 			assertEquals(STRING, peekToken(reader));
-			assertEquals("ABC", reader.consumeAsString());
+			assertEquals("ABC", reader.consumeString());
 		}
 	}
 
@@ -50,7 +50,7 @@ class JsonReaderTest {
 	void emptyString() {
 		try (JsonReader reader = readerFor("\"\"")) {
 			assertEquals(STRING, peekToken(reader));
-			assertEquals("", reader.consumeAsString());
+			assertEquals("", reader.consumeString());
 		}
 	}
 
@@ -75,7 +75,7 @@ class JsonReaderTest {
 		try (JsonReader reader = readerFor("{\"a\": [1, 2]}")) {
 			assertEquals(START_OBJECT, consumeToken(reader));
 			assertEquals(STRING, peekToken(reader));
-			assertEquals("a", reader.consumeAsString());
+			assertEquals("a", reader.consumeString());
 			assertEquals(START_ARRAY, consumeToken(reader));
 			assertEquals(NUMBER, peekToken(reader));
 			assertEquals("1", reader.consumeNumber().toString());
@@ -103,7 +103,7 @@ class JsonReaderTest {
 	void stringWithAllEscapes() {
 		try (JsonReader reader = readerFor("\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"")) {
 			assertEquals(STRING, peekToken(reader));
-			assertEquals("\"\\/\b\f\n\r\t", reader.consumeAsString());
+			assertEquals("\"\\/\b\f\n\r\t", reader.consumeString());
 		}
 	}
 
@@ -111,7 +111,7 @@ class JsonReaderTest {
 	void unterminatedStringThrows() {
 		try (JsonReader reader = readerFor("\"abc")) {
 			assertEquals(STRING, peekToken(reader));
-			assertThrows(IllegalStateException.class, reader::consumeAsString);
+			assertThrows(IllegalStateException.class, reader::consumeString);
 		}
 	}
 
@@ -119,7 +119,7 @@ class JsonReaderTest {
 	void invalidEscapeThrows() {
 		try (JsonReader reader = readerFor("\"abc\\x\"")) {
 			assertEquals(STRING, peekToken(reader));
-			assertThrows(IllegalStateException.class, reader::consumeAsString);
+			assertThrows(IllegalStateException.class, reader::consumeString);
 		}
 	}
 
@@ -140,7 +140,7 @@ class JsonReaderTest {
 		if (token.hasFixedRepresentation()) {
 			reader.consumeFixedToken(token);
 		} else if (token == STRING) {
-			reader.consumeString().skipToEnd();
+			reader.processString().skipToEnd();
 		} else if (token == NUMBER) {
 			reader.consumeNumber();
 		}

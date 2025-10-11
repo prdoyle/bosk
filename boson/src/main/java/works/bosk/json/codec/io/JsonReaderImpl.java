@@ -71,7 +71,7 @@ final class JsonReaderImpl implements JsonReader {
 	}
 
 	@Override
-	public JsonStringCharacterReader consumeString() {
+	public JsonStringCharacterReader processString() {
 		assert peekRawToken() == STRING;
 		skip(1); // Opening quote
 		return new JsonStringCharacterReaderImpl(this);

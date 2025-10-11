@@ -38,7 +38,7 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	 *         for {@link Token#NUMBER}, call {@link #consumeNumber}; or
 	 *     </li>
 	 *     <li>
-	 *         for {@link Token#STRING}, call {@link #consumeString}.
+	 *         for {@link Token#STRING}, call {@link #processString}.
 	 *     </li>
 	 * </ul>
 	 *
@@ -89,27 +89,27 @@ public sealed interface JsonReader extends AutoCloseable permits JsonReaderImpl 
 	 *
 	 * @see #consumeStringContents
 	 */
-	JsonStringCharacterReader consumeString();
+	JsonStringCharacterReader processString();
 
 	/**
-	 * A variant of {@link #consumeString} that adds the entire string's contents
+	 * A variant of {@link #processString} that adds the entire string's contents
 	 * to a given {@link StringBuilder}.
 	 * Handy if you need the entire string.
 	 * <p>
 	 * Consumes the string input, leaving the reader
 	 * ready for the next call to {@link #peekToken}.
 	 *
-	 * @see #consumeString()
+	 * @see #processString()
 	 */
 	default void consumeStringContents(StringBuilder sb) {
-		JsonStringCharacterReader sr = consumeString();
+		JsonStringCharacterReader sr = processString();
 		int c;
 		while ((c = sr.nextChar()) != -1) {
 			sb.appendCodePoint(c);
 		}
 	}
 
-	default String consumeAsString() {
+	default String consumeString() {
 		StringBuilder sb = new StringBuilder();
 		consumeStringContents(sb);
 		return sb.toString();
