@@ -34,6 +34,8 @@ public class ParserSessionImpl {
 
 	protected Number parseBigNumber() {
 		logEntry("parseBigNumber");
+		var token = input.peekToken();
+		assert token == Token.NUMBER;
 		return new BigDecimal(input.consumeNumber().toString());
 	}
 
@@ -52,6 +54,8 @@ public class ParserSessionImpl {
 	}
 
 	protected Object parsePrimitiveNumber(MethodHandle parseHandle) {
+		var token = input.peekToken();
+		assert token == Token.NUMBER;
 		String string = input.consumeNumber().toString();
 		try {
 			return parseHandle.invoke(string);
@@ -81,6 +85,8 @@ public class ParserSessionImpl {
 	}
 
 	protected String parseString() {
+		var token = input.peekToken();
+		assert token == Token.STRING;
 		return input.consumeString();
 	}
 

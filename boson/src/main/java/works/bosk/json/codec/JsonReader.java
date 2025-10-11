@@ -1,6 +1,8 @@
 package works.bosk.json.codec;
 
 import java.nio.channels.ReadableByteChannel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.json.codec.io.ByteArrayBufferFiller;
 import works.bosk.json.codec.io.ByteBufferJsonReader;
 import works.bosk.json.codec.io.CharArrayJsonReader;
@@ -152,4 +154,6 @@ public sealed interface JsonReader extends AutoCloseable permits ByteBufferJsonR
 	 * @return some notion of the current offset in the input
 	 */
 	long currentOffset();
+
+	Logger LOGGER = LoggerFactory.getLogger(JsonReader.class);
 }
