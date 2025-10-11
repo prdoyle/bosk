@@ -69,20 +69,20 @@ public final class CharArrayJsonReader implements JsonReader {
 
 	@Override
 	public String consumeString() {
-		if (false) {
-			return JsonReader.super.consumeString();
-		} else {
-			// We can do better than the default implementation
-			int start = ++pos;
-			while (pos <= chars.length && chars[pos] != '"') {
-				pos++;
-			}
-			try {
-				return new String(chars, start, pos - start);
-			} finally {
-				pos++; // Skip closing quote
+		// We can do better than the default implementation
+		int start = ++pos; // First actual character in the string's value
+		int c;
+		while (pos <= chars.length && (c = chars[pos]) != '"') {
+			pos++;
+			if (c == '\\') {
+				// Whoops, found an escape code. Fast path doesn't work.
+				pos = start-1; // Back up to the opening quote
+				return JsonReader.super.consumeString();
 			}
 		}
+		String result = new String(chars, start, pos - start);
+		pos++; // Skip closing quote
+		return result;
 	}
 
 	@Override
@@ -148,6 +148,37 @@ public final class CharArrayJsonReader implements JsonReader {
 				return Character.toCodePoint(c, chars[pos++]);
 			} else if (c == '"') {
 				return -1;
+			} else if (c == '\\') {
+				if (pos >= chars.length) {
+					// Unfinished backslash sequence at the end of input.
+					// We're doomed to get a parse error; might
+					// as well return -1 to indicate the end of input
+					// in hopes that will generate a useful error message.
+					return -1;
+				}
+				char esc = chars[pos++];
+				return switch (esc) {
+					case '"', '\\', '/' -> esc;
+					case 'b' -> '\b';
+					case 'f' -> '\f';
+					case 'n' -> '\n';
+					case 'r' -> '\r';
+					case 't' -> '\t';
+					case 'u' -> {
+						if (pos + 4 > chars.length) {
+							// Incomplete Unicode escape at the end of input.
+							yield -1;
+						}
+						int value = 0;
+						for (int i = 0; i < 4; i++) {
+							char b = chars[pos++];
+							value <<= 4;
+							value |= Character.digit(b, 16);
+						}
+						yield value;
+					}
+					default -> throw new IllegalStateException("Invalid escape: \\" + esc);
+				};
 			} else {
 				return c;
 			}
