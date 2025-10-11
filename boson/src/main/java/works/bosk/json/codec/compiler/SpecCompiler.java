@@ -696,7 +696,6 @@ public class SpecCompiler {
 					v.store(codeBuilder);
 				});
 
-				// Eat START_OBJECT
 				_skipToken(START_OBJECT);
 
 				codeBuilder.labelBinding(loop);
@@ -866,12 +865,11 @@ public class SpecCompiler {
 		}
 
 		private void _parseTypeRef(TypeRefNode node) {
-			lineInfo(codeBuilder);
+			lineInfo(codeBuilder, 1);
 			_invokeVirtual(getParseMethod(typeMap.get(node.type())));
 		}
 
 		private void _invokeVirtual(MethodRef mr) {
-			lineInfo(codeBuilder, 1);
 			_loadRuntime();
 			codeBuilder.invokevirtual(classBuilder.constantPool().methodRefEntry(
 				mr.owner(),

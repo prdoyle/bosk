@@ -73,7 +73,9 @@ public class ParserSessionImpl {
 	}
 
 	protected int peekTokenOrdinal() {
-		return input.peekToken().ordinal();
+		Token token = input.peekToken();
+		LOGGER.debug("peekTokenOrdinal: {}", token);
+		return token.ordinal();
 	}
 
 	/**
@@ -105,10 +107,16 @@ public class ParserSessionImpl {
 	}
 
 	protected void skipTokenWithOrdinal(int ord) {
-		skipToken(Token.values()[ord]);
+		Token token = Token.values()[ord];
+		LOGGER.debug("skipTokenWithOrdinal: {}", token);
+		skipToken(token);
 	}
 
 	protected void skipToken(Token readToken) {
+		var token = input.peekToken();
+		if (token != readToken) {
+			parseError("Expected token " + readToken + ", not " + token);
+		}
 		input.consumeFixedToken(readToken);
 	}
 
