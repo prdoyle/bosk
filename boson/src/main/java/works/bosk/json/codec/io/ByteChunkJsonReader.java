@@ -102,37 +102,55 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 	@Override
 	public int nextStringChar() {
-		int b = peekByte();
-		switch (b) {
-			case -1 -> {
-				throw new IllegalStateException("Unexpected end of string before closing quote");
-			}
-			case '"' -> {
-				advance(); // Eat the quote
-				return -1;
-			}
-			case '\\' -> {
-				advance();
-				int esc = peekByte();
-				if (esc == -1) {
-					throw new IllegalStateException("Unexpected end of string after escape backslash");
+		try {
+			if (currentChunkPos + CARRYOVER_BYTES >= currentChunk.stop()) {
+				ByteChunk initialChunk = currentChunk;
+				int initialChunkPos = currentChunkPos;
+				// In case we have a character expressed using multiple bytes,
+				// we copy over the residue from the current chunk to the next chunk,
+				// allowing us to decode every possible character in a contiguous byte array.
+				byte[] carryover = new byte[CARRYOVER_BYTES]; // Fixed size might help stack allocation
+				int length = initialChunk.stop() - initialChunkPos;
+				System.arraycopy(initialChunk.bytes(), initialChunkPos, carryover, 0, length);
+				if (!nextBuffer()) {
+					// We've hit the end. Might as well continue with the current chunk
+					currentChunk = initialChunk;
+					currentChunkPos = initialChunkPos;
+				} else if (currentChunk.start() >= length) {
+					System.arraycopy(carryover, 0, currentChunk.bytes(), currentChunk.start() - length, length);
+					currentChunk = new ByteChunk(currentChunk.bytes(), currentChunk.start() - length, currentChunk.stop());
+					currentChunkPos = currentChunk.start();
+				} else {
+					throw new IllegalStateException("Buffer cannot accommodate carryover");
 				}
-				advance();
-				if (esc == 'u') {
-					return decodeUnicodeEscape();
-				}
-				return decodeEscapeChar(esc);
 			}
-		}
 
-		// Normal character
-		if ((b & 0x80) == 0) {
-			// ASCII fast path
-			advance();
-			return b;
-		} else {
-			// Decode UTF-8 multibyte sequence
-			return decodeUtf8Char();
+			byte[] bytes = currentChunk.bytes();
+			int b = bytes[currentChunkPos++];
+			switch (b) {
+				case '"' -> {
+					// End of string
+					return -1;
+				}
+				case '\\' -> {
+					int esc = bytes[currentChunkPos++];
+					if (esc == 'u') {
+						return decodeUnicodeEscape();
+					}
+					return decodeEscapeChar(esc);
+				}
+			}
+
+			// Normal character
+			if ((b & 0x80) == 0) {
+				// ASCII fast path
+				return b;
+			} else {
+				// Decode UTF-8 multibyte sequence
+				return decodeUtf8Char(b);
+			}
+		} catch (ArrayIndexOutOfBoundsException e) {
+			throw new IllegalStateException("Unexpected end of text in the middle of a string character", e);
 		}
 	}
 
@@ -283,24 +301,6 @@ public final class ByteChunkJsonReader implements JsonReader {
 	// numberStringBuilder() only called for multi-buffer numbers
 
 	/**
-	 * Relatively slow way to peek at the next byte, loading a new buffer if needed.
-	 * Does not advance the position within the input text.
-	 */
-	byte peekByte() {
-		while (currentChunk != null && currentChunkPos >= currentChunk.stop()) {
-			if (!nextBuffer()) {
-				return -1;
-			}
-		}
-
-		if (currentChunk == null) {
-			return -1;
-		} else {
-			return currentChunk.bytes()[currentChunkPos];
-		}
-	}
-
-	/**
 	 * Relatively slow way to advance one byte, loading a new buffer if needed.
 	 */
 	void advance() {
@@ -314,16 +314,16 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 	private int decodeUnicodeEscape() {
 		int value = 0;
+		byte[] bytes = currentChunk.bytes();
 		for (int i = 0; i < 4; i++) {
-			int b = peekByte();
-			advance();
+			int b = bytes[currentChunkPos++];
 			value <<= 4;
 			value |= Character.digit(b, 16);
 		}
 		return value;
 	}
 
-	private int decodeEscapeChar(int b) {
+	private static int decodeEscapeChar(int b) {
 		return switch (b) {
 			case '"' -> '"';
 			case '\\' -> '\\';
@@ -337,29 +337,26 @@ public final class ByteChunkJsonReader implements JsonReader {
 		};
 	}
 
-	private int decodeUtf8Char() {
-		// First byte tells us what we're dealing with
-		int b1 = peekByte();
-		advance();
-
+	private int decodeUtf8Char(int firstChar) {
+		// The first byte tells us how long a sequence we're dealing with
 		int codePoint;
 		int sequenceLength;
-		if ((b1 & 0xE0) == 0xC0) {
+		if ((firstChar & 0xE0) == 0xC0) {
 			sequenceLength = 2;
-			codePoint = b1 & 0x1F;
-		} else if ((b1 & 0xF0) == 0xE0) {
+			codePoint = firstChar & 0x1F;
+		} else if ((firstChar & 0xF0) == 0xE0) {
 			sequenceLength = 3;
-			codePoint = b1 & 0x0F;
-		} else if ((b1 & 0xF8) == 0xF0) {
+			codePoint = firstChar & 0x0F;
+		} else if ((firstChar & 0xF8) == 0xF0) {
 			sequenceLength = 4;
-			codePoint = b1 & 0x07;
+			codePoint = firstChar & 0x07;
 		} else {
-			throw new IllegalStateException("Invalid UTF-8 start byte: " + b1);
+			throw new IllegalStateException("Invalid UTF-8 start byte: " + firstChar);
 		}
 
+		byte[] bytes = currentChunk.bytes();
 		for (int i = 1; i < sequenceLength; i++) {
-			int bx = peekByte();
-			advance();
+			int bx = bytes[currentChunkPos++];
 			if ((bx & 0xC0) != 0x80) {
 				throw new IllegalStateException("Invalid UTF-8 continuation byte: " + bx);
 			}
