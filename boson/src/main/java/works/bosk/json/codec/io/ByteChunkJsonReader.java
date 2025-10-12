@@ -40,6 +40,8 @@ public final class ByteChunkJsonReader implements JsonReader {
 	 */
 	private int currentChunkPos;
 
+	private final char[] stagingBuffer = new char[120];
+
 	public ByteChunkJsonReader(ChunkFiller chunkFiller) {
 		this.filler = chunkFiller;
 		// TODO: Not ideal. There's no reason to block here until we actually need data.
@@ -104,25 +106,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 	public int nextStringChar() {
 		try {
 			if (currentChunkPos + CARRYOVER_BYTES >= currentChunk.stop()) {
-				ByteChunk initialChunk = currentChunk;
-				int initialChunkPos = currentChunkPos;
-				// In case we have a character expressed using multiple bytes,
-				// we copy over the residue from the current chunk to the next chunk,
-				// allowing us to decode every possible character in a contiguous byte array.
-				byte[] carryover = new byte[CARRYOVER_BYTES]; // Fixed size might help stack allocation
-				int length = initialChunk.stop() - initialChunkPos;
-				System.arraycopy(initialChunk.bytes(), initialChunkPos, carryover, 0, length);
-				if (!nextBuffer()) {
-					// We've hit the end. Might as well continue with the current chunk
-					currentChunk = initialChunk;
-					currentChunkPos = initialChunkPos;
-				} else if (currentChunk.start() >= length) {
-					System.arraycopy(carryover, 0, currentChunk.bytes(), currentChunk.start() - length, length);
-					currentChunk = new ByteChunk(currentChunk.bytes(), currentChunk.start() - length, currentChunk.stop());
-					currentChunkPos = currentChunk.start();
-				} else {
-					throw new IllegalStateException("Buffer cannot accommodate carryover");
-				}
+				doCarryover();
 			}
 
 			byte[] bytes = currentChunk.bytes();
@@ -154,6 +138,33 @@ public final class ByteChunkJsonReader implements JsonReader {
 		}
 	}
 
+	/**
+	 * If we've entered the carryover zone at the end of the current chunk,
+	 * copy the last few bytes to the start of the next chunk.
+	 */
+	private void doCarryover() {
+		assert currentChunkPos + CARRYOVER_BYTES >= currentChunk.stop();
+		ByteChunk initialChunk = currentChunk;
+		int initialChunkPos = currentChunkPos;
+		// In case we have a character expressed using multiple bytes,
+		// we copy over the residue from the current chunk to the next chunk,
+		// allowing us to decode every possible character in a contiguous byte array.
+		byte[] carryover = new byte[CARRYOVER_BYTES]; // Fixed size might help stack allocation
+		int length = initialChunk.stop() - initialChunkPos;
+		System.arraycopy(initialChunk.bytes(), initialChunkPos, carryover, 0, length);
+		if (!nextBuffer()) {
+			// We've hit the end. Might as well continue with the current chunk
+			currentChunk = initialChunk;
+			currentChunkPos = initialChunkPos;
+		} else if (currentChunk.start() >= length) {
+			System.arraycopy(carryover, 0, currentChunk.bytes(), currentChunk.start() - length, length);
+			currentChunk = new ByteChunk(currentChunk.bytes(), currentChunk.start() - length, currentChunk.stop());
+			currentChunkPos = currentChunk.start();
+		} else {
+			throw new IllegalStateException("Buffer cannot accommodate carryover");
+		}
+	}
+
 	@Override
 	public void skipStringChars(int n) {
 		if (n < 0) {
@@ -172,6 +183,39 @@ public final class ByteChunkJsonReader implements JsonReader {
 	@Override
 	public void skipToEndOfString() {
 		while (nextStringChar() != -1) {}
+	}
+
+	@Override
+	public String consumeString() {
+		// Do a scan to see if the string has no escape codes
+		// and finishes before the next chunk boundary.
+		// Don't change currentChunkPos until we're sure.
+		// TODO: We probably don't care about chunk boundaries now that we're using a staging buffer.
+		// There's reason to believe we hit boundaries often enough to cause a considerable perf hit.
+		int currentPos = currentChunkPos+1;
+		int stagingPos = 0;
+		byte[] buf = currentChunk.bytes();
+		char[] stagingBuffer = this.stagingBuffer;
+		int limit = min(currentChunk.stop(), currentPos + stagingBuffer.length);
+
+		while (currentPos < limit) {
+			byte b = buf[currentPos];
+			if (b == '"') {
+				// Found the end of the string
+				currentChunkPos = currentPos + 1;
+				return new String(stagingBuffer, 0, stagingPos);
+			} else if (b == '\\' || b < 0x20) {
+				// Found an escape or non-ASCII character
+				break;
+			} else {
+				stagingBuffer[stagingPos++] = (char) b;
+				currentPos++;
+			}
+		}
+
+		// Otherwise fall back to the default implementation
+		// for any more complex cases.
+		return JsonReader.super.consumeString();
 	}
 
 	/**

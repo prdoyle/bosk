@@ -27,7 +27,10 @@ public final class OverlappedPrefetchingChunkFiller implements ChunkFiller {
 	private final Thread backgroundThread;
 
 	public OverlappedPrefetchingChunkFiller(InputStream stream) {
-		this(stream, 20_000, 2);
+		// In microbenchmarks, we can outperform Java with a 2MB buffer,
+		// but that's pretty extreme.
+		int bufferSize = 5*4096 - 16; // 16 = array header
+		this(stream, bufferSize, 2);
 	}
 
 	/**

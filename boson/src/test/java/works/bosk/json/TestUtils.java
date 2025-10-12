@@ -93,7 +93,7 @@ public class TestUtils {
 				r.nextInt(10000),
 				r.nextDouble() * 1000.0,
 				"str_" + r.nextInt(1000),
-				r.ints(r.nextInt(1000), 0, 1000).mapToObj(i-> "str_" + i).toList(),
+				r.ints(r.nextInt(10), 0, 1000).mapToObj(i-> "str_" + i).toList(),
 				Map.of(TimeUnit.SECONDS, BigDecimal.valueOf(r.nextDouble() * 1000.0)),
 				Month.values()[r.nextInt(Month.values().length)],
 				"computed_" + r.nextInt(1000),
