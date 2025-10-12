@@ -3,6 +3,8 @@ package works.bosk.json.codec.io;
 import java.io.IOException;
 import java.io.InputStream;
 
+import static works.bosk.json.codec.io.ByteChunkJsonReader.CARRYOVER_BYTES;
+
 public class SynchronousChunkFiller implements ChunkFiller {
 	final InputStream stream;
 	final byte[] buffer;
@@ -12,6 +14,7 @@ public class SynchronousChunkFiller implements ChunkFiller {
 	}
 
 	SynchronousChunkFiller(InputStream stream, int bufferSize) {
+		assert bufferSize > CARRYOVER_BYTES: "Buffer size must be larger than " + CARRYOVER_BYTES;
 		this.stream = stream;
 		buffer = new byte[bufferSize];
 	}
@@ -20,7 +23,7 @@ public class SynchronousChunkFiller implements ChunkFiller {
 	public ByteChunk nextChunk() {
 		int length;
 		try {
-			length = stream.read(buffer);
+			length = stream.read(buffer, CARRYOVER_BYTES, buffer.length - CARRYOVER_BYTES);
 		} catch (IOException e) {
 			throw new IllegalStateException(e);
 		}
@@ -28,7 +31,7 @@ public class SynchronousChunkFiller implements ChunkFiller {
 			return null;
 		}
 
-		return new ByteChunk(buffer, length);
+		return new ByteChunk(buffer, CARRYOVER_BYTES, CARRYOVER_BYTES + length);
 	}
 
 	@Override

@@ -8,6 +8,8 @@ import java.util.concurrent.BlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static works.bosk.json.codec.io.ByteChunkJsonReader.CARRYOVER_BYTES;
+
 /**
  * Uses a virtual thread to read from a channel in the background
  * while the foreground thread processes previously read data.
@@ -32,6 +34,7 @@ public final class OverlappedPrefetchingChunkFiller implements ChunkFiller {
 	 * @param numBuffers if only 1, no overlapping will occur.
 	 */
 	public OverlappedPrefetchingChunkFiller(InputStream stream, int bufferSize, int numBuffers) {
+		assert bufferSize > CARRYOVER_BYTES: "Buffer size must be larger than " + CARRYOVER_BYTES;
 		this.stream = stream;
 		this.emptyBuffers = new ArrayBlockingQueue<>(numBuffers);
 		this.filledBuffers = new ArrayBlockingQueue<>(numBuffers);
@@ -49,13 +52,13 @@ public final class OverlappedPrefetchingChunkFiller implements ChunkFiller {
 		try {
 			while (true) {
 				byte[] buffer = emptyBuffers.take();
-				int length = stream.read(buffer);
+				int length = stream.read(buffer, CARRYOVER_BYTES, buffer.length - CARRYOVER_BYTES);
 				if (length == -1) {
 					filledBuffers.put(EOF_SENTINEL);
 					break;
 				}
 
-				filledBuffers.put(new ByteChunk(buffer, length));
+				filledBuffers.put(new ByteChunk(buffer, CARRYOVER_BYTES, CARRYOVER_BYTES + length));
 			}
 		} catch (ClosedChannelException _) {
 		} catch (InterruptedException e) {
@@ -103,6 +106,6 @@ public final class OverlappedPrefetchingChunkFiller implements ChunkFiller {
 		} catch (IOException _) {}
 	}
 
-	private static final ByteChunk EOF_SENTINEL = new ByteChunk(new byte[0], 0);
+	private static final ByteChunk EOF_SENTINEL = new ByteChunk(new byte[0], 0, 0);
 	private static final Logger LOGGER = LoggerFactory.getLogger(OverlappedPrefetchingChunkFiller.class);
 }

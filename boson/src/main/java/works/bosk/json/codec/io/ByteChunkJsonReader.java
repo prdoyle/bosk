@@ -14,6 +14,15 @@ import static works.bosk.json.mapping.Token.NUMBER;
  * Calling {@link #close()} will close the underlying channel.
  */
 public final class ByteChunkJsonReader implements JsonReader {
+	/**
+	 * The number of bytes that must be carried over from one chunk to the next
+	 * to ensure that we can always parse a JSON string character that crosses a chunk boundary.
+	 * The largest JSON string character is an escaped 4-byte UTF-8 character,
+	 * which takes 6 bytes total (backslash, 'u', and 4 hex digits),
+	 * so we need to carry over at most 5 bytes.
+	 */
+	static final int CARRYOVER_BYTES = 5;
+
 	private final ChunkFiller filler;
 	private ByteChunk currentChunk;
 
@@ -24,17 +33,18 @@ public final class ByteChunkJsonReader implements JsonReader {
 	private long currentChunkStartOffset = 0;
 
 	/**
-	 * The current position within the current chunk.
-	 * Always between 0 and currentChunk.length(), inclusive.
-	 * If equal to currentChunk.length(), then the next byte
+	 * The current index within the current chunk.
+	 * Always between currentChunk.start() and currentChunk.stop(), inclusive.
+	 * If equal to currentChunk.stop(), then the next byte
 	 * to be read is in the next chunk (which may not exist).
 	 */
-	private int currentChunkPos = 0;
+	private int currentChunkPos;
 
 	public ByteChunkJsonReader(ChunkFiller chunkFiller) {
 		this.filler = chunkFiller;
 		// TODO: Not ideal. There's no reason to block here until we actually need data.
 		this.currentChunk = this.filler.nextChunk();
+		this.currentChunkPos = currentChunk.start();
 	}
 
 	@Override
@@ -44,7 +54,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 	}
 
 	private Token peekRawToken() {
-		while (currentChunk != null && currentChunkPos >= currentChunk.length()) {
+		while (currentChunk != null && currentChunkPos >= currentChunk.stop()) {
 			nextBuffer();
 		}
 
@@ -68,7 +78,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 		int startPos = currentChunkPos;
 		byte[] buf = currentChunk.bytes();
-		int limit = currentChunk.length();
+		int limit = currentChunk.stop();
 
 		while (currentChunkPos < limit) {
 			byte b = buf[currentChunkPos];
@@ -159,7 +169,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 		while (true) {
 			byte[] buf = currentChunk.bytes();
-			int limit = currentChunk.length();
+			int limit = currentChunk.stop();
 
 			while (pos < limit) {
 				byte b = buf[pos];
@@ -173,20 +183,19 @@ public final class ByteChunkJsonReader implements JsonReader {
 				}
 			}
 
-			// Need another buffer
-			if (!nextBuffer()) {
+			if (nextBuffer()) {
+				// Continue from the start of the new buffer
+				pos = currentChunk.start();
+			} else {
 				// whoops, the input ended in the middle of a number
 				return sb;
 			}
-
-			// Continue from the start of the new buffer
-			pos = 0;
 		}
 	}
 
 	@Override
 	public String previewString(int requestedLength) {
-		int actualLength = min(requestedLength, currentChunk.length() - currentChunkPos - 1);
+		int actualLength = min(requestedLength, currentChunk.stop() - currentChunkPos - 1);
 		char[] result = new char[actualLength];
 		byte[] buf = currentChunk.bytes();
 		for (int i = 0; i < actualLength; i++) {
@@ -209,7 +218,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 				return;
 			}
 
-			int remaining = currentChunk.length() - currentChunkPos;
+			int remaining = currentChunk.stop() - currentChunkPos;
 			if (n < remaining) {
 				currentChunkPos += n;
 				return;
@@ -225,7 +234,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 	private void skipInsignificant() {
 		while (currentChunk != null) {
 			byte[] buf = currentChunk.bytes();
-			int limit = currentChunk.length();
+			int limit = currentChunk.stop();
 			while (currentChunkPos < limit) {
 				if (!Util.fast_isInsignificant(buf[currentChunkPos])) {
 					return;
@@ -245,12 +254,16 @@ public final class ByteChunkJsonReader implements JsonReader {
 			return false;
 		}
 
-		currentChunkStartOffset += currentChunk.length();
+		currentChunkStartOffset += currentChunk.stop();
 		filler.recycleChunk(currentChunk);
 		currentChunk = filler.nextChunk();
-		currentChunkPos = 0;
 
-		return currentChunk != null;
+		if (currentChunk == null) {
+			return false;
+		} else {
+			currentChunkPos = currentChunk.start();
+			return true;
+		}
 	}
 
 	@Override
@@ -274,7 +287,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 	 * Does not advance the position within the input text.
 	 */
 	byte peekByte() {
-		while (currentChunk != null && currentChunkPos >= currentChunk.length()) {
+		while (currentChunk != null && currentChunkPos >= currentChunk.stop()) {
 			if (!nextBuffer()) {
 				return -1;
 			}
@@ -293,7 +306,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 	void advance() {
 		if (currentChunk != null) {
 			currentChunkPos++;
-			if (currentChunkPos >= currentChunk.length()) {
+			if (currentChunkPos >= currentChunk.stop()) {
 				nextBuffer();
 			}
 		}
