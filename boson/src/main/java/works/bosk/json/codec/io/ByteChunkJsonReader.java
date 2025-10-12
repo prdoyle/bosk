@@ -17,22 +17,26 @@ import static works.bosk.json.mapping.Token.STRING;
  */
 public final class ByteChunkJsonReader implements JsonReader {
 	private final ChunkFiller filler;
-	private ByteChunk currentBuf;
+	private ByteChunk currentChunk;
 
 	/**
-	 * The offset {@code currentBuf} in the overall byte stream.
+	 * The number of bytes that appeared in the input text before
+	 * the start of the current chunk.
 	 */
-	private long currentBufStartOffset = 0;
+	private long currentChunkStartOffset = 0;
 
 	/**
-	 * Current position within {@code currentBuf}.
+	 * The current position within the current chunk.
+	 * Always between 0 and currentChunk.length(), inclusive.
+	 * If equal to currentChunk.length(), then the next byte
+	 * to be read is in the next chunk (which may not exist).
 	 */
-	private int currentBufPos = 0;
+	private int currentChunkPos = 0;
 
 	public ByteChunkJsonReader(ChunkFiller chunkFiller) {
 		this.filler = chunkFiller;
 		// TODO: Not ideal. There's no reason to block here until we actually need data.
-		this.currentBuf = this.filler.nextChunk();
+		this.currentChunk = this.filler.nextChunk();
 	}
 
 	@Override
@@ -41,14 +45,15 @@ public final class ByteChunkJsonReader implements JsonReader {
 		return peekRawToken();
 	}
 
-	/**
-	 * May return {@link Token#INSIGNIFICANT}.
-	 */
 	private Token peekRawToken() {
-		if (currentBuf == null) {
+		while (currentChunk != null && currentChunkPos >= currentChunk.length()) {
+			nextBuffer();
+		}
+
+		if (currentChunk == null) {
 			return END_TEXT;
 		} else {
-			return Token.startingWith(peekByte());
+			return Token.startingWith(currentChunk.bytes()[currentChunkPos]);
 		}
 	}
 
@@ -62,22 +67,60 @@ public final class ByteChunkJsonReader implements JsonReader {
 	@Override
 	public CharSequence consumeNumber() {
 		assert peekRawToken() == NUMBER;
-		int startPos = currentBufPos;
-		var startBuffer = currentBuf;
+
+		int startPos = currentChunkPos;
+		byte[] buf = currentChunk.bytes();
+		int limit = currentChunk.length();
+
+		while (currentChunkPos < limit) {
+			byte b = buf[currentChunkPos];
+			if (!Util.isNumberChar(b)) {
+				// We've reached the end of the number
+				return new AsciiChunkCharSequence(currentChunk, startPos, currentChunkPos - startPos);
+			} else {
+				currentChunkPos++;
+			}
+		}
+
+		// The number crosses a buffer boundary
+		return numberStringBuilder(startPos);
+	}
+
+	/**
+	 * A generalized (if slow) way to build a {@link CharSequence} for a number
+	 * regardless of whether it spans buffer boundaries or contains non-ASCII characters.
+	 */
+	private CharSequence numberStringBuilder(int startPos) {
+		StringBuilder sb = new StringBuilder();
+
+		// Rather than continually update the object field,
+		// do most of the work on this local variable for speed.
+		int pos = startPos;
 
 		while (true) {
-			if (currentBufPos == currentBuf.length()) {
-				// We've run out of buffer
-				return numberStringBuilder(startPos);
+			byte[] buf = currentChunk.bytes();
+			int limit = currentChunk.length();
+
+			while (pos < limit) {
+				byte b = buf[pos];
+				if (Util.isNumberChar(b)) {
+					sb.append((char) b);
+					pos++;
+				} else {
+					// Number ended
+					currentChunkPos = pos;
+					return sb;
+				}
 			}
-			byte b = peekByte();
-			if (Util.isNumberChar(b)) {
-				advance();
-			} else {
-				// End of the number
-				assert startBuffer == currentBuf;
-				return new AsciiChunkCharSequence(currentBuf, startPos, currentBufPos-startPos);
+
+			// Need another buffer
+			if (!nextBuffer()) {
+				// whoops, the input ended in the middle of a number
+				return sb;
 			}
+
+			// Continue from the start of the new buffer
+			pos = 0;
 		}
 	}
 
@@ -90,90 +133,71 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 	@Override
 	public String previewString(int requestedLength) {
-		int actualLength = min(requestedLength, currentBuf.length() - currentBufPos - 1);
-		StringBuilder sb = new StringBuilder(actualLength);
+		int actualLength = min(requestedLength, currentChunk.length() - currentChunkPos - 1);
+		char[] result = new char[actualLength];
+		byte[] buf = currentChunk.bytes();
 		for (int i = 0; i < actualLength; i++) {
-			byte b = currentBuf.bytes()[currentBufPos + i];
-			sb.append((char) b); // Only works for ASCII
+			// TODO: handle non-ascii characters
+			result[i] = (char) buf[currentChunkPos + i];
 		}
-		return sb.toString();
+		return new String(result);
 	}
 
-	/**
-	 * A generalized (if slow) way to build a {@link CharSequence} for a number
-	 * regardless of whether it spans buffer boundaries or contains non-ASCII characters.
-	 */
-	private CharSequence numberStringBuilder(int startPos) {
-		StringBuilder sb = new StringBuilder();
-	
-		// Back up to the start of the number
-		currentBufPos = startPos;
-
-		for (byte b = peekByte(); Util.isNumberChar(b); b = peekByte()) {
-			sb.append((char) b);
-			advance();
-		}
-		
-		return sb;
-	}
-
-	byte peekByte() {
-		if (hasRemaining()) {
-			return currentBuf.bytes()[currentBufPos];
-		} else {
-			return -1;
-		}
-	}
-
-	void advance() {
-		if (hasRemaining()) {
-			currentBufPos++;
-		}
-	}
-	
 	void skip(int n) {
 		if (n == 0) {
-			// This case needs to work even if currentBuf is null
 			return;
 		}
 		if (n < 0) {
 			throw new IllegalArgumentException("Can't skip a negative number of bytes: " + n);
 		}
-		int remaining;
-		while (n >= (remaining = currentBuf.length() - currentBufPos)) {
-			n -= remaining;
+
+		while (n > 0) {
+			if (currentChunk == null) {
+				return;
+			}
+
+			int remaining = currentChunk.length() - currentChunkPos;
+			if (n < remaining) {
+				currentChunkPos += n;
+				return;
+			} else {
+				n -= remaining;
+				if (!nextBuffer()) {
+					return;
+				}
+			}
+		}
+	}
+
+	private void skipInsignificant() {
+		while (currentChunk != null) {
+			byte[] buf = currentChunk.bytes();
+			int limit = currentChunk.length();
+			while (currentChunkPos < limit) {
+				if (!Util.fast_isInsignificant(buf[currentChunkPos])) {
+					return;
+				} else {
+					currentChunkPos++;
+				}
+			}
+
 			if (!nextBuffer()) {
 				return;
 			}
 		}
-		currentBufPos += n;
-	}
-
-	private boolean hasRemaining() {
-		if (currentBuf == null) {
-			return false;
-		}
-		while (currentBufPos >= currentBuf.length()) {
-			if (!nextBuffer()) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	private boolean nextBuffer() {
-		assert currentBuf != null;
-		currentBufStartOffset += currentBuf.length();
-		filler.recycleChunk(currentBuf);
-		currentBuf = filler.nextChunk();
-		currentBufPos = 0;
-		return currentBuf != null;
-	}
-
-	private void skipInsignificant() {
-		while (Util.fast_isInsignificant(peekByte())) {
-			advance();
+		if (currentChunk == null) {
+			return false;
 		}
+
+		currentChunkStartOffset += currentChunk.length();
+		filler.recycleChunk(currentChunk);
+		currentChunk = filler.nextChunk();
+		currentChunkPos = 0;
+
+		return currentChunk != null;
 	}
 
 	@Override
@@ -183,6 +207,43 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 	@Override
 	public long currentOffset() {
-		return currentBufStartOffset + (currentBuf == null ? 0 : currentBufPos);
+		if (currentChunk != null) {
+			return currentChunkStartOffset + currentChunkPos;
+		} else {
+			return currentChunkStartOffset;
+		}
 	}
+
+	// numberStringBuilder() only called for multi-buffer numbers
+
+	/**
+	 * Relatively slow way to peek at the next byte, loading a new buffer if needed.
+	 * Does not advance the position within the input text.
+	 */
+	byte peekByte() {
+		while (currentChunk != null && currentChunkPos >= currentChunk.length()) {
+			if (!nextBuffer()) {
+				return -1;
+			}
+		}
+
+		if (currentChunk == null) {
+			return -1;
+		} else {
+			return currentChunk.bytes()[currentChunkPos];
+		}
+	}
+
+	/**
+	 * Relatively slow way to advance one byte, loading a new buffer if needed.
+	 */
+	void advance() {
+		if (currentChunk != null) {
+			currentChunkPos++;
+			if (currentChunkPos >= currentChunk.length()) {
+				nextBuffer();
+			}
+		}
+	}
+
 }
