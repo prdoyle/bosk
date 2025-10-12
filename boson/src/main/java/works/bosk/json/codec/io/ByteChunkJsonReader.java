@@ -1,6 +1,5 @@
 package works.bosk.json.codec.io;
 
-import java.nio.ByteBuffer;
 import works.bosk.json.codec.JsonReader;
 import works.bosk.json.codec.JsonStringCharacterReader;
 import works.bosk.json.mapping.Token;
@@ -12,19 +11,28 @@ import static works.bosk.json.mapping.Token.STRING;
 
 
 /**
- * {@link JsonReader} that uses a {@link BufferFiller}.
+ * {@link JsonReader} that uses a {@link ChunkFiller}.
  * <p>
  * Calling {@link #close()} will close the underlying channel.
  */
-public final class ByteBufferJsonReader implements JsonReader {
-	private final BufferFiller filler;
-	private ByteBuffer currentBuf;
+public final class ByteChunkJsonReader implements JsonReader {
+	private final ChunkFiller filler;
+	private ByteChunk currentBuf;
+
+	/**
+	 * The offset {@code currentBuf} in the overall byte stream.
+	 */
 	private long currentBufStartOffset = 0;
 
-	public ByteBufferJsonReader(BufferFiller bufferFiller) {
-		this.filler = bufferFiller;
+	/**
+	 * Current position within {@code currentBuf}.
+	 */
+	private int currentBufPos = 0;
+
+	public ByteChunkJsonReader(ChunkFiller chunkFiller) {
+		this.filler = chunkFiller;
 		// TODO: Not ideal. There's no reason to block here until we actually need data.
-		this.currentBuf = this.filler.nextBuffer();
+		this.currentBuf = this.filler.nextChunk();
 	}
 
 	@Override
@@ -54,11 +62,11 @@ public final class ByteBufferJsonReader implements JsonReader {
 	@Override
 	public CharSequence consumeNumber() {
 		assert peekRawToken() == NUMBER;
-		int startPos = currentBuf.position();
+		int startPos = currentBufPos;
 		var startBuffer = currentBuf;
 
 		while (true) {
-			if (!currentBuf.hasRemaining()) {
+			if (currentBufPos == currentBuf.length()) {
 				// We've run out of buffer
 				return numberStringBuilder(startPos);
 			}
@@ -68,7 +76,7 @@ public final class ByteBufferJsonReader implements JsonReader {
 			} else {
 				// End of the number
 				assert startBuffer == currentBuf;
-				return new AsciiBufferCharSequence(currentBuf, startPos, currentBuf.position()-startPos);
+				return new AsciiChunkCharSequence(currentBuf, startPos, currentBufPos-startPos);
 			}
 		}
 	}
@@ -82,10 +90,10 @@ public final class ByteBufferJsonReader implements JsonReader {
 
 	@Override
 	public String previewString(int requestedLength) {
-		int actualLength = min(requestedLength, currentBuf.limit() - currentBuf.position() - 1);
+		int actualLength = min(requestedLength, currentBuf.length() - currentBufPos - 1);
 		StringBuilder sb = new StringBuilder(actualLength);
 		for (int i = 0; i < actualLength; i++) {
-			byte b = currentBuf.get(currentBuf.position() + i);
+			byte b = currentBuf.bytes()[currentBufPos + i];
 			sb.append((char) b); // Only works for ASCII
 		}
 		return sb.toString();
@@ -99,7 +107,7 @@ public final class ByteBufferJsonReader implements JsonReader {
 		StringBuilder sb = new StringBuilder();
 	
 		// Back up to the start of the number
-		currentBuf.position(startPos);
+		currentBufPos = startPos;
 
 		for (byte b = peekByte(); Util.isNumberChar(b); b = peekByte()) {
 			sb.append((char) b);
@@ -111,7 +119,7 @@ public final class ByteBufferJsonReader implements JsonReader {
 
 	byte peekByte() {
 		if (hasRemaining()) {
-			return currentBuf.get(currentBuf.position());
+			return currentBuf.bytes()[currentBufPos];
 		} else {
 			return -1;
 		}
@@ -119,7 +127,7 @@ public final class ByteBufferJsonReader implements JsonReader {
 
 	void advance() {
 		if (hasRemaining()) {
-			currentBuf.get();
+			currentBufPos++;
 		}
 	}
 	
@@ -132,20 +140,20 @@ public final class ByteBufferJsonReader implements JsonReader {
 			throw new IllegalArgumentException("Can't skip a negative number of bytes: " + n);
 		}
 		int remaining;
-		while (n >= (remaining = currentBuf.remaining())) {
+		while (n >= (remaining = currentBuf.length() - currentBufPos)) {
 			n -= remaining;
 			if (!nextBuffer()) {
 				return;
 			}
 		}
-		currentBuf.position(currentBuf.position() + n);
+		currentBufPos += n;
 	}
 
 	private boolean hasRemaining() {
 		if (currentBuf == null) {
 			return false;
 		}
-		while (!currentBuf.hasRemaining()) {
+		while (currentBufPos >= currentBuf.length()) {
 			if (!nextBuffer()) {
 				return false;
 			}
@@ -155,9 +163,10 @@ public final class ByteBufferJsonReader implements JsonReader {
 
 	private boolean nextBuffer() {
 		assert currentBuf != null;
-		currentBufStartOffset += currentBuf.limit();
-		filler.recycleBuffer(currentBuf);
-		currentBuf = filler.nextBuffer();
+		currentBufStartOffset += currentBuf.length();
+		filler.recycleChunk(currentBuf);
+		currentBuf = filler.nextChunk();
+		currentBufPos = 0;
 		return currentBuf != null;
 	}
 
@@ -174,6 +183,6 @@ public final class ByteBufferJsonReader implements JsonReader {
 
 	@Override
 	public long currentOffset() {
-		return currentBufStartOffset + (currentBuf == null ? 0 : currentBuf.position());
+		return currentBufStartOffset + (currentBuf == null ? 0 : currentBufPos);
 	}
 }

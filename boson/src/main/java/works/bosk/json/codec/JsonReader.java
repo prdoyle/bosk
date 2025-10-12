@@ -1,12 +1,12 @@
 package works.bosk.json.codec;
 
-import java.nio.channels.ReadableByteChannel;
+import java.io.InputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.json.codec.io.ByteArrayBufferFiller;
-import works.bosk.json.codec.io.ByteBufferJsonReader;
+import works.bosk.json.codec.io.ByteArrayChunkFiller;
+import works.bosk.json.codec.io.ByteChunkJsonReader;
 import works.bosk.json.codec.io.CharArrayJsonReader;
-import works.bosk.json.codec.io.SynchronousBufferFiller;
+import works.bosk.json.codec.io.SynchronousChunkFiller;
 import works.bosk.json.mapping.Token;
 
 /**
@@ -20,18 +20,18 @@ import works.bosk.json.mapping.Token;
  * its precise requirements in a way that allows the implementation to avoid
  * all unnecessary work.
  */
-public sealed interface JsonReader extends AutoCloseable permits ByteBufferJsonReader, CharArrayJsonReader {
+public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonReader, CharArrayJsonReader {
 
 	/**
-	 * @return a new JsonReader that reads from the given channel.
-	 * The channel will be closed when the reader is closed.
+	 * @return a new JsonReader that reads from the given stream.
+	 * The stream will be closed when the reader is closed.
 	 */
-	static JsonReader create(ReadableByteChannel channel) {
-		return new ByteBufferJsonReader(new SynchronousBufferFiller(channel));
+	static JsonReader create(InputStream stream) {
+		return new ByteChunkJsonReader(new SynchronousChunkFiller(stream));
 	}
 
 	static JsonReader create(byte[] utf8Bytes) {
-		return new ByteBufferJsonReader(new ByteArrayBufferFiller(utf8Bytes));
+		return new ByteChunkJsonReader(new ByteArrayChunkFiller(utf8Bytes));
 	}
 
 	static JsonReader create(char[] utf16Chars) {

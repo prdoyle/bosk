@@ -20,9 +20,9 @@ import works.bosk.json.TestUtils.Month;
 import works.bosk.json.TestUtils.OneOfEach;
 import works.bosk.json.codec.CodecBuilder;
 import works.bosk.json.codec.Parser;
-import works.bosk.json.codec.io.ByteBufferJsonReader;
+import works.bosk.json.codec.io.ByteChunkJsonReader;
 import works.bosk.json.codec.io.CharArrayJsonReader;
-import works.bosk.json.codec.io.SynchronousBufferFiller;
+import works.bosk.json.codec.io.OverlappedPrefetchingChunkFiller;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.spec.JsonValueSpec;
@@ -125,7 +125,7 @@ public class ParseBenchmark {
 		return compiledExperimental.parse(new CharArrayJsonReader(json));
 	}
 
-//	@Benchmark
+	@Benchmark
 	public Object jackson_list() throws IOException {
 		Path file = Path.of("build/bigfiles/1k.json").toAbsolutePath();
 		try (var in = new FileInputStream(file.toFile())) {
@@ -138,9 +138,8 @@ public class ParseBenchmark {
 		Path file = Path.of("build/bigfiles/1k.json").toAbsolutePath();
 		try (
 			var in = new FileInputStream(file.toFile());
-			var channel = in.getChannel()
 		) {
-			return listParser.parse(new ByteBufferJsonReader(new SynchronousBufferFiller(channel)));
+			return listParser.parse(new ByteChunkJsonReader(new OverlappedPrefetchingChunkFiller(in)));
 		}
 	}
 }

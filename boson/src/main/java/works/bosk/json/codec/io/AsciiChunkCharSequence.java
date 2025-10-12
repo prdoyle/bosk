@@ -1,6 +1,6 @@
 package works.bosk.json.codec.io;
 
-import java.nio.ByteBuffer;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * A high-performance lightweight CharSequence implementation
@@ -8,15 +8,20 @@ import java.nio.ByteBuffer;
  * <p>
  * If the buffer contains non-ASCII characters, weirdness will ensue.
  */
-final class AsciiBufferCharSequence implements CharSequence {
-	private final ByteBuffer buffer;
+final class AsciiChunkCharSequence implements CharSequence {
+	private final byte[] buffer;
 	private final int start;
 	private final int length;
 
-	AsciiBufferCharSequence(ByteBuffer buffer, int start, int length) {
+	private AsciiChunkCharSequence(byte[] buffer, int start, int length) {
 		this.buffer = buffer;
 		this.start = start;
 		this.length = length;
+	}
+
+	AsciiChunkCharSequence(ByteChunk chunk, int start, int length) {
+		assert start >= 0 && length >= 0 && start + length <= chunk.length();
+		this(chunk.bytes(), start, length);
 	}
 
 	@Override
@@ -26,10 +31,7 @@ final class AsciiBufferCharSequence implements CharSequence {
 
 	@Override
 	public char charAt(int index) {
-		if (index < 0 || index >= length) {
-			throw new IndexOutOfBoundsException();
-		}
-		return (char) buffer.get(start + index);
+		return (char) buffer[start + index];
 	}
 
 	@Override
@@ -37,16 +39,11 @@ final class AsciiBufferCharSequence implements CharSequence {
 		if (start < 0 || end > length) {
 			throw new IndexOutOfBoundsException();
 		}
-		return new AsciiBufferCharSequence(buffer, this.start + start, end - start);
+		return new AsciiChunkCharSequence(buffer, this.start + start, end - start);
 	}
 
 	@Override
 	public String toString() {
-		int pos = buffer.position();
-		byte[] bytes = new byte[length];
-		buffer.position(start);
-		buffer.get(bytes);
-		buffer.position(pos);
-		return new String(bytes, java.nio.charset.StandardCharsets.US_ASCII);
+		return new String(buffer, start, length, UTF_8);
 	}
 }

@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import works.bosk.json.codec.JsonReader;
 import works.bosk.json.mapping.Token;
 
-import static java.nio.channels.Channels.newChannel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -138,7 +137,7 @@ class JsonReaderTest {
 	 */
 	private JsonReader readerFor(String json) {
 		ByteArrayInputStream in = new ByteArrayInputStream(json.getBytes(UTF_8));
-		return JsonReader.create(newChannel(in));
+		return JsonReader.create(in);
 	}
 
 	private Token peekToken(JsonReader reader) {

@@ -6,9 +6,9 @@ import works.bosk.json.codec.JsonStringCharacterReader;
  * Implementation of JsonStringCharacterReader.
  */
 public final class JsonStringCharacterReaderImpl implements JsonStringCharacterReader {
-	private final ByteBufferJsonReader reader;
+	private final ByteChunkJsonReader reader;
 
-	public JsonStringCharacterReaderImpl(ByteBufferJsonReader reader) {
+	public JsonStringCharacterReaderImpl(ByteChunkJsonReader reader) {
 		this.reader = reader;
 	}
 

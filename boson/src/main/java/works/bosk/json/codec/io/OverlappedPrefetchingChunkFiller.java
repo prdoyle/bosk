@@ -1,11 +1,12 @@
 package works.bosk.json.codec.io;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.io.InputStream;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ReadableByteChannel;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Uses a virtual thread to read from a channel in the background
@@ -17,26 +18,26 @@ import java.util.concurrent.BlockingQueue;
  * <p>
  * Calling {@link #close()} will close the underlying channel.
  */
-public final class OverlappedPrefetcher implements BufferFiller {
-	private final ReadableByteChannel channel;
-	private final BlockingQueue<ByteBuffer> emptyBuffers;
-	private final BlockingQueue<ByteBuffer> filledBuffers;
+public final class OverlappedPrefetchingChunkFiller implements ChunkFiller {
+	private final InputStream stream;
+	private final BlockingQueue<byte[]> emptyBuffers;
+	private final BlockingQueue<ByteChunk> filledBuffers;
 	private final Thread backgroundThread;
 
-	public OverlappedPrefetcher(ReadableByteChannel channel) {
-		this(channel, 16*1024, 2);
+	public OverlappedPrefetchingChunkFiller(InputStream stream) {
+		this(stream, 20_000, 2);
 	}
 
 	/**
 	 * @param numBuffers if only 1, no overlapping will occur.
 	 */
-	public OverlappedPrefetcher(ReadableByteChannel channel, int bufferSize, int numBuffers) {
-		this.channel = channel;
+	public OverlappedPrefetchingChunkFiller(InputStream stream, int bufferSize, int numBuffers) {
+		this.stream = stream;
 		this.emptyBuffers = new ArrayBlockingQueue<>(numBuffers);
 		this.filledBuffers = new ArrayBlockingQueue<>(numBuffers);
 
 		for (int i = 0; i < numBuffers; i++) {
-			emptyBuffers.add(ByteBuffer.allocate(bufferSize));
+			emptyBuffers.add(new byte[bufferSize]);
 		}
 
 		backgroundThread = Thread.ofVirtual()
@@ -47,15 +48,14 @@ public final class OverlappedPrefetcher implements BufferFiller {
 	private void fillBuffers() {
 		try {
 			while (true) {
-				ByteBuffer buffer = emptyBuffers.take();
-				int read = channel.read(buffer);
-				if (read == -1) {
+				byte[] buffer = emptyBuffers.take();
+				int length = stream.read(buffer);
+				if (length == -1) {
 					filledBuffers.put(EOF_SENTINEL);
 					break;
 				}
 
-				buffer.flip();
-				filledBuffers.put(buffer);
+				filledBuffers.put(new ByteChunk(buffer, length));
 			}
 		} catch (ClosedChannelException _) {
 		} catch (InterruptedException e) {
@@ -69,8 +69,8 @@ public final class OverlappedPrefetcher implements BufferFiller {
 	 * @return the next filled buffer, or null if EOF.
 	 */
 	@Override
-	public ByteBuffer nextBuffer() {
-		ByteBuffer result;
+	public ByteChunk nextChunk() {
+		ByteChunk result;
 		try {
 			result = filledBuffers.take();
 		} catch (InterruptedException e) {
@@ -88,18 +88,21 @@ public final class OverlappedPrefetcher implements BufferFiller {
 	 * Recycle a buffer after use.
 	 */
 	@Override
-	public void recycleBuffer(ByteBuffer buffer) {
-		buffer.clear();
-		emptyBuffers.offer(buffer);
+	public void recycleChunk(ByteChunk chunk) {
+		var succeeded = emptyBuffers.offer(chunk.bytes());
+		if (!succeeded) {
+			LOGGER.debug("Buffer pool full, discarding buffer");
+		}
 	}
 
 	@Override
 	public void close() {
 		backgroundThread.interrupt();
 		try {
-			channel.close();
+			stream.close();
 		} catch (IOException _) {}
 	}
 
-	private static final ByteBuffer EOF_SENTINEL = ByteBuffer.allocate(0);
+	private static final ByteChunk EOF_SENTINEL = new ByteChunk(new byte[0], 0);
+	private static final Logger LOGGER = LoggerFactory.getLogger(OverlappedPrefetchingChunkFiller.class);
 }
