@@ -31,7 +31,7 @@ import static works.bosk.json.mapping.TypeMap.Settings.DEFAULT;
 
 @BenchmarkMode(Throughput)
 @State(Scope.Thread)
-@Fork(0)
+@Fork(3)
 @Warmup(iterations = 8, time = 1)
 @Measurement(iterations = 3, time = 1, timeUnit = SECONDS)
 public class ParseBenchmark {

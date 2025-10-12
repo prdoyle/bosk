@@ -74,7 +74,7 @@ public class ParserSessionImpl {
 
 	protected int peekTokenOrdinal() {
 		Token token = input.peekToken();
-		LOGGER.debug("peekTokenOrdinal: {}", token);
+//		LOGGER.debug("peekTokenOrdinal: {}", token);
 		return token.ordinal();
 	}
 
@@ -97,7 +97,7 @@ public class ParserSessionImpl {
 	}
 
 	protected String previewString() {
-		if (true) {//(LOGGER.isDebugEnabled()) {
+		if (false && LOGGER.isDebugEnabled()) {
 			return input.previewString(10)
 				.replace('\n', ' ')
 				.replace('\r', ' ');
@@ -108,7 +108,7 @@ public class ParserSessionImpl {
 
 	protected void skipTokenWithOrdinal(int ord) {
 		Token token = Token.values()[ord];
-		LOGGER.debug("skipTokenWithOrdinal: {}", token);
+//		LOGGER.debug("skipTokenWithOrdinal: {}", token);
 		skipToken(token);
 	}
 
@@ -168,16 +168,20 @@ public class ParserSessionImpl {
 	}
 
 	protected void logEntry(String methodName) {
-		if (LOGGER.isTraceEnabled()) {
-			LOGGER.trace("{} @ {}: |{}|", methodName, input.currentOffset(), previewString());
+		if (false) {
+			if (LOGGER.isTraceEnabled()) {
+				LOGGER.trace("{} @ {}: |{}|", methodName, input.currentOffset(), previewString());
+			}
 		}
 	}
 	
 	protected void logEntry(String methodName, Object arg) {
-		if (LOGGER.isTraceEnabled()) {
-			LOGGER.trace("{}({}) @ {}: |{}|", methodName, arg, input.currentOffset(), previewString());
+		if (false) {
+			if (LOGGER.isTraceEnabled()) {
+				LOGGER.trace("{}({}) @ {}: |{}|", methodName, arg, input.currentOffset(), previewString());
+			}
+			assert !(arg instanceof JsonValueSpec) : "Why are we passing SpecNodes here instead of in the interpreter?";
 		}
-		assert !(arg instanceof JsonValueSpec): "Why are we passing SpecNodes here instead of in the interpreter?";
 	}
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(ParserSessionImpl.class);
