@@ -1,7 +1,6 @@
 package works.bosk.json.codec.io;
 
 import works.bosk.json.codec.JsonReader;
-import works.bosk.json.codec.JsonStringCharacterReader;
 import works.bosk.json.mapping.Token;
 
 import static java.lang.Math.min;
@@ -57,9 +56,77 @@ public final class CharArrayJsonReader implements JsonReader {
 	}
 
 	@Override
-	public JsonStringCharacterReader processString() {
+	public void startConsumingString() {
+		assert peekToken() == Token.STRING;
 		pos++; // Skip opening quote
-		return new StringCharacterReader();
+	}
+
+	@Override
+	public int nextStringChar() {
+		if (pos >= chars.length) {
+			return -1;
+		}
+		char c = chars[pos++];
+		if (Character.isSurrogate(c)) {
+			if (pos >= chars.length) {
+				// Unpaired surrogate at the end of input.
+				// We're doomed to get a parse error; might
+				// as well return -1 to indicate the end of input
+				// in hopes that will generate a useful error message.
+				return -1;
+			}
+			return Character.toCodePoint(c, chars[pos++]);
+		} else if (c == '"') {
+			return -1;
+		} else if (c == '\\') {
+			if (pos >= chars.length) {
+				// Unfinished backslash sequence at the end of input.
+				// We're doomed to get a parse error; might
+				// as well return -1 to indicate the end of input
+				// in hopes that will generate a useful error message.
+				return -1;
+			}
+			char esc = chars[pos++];
+			return switch (esc) {
+				case '"', '\\', '/' -> esc;
+				case 'b' -> '\b';
+				case 'f' -> '\f';
+				case 'n' -> '\n';
+				case 'r' -> '\r';
+				case 't' -> '\t';
+				case 'u' -> {
+					if (pos + 4 > chars.length) {
+						// Incomplete Unicode escape at the end of input.
+						yield -1;
+					}
+					int value = 0;
+					for (int i = 0; i < 4; i++) {
+						char b = chars[pos++];
+						value <<= 4;
+						value |= Character.digit(b, 16);
+					}
+					yield value;
+				}
+				default -> throw new IllegalStateException("Invalid escape: \\" + esc);
+			};
+		} else {
+			return c;
+		}
+	}
+
+	@Override
+	public void skipStringChars(int n) {
+		for (int i = 0; i < n; i++) {
+			int c = nextStringChar();
+			if (c == -1) {
+				throw new IllegalStateException("Attempt to skip past end of string");
+			}
+		}
+	}
+
+	@Override
+	public void skipToEndOfString() {
+		while (nextStringChar() != -1) { }
 	}
 
 	@Override
@@ -127,76 +194,6 @@ public final class CharArrayJsonReader implements JsonReader {
 		@Override
 		public String toString() {
 			return new String(chars, start, length());
-		}
-	}
-
-	public final class StringCharacterReader implements JsonStringCharacterReader {
-		@Override
-		public int nextChar() {
-			if (pos >= chars.length) {
-				return -1;
-			}
-			char c = chars[pos++];
-			if (Character.isSurrogate(c)) {
-				if (pos >= chars.length) {
-					// Unpaired surrogate at the end of input.
-					// We're doomed to get a parse error; might
-					// as well return -1 to indicate the end of input
-					// in hopes that will generate a useful error message.
-					return -1;
-				}
-				return Character.toCodePoint(c, chars[pos++]);
-			} else if (c == '"') {
-				return -1;
-			} else if (c == '\\') {
-				if (pos >= chars.length) {
-					// Unfinished backslash sequence at the end of input.
-					// We're doomed to get a parse error; might
-					// as well return -1 to indicate the end of input
-					// in hopes that will generate a useful error message.
-					return -1;
-				}
-				char esc = chars[pos++];
-				return switch (esc) {
-					case '"', '\\', '/' -> esc;
-					case 'b' -> '\b';
-					case 'f' -> '\f';
-					case 'n' -> '\n';
-					case 'r' -> '\r';
-					case 't' -> '\t';
-					case 'u' -> {
-						if (pos + 4 > chars.length) {
-							// Incomplete Unicode escape at the end of input.
-							yield -1;
-						}
-						int value = 0;
-						for (int i = 0; i < 4; i++) {
-							char b = chars[pos++];
-							value <<= 4;
-							value |= Character.digit(b, 16);
-						}
-						yield value;
-					}
-					default -> throw new IllegalStateException("Invalid escape: \\" + esc);
-				};
-			} else {
-				return c;
-			}
-		}
-
-		@Override
-		public void skipChars(int n) {
-			for (int i = 0; i < n; i++) {
-				int c = nextChar();
-				if (c == -1) {
-					throw new IllegalStateException("Attempt to skip past end of string");
-				}
-			}
-		}
-
-		@Override
-		public void skipToEnd() {
-			while (nextChar() != -1) { }
 		}
 	}
 }

@@ -149,7 +149,7 @@ class JsonReaderTest {
 		if (token.hasFixedRepresentation()) {
 			reader.consumeFixedToken(token);
 		} else if (token == STRING) {
-			reader.processString().skipToEnd();
+			reader.skipToEndOfString();
 		} else if (token == NUMBER) {
 			reader.consumeNumber();
 		}

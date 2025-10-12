@@ -37,7 +37,6 @@ import org.slf4j.LoggerFactory;
 import works.bosk.json.codec.Codec;
 import works.bosk.json.codec.Generator;
 import works.bosk.json.codec.JsonReader;
-import works.bosk.json.codec.JsonStringCharacterReader;
 import works.bosk.json.codec.Parser;
 import works.bosk.json.codec.compiler.LocalVariableAllocator.LocalVariable;
 import works.bosk.json.codec.interpreter.SpecInterpretingGenerator;
@@ -708,10 +707,8 @@ public class SpecCompiler {
 				);
 
 				codeBuilder.labelBinding(member);
-				LocalVariable stringChars = locals.allocate(REFERENCE);
-				_processString();
-				stringChars.store(codeBuilder);
-				generateCodePointSwitch(trie, fixedMapNode, componentLocalsByName, loop, error, stringChars);
+				_startConsumingString();
+				generateCodePointSwitch(trie, fixedMapNode, componentLocalsByName, loop, error);
 
 				codeBuilder.labelBinding(error);
 				_throwParseError("Unexpected character; was expecting one of " + fixedMapNode.memberSpecs().keySet());
@@ -735,12 +732,6 @@ public class SpecCompiler {
 			}
 		}
 
-		private void _processString() {
-			_loadRuntime();
-			lineInfo(codeBuilder);
-			_callRuntime(JsonStringCharacterReader.class, "processString");
-		}
-
 		private void _loadDefault(TypeKind typeKind) {
 			switch (typeKind.asLoadable()) {
 				case INT -> codeBuilder.iconst_0();
@@ -755,11 +746,11 @@ public class SpecCompiler {
 		/**
 		 * Recursively a nest of switches to match the strings described by the given trie.
 		 */
-		private void generateCodePointSwitch(TrieNode node, FixedMapNode fixedMapNode, Map<String, LocalVariable> componentLocalsByName, Label loop, Label error, LocalVariable stringChars) {
+		private void generateCodePointSwitch(TrieNode node, FixedMapNode fixedMapNode, Map<String, LocalVariable> componentLocalsByName, Label loop, Label error) {
 			LOGGER.debug("generateCodePointSwitch({})", node);
 			switch (node) {
 				case TrieNode.LeafNode(String memberName, int matchedPrefix) -> {
-					_skipToEnd(memberName.length() - matchedPrefix, stringChars);
+					_skipToEnd(memberName.length() - matchedPrefix);
 					var child = fixedMapNode.memberSpecs().get(memberName);
 					LOGGER.debug("-> leaf({})", child);
 					switch (child.valueSpec()) {
@@ -787,11 +778,11 @@ public class SpecCompiler {
 							child = childEdges.getFirst().child();
 						}
 						LOGGER.debug("-> skip({})", numSkips);
-						_skipChars(numSkips, stringChars);
-						generateCodePointSwitch(child, fixedMapNode, componentLocalsByName, loop, error, stringChars);
+						_skipStringChars(numSkips);
+						generateCodePointSwitch(child, fixedMapNode, componentLocalsByName, loop, error);
 					} else {
 						LOGGER.debug("-> switch({})", edges.stream().map(TrieEdge::codePoint).toList());
-						_nextChar(stringChars);
+						_nextStringChar();
 						var cases = edges.stream()
 							.map(e -> SwitchCase.of(e.codePoint(), codeBuilder.newLabel()))
 							.toList();
@@ -799,43 +790,37 @@ public class SpecCompiler {
 						Iterator<TrieEdge> iter = edges.iterator();
 						cases.forEach(c -> {
 							codeBuilder.labelBinding(c.target());
-							generateCodePointSwitch(iter.next().child(), fixedMapNode, componentLocalsByName, loop, error, stringChars);
+							generateCodePointSwitch(iter.next().child(), fixedMapNode, componentLocalsByName, loop, error);
 						});
 					}
 				}
 			}
 		}
 
-		private void _nextChar(LocalVariable stringChars) {
-			stringChars.load(codeBuilder);
+		private void _startConsumingString() {
+			_loadRuntime();
 			lineInfo(codeBuilder, 1);
-			codeBuilder.invokeinterface(classBuilder.constantPool().interfaceMethodRefEntry(
-				cd(JsonStringCharacterReader.class),
-				"nextChar",
-				mtd(int.class))
-			);
+			_callRuntime(void.class, "startConsumingString");
 		}
 
-		private void _skipChars(int numCharsToSkip, LocalVariable stringChars) {
-			stringChars.load(codeBuilder);
+		private void _nextStringChar() {
+			_loadRuntime();
+			lineInfo(codeBuilder, 1);
+			_callRuntime(int.class, "nextStringChar");
+		}
+
+		private void _skipStringChars(int numCharsToSkip) {
+			_loadRuntime();
 			codeBuilder.loadConstant(numCharsToSkip);
 			lineInfo(codeBuilder, 1);
-			codeBuilder.invokeinterface(classBuilder.constantPool().interfaceMethodRefEntry(
-				cd(JsonStringCharacterReader.class),
-				"skipChars",
-				mtd(VOID, int.class))
-			);
+			_callRuntime(void.class, "skipStringChars", int.class);
 		}
 
-		private void _skipToEnd(int remainingLength, LocalVariable stringChars) {
+		private void _skipToEnd(int remainingLength) {
 			// TODO: Take advantage of knowing the length
-			stringChars.load(codeBuilder);
+			_loadRuntime();
 			lineInfo(codeBuilder, 1);
-			codeBuilder.invokeinterface(classBuilder.constantPool().interfaceMethodRefEntry(
-				cd(JsonStringCharacterReader.class),
-				"skipToEnd",
-				mtd(VOID))
-			);
+			_callRuntime(void.class, "skipToEndOfString");
 		}
 
 		private void _skipToken(Token token) {

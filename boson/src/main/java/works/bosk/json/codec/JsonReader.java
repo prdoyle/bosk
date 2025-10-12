@@ -21,6 +21,7 @@ import works.bosk.json.mapping.Token;
  * all unnecessary work.
  */
 public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonReader, CharArrayJsonReader {
+	@Override void close(); // No throws Exception
 
 	/**
 	 * @return a new JsonReader that reads from the given stream.
@@ -52,7 +53,7 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 	 *         for {@link Token#NUMBER}, call {@link #consumeNumber}; or
 	 *     </li>
 	 *     <li>
-	 *         for {@link Token#STRING}, call {@link #processString}.
+	 *         for {@link Token#STRING}, call {@link #startConsumingString}.
 	 *     </li>
 	 * </ul>
 	 *
@@ -100,38 +101,65 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 	 */
 	CharSequence consumeNumber();
 
-	/**
-	 * After {@link #peekToken} returns {@link Token#STRING STRING},
-	 * this returns the characters comprising the string's value.
-	 * Useful when there are opportunities to inspect only parts of the string's contents,
-	 * such as when it's known to be an element of a fixed set of strings,
-	 * leading to highly efficient parsing.
-	 * <p>
-	 * The string input is not actually consumed
-	 * until the returned {@link JsonStringCharacterReader} itself is consumed,
-	 * either by calling {@link JsonStringCharacterReader#skipToEnd() skipToEnd}
-	 * or when {@link JsonStringCharacterReader#nextChar()} returns -1.
-	 * <p>
-	 * TODO: Fold {@link JsonStringCharacterReader}'s methods into this interface to avoid allocation?
-	 *
-	 * @see #consumeStringContents
-	 */
-	JsonStringCharacterReader processString();
+	// String processing, used after peekToken returns STRING
 
 	/**
-	 * A variant of {@link #processString} that adds the entire string's contents
+	 * After {@link #peekToken} returns {@link Token#STRING STRING},
+	 * this prepares to decode the string's contents.
+	 * <p>
+	 * After calling this, the next method called must be one of:
+	 * <ul>
+	 *     <li>
+	 *         {@link #nextStringChar}, to decode the string one character at a time;
+	 *     </li>
+	 *     <li>
+	 *         {@link #skipStringChars}, to skip a known number of characters;
+	 *     </li>
+	 *     <li>
+	 *         {@link #skipToEndOfString}, to skip the rest of the string.
+	 *     </li>
+	 * </ul>
+	 */
+	void startConsumingString();
+
+	/**
+	 * Advances to the next character (code point) in the string.
+	 * @return next decoded code point of the string,
+	 * or -1 to indicate the end of the string,
+	 * at which point the closing quote has been consumed from the input.
+	 */
+	int nextStringChar();
+
+	/**
+	 * Skips exactly n decoded code points, handling escape sequences.
+	 * Useful for skipping known portions of a string.
+	 * @param n number of characters to skip
+	 * @throws IllegalArgumentException if {@code n} is negative
+	 * @throws IllegalStateException if {@code n} is more than the remaining characters in the string
+	 */
+	void skipStringChars(int n);
+
+	/**
+	 * Skips the remainder of the string token, as though {@link #nextStringChar()}
+	 * had been called repeatedly until it returned -1.
+	 * Useful if the rest of the string's value isn't needed.
+	 */
+	void skipToEndOfString();
+
+	/**
+	 * A variant of {@link #startConsumingString} that adds the entire string's contents
 	 * to a given {@link StringBuilder}.
 	 * Handy if you need the entire string.
 	 * <p>
 	 * Consumes the string input, leaving the reader
 	 * ready for the next call to {@link #peekToken}.
 	 *
-	 * @see #processString()
+	 * @see #nextStringChar()
 	 */
 	default void consumeStringContents(StringBuilder sb) {
-		JsonStringCharacterReader sr = processString();
+		startConsumingString();
 		int c;
-		while ((c = sr.nextChar()) != -1) {
+		while ((c = nextStringChar()) != -1) {
 			sb.appendCodePoint(c);
 		}
 	}
@@ -142,12 +170,12 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 		return sb.toString();
 	}
 
+	// Diagnostics etc
+
 	/**
 	 * On a best-effort basis, return the upcoming characters in the input.
 	 */
 	String previewString(int requestedLength);
-
-	@Override void close(); // No throws Exception
 
 	/**
 	 * TODO: Tighten this up

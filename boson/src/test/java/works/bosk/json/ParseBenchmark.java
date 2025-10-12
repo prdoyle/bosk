@@ -39,7 +39,7 @@ import static works.bosk.json.mapping.TypeMap.Settings.DEFAULT;
 @State(Scope.Thread)
 @Fork(0)
 @Warmup(iterations = 8, time = 1)
-@Measurement(iterations = 3, time = 1, timeUnit = SECONDS)
+@Measurement(iterations = 3, time = 30, timeUnit = SECONDS)
 public class ParseBenchmark {
 	private char[] json;
 	private ObjectReader objectReader;
@@ -125,7 +125,7 @@ public class ParseBenchmark {
 		return compiledExperimental.parse(new CharArrayJsonReader(json));
 	}
 
-	@Benchmark
+//	@Benchmark
 	public Object jackson_list() throws IOException {
 		Path file = Path.of("build/bigfiles/1k.json").toAbsolutePath();
 		try (var in = new FileInputStream(file.toFile())) {

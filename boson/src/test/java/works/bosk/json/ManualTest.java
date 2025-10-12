@@ -62,57 +62,57 @@ public class ManualTest {
 			Token token = input.peekToken();
 			switch (token) {
 				case STRING -> { // member name
-					var stringChars = input.processString();
-					switch (stringChars.nextChar()) {
+					input.startConsumingString();
+					switch (input.nextStringChar()) {
 						case 'n' -> {
-							stringChars.skipToEnd();
+							input.skipToEndOfString();
 							nullField = (String) readAnyValue();
 						}
 						case 't' -> {
-							stringChars.skipToEnd();
+							input.skipToEndOfString();
 							trueField = (Boolean) readAnyValue();
 						}
 						case 'f' -> {
-							stringChars.skipToEnd();
+							input.skipToEndOfString();
 							falseField = (Boolean) readAnyValue();
 						}
 						case 'i' -> {
-							stringChars.skipToEnd();
+							input.skipToEndOfString();
 							integerField = readInteger();
 						}
 						case 'r' -> {
-							stringChars.skipToEnd();
+							input.skipToEndOfString();
 							realField = readDecimal();
 						}
 						case 'm' -> {
-							switch (stringChars.nextChar()) {
+							switch (input.nextStringChar()) {
 								case 'a' -> {
-									switch (stringChars.nextChar()) {
+									switch (input.nextStringChar()) {
 										case 'p' -> {
-											stringChars.skipToEnd();
+											input.skipToEndOfString();
 											mapField = readTimeUnitToBigDecimalMap();
 										}
 										case 'y' -> {
-											stringChars.skipToEnd();
+											input.skipToEndOfString();
 											maybeAbsentField = readString();
 										}
 									}
 								}
 								case 'o' -> {
-									stringChars.skipToEnd();
+									input.skipToEndOfString();
 									monthField = Month.fromValue((int) readInteger());
 								}
 							}
 						}
 						case 's' -> {
-							stringChars.skipChars(5);
-							switch (stringChars.nextChar()) {
+							input.skipStringChars(5);
+							switch (input.nextStringChar()) {
 								case 'F' -> {
-									stringChars.skipToEnd();
+									input.skipToEndOfString();
 									stringField = readString();
 								}
 								case 'A' -> {
-									stringChars.skipToEnd();
+									input.skipToEndOfString();
 									stringArrayField = readStringList();
 								}
 								default -> {

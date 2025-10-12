@@ -92,8 +92,21 @@ public class ParserSessionImpl {
 		return input.consumeString();
 	}
 
-	protected JsonStringCharacterReader processString() {
-		return input.processString();
+	protected void startConsumingString() {
+		assert input.peekToken() == Token.STRING;
+		input.startConsumingString();
+	}
+
+	protected int nextStringChar() {
+		return input.nextStringChar();
+	}
+
+	protected void skipStringChars(int n) {
+		input.skipStringChars(n);
+	}
+
+	protected void skipToEndOfString() {
+		input.skipToEndOfString();
 	}
 
 	protected String previewString() {
