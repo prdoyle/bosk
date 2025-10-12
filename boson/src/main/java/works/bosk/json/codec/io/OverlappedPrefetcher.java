@@ -4,8 +4,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ReadableByteChannel;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * Uses a virtual thread to read from a channel in the background
@@ -17,23 +17,23 @@ import java.util.concurrent.LinkedBlockingQueue;
  * <p>
  * Calling {@link #close()} will close the underlying channel.
  */
-final class OverlappedPrefetcher implements BufferFiller {
+public final class OverlappedPrefetcher implements BufferFiller {
 	private final ReadableByteChannel channel;
 	private final BlockingQueue<ByteBuffer> emptyBuffers;
 	private final BlockingQueue<ByteBuffer> filledBuffers;
 	private final Thread backgroundThread;
 
-	OverlappedPrefetcher(ReadableByteChannel channel) {
+	public OverlappedPrefetcher(ReadableByteChannel channel) {
 		this(channel, 16*1024, 2);
 	}
 
 	/**
 	 * @param numBuffers if only 1, no overlapping will occur.
 	 */
-	OverlappedPrefetcher(ReadableByteChannel channel, int bufferSize, int numBuffers) {
+	public OverlappedPrefetcher(ReadableByteChannel channel, int bufferSize, int numBuffers) {
 		this.channel = channel;
-		this.emptyBuffers = new LinkedBlockingQueue<>(numBuffers);
-		this.filledBuffers = new LinkedBlockingQueue<>(numBuffers);
+		this.emptyBuffers = new ArrayBlockingQueue<>(numBuffers);
+		this.filledBuffers = new ArrayBlockingQueue<>(numBuffers);
 
 		for (int i = 0; i < numBuffers; i++) {
 			emptyBuffers.add(ByteBuffer.allocate(bufferSize));

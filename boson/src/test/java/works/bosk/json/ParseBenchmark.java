@@ -2,7 +2,10 @@ package works.bosk.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.List;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -17,10 +20,13 @@ import works.bosk.json.TestUtils.Month;
 import works.bosk.json.TestUtils.OneOfEach;
 import works.bosk.json.codec.CodecBuilder;
 import works.bosk.json.codec.Parser;
+import works.bosk.json.codec.io.ByteBufferJsonReader;
 import works.bosk.json.codec.io.CharArrayJsonReader;
+import works.bosk.json.codec.io.SynchronousBufferFiller;
 import works.bosk.json.mapping.TypeMap;
 import works.bosk.json.mapping.TypeScanner;
 import works.bosk.json.mapping.spec.JsonValueSpec;
+import works.bosk.json.types.BoundType;
 import works.bosk.json.types.DataType;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -31,20 +37,23 @@ import static works.bosk.json.mapping.TypeMap.Settings.DEFAULT;
 
 @BenchmarkMode(Throughput)
 @State(Scope.Thread)
-@Fork(3)
+@Fork(0)
 @Warmup(iterations = 8, time = 1)
 @Measurement(iterations = 3, time = 1, timeUnit = SECONDS)
 public class ParseBenchmark {
 	private char[] json;
 	private ObjectReader objectReader;
+	private ObjectReader listReader;
 	private ManualTest manualTest;
 	private Parser interpreter;
 	private Parser interpreterExperimental;
 	private Parser compiled;
 	private Parser compiledExperimental;
+	private Parser listParser;
 
 	@Setup(Level.Iteration) // Called once per iteration
 	public void setup() {
+		BoundType listOfOneOfEach = new BoundType(List.class, DataType.of(OneOfEach.class));
 		Class<?> targetClass;
 		if (true) {
 			targetClass = OneOfEach.class;
@@ -73,20 +82,24 @@ public class ParseBenchmark {
 		TypeScanner experimentalTS = new TypeScanner(DEFAULT.withFewerSwitches());
 		experimentalTS.specify(DataType.of(Month.class), Month.specNode());
 		experimentalTS.scan(targetType);
+		experimentalTS.scan(listOfOneOfEach);
 		var experimentalTypeMap = experimentalTS.build();
 		JsonValueSpec experimentalSpec = experimentalTypeMap.get(targetType);
 		interpreterExperimental = CodecBuilder.of(experimentalTypeMap)
 			.buildInterpreter().parserFor(experimentalSpec);
 		compiledExperimental = CodecBuilder.of(experimentalTypeMap)
 			.buildCompiled().parserFor(experimentalSpec);
+
+		listReader = objectMapper.readerForListOf(OneOfEach.class);
+		listParser = CodecBuilder.of(experimentalTypeMap).buildCompiled().parserFor(experimentalTypeMap.get(listOfOneOfEach));
 	}
 
-	@Benchmark
+//	@Benchmark
 	public Object jackson() throws IOException {
 		return objectReader.readValue(new java.io.CharArrayReader(json));
 	}
 
-	@Benchmark
+//	@Benchmark
 	public Object manual() throws IOException {
 		manualTest.init();
 		return manualTest.parse();
@@ -107,8 +120,27 @@ public class ParseBenchmark {
 		return compiled.parse(new CharArrayJsonReader(json));
 	}
 
-	@Benchmark
+//	@Benchmark
 	public Object compiled_experimental() throws IOException {
 		return compiledExperimental.parse(new CharArrayJsonReader(json));
+	}
+
+//	@Benchmark
+	public Object jackson_list() throws IOException {
+		Path file = Path.of("build/bigfiles/1k.json").toAbsolutePath();
+		try (var in = new FileInputStream(file.toFile())) {
+			return listReader.readValue(in);
+		}
+	}
+
+	@Benchmark
+	public Object compiled_list() throws IOException {
+		Path file = Path.of("build/bigfiles/1k.json").toAbsolutePath();
+		try (
+			var in = new FileInputStream(file.toFile());
+			var channel = in.getChannel()
+		) {
+			return listParser.parse(new ByteBufferJsonReader(new SynchronousBufferFiller(channel)));
+		}
 	}
 }

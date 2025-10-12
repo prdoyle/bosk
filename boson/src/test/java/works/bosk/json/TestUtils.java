@@ -1,5 +1,6 @@
 package works.bosk.json;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -8,10 +9,13 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 import works.bosk.json.mapping.Nullable;
 import works.bosk.json.mapping.spec.JsonValueSpec;
 import works.bosk.json.mapping.spec.ParseCallbackSpec;
@@ -21,6 +25,7 @@ import works.bosk.json.mapping.spec.handles.TypedHandles;
 import works.bosk.json.types.DataType;
 import works.bosk.json.types.KnownType;
 
+import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 import static java.lang.invoke.MethodHandles.explicitCastArguments;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -78,8 +83,24 @@ public class TestUtils {
 		Map<TimeUnit, BigDecimal> mapField,
 		Month monthField,
 		String computedField,
-		String maybeAbsentField
+		@JsonInclude(NON_NULL) String maybeAbsentField
 	){
+		public static OneOfEach random(Random r) {
+			return new OneOfEach(
+				r.nextBoolean()? null : "notNull_" + r.nextInt(1000),
+				r.nextBoolean(),
+				r.nextBoolean(),
+				r.nextInt(10000),
+				r.nextDouble() * 1000.0,
+				"str_" + r.nextInt(1000),
+				r.ints(r.nextInt(1000), 0, 1000).mapToObj(i-> "str_" + i).toList(),
+				Map.of(TimeUnit.SECONDS, BigDecimal.valueOf(r.nextDouble() * 1000.0)),
+				Month.values()[r.nextInt(Month.values().length)],
+				"computed_" + r.nextInt(1000),
+				r.nextBoolean()? null : "maybeAbsent_" + r.nextInt(1000)
+			);
+		}
+
 		public OneOfEach withComputedField(String computedField) {
 			return new OneOfEach(
 				nullField,
@@ -172,4 +193,26 @@ public class TestUtils {
 	}
 
 	private static final AtomicLong callbackCounter = new AtomicLong(123);
+
+	static void main() throws IOException {
+		Path targetDir = Path.of("build/bigfiles");
+		targetDir.toFile().mkdirs();
+		writeRandomToFile(targetDir.resolve("1k.json"), 1_000);
+		writeRandomToFile(targetDir.resolve("10k.json"), 10_000);
+		writeRandomToFile(targetDir.resolve("100k.json"), 100_000);
+	}
+
+	public static void writeRandomToFile(Path file, int count) throws IOException {
+		System.out.println("Writing " + count + " entries to " + file.toAbsolutePath());
+		var r = new Random(123);
+		var list = Stream
+			.generate(()->OneOfEach.random(r))
+			.limit(count)
+			.toList();
+		var jackson = new ObjectMapper().writerWithDefaultPrettyPrinter();
+		try (var writer = new java.io.FileWriter(file.toFile())) {
+			jackson.writeValue(writer, list);
+		}
+	}
+
 }
