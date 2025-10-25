@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
-import java.util.function.Function;
 import works.bosk.BoskInfo;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -81,18 +80,23 @@ public class BosonSerializer extends StateTreeSerializer {
 								default -> str ->
 									bosk.rootReference().then(Object.class, Path.parse(str));
 							};
-						Function<String, Reference<?>> fromRepresentation = str -> {
-							try {
-								return parser.parse(str);
-							} catch (InvalidTypeException e) {
-								throw new IllegalArgumentException("Failed to parse Reference path: " + str, e);
-							}
-						};
-						return RepresentAsSpec.as(
+						return RepresentAsSpec.of(
 							new StringNode(),
-							referenceType,
-							(Reference<?> ref) -> ref.path().urlEncoded(),
-							fromRepresentation
+							new RepresentAsSpec.Wrangler<Reference<?>,String>() {
+								@Override
+								public String toRepresentation(Reference<?> ref) {
+									return ref.path().urlEncoded();
+								}
+
+								@Override
+								public Reference<?> fromRepresentation(String str) {
+									try {
+										return parser.parse(str);
+									} catch (InvalidTypeException e) {
+										throw new IllegalArgumentException("Failed to parse Reference path: " + str, e);
+									}
+								}
+							}
 						);
 					}
 					default -> throw new IllegalStateException("Unexpected Reference type: " + referenceType);
