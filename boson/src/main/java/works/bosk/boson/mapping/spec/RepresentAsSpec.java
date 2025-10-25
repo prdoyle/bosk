@@ -7,6 +7,7 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
+import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 
@@ -51,6 +52,30 @@ public record RepresentAsSpec(
 	@Override
 	public String briefIdentifier() {
 		return "RepresentAs_" + dataType().rawClass().getSimpleName();
+	}
+
+	public interface Wrangler<V,R> {
+		R toRepresentation(V value);
+		V fromRepresentation(R representation);
+	}
+
+	public static RepresentAsSpec of(JsonValueSpec spec, Wrangler<?,?> wrangler) {
+		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
+		KnownType valueType = (KnownType) wranglerType.parameterType(Wrangler.class, 0);
+		assert valueType.isFullyKnown();
+		KnownType representationType = (KnownType) wranglerType.parameterType(Wrangler.class, 1);
+		assert representationType.isFullyKnown();
+		return new RepresentAsSpec(
+			spec,
+			new TypedHandle(
+				WRANGLER_TO_REPRESENTATION.bindTo(wrangler).asType(methodType(representationType.rawClass(), valueType.rawClass())),
+				representationType, List.of(valueType)
+			),
+			new TypedHandle(
+				WRANGLER_FROM_REPRESENTATION.bindTo(wrangler).asType(methodType(valueType.rawClass(), representationType.rawClass())),
+				valueType, List.of(representationType)
+			)
+		);
 	}
 
 	/**
@@ -100,12 +125,16 @@ public record RepresentAsSpec(
 	private static final MethodHandle FUNCTION_APPLY;
 	private static final MethodHandle TO_INT_FUNCTION_APPLY;
 	private static final MethodHandle INT_FUNCTION_APPLY;
+	private static final MethodHandle WRANGLER_TO_REPRESENTATION;
+	private static final MethodHandle WRANGLER_FROM_REPRESENTATION;
 
 	static {
 		try {
 			FUNCTION_APPLY = MethodHandles.lookup().unreflect(Function.class.getMethod("apply", Object.class));
 			TO_INT_FUNCTION_APPLY = MethodHandles.lookup().unreflect(ToIntFunction.class.getMethod("applyAsInt", Object.class));
 			INT_FUNCTION_APPLY = MethodHandles.lookup().unreflect(IntFunction.class.getMethod("apply", int.class));
+			WRANGLER_TO_REPRESENTATION = MethodHandles.lookup().unreflect(Wrangler.class.getMethod("toRepresentation", Object.class));
+			WRANGLER_FROM_REPRESENTATION = MethodHandles.lookup().unreflect(Wrangler.class.getMethod("fromRepresentation", Object.class));
 		} catch (IllegalAccessException | NoSuchMethodException e) {
 			throw new IllegalStateException("Unexpected error looking up Function.apply", e);
 		}
