@@ -94,4 +94,9 @@ public sealed interface DataType permits KnownType, UnknownType {
 	}
 
 	DataType substitute(Map<String, DataType> actualArguments);
+
+	/**
+	 * @return true if this type has no {@link UnknownType} or {@link ErasedType} components.
+	 */
+	boolean isFullyKnown();
 }

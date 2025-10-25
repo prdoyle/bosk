@@ -19,6 +19,11 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 	}
 
 	@Override
+	public boolean isFullyKnown() {
+		return true;
+	}
+
+	@Override
 	public String toString() {
 		return rawClass.getSimpleName();
 	}
