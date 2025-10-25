@@ -28,4 +28,9 @@ public record ErasedType(Class<?> rawClass) implements InstanceType {
 	public ErasedType substitute(Map<String, DataType> actualArguments) {
 		return this;
 	}
+
+	@Override
+	public boolean isFullyKnown() {
+		return false;
+	}
 }

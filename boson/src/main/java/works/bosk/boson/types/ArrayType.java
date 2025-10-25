@@ -20,6 +20,11 @@ public record ArrayType(KnownType elementType) implements KnownType {
 	}
 
 	@Override
+	public boolean isFullyKnown() {
+		return elementType.isFullyKnown();
+	}
+
+	@Override
 	public String toString() {
 		return elementType + "[]";
 	}

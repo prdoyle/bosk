@@ -82,8 +82,11 @@ public record ArrayAccumulator(
 	public static ArrayAccumulator of(Wrangler<?,?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.of(wrangler.getClass());
 		KnownType accumulatorType = (KnownType) wranglerType.parameterType(Wrangler.class, 0);
+		assert accumulatorType.isFullyKnown();
 		KnownType elementType = (KnownType) wranglerType.parameterType(Wrangler.class, 1);
+		assert elementType.isFullyKnown();
 		KnownType resultType = (KnownType) wranglerType.parameterType(Wrangler.class, 2);
+		assert resultType.isFullyKnown();
 
 		return new ArrayAccumulator(
 			new TypedHandle(

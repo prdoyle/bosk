@@ -82,8 +82,11 @@ public record ArrayEmitter(
 	public static ArrayEmitter of(Wrangler<?,?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.of(wrangler.getClass());
 		KnownType arrayType = (KnownType) wranglerType.parameterType(Wrangler.class, 0);
+		assert arrayType.isFullyKnown();
 		KnownType iteratorType = (KnownType) wranglerType.parameterType(Wrangler.class, 1);
+		assert iteratorType.isFullyKnown();
 		KnownType elementType = (KnownType) wranglerType.parameterType(Wrangler.class, 2);
+		assert elementType.isFullyKnown();
 
 		return new ArrayEmitter(
 			new TypedHandle(

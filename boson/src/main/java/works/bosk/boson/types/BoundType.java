@@ -119,10 +119,16 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 
 	@Override
 	public String toString() {
+		String simpleName = this.rawClass().getSimpleName();
+		if (simpleName.isEmpty()) {
+			// Anonymous classes
+			simpleName = this.rawClass().getName();
+			simpleName = simpleName.substring(simpleName.lastIndexOf('.') + 1);
+		}
 		if (this.bindings().isEmpty()) {
-			return this.rawClass().getSimpleName();
+			return simpleName;
 		} else {
-			return this.rawClass().getSimpleName() + "<"
+			return simpleName + "<"
 				+ this.bindings().stream()
 				.map(DataType::toString)
 				.collect(joining(","))
@@ -145,5 +151,10 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 		return new BoundType(rawClass, bindings.stream()
 			.map(ta -> ta.substitute(actualArguments))
 			.toList());
+	}
+
+	@Override
+	public boolean isFullyKnown() {
+		return bindings.stream().allMatch(DataType::isFullyKnown);
 	}
 }

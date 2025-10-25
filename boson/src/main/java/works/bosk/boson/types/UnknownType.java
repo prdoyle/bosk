@@ -5,4 +5,7 @@ package works.bosk.boson.types;
  * Also includes {@link ErasedType}.
  */
 sealed public interface UnknownType extends DataType permits TypeVariable, UnknownArrayType, WildcardType {
+	default boolean isFullyKnown() {
+		return false;
+	}
 }
