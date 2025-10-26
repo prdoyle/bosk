@@ -1,5 +1,7 @@
 package works.bosk.boson.mapping.spec;
 
+import java.util.Map;
+import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 
 /**
@@ -11,11 +13,6 @@ public record MaybeNullSpec(JsonValueSpec child) implements JsonValueSpec {
 		assert !child.dataType().rawClass().isPrimitive();
 	}
 
-	@Override
-	public String toString() {
-		return child + "?";
-	}
-
 	public KnownType dataType() {
 		return this.child().dataType();
 	}
@@ -23,5 +20,15 @@ public record MaybeNullSpec(JsonValueSpec child) implements JsonValueSpec {
 	@Override
 	public String briefIdentifier() {
 		return "NullOr_" + child().briefIdentifier();
+	}
+
+	@Override
+	public MaybeNullSpec substitute(Map<String, DataType> actualArguments) {
+		return new MaybeNullSpec(child.substitute(actualArguments));
+	}
+
+	@Override
+	public String toString() {
+		return child + "?";
 	}
 }

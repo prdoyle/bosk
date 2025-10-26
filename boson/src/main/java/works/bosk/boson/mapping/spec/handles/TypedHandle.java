@@ -6,6 +6,8 @@ import java.lang.invoke.MethodType;
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 
 import static java.lang.invoke.MethodType.methodType;
@@ -55,6 +57,18 @@ public record TypedHandle(
 		resultParameterTypes.remove(parameterIndex);
 		resultParameterTypes.addAll(parameter.parameterTypes());
 		return new TypedHandle(resultHandle, returnType, resultParameterTypes);
+	}
+
+	public TypedHandle substitute(Map<String, DataType> actualArguments) {
+		KnownType returnType = this.returnType.substitute(actualArguments);
+		List<KnownType> parameterTypes = this.parameterTypes.stream()
+			.map(t -> t.substitute(actualArguments))
+			.toList();
+
+		// TODO: Any cases where type casts are required?
+		// I can't think of any, given that the parameterTypes and returnType
+		// must already be KnownTypes.
+		return new TypedHandle(this.handle, returnType, parameterTypes);
 	}
 
 	@Override

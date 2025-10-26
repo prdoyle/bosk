@@ -3,6 +3,7 @@ package works.bosk.boson.mapping.spec;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
@@ -52,6 +53,15 @@ public record RepresentAsSpec(
 	@Override
 	public String briefIdentifier() {
 		return "RepresentAs_" + dataType().rawClass().getSimpleName();
+	}
+
+	@Override
+	public RepresentAsSpec substitute(Map<String, DataType> actualArguments) {
+		return new RepresentAsSpec(
+			representation.substitute(actualArguments),
+			toRepresentation.substitute(actualArguments),
+			fromRepresentation.substitute(actualArguments)
+		);
 	}
 
 	public interface Wrangler<V,R> {

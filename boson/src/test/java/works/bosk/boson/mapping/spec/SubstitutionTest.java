@@ -1,0 +1,63 @@
+package works.bosk.boson.mapping.spec;
+
+import java.lang.invoke.MethodHandles;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import works.bosk.boson.mapping.TypeMap;
+import works.bosk.boson.mapping.TypeScanner;
+import works.bosk.boson.mapping.spec.handles.TypedHandle;
+import works.bosk.boson.types.DataType;
+import works.bosk.boson.types.KnownType;
+import works.bosk.boson.types.TypeReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.boson.mapping.TypeMap.Settings.SHALLOW;
+import static works.bosk.boson.types.DataType.STRING;
+
+public class SubstitutionTest {
+	/**
+	 * Note: since {@link TypedHandle} requires the types to be {@link KnownType},
+	 * we can't make {@code TypedHandle} with type variables directly,
+	 * so instead we use {@code List<T>} when we want to put a type
+	 * variable into a {@code TypedHandle}.
+	 */
+	public static final KnownType LIST_OF_STRING = DataType.known(new TypeReference<List<String>>() { });
+
+	/**
+	 * Useful for building up spec node trees for testing
+	 */
+	TypeScanner scanner = new TypeScanner(SHALLOW);
+
+	@Test
+	<T> void arrayNode() {
+		DataType unknownType = DataType.of(new TypeReference<List<List<T>>>() { });
+		DataType knownType   = DataType.of(new TypeReference<List<List<String>>>() { });
+		TypeMap typeMap = scanner.scan(unknownType).build();
+		var original = typeMap.get(unknownType);
+		var actual = (ArrayNode) original.substitute(Map.of("T", STRING));
+
+		// It's tricky to construct the expected node exactly, since its MethodHandles
+		// don't implement the kind of equals we'd need, so we check the properties
+		// we care about.
+		assertEquals(knownType, actual.dataType());
+		assertEquals(LIST_OF_STRING, actual.elementNode().dataType());
+		assertEquals(LIST_OF_STRING, actual.accumulator().elementType());
+		assertEquals(LIST_OF_STRING, actual.emitter().elementType());
+	}
+
+	@Test
+	<T> void fixedMap() {
+		record TestRecord<T>(T field) {}
+		DataType unknownType = DataType.of(new TypeReference<TestRecord<List<T>>>() { });
+		DataType knownType = DataType.of(new TypeReference<TestRecord<List<String>>>() { });
+		var original = scanner
+			.use(MethodHandles.lookup())
+			.scan(unknownType)
+			.build()
+			.get(unknownType);
+		FixedMapNode actual = (FixedMapNode) original.substitute(Map.of("T", STRING));
+		assertEquals(knownType, actual.dataType());
+		assertEquals(LIST_OF_STRING, actual.finisher().parameterTypes().get(0));
+	}
+}

@@ -1,7 +1,9 @@
 package works.bosk.boson.mapping.spec;
 
+import java.util.Map;
 import works.bosk.boson.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.boson.mapping.spec.handles.ObjectEmitter;
+import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 
 /**
@@ -37,5 +39,15 @@ public record UniformMapNode(
 	@Override
 	public String briefIdentifier() {
 		return "Uniform_" + dataType().rawClass().getSimpleName();
+	}
+
+	@Override
+	public UniformMapNode substitute(Map<String, DataType> actualArguments) {
+		return new UniformMapNode(
+			keyNode.substitute(actualArguments),
+			valueNode.substitute(actualArguments),
+			accumulator.substitute(actualArguments),
+			emitter.substitute(actualArguments)
+		);
 	}
 }

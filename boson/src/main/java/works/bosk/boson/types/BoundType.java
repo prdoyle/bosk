@@ -154,6 +154,20 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 	}
 
 	@Override
+	public Map<String, DataType> bindingsFor(DataType other) {
+		assert this.isAssignableFrom(other);
+		return switch(other) {
+			case BoundType(var _, var otherBindings) -> {
+				var result = new HashMap<String, DataType>();
+				var iter = otherBindings.iterator();
+				this.bindings.forEach(b -> result.putAll(b.bindingsFor(iter.next())));
+				yield Map.copyOf(result);
+			}
+			default -> throw new IllegalArgumentException("wat");
+		};
+	}
+
+	@Override
 	public boolean isFullyKnown() {
 		return bindings.stream().allMatch(DataType::isFullyKnown);
 	}

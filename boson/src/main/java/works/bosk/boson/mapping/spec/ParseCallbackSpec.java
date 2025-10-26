@@ -2,7 +2,9 @@ package works.bosk.boson.mapping.spec;
 
 import java.lang.invoke.MethodHandle;
 import java.util.List;
+import java.util.Map;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
+import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 
 import static works.bosk.boson.types.DataType.VOID;
@@ -45,5 +47,14 @@ public record ParseCallbackSpec(
 	@Override
 	public String briefIdentifier() {
 		return "ParseCallback";
+	}
+
+	@Override
+	public ParseCallbackSpec substitute(Map<String, DataType> actualArguments) {
+		return new ParseCallbackSpec(
+			before.substitute(actualArguments),
+			child.substitute(actualArguments),
+			after.substitute(actualArguments)
+		);
 	}
 }

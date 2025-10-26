@@ -90,6 +90,7 @@ public class TypeScanner {
 	 */
 	public TypeScanner scan(DataType type) {
 		var node = inProgress.computeIfAbsent(type, this::computeSpecNode);
+		assert type.equals(node.dataType());
 
 		// TODO: The following happens every time we scan a type, even if we've scanned it before.
 
@@ -228,7 +229,9 @@ public class TypeScanner {
 	}
 
 	public TypeMap build() {
-		scanRefs();
+		if (!settings().shallowScan()) {
+			scanRefs();
+		}
 		scanBundleTypes();
 		inProgress.freeze();
 		LOGGER.debug("Initial TypeMap:\n{}", inProgress.knownTypes().stream()
@@ -398,6 +401,9 @@ public class TypeScanner {
 
 	public static ArrayAccumulator listAccumulator(BoundType arrayListType) {
 		assert arrayListType.rawClass().isAssignableFrom(ArrayList.class);
+		if (!(arrayListType.parameterType(List.class, 0) instanceof KnownType elementType)) {
+			throw new IllegalStateException("Can't accumulate into a list of unknown element type: " + arrayListType);
+		}
 		MethodHandle creator, listAdd, finisher;
 		try {
 			creator = MethodHandles.lookup().unreflectConstructor(ArrayList.class.getConstructor());
@@ -407,12 +413,14 @@ public class TypeScanner {
 			throw new IllegalStateException("Unexpected error doing reflection on List", e);
 		}
 		var upcastCreator = creator.asType(creator.type().changeReturnType(List.class));
-		var integrator = listAdd.asType(listAdd.type().changeReturnType(void.class));
+		var integrator = listAdd.asType(listAdd.type()
+			.changeReturnType(void.class)
+			.changeParameterType(1, elementType.rawClass()));
 		var upcastFinisher = finisher.asType(finisher.type().changeReturnType(arrayListType.rawClass()));
 		var listType = new BoundType(List.class, arrayListType.bindings());
 		return new ArrayAccumulator(
 			new TypedHandle(upcastCreator, listType, List.of()),
-			new TypedHandle(integrator, DataType.VOID, List.of(listType, DataType.OBJECT)),
+			new TypedHandle(integrator, DataType.VOID, List.of(listType, elementType)),
 			new TypedHandle(upcastFinisher, arrayListType, List.of(listType))
 		);
 	}
@@ -527,11 +535,12 @@ public class TypeScanner {
 			);
 		return new FixedMapNode(
 			collect,
-			recordFinisher(recordClass, collect)
+			recordFinisher(recordType, collect)
 		);
 	}
 
-	private TypedHandle recordFinisher(Class<?> recordClass, Map<String, FixedMapMember> componentsByName) {
+	private TypedHandle recordFinisher(KnownType recordType, Map<String, FixedMapMember> componentsByName) {
+		Class<?> recordClass = recordType.rawClass();
 		assert Record.class.isAssignableFrom(recordClass);
 		assert componentsByName.keySet().equals(
 			Stream.of(recordClass.getRecordComponents())
@@ -550,7 +559,7 @@ public class TypeScanner {
 		List<KnownType> memberTypes = componentsByName.values().stream().map(FixedMapMember::dataType).toList();
 		return new TypedHandle(
 			constructor.asType(methodType(recordClass, memberTypes.stream().map(KnownType::rawClass).toArray(Class<?>[]::new))),
-			DataType.known(recordClass),
+			recordType,
 			memberTypes);
 	}
 

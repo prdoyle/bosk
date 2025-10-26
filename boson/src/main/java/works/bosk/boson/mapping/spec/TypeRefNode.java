@@ -1,6 +1,7 @@
 package works.bosk.boson.mapping.spec;
 
 import java.lang.reflect.Type;
+import java.util.Map;
 import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 
@@ -22,11 +23,6 @@ public record TypeRefNode (
 		return new TypeRefNode(DataType.known(type));
 	}
 
-	@Override
-	public String toString() {
-		return "@" + type;
-	}
-
 	public KnownType dataType() {
 		return type();
 	}
@@ -34,5 +30,15 @@ public record TypeRefNode (
 	@Override
 	public String briefIdentifier() {
 		return "Ref_" + type().rawClass().getSimpleName();
+	}
+
+	@Override
+	public TypeRefNode substitute(Map<String, DataType> actualArguments) {
+		return new TypeRefNode(type.substitute(actualArguments));
+	}
+
+	@Override
+	public String toString() {
+		return "@" + type;
 	}
 }

@@ -4,6 +4,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Gatherer;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.types.BoundType;
@@ -61,6 +62,14 @@ public record ArrayAccumulator(
 
 	public KnownType resultType() {
 		return finisher.returnType();
+	}
+
+	public ArrayAccumulator substitute(Map<String, DataType> actualArguments) {
+		return new ArrayAccumulator(
+			creator.substitute(actualArguments),
+			integrator.substitute(actualArguments),
+			finisher.substitute(actualArguments)
+		);
 	}
 
 	@Override

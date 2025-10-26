@@ -4,6 +4,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.List;
+import java.util.Map;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
@@ -61,6 +62,14 @@ public record ArrayEmitter(
 	 */
 	public KnownType elementType() {
 		return next.returnType();
+	}
+
+	public ArrayEmitter substitute(Map<String, DataType> actualArguments) {
+		return new ArrayEmitter(
+			start.substitute(actualArguments),
+			hasNext.substitute(actualArguments),
+			next.substitute(actualArguments)
+		);
 	}
 
 	@Override
