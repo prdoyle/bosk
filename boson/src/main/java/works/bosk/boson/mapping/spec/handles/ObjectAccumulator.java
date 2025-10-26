@@ -1,7 +1,9 @@
 package works.bosk.boson.mapping.spec.handles;
 
+import java.util.Map;
 import java.util.stream.Gatherer;
 import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 
 import static works.bosk.boson.types.DataType.VOID;
@@ -59,6 +61,14 @@ public record ObjectAccumulator(
 
 	public KnownType resultType() {
 		return finisher.returnType();
+	}
+
+	public ObjectAccumulator substitute(Map<String, DataType> actualArguments) {
+		return new ObjectAccumulator(
+			creator.substitute(actualArguments),
+			integrator.substitute(actualArguments),
+			finisher.substitute(actualArguments)
+		);
 	}
 
 	@Override

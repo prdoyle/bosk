@@ -25,6 +25,15 @@ public record ArrayType(KnownType elementType) implements KnownType {
 	}
 
 	@Override
+	public Map<String, DataType> bindingsFor(DataType other) {
+		assert this.isAssignableFrom(other);
+		return switch (other) {
+			case ArrayType(var e) -> elementType.bindingsFor(e);
+			default -> throw new IllegalArgumentException("wat");
+		};
+	}
+
+	@Override
 	public String toString() {
 		return elementType + "[]";
 	}

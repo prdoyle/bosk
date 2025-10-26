@@ -95,6 +95,8 @@ public sealed interface DataType permits KnownType, UnknownType {
 
 	DataType substitute(Map<String, DataType> actualArguments);
 
+	Map<String, DataType> bindingsFor(DataType other);
+
 	/**
 	 * @return true if this type has no {@link UnknownType} or {@link ErasedType} components.
 	 */

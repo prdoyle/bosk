@@ -1,6 +1,8 @@
 package works.bosk.boson.mapping.spec;
 
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.SequencedMap;
 import java.util.function.Function;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
@@ -73,4 +75,14 @@ public record FixedMapNode(
 		return "Fixed_" + dataType().rawClass().getSimpleName();
 	}
 
+	@Override
+	public FixedMapNode substitute(Map<String, DataType> actualArguments) {
+		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
+		this.memberSpecs.forEach((name, member) ->
+			memberSpecs.put(name, member.substitute(actualArguments)));
+		return new FixedMapNode(
+			memberSpecs,
+			this.finisher.substitute(actualArguments)
+		);
+	}
 }

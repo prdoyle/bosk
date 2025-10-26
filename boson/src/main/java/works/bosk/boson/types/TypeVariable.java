@@ -34,4 +34,11 @@ public record TypeVariable(String name) implements UnknownType {
 			return this;
 		}
 	}
+
+	@Override
+	public Map<String, DataType> bindingsFor(DataType other) {
+		// This is where the rubber meets the road:
+		// we're binding this variable to `other`.
+		return Map.of(name, other);
+	}
 }

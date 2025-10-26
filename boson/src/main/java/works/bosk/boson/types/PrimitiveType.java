@@ -19,6 +19,11 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 	}
 
 	@Override
+	public Map<String, DataType> bindingsFor(DataType other) {
+		return Map.of();
+	}
+
+	@Override
 	public boolean isFullyKnown() {
 		return true;
 	}

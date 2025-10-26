@@ -30,6 +30,11 @@ public record ErasedType(Class<?> rawClass) implements InstanceType {
 	}
 
 	@Override
+	public Map<String, DataType> bindingsFor(DataType other) {
+		return Map.of();
+	}
+
+	@Override
 	public boolean isFullyKnown() {
 		return false;
 	}

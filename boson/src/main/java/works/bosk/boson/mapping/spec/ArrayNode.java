@@ -1,7 +1,9 @@
 package works.bosk.boson.mapping.spec;
 
+import java.util.Map;
 import works.bosk.boson.mapping.spec.handles.ArrayAccumulator;
 import works.bosk.boson.mapping.spec.handles.ArrayEmitter;
+import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 
 public record ArrayNode(
@@ -29,5 +31,14 @@ public record ArrayNode(
 	@Override
 	public String briefIdentifier() {
 		return elementNode().briefIdentifier() + "_Array";
+	}
+
+	@Override
+	public ArrayNode substitute(Map<String, DataType> actualArguments) {
+		return new ArrayNode(
+			elementNode.substitute(actualArguments),
+			accumulator.substitute(actualArguments),
+			emitter.substitute(actualArguments)
+		);
 	}
 }
