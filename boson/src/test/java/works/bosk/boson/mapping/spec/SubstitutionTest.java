@@ -41,6 +41,8 @@ public class SubstitutionTest {
 		// don't implement the kind of equals we'd need, so we check the properties
 		// we care about.
 		assertEquals(knownType, actual.dataType());
+		assertEquals(knownType, actual.accumulator().resultType());
+		assertEquals(knownType, actual.emitter().dataType());
 		assertEquals(LIST_OF_STRING, actual.elementNode().dataType());
 		assertEquals(LIST_OF_STRING, actual.accumulator().elementType());
 		assertEquals(LIST_OF_STRING, actual.emitter().elementType());
@@ -58,6 +60,24 @@ public class SubstitutionTest {
 			.get(unknownType);
 		FixedMapNode actual = (FixedMapNode) original.substitute(Map.of("T", STRING));
 		assertEquals(knownType, actual.dataType());
-		assertEquals(LIST_OF_STRING, actual.finisher().parameterTypes().get(0));
+		assertEquals(LIST_OF_STRING, actual.finisher().parameterTypes().getFirst());
+	}
+
+	@Test
+	<T> void uniformMap() {
+		DataType unknownType = DataType.of(new TypeReference<Map<String, List<T>>>() { });
+		DataType knownType = DataType.of(new TypeReference<Map<String, List<String>>>() { });
+		var original = scanner
+			.use(MethodHandles.lookup())
+			.scan(unknownType)
+			.build()
+			.get(unknownType);
+		UniformMapNode actual = (UniformMapNode) original.substitute(Map.of("T", STRING));
+		assertEquals(knownType, actual.dataType());
+		assertEquals(knownType, actual.accumulator().resultType());
+		assertEquals(knownType, actual.emitter().dataType());
+		assertEquals(LIST_OF_STRING, actual.valueNode().dataType());
+		assertEquals(LIST_OF_STRING, actual.accumulator().valueType());
+		assertEquals(LIST_OF_STRING, actual.emitter().getValue().returnType());
 	}
 }

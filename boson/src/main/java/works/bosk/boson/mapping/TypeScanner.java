@@ -449,6 +449,10 @@ public class TypeScanner {
 
 	public static ObjectAccumulator mapAccumulator(BoundType linkedHashMapType) {
 		assert linkedHashMapType.rawClass().isAssignableFrom(LinkedHashMap.class);
+		if (!(linkedHashMapType.parameterType(Map.class, 0) instanceof KnownType keyType) ||
+			!(linkedHashMapType.parameterType(Map.class, 1) instanceof KnownType valueType)) {
+			throw new IllegalStateException("Can't accumulate into a map of unknown key or value type: " + linkedHashMapType);
+		}
 		MethodHandle creator, mapPut, finisher;
 		try {
 			creator = MethodHandles.lookup().unreflectConstructor(LinkedHashMap.class.getConstructor());
@@ -458,11 +462,15 @@ public class TypeScanner {
 			throw new IllegalStateException("Unexpected error doing reflection on List", e);
 		}
 		var upcastCreator = creator.asType(creator.type().changeReturnType(Map.class));
-		var integrator = mapPut.asType(mapPut.type().changeReturnType(void.class));
+		var integrator = mapPut.asType(mapPut.type()
+			.changeReturnType(void.class)
+			.changeParameterType(1, keyType.rawClass())
+			.changeParameterType(2, valueType.rawClass())
+		);
 		var mapType = new BoundType(Map.class, linkedHashMapType.bindings());
 		return new ObjectAccumulator(
 			new TypedHandle(upcastCreator, mapType, List.of()),
-			new TypedHandle(integrator, DataType.VOID, List.of(mapType, DataType.OBJECT, DataType.OBJECT)),
+			new TypedHandle(integrator, DataType.VOID, List.of(mapType, keyType, valueType)),
 			new TypedHandle(finisher, linkedHashMapType, List.of(mapType))
 		);
 	}
