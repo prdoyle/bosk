@@ -90,7 +90,8 @@ public class TypeScanner {
 	 */
 	public TypeScanner scan(DataType type) {
 		var node = inProgress.computeIfAbsent(type, this::computeSpecNode);
-		assert type.equals(node.dataType());
+		assert type.equals(node.dataType()):
+			"Node must have datatype " + type + " but has " + node.dataType() + ": " + node;
 
 		// TODO: The following happens every time we scan a type, even if we've scanned it before.
 

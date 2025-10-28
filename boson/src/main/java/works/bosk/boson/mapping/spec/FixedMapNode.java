@@ -36,18 +36,19 @@ public record FixedMapNode(
 	 * This will naturally be less efficient, as it requires an array allocation.
 	 */
 	public static FixedMapNode withArrayFinisher(
+		KnownType resultType,
 		SequencedMap<String, FixedMapMember> memberSpecs,
 		Function<Object[], ?> arrayFinisher
 	) {
 		KnownType objectArray = DataType.known(new TypeReference<Object[]>() {});
 		var finisherHandle = TypedHandles.function(
 			objectArray,
-			DataType.OBJECT,
+			resultType,
 			arrayFinisher);
 		var collectorMH = finisherHandle.handle()
 			.asCollector(Object[].class, memberSpecs.size());
 		var castMH = collectorMH.asType(
-			methodType(Object.class,
+			methodType(resultType.rawClass(),
 				memberSpecs.values().stream()
 					.map(FixedMapMember::valueSpec)
 					.map(SpecNode::dataType)
