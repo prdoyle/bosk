@@ -72,7 +72,8 @@ public record RepresentAsSpec(
 	public static RepresentAsSpec of(JsonValueSpec spec, Wrangler<?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
 		KnownType valueType = (KnownType) wranglerType.parameterType(Wrangler.class, 0);
-		assert valueType.isFullyKnown();
+		assert valueType.isFullyKnown():
+			"Value type " + valueType + " must be fully known";
 		KnownType representationType = (KnownType) wranglerType.parameterType(Wrangler.class, 1);
 		assert representationType.isFullyKnown();
 		return new RepresentAsSpec(

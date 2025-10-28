@@ -257,6 +257,7 @@ public class BosonSerializer extends StateTreeSerializer {
 						));
 					});
 					yield FixedMapNode.withArrayFinisher(
+						taggedUnionType,
 						members,
 						(Object[] args) -> {
 							for (var arg: args) {
