@@ -60,11 +60,18 @@ import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memb
 
 public class BosonSerializer extends StateTreeSerializer {
 
-	public <E extends Entity, T> // Some type variables to use in directives
-	TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
+	public <
+		// Some type variables to use in directives
+		T,
+		E extends Entity,
+		V extends VariantCase
+	> TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
 		MethodHandles.Lookup lookup = MethodHandles.lookup();
 
 		var directives = new ArrayList<Directive>();
+
+		// References are a bit repetitive because we have four
+		// different kinds, and they're all very similar.
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<CatalogReference<E>>(){}),
@@ -201,7 +208,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		);
 
 		directives.add(new Directive(
-			DataType.of(new TypeReference<Catalog<? extends Entity>>(){}),
+			DataType.of(new TypeReference<Catalog<E>>(){}),
 			catalogType -> switch (catalogType) {
 				case BoundType bt -> {
 					KnownType representation = new BoundType(
@@ -210,7 +217,7 @@ public class BosonSerializer extends StateTreeSerializer {
 							DataType.known(Identifier.class),
 							bt.parameterType(Catalog.class, 0)
 						));
-					yield RepresentAsSpec.<Catalog<?>, Map<Identifier, ? extends Entity>>as(
+					yield RepresentAsSpec.<Catalog<E>, Map<Identifier, E>>as(
 						preScan(representation, simpleScanBundle),
 						catalogType,
 						Catalog::asMap,
@@ -222,7 +229,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(new Directive(
-			DataType.of(new TypeReference<Listing<?>>(){}),
+			DataType.of(new TypeReference<Listing<E>>(){}),
 			listingType -> switch (listingType) {
 				case BoundType bt -> {
 					var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
@@ -231,14 +238,14 @@ public class BosonSerializer extends StateTreeSerializer {
 					var domainRefType = new BoundType(
 						Reference.class,
 						new BoundType(Catalog.class, entryType));
-					TypedHandle domainAccessor = TypedHandles.<Listing<?>, Reference<?>>function(
+					TypedHandle domainAccessor = TypedHandles.<Listing<E>, CatalogReference<E>>function(
 						DataType.known(Listing.class),
 						domainRefType,
 						Listing::domain);
 					memberSpecs.put("domain", new FixedMapMember(new TypeRefNode(domainRefType), domainAccessor));
 
 					var idsType = new BoundType(List.class, DataType.known(Identifier.class));
-					TypedHandle idsAccessor = TypedHandles.<Listing<?>, List<?>>function(
+					TypedHandle idsAccessor = TypedHandles.<Listing<E>, List<Identifier>>function(
 						DataType.known(Listing.class),
 						idsType,
 						listing -> List.copyOf(listing.ids()));
@@ -261,11 +268,11 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(new Directive(
-			DataType.of(new TypeReference<SideTable<?,?>>() { }),
+			DataType.of(new TypeReference<SideTable<E,T>>() { }),
 			sideTableType -> switch (sideTableType) {
 				case BoundType bt -> {
 					var representation = new BoundType(SideTableRepresentation.class, bt.bindings());
-					yield RepresentAsSpec.<SideTable<?,?>, SideTableRepresentation<?,?>>as(
+					yield RepresentAsSpec.<SideTable<E,T>, SideTableRepresentation<E,T>>as(
 						preScan(representation, simpleScanBundle),
 						sideTableType,
 						SideTableRepresentation::fromSideTable,
@@ -278,7 +285,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(new Directive(
-			DataType.of(new TypeReference<TaggedUnion<?>>(){}),
+			DataType.of(new TypeReference<TaggedUnion<V>>(){}),
 			taggedUnionType -> switch (taggedUnionType) {
 				case BoundType bt -> {
 					var caseStaticType = (KnownType) bt.parameterType(TaggedUnion.class, 0);
@@ -295,11 +302,11 @@ public class BosonSerializer extends StateTreeSerializer {
 							DataType.known(caseType),
 							() -> null)); // This is a signal to the finisher that the case is absent
 						var presenceCondition = MemberPresenceCondition.enclosingObject(
-							TypedHandles.<TaggedUnion<?>, Boolean>function(
+							TypedHandles.<TaggedUnion<V>, Boolean>function(
 								taggedUnionType,
 								DataType.BOOLEAN,
 								tu -> name.equals(tu.variant().tag())));
-						var accessor = TypedHandles.<TaggedUnion<?>, Object>function(
+						var accessor = TypedHandles.<TaggedUnion<V>, Object>function(
 							taggedUnionType,
 							DataType.known(caseType),
 							TaggedUnion::variant);
@@ -374,15 +381,15 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(new Directive(
-			DataType.of(new TypeReference<ListValue<?>>(){}),
+			DataType.of(new TypeReference<ListValue<T>>(){}),
 			listValueType -> switch (listValueType) {
 				case BoundType bt -> {
 					KnownType elementType = (KnownType) bt.parameterType(ListValue.class, 0);
 					@SuppressWarnings("unchecked")
-					var factory = listValueFactory((Class<ListValue<Object>>)listValueType.leastUpperBoundClass());
+					var factory = listValueFactory((Class<ListValue<T>>)listValueType.leastUpperBoundClass());
 					Object[] arrayArchetype = (Object[]) Array.newInstance(elementType.rawClass(), 0);
 					var listSpec = preScan(new BoundType(List.class, List.of(elementType)), simpleScanBundle);
-					yield RepresentAsSpec.<ListValue<?>,List<?>>as(
+					yield RepresentAsSpec.<ListValue<T>,List<T>>as(
 						listSpec,
 						listValueType,
 						lv -> lv,
@@ -394,7 +401,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(new Directive(
-			DataType.of(new TypeReference<MapValue<?>>(){}),
+			DataType.of(new TypeReference<MapValue<T>>(){}),
 			mapValueType -> switch (mapValueType) {
 				case BoundType bt -> {
 					KnownType representation = new BoundType(
@@ -407,7 +414,7 @@ public class BosonSerializer extends StateTreeSerializer {
 					yield RepresentAsSpec.as(
 						preScan(representation, simpleScanBundle),
 						mapValueType,
-						(MapValue<?> mv) -> (Map<String,?>) mv,
+						(MapValue<T> mv) -> (Map<String,T>) mv,
 						MapValue::copyOf
 					);
 				}
