@@ -170,6 +170,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		// TODO: I wonder why this is necessary? When do we ever actually encounter a ListingEntry?
+		// I get stack overflows in SpecInterpretingGenerator without it.
 		directives.add(new Directive(
 			DataType.of(ListingEntry.class),
 			listingEntryType -> RepresentAsSpec.as(
@@ -180,6 +181,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
+		// TODO: Is this really a bosk thing? Should this be built into boson?
 		directives.add(new Directive(
 			DataType.of(char.class),
 			charType -> RepresentAsSpec.as(
@@ -210,6 +212,14 @@ public class BosonSerializer extends StateTreeSerializer {
 			DataType.of(new TypeReference<Listing<E>>(){}),
 			listingType -> switch (listingType) {
 				case BoundType bt -> {
+					// We could have used RepresentAsSpec here, like for SideTable,
+					// but using FixedTypeNode directly avoids instantiating the representation object,
+					// so this shows what the code would look like if we try to do this efficiently.
+					// It's pretty cumbersome.
+					// Perhaps there's a way to make a FixedMapNode wrangler that would simplify this?
+					// The hard part is the finisher, which has varying numbers of arguments,
+					// but perhaps we could make a few to handle small numbers of arguments.
+
 					var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
 
 					var entryType = (KnownType) bt.parameterType(Listing.class, 0);
