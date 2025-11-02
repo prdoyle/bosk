@@ -46,13 +46,13 @@ public record RepresentAsSpec(
 	}
 
 	@Override
-	public KnownType dataType() {
+	public DataType dataType() {
 		return fromRepresentation().returnType();
 	}
 
 	@Override
 	public String briefIdentifier() {
-		return "RepresentAs_" + dataType().rawClass().getSimpleName();
+		return "RepresentAs_" + dataType().leastUpperBoundClass().getSimpleName();
 	}
 
 	@Override
@@ -71,19 +71,17 @@ public record RepresentAsSpec(
 
 	public static RepresentAsSpec of(JsonValueSpec spec, Wrangler<?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
-		KnownType valueType = (KnownType) wranglerType.parameterType(Wrangler.class, 0);
-		assert valueType.isFullyKnown():
-			"Value type " + valueType + " must be fully known";
-		KnownType representationType = (KnownType) wranglerType.parameterType(Wrangler.class, 1);
+		DataType valueType = wranglerType.parameterType(Wrangler.class, 0);
+		DataType representationType = wranglerType.parameterType(Wrangler.class, 1);
 		assert representationType.isFullyKnown();
 		return new RepresentAsSpec(
 			spec,
 			new TypedHandle(
-				WRANGLER_TO_REPRESENTATION.bindTo(wrangler).asType(methodType(representationType.rawClass(), valueType.rawClass())),
+				WRANGLER_TO_REPRESENTATION.bindTo(wrangler).asType(methodType(representationType.leastUpperBoundClass(), valueType.leastUpperBoundClass())),
 				representationType, List.of(valueType)
 			),
 			new TypedHandle(
-				WRANGLER_FROM_REPRESENTATION.bindTo(wrangler).asType(methodType(valueType.rawClass(), representationType.rawClass())),
+				WRANGLER_FROM_REPRESENTATION.bindTo(wrangler).asType(methodType(valueType.leastUpperBoundClass(), representationType.leastUpperBoundClass())),
 				valueType, List.of(representationType)
 			)
 		);
@@ -98,11 +96,11 @@ public record RepresentAsSpec(
 		Function<V,R> toRepresentation,
 		Function<R,V> fromRepresentation
 	) {
-		KnownType representationType = representation.dataType();
+		DataType representationType = representation.dataType();
 		MethodHandle toHandle = FUNCTION_APPLY.bindTo(toRepresentation).asType(
-			methodType(representationType.rawClass(), dataType.rawClass()));
+			methodType(representationType.leastUpperBoundClass(), dataType.rawClass()));
 		MethodHandle fromHandle = FUNCTION_APPLY.bindTo(fromRepresentation).asType(
-			methodType(dataType.rawClass(), representationType.rawClass()));
+			methodType(dataType.rawClass(), representationType.leastUpperBoundClass()));
 		return new RepresentAsSpec(
 			representation,
 			new TypedHandle(toHandle, representationType, List.of(dataType)),

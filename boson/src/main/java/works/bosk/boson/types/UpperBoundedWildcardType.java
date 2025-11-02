@@ -4,8 +4,8 @@ import java.util.Map;
 
 public record UpperBoundedWildcardType(DataType upperBound) implements WildcardType {
 	@Override
-	public String toString() {
-		return "? extends " + upperBound;
+	public Class<?> leastUpperBoundClass() {
+		return upperBound.leastUpperBoundClass();
 	}
 
 	@Override
@@ -16,5 +16,10 @@ public record UpperBoundedWildcardType(DataType upperBound) implements WildcardT
 	@Override
 	public UpperBoundedWildcardType substitute(Map<String, DataType> actualArguments) {
 		return new UpperBoundedWildcardType(upperBound.substitute(actualArguments));
+	}
+
+	@Override
+	public String toString() {
+		return "? extends " + upperBound;
 	}
 }

@@ -4,7 +4,6 @@ import java.util.Map;
 import java.util.stream.Gatherer;
 import works.bosk.boson.mapping.spec.UniformMapNode;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 import static works.bosk.boson.types.DataType.VOID;
 
@@ -51,15 +50,15 @@ public record ObjectAccumulator(
 		assert finisher.parameterTypes().getFirst().isAssignableFrom(creator.returnType());
 	}
 
-	public KnownType keyType() {
+	public DataType keyType() {
 		return integrator.parameterTypes().get(1);
 	}
 
-	public KnownType valueType() {
+	public DataType valueType() {
 		return integrator.parameterTypes().get(2);
 	}
 
-	public KnownType resultType() {
+	public DataType resultType() {
 		return finisher.returnType();
 	}
 

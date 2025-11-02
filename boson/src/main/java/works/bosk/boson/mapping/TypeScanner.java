@@ -66,7 +66,7 @@ import static works.bosk.boson.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER
  * and then {@link #build() builds} an optimized {@link TypeMap}.
  */
 public class TypeScanner {
-	final Map<KnownType, TypeRefNode> refs = new LinkedHashMap<>();
+	final Map<DataType, TypeRefNode> refs = new LinkedHashMap<>();
 	final TypeMap inProgress;
 	final Deque<Bundle> bundles = new ArrayDeque<>();
 	final Map<Class<? extends Record>, Map<String, FixedMapMember>> recordComponentOverrides = new HashMap<>();
@@ -199,7 +199,7 @@ public class TypeScanner {
 
 	// TODO: A variant of Directive that takes a JsonValueSpec. Then we know we can use the same JsonValueSpec every time
 	// rather than being required to ask this spec function to generate a new one each time
-	public record Directive(DataType pattern, Function<KnownType, JsonValueSpec> spec) {}
+	public record Directive(DataType pattern, Function<DataType, JsonValueSpec> spec) {}
 
 	/**
 	 * Adds a new configuration bundle that takes precedence over previously added bundles.
@@ -269,10 +269,14 @@ public class TypeScanner {
 	}
 
 	private JsonValueSpec computeSpecNode(DataType type) {
-		if (type instanceof KnownType kt && findDirective(kt) instanceof Directive(var pattern, var specFunction)) {
+		if (findDirective(type) instanceof Directive(var pattern, var specFunction)) {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
-			JsonValueSpec spec = specFunction.apply(kt);
-			LOGGER.debug("Type {} using {}", type, spec);
+			var spec = specFunction.apply(type);
+			LOGGER.debug("Directive returned {}", spec);
+			if (!spec.dataType().isFullyKnown()) {
+				spec = spec.substitute(type.typeArguments());
+				LOGGER.debug("Specialized: {}", spec);
+			}
 			return scrapeRefs(spec);
 		}
 		return switch (type) {
@@ -289,7 +293,7 @@ public class TypeScanner {
 		switch (spec) {
 			case TypeRefNode n -> {
 				LOGGER.debug("Found type reference to {}", n.type());
-				if (n.type().rawClass().equals(Map.class)) {
+				if (n.type().leastUpperBoundClass().equals(Map.class)) {
 					LOGGER.trace("IT'S A MAP");
 				}
 				refs.putIfAbsent(n.type(), n);
@@ -314,7 +318,7 @@ public class TypeScanner {
 		return spec;
 	}
 
-	private Directive findDirective(KnownType type) {
+	private Directive findDirective(DataType type) {
 		for (var bundle : bundles) {
 			for (var directive : bundle.directives()) {
 				if (directive.pattern().isAssignableFrom(type)) {
@@ -565,9 +569,9 @@ public class TypeScanner {
 		} catch (NoSuchMethodException | IllegalAccessException e) {
 			throw new IllegalStateException("Unexpected error accessing record constructor for " + recordClass, e);
 		}
-		List<KnownType> memberTypes = componentsByName.values().stream().map(FixedMapMember::dataType).toList();
+		List<DataType> memberTypes = componentsByName.values().stream().map(FixedMapMember::dataType).toList();
 		return new TypedHandle(
-			constructor.asType(methodType(recordClass, memberTypes.stream().map(KnownType::rawClass).toArray(Class<?>[]::new))),
+			constructor.asType(methodType(recordClass, memberTypes.stream().map(DataType::leastUpperBoundClass).toArray(Class<?>[]::new))),
 			recordType,
 			memberTypes);
 	}

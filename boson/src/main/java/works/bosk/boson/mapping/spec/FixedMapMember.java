@@ -6,7 +6,6 @@ import java.util.Map;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 /**
  * Specifies a member of a {@link FixedMapNode}.
@@ -29,7 +28,7 @@ public record FixedMapMember(
 		);
 	}
 
-	public KnownType dataType() {
+	public DataType dataType() {
 		return valueSpec.dataType();
 	}
 

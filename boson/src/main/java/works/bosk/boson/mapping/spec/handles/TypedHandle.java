@@ -15,8 +15,8 @@ import static java.util.Objects.requireNonNull;
 
 public record TypedHandle(
 	MethodHandle handle,
-	KnownType returnType,
-	List<KnownType> parameterTypes
+	DataType returnType,
+	List<? extends DataType> parameterTypes
 ) {
 	public TypedHandle {
 		requireNonNull(returnType);
@@ -30,11 +30,18 @@ public record TypedHandle(
 			: "Method handle type " + handle.type() + " does not match expected type " + equivalentMethodType(returnType, parameterTypes);
 	}
 
-	private static MethodType equivalentMethodType(KnownType returnType, List<KnownType> parameterTypes) {
+	private static MethodType equivalentMethodType(DataType returnType, List<? extends DataType> parameterTypes) {
 		return methodType(
-			returnType.rawClass(),
-			parameterTypes.stream().map(KnownType::rawClass).toArray(Class<?>[]::new)
+			equivalentClass(returnType),
+			parameterTypes.stream().map(TypedHandle::equivalentClass).toArray(Class<?>[]::new)
 		);
+	}
+
+	private static Class<?> equivalentClass(DataType dataType) {
+		return switch (dataType) {
+			case KnownType kt -> kt.rawClass();
+			default -> Object.class;
+		};
 	}
 
 	public Object invoke(Object... args) {
@@ -53,15 +60,15 @@ public record TypedHandle(
 			.asType(parameter.handle.type()
 				.changeReturnType(handle.type().parameterType(parameterIndex)));
 		var resultHandle = MethodHandles.collectArguments(handle, parameterIndex, parameterHandle);
-		List<KnownType> resultParameterTypes = new ArrayList<>(parameterTypes());
+		List<DataType> resultParameterTypes = new ArrayList<>(parameterTypes());
 		resultParameterTypes.remove(parameterIndex);
 		resultParameterTypes.addAll(parameter.parameterTypes());
 		return new TypedHandle(resultHandle, returnType, resultParameterTypes);
 	}
 
 	public TypedHandle substitute(Map<String, DataType> actualArguments) {
-		KnownType returnType = this.returnType.substitute(actualArguments);
-		List<KnownType> parameterTypes = this.parameterTypes.stream()
+		DataType returnType = this.returnType.substitute(actualArguments);
+		List<DataType> parameterTypes = this.parameterTypes.stream()
 			.map(t -> t.substitute(actualArguments))
 			.toList();
 
@@ -73,7 +80,7 @@ public record TypedHandle(
 
 	@Override
 	public String toString() {
-		return "(" + String.join(", ", parameterTypes.stream().map(KnownType::toString).toList()) + ")->" + returnType;
+		return "(" + String.join(", ", parameterTypes.stream().map(DataType::toString).toList()) + ")->" + returnType;
 	}
 
 }

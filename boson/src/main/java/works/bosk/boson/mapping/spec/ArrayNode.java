@@ -4,7 +4,6 @@ import java.util.Map;
 import works.bosk.boson.mapping.spec.handles.ArrayAccumulator;
 import works.bosk.boson.mapping.spec.handles.ArrayEmitter;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 public record ArrayNode(
 	JsonValueSpec elementNode,
@@ -24,7 +23,7 @@ public record ArrayNode(
 	}
 
 	@Override
-	public KnownType dataType() {
+	public DataType dataType() {
 		return accumulator.resultType();
 	}
 

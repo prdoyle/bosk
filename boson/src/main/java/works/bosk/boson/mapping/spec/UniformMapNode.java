@@ -4,7 +4,6 @@ import java.util.Map;
 import works.bosk.boson.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.boson.mapping.spec.handles.ObjectEmitter;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 /**
  * @param keyNode must specify a JSON <em>string</em>. Can also accept a {@link TypeRefNode}
@@ -32,13 +31,13 @@ public record UniformMapNode(
 	}
 
 	@Override
-	public KnownType dataType() {
+	public DataType dataType() {
 		return accumulator.resultType();
 	}
 
 	@Override
 	public String briefIdentifier() {
-		return "Uniform_" + dataType().rawClass().getSimpleName();
+		return "Uniform_" + dataType().leastUpperBoundClass().getSimpleName();
 	}
 
 	@Override

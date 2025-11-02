@@ -20,9 +20,9 @@ public record FixedMapNode(
 ) implements ObjectSpec {
 	public FixedMapNode {
 		assert finisher.parameterTypes().size() == memberSpecs.size();
-		Iterator<KnownType> iter = finisher.parameterTypes().iterator();
+		Iterator<? extends DataType> iter = finisher.parameterTypes().iterator();
 		memberSpecs.forEach((name, member) -> {
-			KnownType finisherParameter = iter.next();
+			DataType finisherParameter = iter.next();
 			assert finisherParameter.isAssignableFrom(member.valueSpec().dataType()):
 				"Finisher parameter type " + finisherParameter +
 				" is not assignable from member '" + name +
@@ -36,7 +36,7 @@ public record FixedMapNode(
 	 * This will naturally be less efficient, as it requires an array allocation.
 	 */
 	public static FixedMapNode withArrayFinisher(
-		KnownType resultType,
+		DataType resultType,
 		SequencedMap<String, FixedMapMember> memberSpecs,
 		Function<Object[], ?> arrayFinisher
 	) {
@@ -48,11 +48,11 @@ public record FixedMapNode(
 		var collectorMH = finisherHandle.handle()
 			.asCollector(Object[].class, memberSpecs.size());
 		var castMH = collectorMH.asType(
-			methodType(resultType.rawClass(),
+			methodType(resultType.leastUpperBoundClass(),
 				memberSpecs.values().stream()
 					.map(FixedMapMember::valueSpec)
 					.map(SpecNode::dataType)
-					.map(KnownType::rawClass)
+					.map(DataType::leastUpperBoundClass)
 					.toArray(Class<?>[]::new)
 			)
 		);
@@ -67,13 +67,13 @@ public record FixedMapNode(
 	}
 
 	@Override
-	public KnownType dataType() {
+	public DataType dataType() {
 		return finisher.returnType();
 	}
 
 	@Override
 	public String briefIdentifier() {
-		return "Fixed_" + dataType().rawClass().getSimpleName();
+		return "Fixed_" + dataType().leastUpperBoundClass().getSimpleName();
 	}
 
 	@Override

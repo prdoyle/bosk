@@ -56,11 +56,11 @@ public record ArrayAccumulator(
 		assert finisher.parameterTypes().getFirst().isAssignableFrom(creator.returnType());
 	}
 
-	public KnownType elementType() {
+	public DataType elementType() {
 		return integrator.parameterTypes().getLast();
 	}
 
-	public KnownType resultType() {
+	public DataType resultType() {
 		return finisher.returnType();
 	}
 
