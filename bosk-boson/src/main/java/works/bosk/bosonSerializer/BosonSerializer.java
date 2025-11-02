@@ -6,7 +6,6 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,14 +31,12 @@ import works.bosk.StateTreeNode;
 import works.bosk.StateTreeSerializer;
 import works.bosk.TaggedUnion;
 import works.bosk.VariantCase;
-import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.TypeScanner;
 import works.bosk.boson.mapping.TypeScanner.Directive;
 import works.bosk.boson.mapping.spec.BooleanNode;
 import works.bosk.boson.mapping.spec.ComputedSpec;
 import works.bosk.boson.mapping.spec.FixedMapMember;
 import works.bosk.boson.mapping.spec.FixedMapNode;
-import works.bosk.boson.mapping.spec.JsonValueSpec;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
@@ -193,35 +190,20 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
-		// At this point, we have a few simple types available.
-		// The remainder are more complex, and so they benefit from leveraging the TypeScanner
-		// to do an initial data structure scan which we then modify.
-		// We call this the "pre-scan", and it benefits from having the simple types above available.
-		TypeScanner.Bundle simpleScanBundle = new TypeScanner.Bundle(
-			List.of(DataType.of(ListingEntry.class)),
-			List.of(lookup),
-			List.copyOf(directives)
-		);
-
 		directives.add(new Directive(
 			DataType.of(new TypeReference<Catalog<E>>(){}),
-			catalogType -> switch (catalogType) {
-				case BoundType bt -> {
-					KnownType representation = new BoundType(
-						Map.class,
-						List.of(
-							DataType.known(Identifier.class),
-							bt.parameterType(Catalog.class, 0)
-						));
-					yield RepresentAsSpec.<Catalog<E>, Map<Identifier, E>>as(
-						preScan(representation, simpleScanBundle),
-						catalogType,
-						Catalog::asMap,
-						map -> Catalog.of(map.values()) // TODO: validate ids?
-					);
+			_ -> RepresentAsSpec.of(new RepresentAsSpec.Wrangler<Catalog<E>, Map<Identifier, E>>() {
+				@Override
+				public Map<Identifier, E> toRepresentation(Catalog<E> value) {
+					return value.asMap();
 				}
-				default -> throw new IllegalStateException("Unexpected Catalog type: " + catalogType);
-			}
+
+				@Override
+				public Catalog<E> fromRepresentation(Map<Identifier, E> representation) {
+					// TODO: validate ids?
+					return Catalog.of(representation.values());
+				}
+			})
 		));
 
 		directives.add(new Directive(
@@ -291,7 +273,7 @@ public class BosonSerializer extends StateTreeSerializer {
 					}
 					SequencedMap<String, FixedMapMember> members = new LinkedHashMap<>();
 					variantCaseMap.forEach((name, caseType) -> {
-						var ifPresent = preScan(caseType, simpleScanBundle);
+						var ifPresent = new TypeRefNode(DataType.of(caseType));
 						var ifAbsent = new ComputedSpec(TypedHandles.supplier(
 							DataType.known(caseType),
 							() -> null)); // This is a signal to the finisher that the case is absent
@@ -330,51 +312,6 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(new Directive(
-			new UpperBoundedWildcardType(DataType.of(StateTreeNode.class)),
-			stateTreeNodeType -> switch (stateTreeNodeType) {
-				case BoundType bt -> {
-					// Configure the preScan so it does the right thing with Optional and Phantom components
-					Class<? extends Record> recordClass = bt.rawClass().asSubclass(Record.class);
-					Map<String, FixedMapMember> componentsByName = new HashMap<>();
-					for (var rc: recordClass.getRecordComponents()) {
-						if (Optional.class.isAssignableFrom(rc.getType())) {
-							var valueType = ReferenceUtils.parameterType(rc.getGenericType(), Optional.class, 0);
-							var elementType = new TypeRefNode(DataType.known(valueType));
-							var ifPresent = RepresentAsSpec.<Optional<?>,Object>as(
-								elementType,
-								DataType.known(rc.getGenericType()),
-								Optional::get,
-								Optional::of
-							);
-							var ifAbsent = new ComputedSpec(TypedHandles.supplier(DataType.known(rc.getGenericType()),
-								Optional::empty));
-							var presenceCondition = memberValue(TypedHandles.<Optional<?>>predicate(DataType.known(rc.getGenericType()),
-								Optional::isPresent));
-							componentsByName.put(rc.getName(), new FixedMapMember(
-								new MaybeAbsentSpec(ifPresent, ifAbsent, presenceCondition),
-								TypedHandles.componentAccessor(rc, lookup)
-							));
-						} else if (Phantom.class.isAssignableFrom(rc.getType())) {
-							componentsByName.put(rc.getName(), new FixedMapMember(
-								new ComputedSpec(TypedHandles.supplier(DataType.known(rc.getGenericType()),
-									Phantom::empty)),
-								TypedHandles.componentAccessor(rc, lookup)
-							));
-						}
-					}
-
-					// Now, with this in place, a shallow preScan returns the right thing
-					yield preScan(bt,
-						new TypeScanner(TypeMap.Settings.SHALLOW)
-							.specifyRecordFields(recordClass, componentsByName),
-						simpleScanBundle
-					);
-				}
-				default -> throw new IllegalStateException("Unexpected StateTreeNode type: " + stateTreeNodeType);
-			}
-		));
-
-		directives.add(new Directive(
 			DataType.of(new TypeReference<ListValue<T>>(){}),
 			listValueType -> switch (listValueType) {
 				case BoundType bt -> {
@@ -400,24 +337,65 @@ public class BosonSerializer extends StateTreeSerializer {
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<MapValue<T>>(){}),
-			mapValueType -> switch (mapValueType) {
+			_ -> RepresentAsSpec.of(new RepresentAsSpec.Wrangler<MapValue<T>, Map<String, T>>() {
+				@Override
+				public Map<String, T> toRepresentation(MapValue<T> value) {
+					return value; // MapValue is a Map
+				}
+
+				@Override
+				public MapValue<T> fromRepresentation(Map<String, T> representation) {
+					return MapValue.copyOf(representation);
+				}
+			})));
+
+		directives.add(new Directive(
+			new UpperBoundedWildcardType(DataType.of(StateTreeNode.class)),
+			stateTreeNodeType -> switch (stateTreeNodeType) {
 				case BoundType bt -> {
-					KnownType representation = new BoundType(
-						Map.class,
-						List.of(
-							DataType.known(String.class),
-							bt.parameterType(MapValue.class, 0)
-						)
-					);
-					yield RepresentAsSpec.as(
-						preScan(representation, simpleScanBundle),
-						mapValueType,
-						(MapValue<T> mv) -> (Map<String,T>) mv,
-						MapValue::copyOf
+					Class<? extends Record> recordClass = bt.rawClass().asSubclass(Record.class);
+					SequencedMap<String, FixedMapMember> componentsByName = new LinkedHashMap<>();
+					for (var rc : recordClass.getRecordComponents()) {
+						// Look for record components requiring special handling
+						if (Optional.class.isAssignableFrom(rc.getType())) {
+							var valueType = ReferenceUtils.parameterType(rc.getGenericType(), Optional.class, 0);
+							var elementType = new TypeRefNode(DataType.known(valueType));
+							var ifPresent = RepresentAsSpec.<Optional<?>, Object>as(
+								elementType,
+								DataType.known(rc.getGenericType()),
+								Optional::get,
+								Optional::of
+							);
+							var ifAbsent = new ComputedSpec(TypedHandles.supplier(DataType.known(rc.getGenericType()),
+								Optional::empty));
+							var presenceCondition = memberValue(TypedHandles.<Optional<?>>predicate(DataType.known(rc.getGenericType()),
+								Optional::isPresent));
+							componentsByName.put(rc.getName(), new FixedMapMember(
+								new MaybeAbsentSpec(ifPresent, ifAbsent, presenceCondition),
+								TypedHandles.componentAccessor(rc, lookup)
+							));
+						} else if (Phantom.class.isAssignableFrom(rc.getType())) {
+							componentsByName.put(rc.getName(), new FixedMapMember(
+								new ComputedSpec(TypedHandles.supplier(DataType.known(rc.getGenericType()),
+									Phantom::empty)),
+								TypedHandles.componentAccessor(rc, lookup)
+							));
+						} else {
+							// A simple TypeRefNode will do
+							componentsByName.put(rc.getName(), new FixedMapMember(
+								new TypeRefNode(DataType.known(rc.getGenericType())),
+								TypedHandles.componentAccessor(rc, lookup)
+							));
+						}
+					}
+					yield new FixedMapNode(
+						componentsByName,
+						TypedHandles.canonicalConstructor(recordClass, lookup)
 					);
 				}
-				default -> throw new IllegalStateException("Unexpected MapValue type: " + mapValueType);
-			}));
+				default -> throw new IllegalStateException("Unexpected StateTreeNode type: " + stateTreeNodeType);
+			}
+		));
 
 		return new TypeScanner.Bundle(
 			List.of(DataType.of(ListingEntry.class)),
@@ -432,26 +410,6 @@ public class BosonSerializer extends StateTreeSerializer {
 		} else {
 			throw new IllegalArgumentException("Expected single-character string, got: " + s);
 		}
-	}
-
-	interface ReferenceParser {
-		Reference<?> parse(String path) throws InvalidTypeException;
-	}
-
-	private JsonValueSpec preScan(Type type, TypeScanner.Bundle prescanBundle) {
-		return preScan(DataType.of(type), prescanBundle);
-	}
-
-	private static JsonValueSpec preScan(DataType dataType, TypeScanner.Bundle prescanBundle) {
-		return preScan(dataType, new TypeScanner(TypeMap.Settings.SHALLOW), prescanBundle);
-	}
-
-	private static JsonValueSpec preScan(DataType dataType, TypeScanner typeScanner, TypeScanner.Bundle prescanBundle) {
-		return typeScanner
-			.addLast(prescanBundle)
-			.scan(dataType)
-			.build()
-			.get(dataType);
 	}
 
 	record SideTableRepresentation<K extends Entity, V>(CatalogReference<K> domain, Map<Identifier, V> valuesById){
