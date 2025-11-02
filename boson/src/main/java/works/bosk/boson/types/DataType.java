@@ -93,6 +93,12 @@ public sealed interface DataType permits KnownType, UnknownType {
 		return isAssignableFrom(DataType.of(ref));
 	}
 
+	/**
+	 * @return The most specific common supertype of all possible types
+	 * represented by this DataType.
+	 */
+	Class<?> leastUpperBoundClass();
+
 	DataType substitute(Map<String, DataType> actualArguments);
 
 	Map<String, DataType> bindingsFor(DataType other);

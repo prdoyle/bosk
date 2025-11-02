@@ -8,4 +8,10 @@ sealed public interface UnknownType extends DataType permits TypeVariable, Unkno
 	default boolean isFullyKnown() {
 		return false;
 	}
+
+	@Override
+	default Class<?> leastUpperBoundClass() {
+		return Object.class;
+	}
+
 }

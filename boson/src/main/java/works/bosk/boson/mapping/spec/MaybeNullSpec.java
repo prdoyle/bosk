@@ -2,7 +2,6 @@ package works.bosk.boson.mapping.spec;
 
 import java.util.Map;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 /**
  * Represents a JSON <em>value</em> that may be <em>null</em>.
@@ -10,10 +9,10 @@ import works.bosk.boson.types.KnownType;
  */
 public record MaybeNullSpec(JsonValueSpec child) implements JsonValueSpec {
 	public MaybeNullSpec {
-		assert !child.dataType().rawClass().isPrimitive();
+		assert !child.dataType().leastUpperBoundClass().isPrimitive();
 	}
 
-	public KnownType dataType() {
+	public DataType dataType() {
 		return this.child().dataType();
 	}
 

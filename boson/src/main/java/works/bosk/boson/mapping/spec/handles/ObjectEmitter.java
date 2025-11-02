@@ -3,7 +3,6 @@ package works.bosk.boson.mapping.spec.handles;
 import java.util.Map;
 import works.bosk.boson.mapping.spec.UniformMapNode;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 import static works.bosk.boson.types.DataType.BOOLEAN;
 
@@ -60,7 +59,7 @@ public record ObjectEmitter(
 	/**
 	 * @return static type of the value being emitted
 	 */
-	public KnownType dataType() {
+	public DataType dataType() {
 		return start.parameterTypes().getFirst();
 	}
 

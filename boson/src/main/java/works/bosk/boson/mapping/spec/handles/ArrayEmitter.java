@@ -53,14 +53,14 @@ public record ArrayEmitter(
 	/**
 	 * @return static type of the value being emitted
 	 */
-	public KnownType dataType() {
+	public DataType dataType() {
 		return start.parameterTypes().getFirst();
 	}
 
 	/**
 	 * @return static type of the elements
 	 */
-	public KnownType elementType() {
+	public DataType elementType() {
 		return next.returnType();
 	}
 
