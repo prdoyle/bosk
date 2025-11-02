@@ -269,10 +269,18 @@ public class TypeScanner {
 	}
 
 	private JsonValueSpec computeSpecNode(DataType type) {
-		if (type instanceof KnownType kt && findDirective(kt) instanceof Directive(var pattern, var specFunction)) {
+		if (type instanceof DataType // Work around JDK 25 bug
+				&& findDirective(type) instanceof Directive(var pattern, var specFunction)) {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
-			JsonValueSpec spec = specFunction.apply(kt);
-			LOGGER.debug("Type {} using {}", type, spec);
+			var spec = specFunction.apply(type);
+			LOGGER.debug("Directive returned {}", spec);
+			if (!spec.dataType().isFullyKnown()) {
+				spec = spec.substitute(pattern.bindingsFor(type));
+				LOGGER.debug("Specialized: {}", spec);
+			}
+			assert type.equals(spec.dataType()):
+				"Expected directive to produce a spec of type " + type
+				+ "; got " + spec.dataType();
 			return scrapeRefs(spec);
 		}
 		return switch (type) {

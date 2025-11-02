@@ -13,7 +13,8 @@ sealed public interface InstanceType extends KnownType permits BoundType, Erased
 	 * then calling {@code parameterType(List.class, 0)} will return {@link DataType#STRING}.
 	 */
 	default DataType parameterType(Class<?> targetClass, int parameterIndex) {
-		assert targetClass.isAssignableFrom(this.rawClass());
+		assert targetClass.isAssignableFrom(this.rawClass()):
+			"Expected targetClass " + targetClass + " to be assignable from " + this.rawClass();
 		if (targetClass.equals(this.rawClass())) {
 			return switch (this) {
 				case BoundType g -> g.bindings().get(parameterIndex);

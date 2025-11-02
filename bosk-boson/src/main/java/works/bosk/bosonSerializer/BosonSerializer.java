@@ -20,12 +20,14 @@ import works.bosk.Identifier;
 import works.bosk.ListValue;
 import works.bosk.Listing;
 import works.bosk.ListingEntry;
+import works.bosk.ListingReference;
 import works.bosk.MapValue;
 import works.bosk.Path;
 import works.bosk.Phantom;
 import works.bosk.Reference;
 import works.bosk.ReferenceUtils;
 import works.bosk.SideTable;
+import works.bosk.SideTableReference;
 import works.bosk.StateTreeNode;
 import works.bosk.StateTreeSerializer;
 import works.bosk.TaggedUnion;
@@ -58,50 +60,103 @@ import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memb
 
 public class BosonSerializer extends StateTreeSerializer {
 
-	public TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
+	public <E extends Entity, T> // Some type variables to use in directives
+	TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
 		MethodHandles.Lookup lookup = MethodHandles.lookup();
 
 		var directives = new ArrayList<Directive>();
 
 		directives.add(new Directive(
-			DataType.of(new TypeReference<Reference<?>>(){}),
-			referenceType -> {
-				switch (referenceType) {
-					case BoundType bt -> {
-						// TODO: This wouldn't be necessary if 'then' would return the appropriate subtype
-						ReferenceParser parser =
-							switch (bt.parameterType(Reference.class, 0)) {
-								case BoundType t when Catalog.class.isAssignableFrom(t.rawClass()) -> str ->
-									bosk.rootReference().thenCatalog(Entity.class, Path.parse(str));
-								case BoundType t when Listing.class.isAssignableFrom(t.rawClass()) -> str ->
-									bosk.rootReference().thenListing(Entity.class, Path.parse(str));
-								case BoundType t when SideTable.class.isAssignableFrom(t.rawClass()) -> str ->
-									bosk.rootReference().thenSideTable(Entity.class, Object.class, Path.parse(str));
-								default -> str ->
-									bosk.rootReference().then(Object.class, Path.parse(str));
-							};
-						return RepresentAsSpec.of(
-							new StringNode(),
-							new RepresentAsSpec.Wrangler<Reference<?>,String>() {
-								@Override
-								public String toRepresentation(Reference<?> ref) {
-									return ref.path().urlEncoded();
-								}
-
-								@Override
-								public Reference<?> fromRepresentation(String str) {
-									try {
-										return parser.parse(str);
-									} catch (InvalidTypeException e) {
-										throw new IllegalArgumentException("Failed to parse Reference path: " + str, e);
-									}
-								}
-							}
-						);
+			DataType.of(new TypeReference<CatalogReference<E>>(){}),
+			_ -> RepresentAsSpec.of(
+				new StringNode(),
+				new RepresentAsSpec.Wrangler<CatalogReference<E>,String>() {
+					@Override
+					public String toRepresentation(CatalogReference<E> ref) {
+						return ref.path().urlEncoded();
 					}
-					default -> throw new IllegalStateException("Unexpected Reference type: " + referenceType);
+
+					@Override
+					@SuppressWarnings("unchecked")
+					public CatalogReference<E> fromRepresentation(String str) {
+						try {
+							return (CatalogReference<E>) bosk.rootReference().thenCatalog(Entity.class, Path.parse(str));
+						} catch (InvalidTypeException e) {
+							throw new IllegalArgumentException("Failed to parse Reference path: " + str, e);
+						}
+					}
 				}
-			}
+			)
+		));
+
+		directives.add(new Directive(
+			DataType.of(new TypeReference<ListingReference<E>>(){}),
+			_ -> RepresentAsSpec.of(
+				new StringNode(),
+				new RepresentAsSpec.Wrangler<ListingReference<E>,String>() {
+					@Override
+					public String toRepresentation(ListingReference<E> ref) {
+						return ref.path().urlEncoded();
+					}
+
+					@Override
+					@SuppressWarnings("unchecked")
+					public ListingReference<E> fromRepresentation(String str) {
+						try {
+							return (ListingReference<E>) bosk.rootReference().thenListing(Entity.class, Path.parse(str));
+						} catch (InvalidTypeException e) {
+							throw new IllegalArgumentException("Failed to parse Reference path: " + str, e);
+						}
+					}
+				}
+			)
+		));
+
+		directives.add(new Directive(
+			DataType.of(new TypeReference<SideTableReference<E,T>>(){}),
+			_ -> RepresentAsSpec.of(
+				new StringNode(),
+				new RepresentAsSpec.Wrangler<SideTableReference<E,T>,String>() {
+					@Override
+					public String toRepresentation(SideTableReference<E,T> ref) {
+						return ref.path().urlEncoded();
+					}
+
+					@Override
+					@SuppressWarnings("unchecked")
+					public SideTableReference<E,T> fromRepresentation(String str) {
+						try {
+							return (SideTableReference<E,T>) bosk.rootReference().thenSideTable(Entity.class, Object.class, Path.parse(str));
+						} catch (InvalidTypeException e) {
+							throw new IllegalArgumentException("Failed to parse Reference path: " + str, e);
+						}
+					}
+				}
+			)
+		));
+
+		// If it's not one of the other kinds of Reference, it's a plain Reference<E>
+		directives.add(new Directive(
+			DataType.of(new TypeReference<Reference<T>>(){}),
+			_ -> RepresentAsSpec.of(
+				new StringNode(),
+				new RepresentAsSpec.Wrangler<Reference<T>,String>() {
+					@Override
+					public String toRepresentation(Reference<T> ref) {
+						return ref.path().urlEncoded();
+					}
+
+					@Override
+					@SuppressWarnings("unchecked")
+					public Reference<T> fromRepresentation(String str) {
+						try {
+							return (Reference<T>) bosk.rootReference().then(Object.class, Path.parse(str));
+						} catch (InvalidTypeException e) {
+							throw new IllegalArgumentException("Failed to parse Reference path: " + str, e);
+						}
+					}
+				}
+			)
 		));
 
 		directives.add(new Directive(
