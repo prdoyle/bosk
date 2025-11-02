@@ -69,13 +69,12 @@ public record RepresentAsSpec(
 		V fromRepresentation(R representation);
 	}
 
-	public static RepresentAsSpec of(JsonValueSpec spec, Wrangler<?,?> wrangler) {
+	public static RepresentAsSpec of(Wrangler<?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
 		DataType valueType = wranglerType.parameterType(Wrangler.class, 0);
 		DataType representationType = wranglerType.parameterType(Wrangler.class, 1);
-		assert representationType.isFullyKnown();
 		return new RepresentAsSpec(
-			spec,
+			new TypeRefNode(representationType),
 			new TypedHandle(
 				WRANGLER_TO_REPRESENTATION.bindTo(wrangler).asType(methodType(representationType.leastUpperBoundClass(), valueType.leastUpperBoundClass())),
 				representationType, List.of(valueType)

@@ -76,7 +76,6 @@ public class BosonSerializer extends StateTreeSerializer {
 		directives.add(new Directive(
 			DataType.of(new TypeReference<CatalogReference<E>>(){}),
 			_ -> RepresentAsSpec.of(
-				new StringNode(),
 				new RepresentAsSpec.Wrangler<CatalogReference<E>,String>() {
 					@Override
 					public String toRepresentation(CatalogReference<E> ref) {
@@ -99,7 +98,6 @@ public class BosonSerializer extends StateTreeSerializer {
 		directives.add(new Directive(
 			DataType.of(new TypeReference<ListingReference<E>>(){}),
 			_ -> RepresentAsSpec.of(
-				new StringNode(),
 				new RepresentAsSpec.Wrangler<ListingReference<E>,String>() {
 					@Override
 					public String toRepresentation(ListingReference<E> ref) {
@@ -122,7 +120,6 @@ public class BosonSerializer extends StateTreeSerializer {
 		directives.add(new Directive(
 			DataType.of(new TypeReference<SideTableReference<E,T>>(){}),
 			_ -> RepresentAsSpec.of(
-				new StringNode(),
 				new RepresentAsSpec.Wrangler<SideTableReference<E,T>,String>() {
 					@Override
 					public String toRepresentation(SideTableReference<E,T> ref) {
@@ -146,7 +143,6 @@ public class BosonSerializer extends StateTreeSerializer {
 		directives.add(new Directive(
 			DataType.of(new TypeReference<Reference<T>>(){}),
 			_ -> RepresentAsSpec.of(
-				new StringNode(),
 				new RepresentAsSpec.Wrangler<Reference<T>,String>() {
 					@Override
 					public String toRepresentation(Reference<T> ref) {
