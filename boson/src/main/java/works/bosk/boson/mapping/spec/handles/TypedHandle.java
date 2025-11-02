@@ -71,11 +71,9 @@ public record TypedHandle(
 		List<DataType> parameterTypes = this.parameterTypes.stream()
 			.map(t -> t.substitute(actualArguments))
 			.toList();
-
-		// TODO: Any cases where type casts are required?
-		// I can't think of any, given that the parameterTypes and returnType
-		// must already be KnownTypes.
-		return new TypedHandle(this.handle, returnType, parameterTypes);
+		MethodHandle handle = this.handle.asType(
+			equivalentMethodType(returnType, parameterTypes));
+		return new TypedHandle(handle, returnType, parameterTypes);
 	}
 
 	@Override
