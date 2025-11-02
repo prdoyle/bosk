@@ -269,14 +269,10 @@ public class TypeScanner {
 	}
 
 	private JsonValueSpec computeSpecNode(DataType type) {
-		if (findDirective(type) instanceof Directive(var pattern, var specFunction)) {
+		if (type instanceof KnownType kt && findDirective(kt) instanceof Directive(var pattern, var specFunction)) {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
-			var spec = specFunction.apply(type);
-			LOGGER.debug("Directive returned {}", spec);
-//			if (!spec.dataType().isFullyKnown()) {
-//				spec = spec.substitute(type.typeArguments());
-//				LOGGER.debug("Specialized: {}", spec);
-//			}
+			JsonValueSpec spec = specFunction.apply(kt);
+			LOGGER.debug("Type {} using {}", type, spec);
 			return scrapeRefs(spec);
 		}
 		return switch (type) {
