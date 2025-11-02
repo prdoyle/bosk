@@ -92,15 +92,15 @@ public record RepresentAsSpec(
 	 */
 	public static <V,R> RepresentAsSpec as(
 		JsonValueSpec representation,
-		KnownType dataType,
+		DataType dataType,
 		Function<V,R> toRepresentation,
 		Function<R,V> fromRepresentation
 	) {
 		DataType representationType = representation.dataType();
 		MethodHandle toHandle = FUNCTION_APPLY.bindTo(toRepresentation).asType(
-			methodType(representationType.leastUpperBoundClass(), dataType.rawClass()));
+			methodType(representationType.leastUpperBoundClass(), dataType.leastUpperBoundClass()));
 		MethodHandle fromHandle = FUNCTION_APPLY.bindTo(fromRepresentation).asType(
-			methodType(dataType.rawClass(), representationType.leastUpperBoundClass()));
+			methodType(dataType.leastUpperBoundClass(), representationType.leastUpperBoundClass()));
 		return new RepresentAsSpec(
 			representation,
 			new TypedHandle(toHandle, representationType, List.of(dataType)),
@@ -115,15 +115,15 @@ public record RepresentAsSpec(
 	 * (Other primitives could be supported similarly if a need arises.)
 	 */
 	public static <V> RepresentAsSpec asInt(
-		KnownType dataType,
+		DataType dataType,
 		ToIntFunction<V> toRepresentation,
 		IntFunction<V> fromRepresentation
 	) {
 		KnownType representationType = DataType.INT;
 		MethodHandle toHandle = TO_INT_FUNCTION_APPLY.bindTo(toRepresentation).asType(
-			methodType(representationType.rawClass(), dataType.rawClass()));
+			methodType(representationType.rawClass(), dataType.leastUpperBoundClass()));
 		MethodHandle fromHandle = INT_FUNCTION_APPLY.bindTo(fromRepresentation).asType(
-			methodType(dataType.rawClass(), representationType.rawClass()));
+			methodType(dataType.leastUpperBoundClass(), representationType.rawClass()));
 		return new RepresentAsSpec(
 			new PrimitiveNumberNode(int.class),
 			new TypedHandle(toHandle, representationType, List.of(dataType)),

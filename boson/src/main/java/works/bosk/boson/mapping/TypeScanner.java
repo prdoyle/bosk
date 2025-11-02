@@ -273,10 +273,10 @@ public class TypeScanner {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
 			var spec = specFunction.apply(type);
 			LOGGER.debug("Directive returned {}", spec);
-			if (!spec.dataType().isFullyKnown()) {
-				spec = spec.substitute(type.typeArguments());
-				LOGGER.debug("Specialized: {}", spec);
-			}
+//			if (!spec.dataType().isFullyKnown()) {
+//				spec = spec.substitute(type.typeArguments());
+//				LOGGER.debug("Specialized: {}", spec);
+//			}
 			return scrapeRefs(spec);
 		}
 		return switch (type) {
