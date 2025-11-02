@@ -1,12 +1,16 @@
 package works.bosk.boson.mapping.spec;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.function.Function;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
+import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.TypeReference;
@@ -85,5 +89,66 @@ public record FixedMapNode(
 			memberSpecs,
 			this.finisher.substitute(actualArguments)
 		);
+	}
+
+	public interface Wrangler2<T1, T2, V> {
+		T1 accessor1(V value);
+		T2 accessor2(V value);
+		V finish(T1 arg1, T2 arg2);
+	}
+
+	public static FixedMapNode of(Wrangler2<?,?,?> wrangler) {
+		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
+		DataType arg1Type = wranglerType.parameterType(Wrangler2.class, 0);
+		DataType arg2Type = wranglerType.parameterType(Wrangler2.class, 1);
+		DataType valueType = wranglerType.parameterType(Wrangler2.class, 2);
+		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
+		memberSpecs.put("arg1", new FixedMapMember(
+			new TypeRefNode(arg1Type),
+			new TypedHandle(
+				WRANGLER2_ACCESSOR1.bindTo(wrangler).asType(
+					methodType(arg1Type.leastUpperBoundClass(), valueType.leastUpperBoundClass())
+				),
+				arg1Type, List.of(valueType)
+			)
+		));
+		memberSpecs.put("arg2", new FixedMapMember(
+			new TypeRefNode(arg2Type),
+			new TypedHandle(
+				WRANGLER2_ACCESSOR2.bindTo(wrangler).asType(
+					methodType(arg2Type.leastUpperBoundClass(), valueType.leastUpperBoundClass())
+				),
+				arg2Type, List.of(valueType)
+			)
+		));
+		var finisher = new TypedHandle(
+			WRANGLER2_FINISH.bindTo(wrangler).asType(
+				methodType(
+					valueType.leastUpperBoundClass(),
+					arg1Type.leastUpperBoundClass(),
+					arg2Type.leastUpperBoundClass()
+				)
+			),
+			valueType, List.of(arg1Type, arg2Type)
+		);
+		return new FixedMapNode(memberSpecs, finisher);
+	}
+
+	private static final MethodHandle WRANGLER2_ACCESSOR1;
+	private static final MethodHandle WRANGLER2_ACCESSOR2;
+	private static final MethodHandle WRANGLER2_FINISH;
+
+	static {
+		var lookup = MethodHandles.lookup();
+		try {
+			WRANGLER2_ACCESSOR1 = lookup.findVirtual(Wrangler2.class, "accessor1",
+				methodType(Object.class, Object.class));
+			WRANGLER2_ACCESSOR2 = lookup.findVirtual(Wrangler2.class, "accessor2",
+				methodType(Object.class, Object.class));
+			WRANGLER2_FINISH = lookup.findVirtual(Wrangler2.class, "finish",
+				methodType(Object.class, Object.class, Object.class));
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new ExceptionInInitializerError(e);
+		}
 	}
 }

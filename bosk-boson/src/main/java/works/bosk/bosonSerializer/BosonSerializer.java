@@ -42,7 +42,6 @@ import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
-import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
@@ -210,49 +209,22 @@ public class BosonSerializer extends StateTreeSerializer {
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<Listing<E>>(){}),
-			listingType -> switch (listingType) {
-				case BoundType bt -> {
-					// We could have used RepresentAsSpec here, like for SideTable,
-					// but using FixedTypeNode directly avoids instantiating the representation object,
-					// so this shows what the code would look like if we try to do this efficiently.
-					// It's pretty cumbersome.
-					// Perhaps there's a way to make a FixedMapNode wrangler that would simplify this?
-					// The hard part is the finisher, which has varying numbers of arguments,
-					// but perhaps we could make a few to handle small numbers of arguments.
-
-					var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
-
-					var entryType = (KnownType) bt.parameterType(Listing.class, 0);
-					var domainRefType = new BoundType(
-						Reference.class,
-						new BoundType(Catalog.class, entryType));
-					TypedHandle domainAccessor = TypedHandles.<Listing<E>, CatalogReference<E>>function(
-						DataType.known(Listing.class),
-						domainRefType,
-						Listing::domain);
-					memberSpecs.put("domain", new FixedMapMember(new TypeRefNode(domainRefType), domainAccessor));
-
-					var idsType = new BoundType(List.class, DataType.known(Identifier.class));
-					TypedHandle idsAccessor = TypedHandles.<Listing<E>, List<Identifier>>function(
-						DataType.known(Listing.class),
-						idsType,
-						listing -> List.copyOf(listing.ids()));
-					memberSpecs.put("ids", new FixedMapMember(new TypeRefNode(idsType), idsAccessor));
-
-					yield new FixedMapNode(
-						memberSpecs,
-						new TypedHandle(
-							LISTING_OF.asType(methodType(
-								listingType.leastUpperBoundClass(),
-								domainRefType.rawClass(),
-								idsType.rawClass()
-							)),
-							listingType, List.of(domainRefType, idsType)
-						)
-					);
+			_ -> FixedMapNode.of(new FixedMapNode.Wrangler2<CatalogReference<E>, List<Identifier>, Listing<E>>() {
+				@Override
+				public CatalogReference<E> accessor1(Listing<E> value) {
+					return value.domain();
 				}
-				default -> throw new IllegalStateException("Unexpected Listing type: " + listingType);
-			}
+
+				@Override
+				public List<Identifier> accessor2(Listing<E> value) {
+					return List.copyOf(value.ids());
+				}
+
+				@Override
+				public Listing<E> finish(CatalogReference<E> arg1, List<Identifier> arg2) {
+					return Listing.of(arg1, arg2);
+				}
+			})
 		));
 
 		directives.add(new Directive(
