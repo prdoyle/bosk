@@ -265,19 +265,17 @@ public class BosonSerializer extends StateTreeSerializer {
 
 		directives.add(new Directive(
 			DataType.of(new TypeReference<SideTable<E,T>>() { }),
-			sideTableType -> switch (sideTableType) {
-				case BoundType bt -> {
-					var representation = new BoundType(SideTableRepresentation.class, bt.bindings());
-					yield RepresentAsSpec.<SideTable<E,T>, SideTableRepresentation<E,T>>as(
-						preScan(representation, simpleScanBundle),
-						sideTableType,
-						SideTableRepresentation::fromSideTable,
-						SideTableRepresentation::toSideTable
-					);
+			_ -> RepresentAsSpec.of(new RepresentAsSpec.Wrangler<SideTable<E, T>, SideTableRepresentation<E, T>>() {
+				@Override
+				public SideTableRepresentation<E, T> toRepresentation(SideTable<E, T> value) {
+					return SideTableRepresentation.fromSideTable(value);
 				}
 
-				default -> throw new IllegalStateException("Unexpected SideTable type: " + sideTableType);
-			}
+				@Override
+				public SideTable<E, T> fromRepresentation(SideTableRepresentation<E, T> representation) {
+					return representation.toSideTable();
+				}
+			})
 		));
 
 		directives.add(new Directive(
@@ -382,15 +380,19 @@ public class BosonSerializer extends StateTreeSerializer {
 				case BoundType bt -> {
 					KnownType elementType = (KnownType) bt.parameterType(ListValue.class, 0);
 					@SuppressWarnings("unchecked")
-					var factory = listValueFactory((Class<ListValue<T>>)listValueType.leastUpperBoundClass());
+					var factory = listValueFactory((Class<? extends ListValue<T>>)listValueType.leastUpperBoundClass());
 					Object[] arrayArchetype = (Object[]) Array.newInstance(elementType.rawClass(), 0);
-					var listSpec = preScan(new BoundType(List.class, List.of(elementType)), simpleScanBundle);
-					yield RepresentAsSpec.<ListValue<T>,List<T>>as(
-						listSpec,
-						listValueType,
-						lv -> lv,
-						list -> factory.apply(list.toArray(arrayArchetype))
-					);
+					yield RepresentAsSpec.of(new RepresentAsSpec.Wrangler<ListValue<T>,List<T>>() {
+						@Override
+						public List<T> toRepresentation(ListValue<T> value) {
+							return value; // ListValue is a List
+						}
+
+						@Override
+						public ListValue<T> fromRepresentation(List<T> representation) {
+							return factory.apply(representation.toArray(arrayArchetype));
+						}
+					});
 				}
 				default -> throw new IllegalStateException("Unexpected ListValue type: " + listValueType);
 			}
@@ -460,8 +462,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			);
 		}
 
-		@SuppressWarnings("rawtypes")
-		public SideTable toSideTable() {
+		public SideTable<K,V> toSideTable() {
 			return SideTable.copyOf(domain, this.valuesById());
 		}
 	}
