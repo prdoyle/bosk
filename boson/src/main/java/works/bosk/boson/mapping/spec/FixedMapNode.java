@@ -91,18 +91,51 @@ public record FixedMapNode(
 		);
 	}
 
+	public interface Wrangler1<T1, V> {
+		T1 accessor1(V value);
+		V finish(T1 arg1);
+	}
+
 	public interface Wrangler2<T1, T2, V> {
 		T1 accessor1(V value);
 		T2 accessor2(V value);
 		V finish(T1 arg1, T2 arg2);
 	}
 
+	public static FixedMapNode of(Wrangler1<?,?> wrangler) {
+		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
+		DataType valueType = wranglerType.parameterType(Wrangler1.class, 1);
+
+		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
+		DataType arg1Type = wranglerType.parameterType(Wrangler1.class, 0);
+		memberSpecs.put("arg1", new FixedMapMember(
+			new TypeRefNode(arg1Type),
+			new TypedHandle(
+				WRANGLER1_ACCESSOR1.bindTo(wrangler).asType(
+					methodType(arg1Type.leastUpperBoundClass(), valueType.leastUpperBoundClass())
+				),
+				arg1Type, List.of(valueType)
+			)
+		));
+		var finisher = new TypedHandle(
+			WRANGLER1_FINISH.bindTo(wrangler).asType(
+				methodType(
+					valueType.leastUpperBoundClass(),
+					arg1Type.leastUpperBoundClass()
+				)
+			),
+			valueType, List.of(arg1Type)
+		);
+		return new FixedMapNode(memberSpecs, finisher);
+	}
+
 	public static FixedMapNode of(Wrangler2<?,?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
+		DataType valueType = wranglerType.parameterType(Wrangler2.class, 2);
+
+		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
 		DataType arg1Type = wranglerType.parameterType(Wrangler2.class, 0);
 		DataType arg2Type = wranglerType.parameterType(Wrangler2.class, 1);
-		DataType valueType = wranglerType.parameterType(Wrangler2.class, 2);
-		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
 		memberSpecs.put("arg1", new FixedMapMember(
 			new TypeRefNode(arg1Type),
 			new TypedHandle(
@@ -134,6 +167,8 @@ public record FixedMapNode(
 		return new FixedMapNode(memberSpecs, finisher);
 	}
 
+	private static final MethodHandle WRANGLER1_ACCESSOR1;
+	private static final MethodHandle WRANGLER1_FINISH;
 	private static final MethodHandle WRANGLER2_ACCESSOR1;
 	private static final MethodHandle WRANGLER2_ACCESSOR2;
 	private static final MethodHandle WRANGLER2_FINISH;
@@ -141,6 +176,10 @@ public record FixedMapNode(
 	static {
 		var lookup = MethodHandles.lookup();
 		try {
+			WRANGLER1_ACCESSOR1 = lookup.findVirtual(Wrangler1.class, "accessor1",
+				methodType(Object.class, Object.class));
+			WRANGLER1_FINISH = lookup.findVirtual(Wrangler1.class, "finish",
+				methodType(Object.class, Object.class));
 			WRANGLER2_ACCESSOR1 = lookup.findVirtual(Wrangler2.class, "accessor1",
 				methodType(Object.class, Object.class));
 			WRANGLER2_ACCESSOR2 = lookup.findVirtual(Wrangler2.class, "accessor2",

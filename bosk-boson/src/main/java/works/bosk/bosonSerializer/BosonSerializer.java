@@ -158,11 +158,12 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
+		KnownType idType = DataType.known(Identifier.class);
 		directives.add(new Directive(
-			DataType.known(Identifier.class),
-			identifierType -> RepresentAsSpec.as(
+			idType,
+			_ -> RepresentAsSpec.as(
 				new StringNode(),
-				identifierType,
+				idType,
 				Identifier::toString,
 				Identifier::from
 			)
@@ -170,9 +171,10 @@ public class BosonSerializer extends StateTreeSerializer {
 
 		// TODO: I wonder why this is necessary? When do we ever actually encounter a ListingEntry?
 		// I get stack overflows in SpecInterpretingGenerator without it.
+		DataType listingEntryType = DataType.of(ListingEntry.class);
 		directives.add(new Directive(
-			DataType.of(ListingEntry.class),
-			listingEntryType -> RepresentAsSpec.as(
+			listingEntryType,
+			_ -> RepresentAsSpec.as(
 				new BooleanNode(),
 				listingEntryType,
 				(ListingEntry _) -> true,
@@ -182,10 +184,10 @@ public class BosonSerializer extends StateTreeSerializer {
 
 		// TODO: Is this really a bosk thing? Should this be built into boson?
 		directives.add(new Directive(
-			DataType.of(char.class),
-			charType -> RepresentAsSpec.as(
+			DataType.CHAR,
+			_ -> RepresentAsSpec.as(
 				new StringNode(),
-				charType,
+				DataType.CHAR,
 				Object::toString,
 				BosonSerializer::stringToChar
 			)
@@ -380,7 +382,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		return new TypeScanner.Bundle(
-			List.of(DataType.of(ListingEntry.class)),
+			List.of(listingEntryType),
 			List.of(lookup),
 			List.copyOf(directives)
 		);
