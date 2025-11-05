@@ -1,11 +1,9 @@
 package works.bosk.bosonSerializer;
 
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,9 +48,11 @@ import works.bosk.boson.types.TypeReference;
 import works.bosk.boson.types.TypeVariable;
 import works.bosk.exceptions.InvalidTypeException;
 
-import static java.lang.invoke.MethodType.methodType;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memberValue;
+import static works.bosk.boson.mapping.spec.handles.TypedHandles.canonicalConstructor;
+import static works.bosk.boson.mapping.spec.handles.TypedHandles.componentAccessor;
+import static works.bosk.boson.mapping.spec.handles.TypedHandles.supplier;
 
 public class BosonSerializer extends StateTreeSerializer {
 
@@ -169,8 +169,8 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
-		// TODO: I wonder why this is necessary? When do we ever actually encounter a ListingEntry?
-		// I get stack overflows in SpecInterpretingGenerator without it.
+		// Usually we don't need a mapping for ListingEntry because Listing takes care of it,
+		// but it's possible someone could try to serialize a ListingEntry directly.
 		DataType listingEntryType = DataType.of(ListingEntry.class);
 		directives.add(new Directive(
 			listingEntryType,
@@ -258,7 +258,7 @@ public class BosonSerializer extends StateTreeSerializer {
 					SequencedMap<String, FixedMapMember> members = new LinkedHashMap<>();
 					variantCaseMap.forEach((name, caseType) -> {
 						var ifPresent = new TypeRefNode(DataType.of(caseType));
-						var ifAbsent = new ComputedSpec(TypedHandles.supplier(
+						var ifAbsent = new ComputedSpec(supplier(
 							DataType.known(caseType),
 							() -> null)); // This is a signal to the finisher that the case is absent
 						var presenceCondition = MemberPresenceCondition.enclosingObject(
@@ -350,31 +350,31 @@ public class BosonSerializer extends StateTreeSerializer {
 								Optional::get,
 								Optional::of
 							);
-							var ifAbsent = new ComputedSpec(TypedHandles.supplier(DataType.known(rc.getGenericType()),
+							var ifAbsent = new ComputedSpec(supplier(DataType.known(rc.getGenericType()),
 								Optional::empty));
 							var presenceCondition = memberValue(TypedHandles.<Optional<?>>predicate(DataType.known(rc.getGenericType()),
 								Optional::isPresent));
 							componentsByName.put(rc.getName(), new FixedMapMember(
 								new MaybeAbsentSpec(ifPresent, ifAbsent, presenceCondition),
-								TypedHandles.componentAccessor(rc, lookup)
+								componentAccessor(rc, lookup)
 							));
 						} else if (Phantom.class.isAssignableFrom(rc.getType())) {
 							componentsByName.put(rc.getName(), new FixedMapMember(
-								new ComputedSpec(TypedHandles.supplier(DataType.known(rc.getGenericType()),
+								new ComputedSpec(supplier(DataType.known(rc.getGenericType()),
 									Phantom::empty)),
-								TypedHandles.componentAccessor(rc, lookup)
+								componentAccessor(rc, lookup)
 							));
 						} else {
 							// A simple TypeRefNode will do
 							componentsByName.put(rc.getName(), new FixedMapMember(
 								new TypeRefNode(DataType.known(rc.getGenericType())),
-								TypedHandles.componentAccessor(rc, lookup)
+								componentAccessor(rc, lookup)
 							));
 						}
 					}
 					yield new FixedMapNode(
 						componentsByName,
-						TypedHandles.canonicalConstructor(recordClass, lookup)
+						canonicalConstructor(recordClass, lookup)
 					);
 				}
 				default -> throw new IllegalStateException("Unexpected StateTreeNode type: " + stateTreeNodeType);
@@ -409,13 +409,4 @@ public class BosonSerializer extends StateTreeSerializer {
 		}
 	}
 
-	private static final MethodHandle LISTING_OF;
-
-	static {
-		try {
-			LISTING_OF = MethodHandles.lookup().findStatic(Listing.class, "of", methodType(Listing.class, Reference.class, Collection.class));
-		} catch (NoSuchMethodException | IllegalAccessException e) {
-			throw new ExceptionInInitializerError(e);
-		}
-	}
 }
