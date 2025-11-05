@@ -14,6 +14,10 @@ import java.util.Map;
  * as needed, but be careful to avoid infinite recursion.
  */
 public record TypeVariable(String name, List<Type> bounds) implements UnknownType {
+	public TypeVariable(String name, Type... bounds) {
+		this(name, List.of(bounds));
+	}
+
 	public static TypeVariable unbounded(String name) {
 		return new TypeVariable(name, List.of());
 	}
