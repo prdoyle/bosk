@@ -41,4 +41,9 @@ public record TypeVariable(String name) implements UnknownType {
 		// we're binding this variable to `other`.
 		return Map.of(name, other);
 	}
+
+	@Override
+	public boolean hasWildcards() {
+		return false;
+	}
 }

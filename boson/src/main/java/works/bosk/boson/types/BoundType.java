@@ -171,4 +171,9 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 	public boolean isFullyKnown() {
 		return bindings.stream().allMatch(DataType::isFullyKnown);
 	}
+
+	@Override
+	public boolean hasWildcards() {
+		return bindings.stream().anyMatch(DataType::hasWildcards);
+	}
 }

@@ -25,6 +25,11 @@ public record ArrayType(KnownType elementType) implements KnownType {
 	}
 
 	@Override
+	public boolean hasWildcards() {
+		return elementType.hasWildcards();
+	}
+
+	@Override
 	public Map<String, DataType> bindingsFor(DataType other) {
 		assert this.isAssignableFrom(other);
 		return switch (other) {

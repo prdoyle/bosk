@@ -34,4 +34,9 @@ public record UnknownArrayType(UnknownType elementType) implements UnknownType {
 			default -> throw new IllegalArgumentException("wat");
 		};
 	}
+
+	@Override
+	public boolean hasWildcards() {
+		return elementType().hasWildcards();
+	}
 }

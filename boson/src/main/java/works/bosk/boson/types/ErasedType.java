@@ -38,4 +38,10 @@ public record ErasedType(Class<?> rawClass) implements InstanceType {
 	public boolean isFullyKnown() {
 		return false;
 	}
+
+	@Override
+	public boolean hasWildcards() {
+		// In effect, all the type parameters of an erased type are wildcards.
+		return true;
+	}
 }
