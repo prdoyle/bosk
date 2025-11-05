@@ -336,7 +336,7 @@ public class TypeScanner {
 	private Directive findDirective(DataType type) {
 		for (var bundle : bundles) {
 			for (var directive : bundle.directives()) {
-				if (directive.pattern().isAssignableFrom(type)) {
+				if (directive.pattern().isAssignableFromTypeArgument(type)) {
 					return directive;
 				}
 			}
@@ -416,6 +416,12 @@ public class TypeScanner {
 		if (isStringParsingClass(type)) {
 			return scanStringParsingClass(type);
 		}
+		// At this point, we have a type that simply won't work unless
+		// it's handled by a directive. If anyone relies on the value
+		// we return here, they're wrong. Unfortunately, returning
+		// this TypeRefNode, while not incorrect on its own, can cause
+		// a StackOverflowError if no directives override this.
+		// TODO: Handle this case more cleanly
 		return new TypeRefNode(type);
 	}
 
