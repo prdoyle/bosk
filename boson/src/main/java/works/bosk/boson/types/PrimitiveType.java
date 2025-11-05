@@ -29,6 +29,11 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 	}
 
 	@Override
+	public boolean hasWildcards() {
+		return false;
+	}
+
+	@Override
 	public String toString() {
 		return rawClass.getSimpleName();
 	}

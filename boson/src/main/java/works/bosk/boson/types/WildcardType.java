@@ -20,4 +20,10 @@ sealed public interface WildcardType extends UnknownType permits LowerBoundedWil
 	default Map<String, DataType> bindingsFor(DataType other) {
 		return Map.of();
 	}
+
+	@Override
+	default boolean hasWildcards() {
+		return true;
+	}
+
 }

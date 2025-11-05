@@ -51,8 +51,7 @@ class DataTypeCreationTest {
 		);
 
 		{
-			var ref = new TypeReference<List<T>>() {
-			};
+			var ref = new TypeReference<List<T>>() {};
 			DataType genericListType = DataType.of(ref);
 			assertEquals(
 				new BoundType(List.class, DataType.of(getActualTypeArguments(ref)[0])),
@@ -60,15 +59,17 @@ class DataTypeCreationTest {
 			);
 		}
 
-		var ref = new TypeReference<Map<String, List<Integer>>>() { };
-		DataType mapType = DataType.of(ref);
-		assertEquals(
-			new BoundType(Map.class, Stream.of(
-				String.class,
-				getActualTypeArguments(ref)[1]
-			).map(DataType::of).toList()),
-			mapType
-		);
+		{
+			var ref = new TypeReference<Map<String, List<Integer>>>() { };
+			DataType mapType = DataType.of(ref);
+			assertEquals(
+				new BoundType(Map.class, Stream.of(
+					String.class,
+					getActualTypeArguments(ref)[1]
+				).map(DataType::of).toList()),
+				mapType
+			);
+		}
 	}
 
 	private static Type[] getActualTypeArguments(TypeReference<?> ref) {

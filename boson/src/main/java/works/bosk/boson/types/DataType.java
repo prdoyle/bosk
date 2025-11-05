@@ -107,4 +107,9 @@ public sealed interface DataType permits KnownType, UnknownType {
 	 * @return true if this type has no {@link UnknownType} or {@link ErasedType} components.
 	 */
 	boolean isFullyKnown();
+
+	/**
+	 * @return true if this type contains any {@link WildcardType} or {@link ErasedType}.
+	 */
+	boolean hasWildcards();
 }
