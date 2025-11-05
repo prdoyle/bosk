@@ -199,7 +199,12 @@ public class TypeScanner {
 
 	// TODO: A variant of Directive that takes a JsonValueSpec. Then we know we can use the same JsonValueSpec every time
 	// rather than being required to ask this spec function to generate a new one each time
-	public record Directive(DataType pattern, Function<DataType, JsonValueSpec> spec) {}
+	public record Directive(DataType pattern, Function<DataType, JsonValueSpec> spec) {
+		public Directive {
+			assert !pattern.hasWildcards():
+				"Directive pattern must not have wildcards; use type variables instead: " + pattern;
+		}
+	}
 
 	/**
 	 * Adds a new configuration bundle that takes precedence over previously added bundles.
@@ -273,6 +278,12 @@ public class TypeScanner {
 				&& findDirective(type) instanceof Directive(var pattern, var specFunction)) {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
 			var spec = specFunction.apply(type);
+
+			// This assertion rules out matching on lower bounds, which is unfortunate,
+			// but I can't figure out how to make `substitute` work with wildcards.
+			assert !spec.dataType().hasWildcards():
+				"Spec produced by directive must not have wildcards: " + spec;
+
 			LOGGER.debug("Directive returned {}", spec);
 			if (!spec.dataType().isFullyKnown()) {
 				spec = spec.substitute(pattern.bindingsFor(type));
