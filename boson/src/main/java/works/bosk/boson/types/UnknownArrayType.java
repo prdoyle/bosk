@@ -17,6 +17,20 @@ public record UnknownArrayType(UnknownType elementType) implements UnknownType {
 	}
 
 	@Override
+	public boolean isAssignableFromTypeArgument(DataType other) {
+		// TODO: Double-check the semantics here and in ArrayType
+		return switch (other) {
+			case ArrayType(var otherElementType) -> elementType.isAssignableFromTypeArgument(otherElementType);
+			default -> false;
+		};
+	}
+
+	@Override
+	public Class<?> leastUpperBoundClass() {
+		return Object.class;
+	}
+
+	@Override
 	public DataType substitute(Map<String, DataType> actualArguments) {
 		var newElementType = elementType.substitute(actualArguments);
 		return switch (newElementType) {

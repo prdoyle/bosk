@@ -46,6 +46,15 @@ public record TypeVariable(String name, List<Type> bounds) implements UnknownTyp
 	}
 
 	@Override
+	public Class<?> leastUpperBoundClass() {
+		return switch (bounds.size()) {
+			case 0 -> Object.class;
+			case 1 -> DataType.of(bounds.getFirst()).leastUpperBoundClass();
+			default -> Object.class; // TODO: Do better. Check the JLS to see what we're supposed to do here.
+		};
+	}
+
+	@Override
 	public DataType substitute(Map<String, DataType> actualArguments) {
 		DataType candidate = actualArguments.get(name);
 		if (candidate != null) {

@@ -89,8 +89,15 @@ public sealed interface DataType permits KnownType, UnknownType {
 		return of(ref.reflectionType());
 	}
 
-	// TODO: I think we also want a kind of unification-match, where subtyping is not considered outside of type bounds
 	boolean isAssignableFrom(DataType other);
+
+	/**
+	 * Like {@link #isAssignableFrom(DataType)}, but does not consider
+	 * subtype relationships outside type bounds. Implements the rules for
+	 * assignability of type parameters in generic types, which are
+	 * neither covariant nor contravariant.
+	 */
+	boolean isAssignableFromTypeArgument(DataType other);
 
 	default boolean isAssignableFrom(Type type) {
 		return isAssignableFrom(DataType.of(type));

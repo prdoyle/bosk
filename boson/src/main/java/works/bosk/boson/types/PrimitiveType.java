@@ -9,8 +9,14 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return other instanceof works.bosk.boson.types.PrimitiveType(var otherRawClass)
+		return other instanceof PrimitiveType(var otherRawClass)
 			&& rawClass.isAssignableFrom(otherRawClass);
+	}
+
+	@Override
+	public boolean isAssignableFromTypeArgument(DataType other) {
+		return other instanceof PrimitiveType(var otherRawClass)
+			&& rawClass.equals(otherRawClass);
 	}
 
 	@Override

@@ -10,8 +10,9 @@ sealed public interface UnknownType extends DataType permits TypeVariable, Unkno
 	}
 
 	@Override
-	default Class<?> leastUpperBoundClass() {
-		return Object.class;
+	default boolean isAssignableFromTypeArgument(DataType other) {
+		// All the unknown types are already neither covariant nor contravariant,
+		// except in their type bounds, so isAssignableFrom works just the way we want.
+		return isAssignableFrom(other);
 	}
-
 }
