@@ -197,12 +197,18 @@ public class TypeScanner {
 		List<Directive> directives
 	) { }
 
-	// TODO: A variant of Directive that takes a JsonValueSpec. Then we know we can use the same JsonValueSpec every time
-	// rather than being required to ask this spec function to generate a new one each time
 	public record Directive(DataType pattern, Function<DataType, JsonValueSpec> spec) {
 		public Directive {
 			assert !pattern.hasWildcards():
 				"Directive pattern must not have wildcards; use type variables instead: " + pattern;
+		}
+
+		public static Directive fixed(JsonValueSpec spec) {
+			// TODO: We could optimize this knowing that the spec function always returns the same value
+			return new Directive(
+				spec.dataType(),
+				_ -> spec
+			);
 		}
 	}
 
