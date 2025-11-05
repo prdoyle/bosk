@@ -47,6 +47,7 @@ import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.TypeReference;
+import works.bosk.boson.types.TypeVariable;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.lang.invoke.MethodType.methodType;
@@ -332,27 +333,8 @@ public class BosonSerializer extends StateTreeSerializer {
 				}
 			})));
 
-		// TODO
-		//
-		// It makes me slightly uncomfortable that every directive automatically
-		// applies to all subtypes. Just because you can define a bidirectional
-		// JSON mapping for some type doesn't mean that the same mapping makes sense
-		// for all its subtypes.
-		//
-		// If I can think of an idiom to restrict directives to exact types only,
-		// it might be ok. Otherwise, we probably need to stop using DataType.isAssignableFrom
-		// for the matching, and use something more strict that only checks whether
-		// one type is a valid generic instantiation of another. Then, if you do
-		// want to match all subtypes, you can just use a type variable with an upper bound.
-		// My gut feeling is, it's uncommon that a bidirectional JSON mapping can actually
-		// handle all subtypes, so this really shouldn't be the default behaviour.
-		//
-		// I very much want to align this with the JLS spec though, so users don't
-		// have to learn special Boson-specific matching rules. I don't want to
-		// introduce new concepts for users to learn.
-		//
 		directives.add(new Directive(
-			DataType.of(StateTreeNode.class),
+			new TypeVariable("X", StateTreeNode.class),
 			stateTreeNodeType -> switch (stateTreeNodeType) {
 				case BoundType bt -> {
 					Class<? extends Record> recordClass = bt.rawClass().asSubclass(Record.class);
