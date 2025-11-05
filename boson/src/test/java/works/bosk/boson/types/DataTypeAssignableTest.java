@@ -24,85 +24,147 @@ public class DataTypeAssignableTest {
 	}
 
 	@Test
-	void concreteGenerics() {
+	void genericTypeMatchesItself() {
 		assertTrue(DataType.of(new TypeReference<List<String>>() { })
 			.isAssignableFrom(DataType.of(new TypeReference<List<String>>() { })));
+	}
+
+	@Test
+	void genericTypeMatchesSupertype() {
 		assertTrue(DataType.of(new TypeReference<Comparable<String>>() { })
 			.isAssignableFrom(DataType.of(new TypeReference<String>() { })));
 	}
 
 	@Test
-	void genericSubtype() {
+	void genericsAreNotCovariant() {
 		assertFalse(DataType.of(new TypeReference<List<CharSequence>>() { })
-			.isAssignableFrom(new TypeReference<List<String>>() { }),
-			"Generics are not covariant");
-		assertFalse(DataType.of(new TypeReference<List<String>>() { })
-			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }),
-			"Generics are not contravariant");
-		assertTrue(DataType.of(new TypeReference<List<?>>() { })
-			.isAssignableFrom(new TypeReference<List<String>>() { }),
-			"Unbounded wildcard matches any type");
-		assertTrue(DataType.of(new TypeReference<List<? extends CharSequence>>() { })
-			.isAssignableFrom(new TypeReference<List<String>>() { }),
-			"Upper-bounded CharSequence matches String");
-		assertTrue(DataType.of(new TypeReference<List<? super String>>() { })
-			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }),
-			"Lower-bounded String matches CharSequence");
+			.isAssignableFrom(new TypeReference<List<String>>() { }));
 	}
 
 	@Test
-	<V, C extends CharSequence, S extends String, X extends CharSequence & Constable> void typeVariables() {
+	void genericsAreNotContravariant() {
+		assertFalse(DataType.of(new TypeReference<List<String>>() { })
+			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
+	}
+
+	@Test
+	void unboundedWildcardMatchesAnyType() {
+		assertTrue(DataType.of(new TypeReference<List<?>>() { })
+			.isAssignableFrom(new TypeReference<List<String>>() { }));
+	}
+
+	@Test
+	void upperBoundedCharSequenceMatchesString() {
+		assertTrue(DataType.of(new TypeReference<List<? extends CharSequence>>() { })
+			.isAssignableFrom(new TypeReference<List<String>>() { }));
+	}
+
+	@Test
+	void lowerBoundedStringMatchesCharSequence() {
+		assertTrue(DataType.of(new TypeReference<List<? super String>>() { })
+			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
+	}
+
+	@Test
+	void unboundedTypeVariableMatchesTypeVariable() {
 		assertTrue(new TypeVariable("A")
-			.isAssignableFrom(new TypeVariable("B")),
-			"Unbounded type variable matches type variable");
+			.isAssignableFrom(new TypeVariable("B")));
+	}
+
+	@Test
+	void unboundedTypeVariableMatchesTypeVariableWithBound() {
 		assertTrue(new TypeVariable("A")
-			.isAssignableFrom(new TypeVariable("B", String.class)),
-			"Unbounded type variable matches type variable with bound");
+			.isAssignableFrom(new TypeVariable("B", String.class)));
+	}
+
+	@Test
+	void boundedTypeVariableDoesNotMatchUnboundedTypeVariable() {
 		assertFalse(new TypeVariable("A", String.class)
-				.isAssignableFrom(new TypeVariable("B")),
-			"Bounded type variable does not match unbounded type variable");
+			.isAssignableFrom(new TypeVariable("B")));
+	}
+
+	@Test
+	void boundedTypeVariableMatchesTypeVariableWithSubtypeBound() {
 		assertTrue(new TypeVariable("A", CharSequence.class)
-				.isAssignableFrom(new TypeVariable("B", String.class)),
-			"Bounded type variable matches type variable with subtype bound");
+			.isAssignableFrom(new TypeVariable("B", String.class)));
+	}
+
+	@Test
+	void boundedTypeVariableDoesNotMatchTypeVariableWithSupertypeBound() {
 		assertFalse(new TypeVariable("A", String.class)
-				.isAssignableFrom(new TypeVariable("B", CharSequence.class)),
-			"Bounded type variable does not match type variable with supertype bound");
+			.isAssignableFrom(new TypeVariable("B", CharSequence.class)));
+	}
+
+	@Test
+	<X extends CharSequence & Constable> void typeVariableWithMultipleBoundsMatchesSubtype() {
 		assertTrue(DataType.of(new TypeReference<X>(){})
-			.isAssignableFrom(DataType.of(String.class)),
-			"Type variable with multiple bounds matches subtype");
+			.isAssignableFrom(DataType.of(String.class)));
+	}
+
+	@Test
+	<X extends CharSequence & Constable> void typeVariableWithMultipleBoundsDoesNotMatchTypeSatisfyingJustOneBound() {
 		assertFalse(DataType.of(new TypeReference<X>(){})
-			.isAssignableFrom(DataType.of(Integer.class)),
-			"Type variable with multiple bounds does not match type satisfying just one bound");
+			.isAssignableFrom(DataType.of(Integer.class)));
+	}
+
+	@Test
+	<S extends String> void stringMatchesTypeVariableBoundedToString() {
 		assertTrue(DataType.STRING
-			.isAssignableFrom(DataType.of(new TypeReference<S>() { })),
-			"String matches type variable bounded to String");
+			.isAssignableFrom(DataType.of(new TypeReference<S>() { })));
+	}
+
+	@Test
+	<C extends CharSequence> void stringDoesNotMatchTypeVariableBoundedOnlyToSupertype() {
 		assertFalse(DataType.STRING
-				.isAssignableFrom(DataType.of(new TypeReference<C>() { })),
-			"String does not match type variable bounded only to supertype");
+			.isAssignableFrom(DataType.of(new TypeReference<C>() { })));
+	}
+
+	@Test
+	<X extends CharSequence & Constable> void objectMatchesTypeVariableBoundedToMultipleSubtypes() {
 		assertTrue(DataType.OBJECT
-				.isAssignableFrom(DataType.of(new TypeReference<X>() { })),
-			"Object matches type variable bounded to multiple subtypes");
+			.isAssignableFrom(DataType.of(new TypeReference<X>() { })));
+	}
+
+	@Test
+	<X extends CharSequence & Constable> void stringDoesNotMatchTypeVariableBoundedOnlyToMultipleSupertypes() {
 		assertFalse(DataType.STRING
-				.isAssignableFrom(DataType.of(new TypeReference<X>() { })),
-			"String does not match type variable bounded only to multiple supertypes");
+			.isAssignableFrom(DataType.of(new TypeReference<X>() { })));
+	}
+
+	@Test
+	<X extends CharSequence & Constable> void charSequenceMatchesTypeVariableIfJustOneBoundMatches() {
 		assertTrue(DataType.of(CharSequence.class)
-			.isAssignableFrom(DataType.of(new TypeReference<X>() { })),
-			"CharSequence matches type variable if just one bound matches");
+			.isAssignableFrom(DataType.of(new TypeReference<X>() { })));
+	}
+
+	@Test
+	<V> void unboundedTypeVariableMatchesAnything() {
 		assertTrue(DataType.of(new TypeReference<List<V>>() { })
-			.isAssignableFrom(new TypeReference<List<String>>() { }),
-			"Unbounded type variable matches anything");
+			.isAssignableFrom(new TypeReference<List<String>>() { }));
+	}
+
+	@Test
+	<C extends CharSequence> void boundedTypeVariableMatchesBound() {
 		assertTrue(DataType.of(new TypeReference<List<C>>() { })
-			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }),
-			"Bounded type variable matches bound");
+			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
+	}
+
+	@Test
+	<C extends CharSequence> void boundedTypeVariableMatchesSubtype() {
 		assertTrue(DataType.of(new TypeReference<List<C>>() { })
-			.isAssignableFrom(new TypeReference<List<String>>() { }),
-			"Bounded type variable matches subtype");
+			.isAssignableFrom(new TypeReference<List<String>>() { }));
+	}
+
+	@Test
+	<C extends CharSequence> void boundedTypeVariableDoesNotMatchUnrelatedType() {
 		assertFalse(DataType.of(new TypeReference<List<C>>() { })
-			.isAssignableFrom(new TypeReference<List<Integer>>() { }),
-			"Bounded type variable does not match unrelated type");
+			.isAssignableFrom(new TypeReference<List<Integer>>() { }));
+	}
+
+	@Test
+	<S extends String> void boundedTypeVariableDoesNotMatchSupertype() {
 		assertFalse(DataType.of(new TypeReference<List<S>>() { })
-			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }),
-			"Bounded type variable does not match supertype");
+			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
 	}
 
 }
