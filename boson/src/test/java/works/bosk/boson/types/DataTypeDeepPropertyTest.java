@@ -135,7 +135,7 @@ public class DataTypeDeepPropertyTest {
 		private List<Object> values2() {
 			return List.of(
 				new Case(
-					new TypeVariable("T"),
+					TypeVariable.unbounded("T"),
 					false,
 					false
 				),

@@ -44,13 +44,13 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 		return switch (candidate) {
 			case ArrayType _ -> Object.class.equals(rawClass());
 			case PrimitiveType _ -> false; // No instance type matches any primitive
-			case works.bosk.boson.types.BoundType bt -> isAssignableFrom(bt);
+			case BoundType bt -> isAssignableFrom(bt);
 			case ErasedType _ -> true; // Seems aggressive, but people use erased types when they don't want to think about generics
 		};
 
 	}
 
-	private boolean isAssignableFrom(works.bosk.boson.types.BoundType candidate) {
+	private boolean isAssignableFrom(BoundType candidate) {
 		// Collect all type variable bindings.
 		Map<String, DataType> typeVariableBindings = new HashMap<>();
 		for (int i = 0; i < bindings().size(); i++) {
@@ -67,17 +67,18 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 
 		// For each type argument with bounds that are themselves type variables,
 		// substitute the values of those bindings.
+		// TODO: Double-check the bounds on the type variables?
 		List<DataType> resolvedArguments = new ArrayList<>();
 		typeArguments().forEach(arg -> {
 			switch (arg) {
 				case UpperBoundedWildcardType(var upperBound)
-					when (upperBound instanceof TypeVariable(String name)) -> {
+					when (upperBound instanceof TypeVariable(String name, _)) -> {
 					resolvedArguments.add(new UpperBoundedWildcardType(
 						typeVariableBindings.getOrDefault(name, upperBound)
 					));
 				}
 				case LowerBoundedWildcardType(var lowerBound)
-					when (lowerBound instanceof TypeVariable(String name)) -> {
+					when (lowerBound instanceof TypeVariable(String name, _)) -> {
 					resolvedArguments.add(new LowerBoundedWildcardType(
 						typeVariableBindings.getOrDefault(name, lowerBound)
 					));
@@ -109,7 +110,8 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 		}
 
 		return switch (patternArg) {
-			case UnboundedWildcardType _, TypeVariable _ -> true;
+			case UnboundedWildcardType _ -> true;
+			case TypeVariable(_, var bounds) -> bounds.stream().allMatch(t -> DataType.of(t).isAssignableFrom(candidate));
 			case UpperBoundedWildcardType(var upperBound) -> upperBound.isAssignableFrom(candidate);
 			case LowerBoundedWildcardType(var lowerBound) -> candidate.isAssignableFrom(lowerBound);
 			default -> patternArg.equals(candidate); // Generics are neither covariant nor contravariant

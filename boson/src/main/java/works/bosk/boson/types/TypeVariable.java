@@ -1,28 +1,44 @@
 package works.bosk.boson.types;
 
+import java.lang.reflect.Type;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Note that we don't handle type bounds here. This is very subtle.
+ * Note that we don't turn the bounds into {@link DataType}s eagerly,
+ * because the bounds on type variables can be self-referential,
+ * and this would lead to infinite recursion.
+ * Wildcards don't have this problem, so their bounds are eagerly converted.
  * <p>
- * For type variables, bounds appear only at the declaration site, not at the use site.
- * For our purposes, we're dealing only with type expressions, not type declarations,
- * so we never encounter a situation where variable type bounds matter anyway.
- * <p>
- * This is different for {@link WildcardType}s, where bounds appear at the use site,
- * in the type expression itself. That is, you can declare a variable of type
- * {@code List<? extends Number>}, but you cannot declare one of type
- * {@code List<T extends Number>}.
+ * When processing the bounds, you can always convert them to {@link DataType}s
+ * as needed, but be careful to avoid infinite recursion.
  */
-public record TypeVariable(String name) implements UnknownType {
+public record TypeVariable(String name, List<Type> bounds) implements UnknownType {
+	public static TypeVariable unbounded(String name) {
+		return new TypeVariable(name, List.of());
+	}
+
 	@Override
 	public String toString() {
-		return name;
+		if (bounds.isEmpty()) {
+			return name;
+		} else {
+			StringBuilder sb = new StringBuilder();
+			sb.append(name);
+			sb.append(" extends ");
+			for (int i = 0; i < bounds.size(); i++) {
+				if (i > 0) {
+					sb.append(" & ");
+				}
+				sb.append(bounds.get(i).getTypeName());
+			}
+			return sb.toString();
+		}
 	}
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return true;
+		return bounds.stream().allMatch(t -> DataType.of(t).isAssignableFrom(other));
 	}
 
 	@Override
@@ -44,6 +60,9 @@ public record TypeVariable(String name) implements UnknownType {
 
 	@Override
 	public boolean hasWildcards() {
+		// The type bounds can contain wildcards, but the important thing is that
+		// if this type variable were substituted with a wildcard-free type, the
+		// result would be fully known, and so we return false here.
 		return false;
 	}
 }
