@@ -203,6 +203,10 @@ public class TypeScanner {
 				"Directive pattern must not have wildcards; use type variables instead: " + pattern;
 		}
 
+		/**
+		 * @return a {@link Directive} that always returns the given {@code spec}
+		 * regardless of the actual type.
+		 */
 		public static Directive fixed(JsonValueSpec spec) {
 			// TODO: We could optimize this knowing that the spec function always returns the same value
 			return new Directive(
