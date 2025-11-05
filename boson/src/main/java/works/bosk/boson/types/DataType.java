@@ -3,6 +3,7 @@ package works.bosk.boson.types;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -53,7 +54,13 @@ public sealed interface DataType permits KnownType, UnknownType {
 				(Class<?>) pt.getRawType(),
 				Stream.of(pt.getActualTypeArguments()).map(DataType::of).toList());
 		} else if (type instanceof java.lang.reflect.TypeVariable<?> tv) {
-			return new TypeVariable(tv.getName());
+			Type[] bounds = tv.getBounds();
+			if (bounds.length == 1 && bounds[0].equals(Object.class)) {
+				// Prefer to represent as unbounded
+				return new TypeVariable(tv.getName(), List.of());
+			} else {
+				return new TypeVariable(tv.getName(), Arrays.asList(bounds));
+			}
 		} else if (type instanceof java.lang.reflect.WildcardType w) {
 			return ofWildcard(w);
 		} else if (type instanceof GenericArrayType t) {
@@ -109,6 +116,10 @@ public sealed interface DataType permits KnownType, UnknownType {
 	boolean isFullyKnown();
 
 	/**
+	 * Technically, the question answered here is: if we were to substitute all type variables
+	 * with wildcard-free types, would the resulting type be {@link #isFullyKnown}?
+	 * If so, this method returns false.
+	 *
 	 * @return true if this type contains any {@link WildcardType} or {@link ErasedType}.
 	 */
 	boolean hasWildcards();
