@@ -10,7 +10,7 @@ public record UpperBoundedWildcardType(DataType upperBound) implements WildcardT
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return other instanceof KnownType && upperBound.isAssignableFrom(other);
+		return upperBound.isAssignableFrom(other);
 	}
 
 	@Override

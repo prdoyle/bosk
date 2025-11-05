@@ -10,8 +10,15 @@ public record ArrayType(KnownType elementType) implements KnownType {
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return other instanceof works.bosk.boson.types.ArrayType(var otherElementType)
+		return other instanceof ArrayType(var otherElementType)
 			&& elementType.isAssignableFrom(otherElementType);
+	}
+
+	@Override
+	public boolean isAssignableFromTypeArgument(DataType other) {
+		// TODO: Check the semantics here and in UnknownArrayType
+		return other instanceof ArrayType(var otherElementType)
+			&& elementType.isAssignableFromTypeArgument(otherElementType);
 	}
 
 	@Override

@@ -32,25 +32,32 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 		return this.bindings().stream();
 	}
 
-	public boolean isAssignableFrom(DataType candidateType) {
-		if (!(candidateType instanceof KnownType candidate)) {
-			// Known types can't be assignable from unknown ones
-			return false;
-		}
-		if (!rawClass().isAssignableFrom(candidate.rawClass())) {
-			return false;
-		}
-
-		return switch (candidate) {
+	public boolean isAssignableFrom(DataType other) {
+		return switch (other) {
 			case ArrayType _ -> Object.class.equals(rawClass());
 			case PrimitiveType _ -> false; // No instance type matches any primitive
 			case BoundType bt -> isAssignableFrom(bt);
 			case ErasedType _ -> true; // Seems aggressive, but people use erased types when they don't want to think about generics
+			case TypeVariable(_, var bounds) -> bounds.stream().anyMatch(t -> this.isAssignableFrom(DataType.of(t)));
+			case UnknownType _ -> rawClass().isAssignableFrom(other.leastUpperBoundClass());
 		};
 
 	}
 
+	@Override
+	public boolean isAssignableFromTypeArgument(DataType other) {
+		if (other instanceof KnownType kt && rawClass().equals(kt.rawClass())) {
+			return isAssignableFrom(kt);
+		} else {
+			return false;
+		}
+	}
+
 	private boolean isAssignableFrom(BoundType candidate) {
+		if (!rawClass().isAssignableFrom(candidate.rawClass())) {
+			return false;
+		}
+
 		// Collect all type variable bindings.
 		Map<String, DataType> typeVariableBindings = new HashMap<>();
 		for (int i = 0; i < bindings().size(); i++) {
