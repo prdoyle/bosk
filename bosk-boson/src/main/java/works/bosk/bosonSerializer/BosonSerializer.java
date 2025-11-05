@@ -112,7 +112,10 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(Directive.fixed(
-			FixedMapNode.of(new FixedMapNode.Wrangler2<CatalogReference<E>, List<Identifier>, Listing<E>>() {
+			FixedMapNode.of(new FixedMapNode.Wrangler2<Listing<E>, CatalogReference<E>, List<Identifier>>(
+				"domain",
+				"ids"
+			) {
 				@Override
 				public CatalogReference<E> accessor1(Listing<E> value) {
 					return value.domain();
@@ -131,15 +134,23 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(Directive.fixed(
-			RepresentAsSpec.of(new RepresentAsSpec.Wrangler<SideTable<E, T>, SideTableRepresentation<E, T>>() {
+			FixedMapNode.of(new FixedMapNode.Wrangler2<SideTable<E, T>, CatalogReference<E>, Map<Identifier, T>>(
+				"domain",
+				"valuesById"
+			) {
 				@Override
-				public SideTableRepresentation<E, T> toRepresentation(SideTable<E, T> value) {
-					return SideTableRepresentation.fromSideTable(value);
+				public CatalogReference<E> accessor1(SideTable<E, T> value) {
+					return value.domain();
 				}
 
 				@Override
-				public SideTable<E, T> fromRepresentation(SideTableRepresentation<E, T> representation) {
-					return representation.toSideTable();
+				public Map<Identifier, T> accessor2(SideTable<E, T> value) {
+					return value.asMap();
+				}
+
+				@Override
+				public SideTable<E, T> finish(CatalogReference<E> domain, Map<Identifier, T> valuesById) {
+					return SideTable.copyOf(domain, valuesById);
 				}
 			})
 		));
@@ -386,19 +397,6 @@ public class BosonSerializer extends StateTreeSerializer {
 			return s.charAt(0);
 		} else {
 			throw new IllegalArgumentException("Expected single-character string, got: " + s);
-		}
-	}
-
-	record SideTableRepresentation<K extends Entity, V>(CatalogReference<K> domain, Map<Identifier, V> valuesById){
-		public static <KK extends Entity, VV> SideTableRepresentation<KK,VV> fromSideTable(SideTable<KK,VV> sideTable) {
-			return new SideTableRepresentation<>(
-				sideTable.domain(),
-				sideTable.asMap()
-			);
-		}
-
-		public SideTable<K,V> toSideTable() {
-			return SideTable.copyOf(domain, this.valuesById());
 		}
 	}
 

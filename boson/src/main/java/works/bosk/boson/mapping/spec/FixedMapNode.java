@@ -91,24 +91,38 @@ public record FixedMapNode(
 		);
 	}
 
-	public interface Wrangler1<T1, V> {
-		T1 accessor1(V value);
-		V finish(T1 arg1);
+	public abstract static class Wrangler1<V, T1> {
+		final String member1Name;
+
+		protected Wrangler1(String member1Name) {
+			this.member1Name = member1Name;
+		}
+
+		public abstract T1 accessor1(V value);
+		public abstract V finish(T1 member1);
 	}
 
-	public interface Wrangler2<T1, T2, V> {
-		T1 accessor1(V value);
-		T2 accessor2(V value);
-		V finish(T1 arg1, T2 arg2);
+	public abstract static class Wrangler2<V, T1, T2> {
+		final String member1Name;
+		final String member2Name;
+
+		protected Wrangler2(String member1Name, String member2Name) {
+			this.member1Name = member1Name;
+			this.member2Name = member2Name;
+		}
+
+		public abstract T1 accessor1(V value);
+		public abstract T2 accessor2(V value);
+		public abstract V finish(T1 member1, T2 member2);
 	}
 
-	public static FixedMapNode of(Wrangler1<?,?> wrangler) {
+	public static FixedMapNode of(Wrangler1<?, ?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
-		DataType valueType = wranglerType.parameterType(Wrangler1.class, 1);
+		DataType valueType = wranglerType.parameterType(Wrangler1.class, 0);
 
 		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
-		DataType arg1Type = wranglerType.parameterType(Wrangler1.class, 0);
-		memberSpecs.put("arg1", new FixedMapMember(
+		DataType arg1Type = wranglerType.parameterType(Wrangler1.class, 1);
+		memberSpecs.put(wrangler.member1Name, new FixedMapMember(
 			new TypeRefNode(arg1Type),
 			new TypedHandle(
 				WRANGLER1_ACCESSOR1.bindTo(wrangler).asType(
@@ -129,14 +143,14 @@ public record FixedMapNode(
 		return new FixedMapNode(memberSpecs, finisher);
 	}
 
-	public static FixedMapNode of(Wrangler2<?,?,?> wrangler) {
+	public static FixedMapNode of(Wrangler2<?, ?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
-		DataType valueType = wranglerType.parameterType(Wrangler2.class, 2);
+		DataType valueType = wranglerType.parameterType(Wrangler2.class, 0);
 
 		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
-		DataType arg1Type = wranglerType.parameterType(Wrangler2.class, 0);
-		DataType arg2Type = wranglerType.parameterType(Wrangler2.class, 1);
-		memberSpecs.put("arg1", new FixedMapMember(
+		DataType arg1Type = wranglerType.parameterType(Wrangler2.class, 1);
+		DataType arg2Type = wranglerType.parameterType(Wrangler2.class, 2);
+		memberSpecs.put(wrangler.member1Name, new FixedMapMember(
 			new TypeRefNode(arg1Type),
 			new TypedHandle(
 				WRANGLER2_ACCESSOR1.bindTo(wrangler).asType(
@@ -145,7 +159,7 @@ public record FixedMapNode(
 				arg1Type, List.of(valueType)
 			)
 		));
-		memberSpecs.put("arg2", new FixedMapMember(
+		memberSpecs.put(wrangler.member2Name, new FixedMapMember(
 			new TypeRefNode(arg2Type),
 			new TypedHandle(
 				WRANGLER2_ACCESSOR2.bindTo(wrangler).asType(
