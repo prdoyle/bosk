@@ -66,23 +66,21 @@ public class BosonSerializer extends StateTreeSerializer {
 
 		var directives = new ArrayList<Directive>();
 
-		KnownType idType = DataType.known(Identifier.class);
 		directives.add(Directive.fixed(
 			RepresentAsSpec.as(
 				new StringNode(),
-				idType,
+				DataType.known(Identifier.class),
 				Identifier::toString,
 				Identifier::from
 			)
 		));
 
 		// Usually we don't need a mapping for ListingEntry because Listing takes care of it,
-		// but it's possible someone could try to serialize a ListingEntry directly.
-		DataType listingEntryType = DataType.of(ListingEntry.class);
+		// but we want to support people serializing a ListingEntry directly.
 		directives.add(Directive.fixed(
 			RepresentAsSpec.as(
 				new BooleanNode(),
-				listingEntryType,
+				DataType.of(ListingEntry.class),
 				(ListingEntry _) -> true,
 				(Boolean _) -> LISTING_ENTRY
 			)
@@ -126,8 +124,8 @@ public class BosonSerializer extends StateTreeSerializer {
 				}
 
 				@Override
-				public Listing<E> finish(CatalogReference<E> arg1, List<Identifier> arg2) {
-					return Listing.of(arg1, arg2);
+				public Listing<E> finish(CatalogReference<E> domain, List<Identifier> ids) {
+					return Listing.of(domain, ids);
 				}
 			})
 		));
@@ -146,6 +144,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			})
 		));
 
+		// It's remarkable how cumbersome this one is
 		directives.add(new Directive(
 			DataType.of(new TypeReference<TaggedUnion<V>>(){}),
 			taggedUnionType -> switch (taggedUnionType) {
@@ -238,11 +237,16 @@ public class BosonSerializer extends StateTreeSerializer {
 			new TypeVariable("X", StateTreeNode.class),
 			stateTreeNodeType -> switch (stateTreeNodeType) {
 				case BoundType bt -> {
+					// StateTreeNode offers some features that only work in the context of a StateTreeNode,
+					// like omitting Optional fields. We can't add a directive for Optional itself
+					// because there'd be no way to make that omit the member name from the containing object.
+
 					Class<? extends Record> recordClass = bt.rawClass().asSubclass(Record.class);
 					SequencedMap<String, FixedMapMember> componentsByName = new LinkedHashMap<>();
 					for (var rc : recordClass.getRecordComponents()) {
 						// Look for record components requiring special handling
 						if (Optional.class.isAssignableFrom(rc.getType())) {
+							// This is remarkably cumbersome
 							var valueType = ReferenceUtils.parameterType(rc.getGenericType(), Optional.class, 0);
 							var elementType = new TypeRefNode(DataType.known(valueType));
 							var ifPresent = RepresentAsSpec.<Optional<?>, Object>as(
@@ -371,7 +375,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		return new TypeScanner.Bundle(
-			List.of(listingEntryType),
+			List.of(DataType.of(ListingEntry.class)),
 			List.of(lookup),
 			List.copyOf(directives)
 		);
