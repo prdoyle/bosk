@@ -314,7 +314,8 @@ public class CodecHappyParseTest {
 		);
 
 		var typeMap = scanner
-			.scan(mapType)
+			.scan(STRING)
+			.scan(DataType.of(BigDecimal.class))
 			.build();
 		var codec = CodecBuilder.using(typeMap).build(spec);
 		var json = """
