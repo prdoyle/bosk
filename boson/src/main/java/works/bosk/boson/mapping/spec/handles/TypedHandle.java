@@ -7,8 +7,8 @@ import java.lang.invoke.WrongMethodTypeException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 import static java.lang.invoke.MethodType.methodType;
 import static java.util.Objects.requireNonNull;
@@ -38,10 +38,7 @@ public record TypedHandle(
 	}
 
 	private static Class<?> equivalentClass(DataType dataType) {
-		return switch (dataType) {
-			case KnownType kt -> kt.rawClass();
-			default -> Object.class;
-		};
+		return dataType.leastUpperBoundClass();
 	}
 
 	public Object invoke(Object... args) {
@@ -64,6 +61,19 @@ public record TypedHandle(
 		resultParameterTypes.remove(parameterIndex);
 		resultParameterTypes.addAll(parameter.parameterTypes());
 		return new TypedHandle(resultHandle, returnType, resultParameterTypes);
+	}
+
+	public TypedHandle dropArguments(int pos, DataType... argTypes) {
+		MethodHandle resultHandle = MethodHandles.dropArguments(
+			handle,
+			pos,
+			Stream.of(argTypes)
+				.map(TypedHandle::equivalentClass)
+				.toArray(Class<?>[]::new)
+		);
+		List<DataType> resultParameterTypes = new ArrayList<>(parameterTypes());
+		resultParameterTypes.addAll(pos, List.of(argTypes));
+		return new TypedHandle(resultHandle, returnType, List.copyOf(resultParameterTypes));
 	}
 
 	public TypedHandle substitute(Map<String, DataType> actualArguments) {

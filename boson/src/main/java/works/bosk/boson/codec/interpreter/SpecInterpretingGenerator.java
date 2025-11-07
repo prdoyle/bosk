@@ -28,6 +28,7 @@ import works.bosk.boson.mapping.spec.UniformMapNode;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.EnclosingObject;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.MemberValue;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.Nullary;
+import works.bosk.boson.mapping.spec.handles.TypedHandle;
 
 import static works.bosk.boson.mapping.Token.END_ARRAY;
 import static works.bosk.boson.mapping.Token.END_OBJECT;
@@ -124,16 +125,48 @@ public class SpecInterpretingGenerator implements Generator {
 		}
 
 		private void generateUniformMap(UniformMapNode node, Object value) {
-			Map<?,?> map = (Map<?, ?>) value;
+			// Unpack the handles
+			TypedHandle start = node.emitter().start();
+			TypedHandle hasNext = node.emitter().hasNext();
+			TypedHandle next = node.emitter().next();
+			TypedHandle getKey = node.emitter().getKey();
+			TypedHandle getValue = node.emitter().getValue();
+
 			out.print(START_OBJECT.fixedRepresentation());
 			String sep = "";
-			for (var entry : map.entrySet()) {
-				if (node.valueNode() instanceof JsonValueSpec v) {
+			if (next.parameterTypes().size() == 1) {
+				// Mutable iterator form
+				Object iterator = start.invoke(value);
+				while (Boolean.TRUE.equals(hasNext.invoke(iterator))) {
+					var member = next.invoke(iterator);
+					var memberKey = getKey.invoke(member);
+					var memberValue = getValue.invoke(member);
 					out.print(sep);
 					sep = ",";
-					generateAny(node.keyNode(), entry.getKey());
+					generateAny(node.keyNode(), memberKey);
 					out.print(":");
-					generateAny(v, entry.getValue());
+					generateAny(node.valueNode(), memberValue);
+				}
+			} else {
+				// For-loop form
+				assert next.parameterTypes().size() == 2;
+				for (var iter = start.invoke(value);
+					 Boolean.TRUE.equals((hasNext.parameterTypes().size() == 1)
+						 ? hasNext.invoke(iter)
+						 : hasNext.invoke(iter, value));
+					 iter = next.invoke(iter, value)
+				) {
+					var memberKey = (getKey.parameterTypes().size() == 1)
+						? getKey.invoke(iter)
+						: getKey.invoke(iter, value);
+					var memberValue = (getValue.parameterTypes().size() == 1)
+						? getValue.invoke(iter)
+						: getValue.invoke(iter, value);
+					out.print(sep);
+					sep = ",";
+					generateAny(node.keyNode(), memberKey);
+					out.print(":");
+					generateAny(node.valueNode(), memberValue);
 				}
 			}
 			out.print(END_OBJECT.fixedRepresentation());

@@ -156,6 +156,33 @@ public final class TypedHandles {
 		);
 	}
 
+	public static <T1,T2,T3,R> TypedHandle triFunction(
+		DataType argType1,
+		DataType argType2,
+		DataType argType3,
+		DataType returnType,
+		TriFunction<T1,T2,T3,R> triFunction
+	) {
+		return new TypedHandle(
+			TRI_FUNCTION_APPLY
+				.bindTo(triFunction)
+				.asType(methodType(returnType.leastUpperBoundClass(), argType1.leastUpperBoundClass(), argType2.leastUpperBoundClass(), argType3.leastUpperBoundClass())),
+			returnType,
+			List.of(argType1, argType2)
+		);
+	}
+
+	public static TypedHandle identity(DataType type) {
+		return new TypedHandle(
+			MethodHandles.identity(type.leastUpperBoundClass()),
+			type, List.of(type)
+		);
+	}
+
+	public interface TriFunction<T1,T2,T3,R> {
+		R apply(T1 t1, T2 t2, T3 t3);
+	}
+
 	public static <T> TypedHandle predicate(DataType argType, Predicate<T> predicate) {
 		return new TypedHandle(
 			PREDICATE_TEST
@@ -168,6 +195,7 @@ public final class TypedHandles {
 
 	private static final MethodHandle FUNCTION_APPLY;
 	private static final MethodHandle BI_FUNCTION_APPLY;
+	private static final MethodHandle TRI_FUNCTION_APPLY;
 	private static final MethodHandle PREDICATE_TEST;
 	private static final MethodHandle SUPPLIER_GET;
 	private static final MethodHandle CONSUMER_ACCEPT;
@@ -178,6 +206,7 @@ public final class TypedHandles {
 		try {
 			FUNCTION_APPLY = MethodHandles.lookup().findVirtual(Function.class, "apply", methodType(Object.class, Object.class));
 			BI_FUNCTION_APPLY = MethodHandles.lookup().findVirtual(BiFunction.class, "apply", methodType(Object.class, Object.class, Object.class));
+			TRI_FUNCTION_APPLY = MethodHandles.lookup().findVirtual(TriFunction.class, "apply", methodType(Object.class, Object.class, Object.class, Object.class));
 			PREDICATE_TEST = MethodHandles.lookup().findVirtual(Predicate.class, "test", methodType(boolean.class, Object.class));
 			SUPPLIER_GET = MethodHandles.lookup().findVirtual(Supplier.class, "get", methodType(Object.class));
 			CONSUMER_ACCEPT = MethodHandles.lookup().findVirtual(java.util.function.Consumer.class, "accept", methodType(void.class, Object.class));

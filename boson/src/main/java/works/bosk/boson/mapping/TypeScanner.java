@@ -406,6 +406,7 @@ public class TypeScanner {
 				.orElseThrow(() -> new IllegalStateException("Unsupported number class: " + clazz));
 			return new BoxedPrimitiveSpec(new PrimitiveNumberNode(primitiveClass));
 		}
+		// TODO: We could actually handle Iterable I think
 		if (Collection.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(List.class)) {
 			return new ArrayNode(
 				refNode(type.parameterType(Collection.class, 0)),
@@ -413,7 +414,7 @@ public class TypeScanner {
 				listEmitter(type)
 			);
 		}
-		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(Map.class)) {
+		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(LinkedHashMap.class)) {
 			var keySpec = refNode(type.parameterType(Map.class, 0));
 			var valueSpec = refNode(type.parameterType(Map.class, 1));
 			return new UniformMapNode(
