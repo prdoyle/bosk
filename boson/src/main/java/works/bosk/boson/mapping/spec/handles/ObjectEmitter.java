@@ -1,5 +1,6 @@
 package works.bosk.boson.mapping.spec.handles;
 
+import java.util.Iterator;
 import java.util.Map;
 import works.bosk.boson.mapping.spec.UniformMapNode;
 import works.bosk.boson.types.DataType;
@@ -14,23 +15,63 @@ import static works.bosk.boson.types.DataType.BOOLEAN;
  * There are some additional rules the caller should follow:
  * <ul>
  *     <li>
- *         {@code start} must accept value of {@link UniformMapNode}'s type
+ *         {@code start} must accept a value of {@link UniformMapNode}'s type.
  *     </li>
  *     <li>
- *         {@code getKey} must return a value of {@link UniformMapNode#keyNode() keyNode}'s type
+ *         {@code getKey} must return a value of {@link UniformMapNode#keyNode() keyNode}'s type.
  *     </li>
  *     <li>
- *         {@code getValue} must return a value of {@link UniformMapNode#valueNode() valueNode}'s type
+ *         {@code getValue} must return a value of {@link UniformMapNode#valueNode() valueNode}'s type.
  *     </li>
  * </ul>
  *
- * The "intermediate" values returned by {@code start} and {@code next} can be primitives.
+ * For generality and efficiency, two forms of iteration are supported.
+ * The first form uses a mutable iterator object, in the style of {@link Iterator},
+ * and operates according to this pseudocode:
+ *
+ * <pre>
+ * 	for (var iter = start(obj); hasNext(iter); ) {
+ *		var member = next(iter);
+ *		generateMember(getKey(member), getValue(member));
+ *	}
+ * </pre>
+ *
+ * ({@code generateMember} is a placeholder representing the logic that emits a member of a JSON object.)
+ * <p>
+ * The second form supports standard for-loop iteration, including immutable (even primitive)
+ * induction variables, more like this pseudocode:
+ *
+ * <pre>
+ * 	for (var iter = start(obj); hasNext(iter, obj); iter = next(iter, obj)) {
+ *		generateMember(getKey(iter, obj), getValue(iter, obj));
+ *	}
+ * </pre>
+ *
+ * The two forms are distinguished by whether {@code next} accepts the original object as its second parameter:
+ *
+ * <ul>
+ *     <li>
+ *         If it does not, the emitter is of the first (mutable) form.
+ *         In this case, {@code hasNext} and {@code next} have the usual semantics from {@link Iterator},
+ *         and {@code getKey} and {@code getValue} accept the member object returned by {@code next}.
+ *     </li>
+ *     <li>
+ *         If it does, the emitter is of the second (immutable) form.
+ *         In this case, {@code hasNext}, {@code getKey}, and {@code getValue} may also
+ *         optionally accept the original object as an extra parameter.
+ *     </li>
+ * </ul>
+ *
+ * These two forms also differ in that the {@code next} method is called before {@link #getKey} and {@link #getValue}
+ * in the mutable-iterator form, but after them in the for-loop form.
  *
  * @param start     given the object being emitted, returns an iterator-like value
- * @param hasNext   given the iterator, returns {@code true} if there are more members to emit
- * @param next      given the iterator, returns a value representing the next member to emit
- * @param getKey    given the member, returns a value representing its name
- * @param getValue  given the member, returns its value
+ * @param hasNext   given the iterator (and possibly the original object), returns {@code true} if there are more members to emit
+ * @param next      given the iterator, returns a value representing the next member to emit;
+ *                  or for for-loop iteration, given the iterator and the original object, returns the next iterator value,
+ *                  with the prior iterator serving the role of the "member" object from which key and value are extracted
+ * @param getKey    given the member (or iterator and possibly the original object), returns a value representing its name
+ * @param getValue  given the member (or iterator and possibly the original object), returns its value
  */
 public record ObjectEmitter(
 	TypedHandle start,
@@ -42,18 +83,48 @@ public record ObjectEmitter(
 	public ObjectEmitter {
 		assert start.parameterTypes().size() == 1;
 
-		assert hasNext.parameterTypes().size() == 1;
-		assert hasNext.parameterTypes().getFirst().isAssignableFrom(start.returnType());
-		assert hasNext.returnType().equals(BOOLEAN);
+		DataType object = start.parameterTypes().getFirst();
+		DataType iteratorType = start.returnType();
+		if (next.parameterTypes().size() == 1) {
+			// Mutable iterator form
+			assert next.parameterTypes().getFirst().isAssignableFrom(iteratorType);
 
-		assert next.parameterTypes().size() == 1;
-		assert next.parameterTypes().getFirst().isAssignableFrom(start.returnType());
+			assert hasNext.parameterTypes().size() == 1;
+			assert hasNext.parameterTypes().getFirst().isAssignableFrom(iteratorType);
+			assert hasNext.returnType().equals(BOOLEAN);
 
-		assert getKey.parameterTypes().size() == 1;
-		assert getKey.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+			assert getKey.parameterTypes().size() == 1;
+			assert getKey.parameterTypes().getFirst().isAssignableFrom(next.returnType());
 
-		assert getValue.parameterTypes().size() == 1;
-		assert getValue.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+			assert getValue.parameterTypes().size() == 1;
+			assert getValue.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+		} else {
+			// For-loop form
+			assert next.parameterTypes().size() == 2;
+			assert next.parameterTypes().getFirst().isAssignableFrom(iteratorType);
+			assert next.parameterTypes().getLast().isAssignableFrom(object);
+			assert iteratorType.isAssignableFrom(next.returnType());
+
+			assert hasNext.parameterTypes().size() <= 2;
+			assert hasNext.parameterTypes().getFirst().isAssignableFrom(iteratorType);
+			if (hasNext.parameterTypes().size() == 2) {
+				assert hasNext.parameterTypes().getLast().isAssignableFrom(object);
+			}
+			assert hasNext.returnType().equals(BOOLEAN);
+
+			assert getKey.parameterTypes().size() <= 2;
+			assert getKey.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+			if (getKey.parameterTypes().size() == 2) {
+				assert getKey.parameterTypes().getLast().isAssignableFrom(object);
+			}
+
+			assert getValue.parameterTypes().size() <= 2;
+			assert getValue.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+			if (getValue.parameterTypes().size() == 2) {
+				assert getValue.parameterTypes().getLast().isAssignableFrom(object);
+			}
+		}
+
 	}
 
 	/**
