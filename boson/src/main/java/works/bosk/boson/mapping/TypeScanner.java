@@ -3,7 +3,6 @@ package works.bosk.boson.mapping;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
-import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
@@ -438,7 +437,7 @@ public class TypeScanner {
 
 	public static ArrayAccumulator listAccumulator(BoundType arrayListType) {
 		assert arrayListType.rawClass().isAssignableFrom(ArrayList.class);
-		if (!(arrayListType.parameterType(List.class, 0) instanceof KnownType elementType)) {
+		if (!(arrayListType.parameterType(Collection.class, 0) instanceof KnownType elementType)) {
 			throw new IllegalStateException("Can't accumulate into a list of unknown element type: " + arrayListType);
 		}
 		MethodHandle creator, listAdd, finisher;
@@ -462,23 +461,23 @@ public class TypeScanner {
 		);
 	}
 
-	public static ArrayEmitter listEmitter(BoundType listType) {
-		assert List.class.isAssignableFrom(listType.rawClass());
-		if (!(listType.parameterType(List.class, 0) instanceof KnownType elementType)) {
-			throw new IllegalStateException("Can't emit from a list of unknown element type: " + listType);
+	public static ArrayEmitter listEmitter(BoundType collectionType) {
+		assert Collection.class.isAssignableFrom(collectionType.rawClass());
+		if (!(collectionType.parameterType(Collection.class, 0) instanceof KnownType elementType)) {
+			throw new IllegalStateException("Can't emit from a list of unknown element type: " + collectionType);
 		}
 		MethodHandle iterator, hasNext, next;
 		try {
-			iterator = MethodHandles.lookup().unreflect(List.class.getMethod("iterator"));
+			iterator = MethodHandles.lookup().unreflect(collectionType.rawClass().getMethod("iterator"));
 			hasNext = MethodHandles.lookup().unreflect(Iterator.class.getMethod("hasNext"));
 			next = MethodHandles.lookup().unreflect(Iterator.class.getMethod("next"));
 		} catch (IllegalAccessException | NoSuchMethodException e) {
-			throw new IllegalStateException("Unexpected error doing reflection on List", e);
+			throw new IllegalStateException("Unexpected error doing reflection on Collection", e);
 		}
 		var downcastNext = next.asType(next.type().changeReturnType(elementType.rawClass()));
-		var iteratorType = new BoundType(Iterator.class, listType.bindings());
+		var iteratorType = new BoundType(Iterator.class, collectionType.bindings());
 		return new ArrayEmitter(
-			new TypedHandle(iterator, iteratorType, List.of(listType)),
+			new TypedHandle(iterator, iteratorType, List.of(collectionType)),
 			new TypedHandle(hasNext, DataType.BOOLEAN, List.of(iteratorType)),
 			new TypedHandle(downcastNext, elementType, List.of(iteratorType))
 		);
@@ -518,7 +517,6 @@ public class TypeScanner {
 			!(mapType.parameterType(Map.class, 1) instanceof KnownType valueType)) {
 			throw new IllegalStateException("Can't emit from a map of unknown key or value type: " + mapType);
 		}
-		Method getIteratorMethod;
 		MethodHandle start, hasNext, next, getKey, getValue;
 		try {
 			start = MethodHandles.lookup().unreflect(TypeScanner.class.getDeclaredMethod("getIterator", Map.class));

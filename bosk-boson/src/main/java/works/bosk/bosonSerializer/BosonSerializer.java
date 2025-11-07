@@ -4,6 +4,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Array;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,17 +97,18 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
+		// This probably should be a SequencedCollection, but
 		directives.add(Directive.fixed(
-			RepresentAsSpec.of(new RepresentAsSpec.Wrangler<Catalog<E>, Map<Identifier, E>>() {
+			RepresentAsSpec.of(new RepresentAsSpec.Wrangler<Catalog<E>, Collection<E>>() {
 				@Override
-				public Map<Identifier, E> toRepresentation(Catalog<E> value) {
-					return value.asMap();
+				public Collection<E> toRepresentation(Catalog<E> value) {
+					return value.asCollection();
 				}
 
 				@Override
-				public Catalog<E> fromRepresentation(Map<Identifier, E> representation) {
+				public Catalog<E> fromRepresentation(Collection<E> representation) {
 					// TODO: validate ids?
-					return Catalog.of(representation.values());
+					return Catalog.of(representation);
 				}
 			})
 		));
@@ -133,24 +135,43 @@ public class BosonSerializer extends StateTreeSerializer {
 			})
 		));
 
+		record SideTableEntry<V>(Identifier id, V value) {}
+		record SideTableRepresentation<K extends Entity, V>(
+			CatalogReference<K> domain,
+			List<SideTableEntry<V>> entries
+		) {}
+
 		directives.add(Directive.fixed(
-			FixedMapNode.of(new FixedMapNode.Wrangler2<SideTable<E, T>, CatalogReference<E>, Map<Identifier, T>>(
-				"domain",
-				"valuesById"
-			) {
+			RepresentAsSpec.of(new RepresentAsSpec.Wrangler<SideTable<E,T>, SideTableRepresentation<E,T>>() {
 				@Override
-				public CatalogReference<E> accessor1(SideTable<E, T> value) {
-					return value.domain();
+				public SideTableRepresentation<E, T> toRepresentation(SideTable<E, T> value) {
+					return new SideTableRepresentation<>(
+						value.domain(),
+						value.idEntrySet().stream().map(e -> new SideTableEntry<>(e.getKey(), e.getValue())).toList()
+					);
 				}
 
 				@Override
-				public Map<Identifier, T> accessor2(SideTable<E, T> value) {
-					return value.asMap();
+				public SideTable<E, T> fromRepresentation(SideTableRepresentation<E, T> representation) {
+					SideTable.Builder <E, T> builder = SideTable.builder(representation.domain);
+					for (var entry : representation.entries) {
+						builder.put(entry.id(), entry.value());
+					}
+					return null;
+				}
+			})
+		));
+
+		directives.add(Directive.fixed(
+			RepresentAsSpec.of(new RepresentAsSpec.Wrangler<SideTableEntry<T>, Map<Identifier, T>>() {
+				@Override
+				public Map<Identifier, T> toRepresentation(SideTableEntry<T> value) {
+					return Map.of(value.id(), value.value());
 				}
 
 				@Override
-				public SideTable<E, T> finish(CatalogReference<E> domain, Map<Identifier, T> valuesById) {
-					return SideTable.copyOf(domain, valuesById);
+				public SideTableEntry<T> fromRepresentation(Map<Identifier, T> representation) {
+					return new SideTableEntry<>();
 				}
 			})
 		));
