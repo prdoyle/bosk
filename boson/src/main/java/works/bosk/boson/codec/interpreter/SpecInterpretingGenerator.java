@@ -7,6 +7,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.boson.codec.Generator;
+import works.bosk.boson.exceptions.JsonProcessingException;
 import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.mapping.spec.BigNumberNode;
@@ -98,9 +99,9 @@ public class SpecInterpretingGenerator implements Generator {
 			try {
 				representation = node.toRepresentation().handle().invoke(value);
 			} catch (WrongMethodTypeException | ClassCastException e) {
-				throw new IllegalStateException(e);
+				throw new JsonProcessingException(e);
 			} catch (Throwable e) {
-				throw new IllegalStateException("Unexpected exception", e);
+				throw new JsonProcessingException("Unexpected exception", e);
 			}
 			generateAny(node.representation(), representation);
 		}
