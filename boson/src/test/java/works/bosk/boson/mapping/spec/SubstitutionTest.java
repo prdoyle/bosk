@@ -7,12 +7,17 @@ import org.junit.jupiter.api.Test;
 import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.TypeScanner;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
+import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.TypeReference;
+import works.bosk.boson.types.TypeVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static works.bosk.boson.mapping.TypeMap.Settings.SHALLOW;
+import static works.bosk.boson.types.DataType.OBJECT;
 import static works.bosk.boson.types.DataType.STRING;
 
 public class SubstitutionTest {
@@ -79,5 +84,32 @@ public class SubstitutionTest {
 		assertEquals(LIST_OF_STRING, actual.valueNode().dataType());
 		assertEquals(LIST_OF_STRING, actual.accumulator().valueType());
 		assertEquals(LIST_OF_STRING, actual.emitter().getValue().returnType());
+	}
+
+	@Test
+	void typedHandleEquality() {
+		// We want the property that, if substitution makes no difference,
+		// then the resulting TypedHandle is equal to the original.
+		// This doesn't necessarily happen naturally because MethodHandle
+		// equality is by identity.
+		var integerType = DataType.known(Integer.class);
+		TypedHandle noTypeVariables = TypedHandles.identity(STRING);
+		assertEquals(noTypeVariables, noTypeVariables.substitute(Map.of("X", integerType)),
+			"Substituting a type variable not used in the original TypedHandle should yield an equal TypedHandle");
+
+		TypedHandle withTypeVariable = TypedHandles.identity(new TypeVariable("T"));
+		assertEquals(withTypeVariable, withTypeVariable.substitute(Map.of()),
+			"Substituting nothing should yield an equal TypedHandle");
+		assertEquals(withTypeVariable, withTypeVariable.substitute(Map.of("X", integerType)),
+			"Substituting a type variable with itself should yield an equal TypedHandle");
+		assertEquals(withTypeVariable, withTypeVariable.substitute(Map.of("T", new TypeVariable("T"))),
+			"Substituting a type variable with itself should yield an equal TypedHandle");
+
+		assertNotEquals(withTypeVariable, withTypeVariable.substitute(Map.of("T", STRING)),
+			"A substitution that changes the type should yield a different TypedHandle");
+
+		// Should reuse MethodHandles where possible
+		assertSame(withTypeVariable.handle(), withTypeVariable.substitute(Map.of("T", OBJECT)).handle(),
+			"Should use the same MethodHandle when the substitution does not change the class");
 	}
 }
