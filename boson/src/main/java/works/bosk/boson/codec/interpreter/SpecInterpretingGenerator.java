@@ -7,6 +7,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.boson.codec.Generator;
+import works.bosk.boson.exceptions.JsonException;
 import works.bosk.boson.exceptions.JsonProcessingException;
 import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.spec.ArrayNode;
@@ -70,27 +71,32 @@ public class SpecInterpretingGenerator implements Generator {
 		}
 
 		public void generateAny(JsonValueSpec spec, Object value) {
-			switch (spec) {
-				case BigNumberNode _,
-					 BooleanNode _,
-					 BoxedPrimitiveSpec _,
-					 PrimitiveNumberNode _ -> out.print(value);
+			LOGGER.debug("Generate {} using {}", (value == null)? "null" : value.getClass().getSimpleName(), spec);
+			try {
+				switch (spec) {
+					case BigNumberNode _,
+						 BooleanNode _,
+						 BoxedPrimitiveSpec _,
+						 PrimitiveNumberNode _ -> out.print(value);
 
-				case EnumByNameNode _ -> generateEnumByName(value);
-				case ArrayNode node -> generateArray(node, value);
-				case MaybeNullSpec maybeNullSpec -> {
-					if (value == null) {
-						out.print("null");
-					} else {
-						generateAny(maybeNullSpec.child(), value);
+					case EnumByNameNode _ -> generateEnumByName(value);
+					case ArrayNode node -> generateArray(node, value);
+					case MaybeNullSpec maybeNullSpec -> {
+						if (value == null) {
+							out.print("null");
+						} else {
+							generateAny(maybeNullSpec.child(), value);
+						}
 					}
+					case UniformMapNode node -> generateUniformMap(node, value);
+					case ParseCallbackSpec node -> generateAny(node.child(), value);
+					case FixedMapNode node -> generateFixedMap(node, value);
+					case RepresentAsSpec node -> convertAndGenerate(node, value);
+					case StringNode _ -> generateString(value);
+					case TypeRefNode node -> generateAny(typeMap.get(node.type()), value);
 				}
-				case UniformMapNode node -> generateUniformMap(node, value);
-				case ParseCallbackSpec node -> generateAny(node.child(), value);
-				case FixedMapNode node -> generateFixedMap(node, value);
-				case RepresentAsSpec node -> convertAndGenerate(node, value);
-				case StringNode _ -> generateString(value);
-				case TypeRefNode node -> generateAny(typeMap.get(node.type()), value);
+			} catch (JsonException e) {
+				throw JsonException.wrap(e, spec.briefIdentifier() + ": ");
 			}
 		}
 

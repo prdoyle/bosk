@@ -7,7 +7,7 @@ package works.bosk.boson.exceptions;
  * something unexpected has gone wrong. A correctly written parser or generator
  * would not throw this exception.
  */
-public class JsonProcessingException extends JsonException {
+public final class JsonProcessingException extends JsonException {
 	public JsonProcessingException(String message) {
 		super(message);
 	}

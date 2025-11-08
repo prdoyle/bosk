@@ -1,15 +1,24 @@
 package works.bosk.boson.exceptions;
 
-public abstract class JsonException extends RuntimeException {
-	public JsonException(String message) {
+public sealed abstract class JsonException extends RuntimeException permits JsonFormatException, JsonProcessingException {
+	protected JsonException(String message) {
 		super(message);
 	}
 
-	public JsonException(Throwable cause) {
+	protected JsonException(Throwable cause) {
 		super(cause);
 	}
 
-	public JsonException(String message, Throwable cause) {
+	protected JsonException(String message, Throwable cause) {
 		super(message, cause);
+	}
+
+	@SuppressWarnings("unchecked")
+	public static <T extends JsonException> T wrap(T exception, String context) {
+		String newMessage = context + ": " + exception.getMessage();
+		return switch (exception) {
+			case JsonFormatException e -> (T)new JsonFormatException(newMessage, e);
+			case JsonProcessingException e -> (T)new JsonFormatException(newMessage, e);
+		};
 	}
 }
