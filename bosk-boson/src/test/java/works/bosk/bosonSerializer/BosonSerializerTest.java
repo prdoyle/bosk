@@ -61,7 +61,7 @@ public class BosonSerializerTest {
 		);
 		refs = bosk.buildReferences(Refs.class);
 		typeMap = new TypeScanner(TypeMap.Settings.DEFAULT)
-			.addLast(new BosonSerializer().bundleFor(bosk))
+			.addBundle(new BosonSerializer().bundleFor(bosk))
 			.scan(DataType.of(Root.class))
 			.build();
 		codec = CodecBuilder.using(typeMap).buildInterpreter();

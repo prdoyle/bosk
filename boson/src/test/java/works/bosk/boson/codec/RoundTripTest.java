@@ -239,7 +239,7 @@ public final class RoundTripTest {
 	private void testRoundTrip(Class<? extends Record> recordClass, String json, Object value) throws IOException {
 		DataType type = DataType.of(recordClass);
 		TypeScanner typeScanner = new TypeScanner(settings)
-			.use(lookup);
+			.useLookup(lookup);
 		TypeMap typeMap = typeScanner.scan(type).build();
 		JsonValueSpec spec = typeMap.get(type);
 		CodecBuilder codecBuilder = CodecBuilder.using(typeMap);

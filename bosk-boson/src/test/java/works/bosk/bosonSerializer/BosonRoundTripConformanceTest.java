@@ -53,7 +53,7 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 			TypeScanner.Bundle bundle = new BosonSerializer().bundleFor(b);
 			LOGGER.debug("Creating the real TypeScanner now for root type {}", rootType);
 			this.typeMap = new TypeScanner(TypeMap.Settings.DEFAULT.withCompiled(false))
-				.addLast(bundle)
+				.addBundle(bundle)
 				.scan(rootType)
 				.build();
 			this.codec = CodecBuilder.using(typeMap).build();

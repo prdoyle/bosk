@@ -59,7 +59,7 @@ public class SubstitutionTest {
 		DataType unknownType = DataType.of(new TypeReference<TestRecord<List<T>>>() { });
 		DataType knownType = DataType.of(new TypeReference<TestRecord<List<String>>>() { });
 		var original = scanner
-			.use(MethodHandles.lookup())
+			.useLookup(MethodHandles.lookup())
 			.scan(unknownType)
 			.build()
 			.get(unknownType);
@@ -73,7 +73,7 @@ public class SubstitutionTest {
 		DataType unknownType = DataType.of(new TypeReference<Map<String, List<T>>>() { });
 		DataType knownType = DataType.of(new TypeReference<Map<String, List<String>>>() { });
 		var original = scanner
-			.use(MethodHandles.lookup())
+			.useLookup(MethodHandles.lookup())
 			.scan(unknownType)
 			.build()
 			.get(unknownType);

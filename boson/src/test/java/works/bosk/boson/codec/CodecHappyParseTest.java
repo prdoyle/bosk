@@ -62,7 +62,7 @@ public class CodecHappyParseTest {
 
 	public CodecHappyParseTest(Settings settings) {
 		this.settings = settings;
-		scanner = new TypeScanner(settings).use(MethodHandles.lookup());
+		scanner = new TypeScanner(settings).useLookup(MethodHandles.lookup());
 	}
 
 	@InjectedTest

@@ -180,7 +180,7 @@ public class TypeScanner {
 	 *
 	 * @return {@code this}
 	 */
-	public TypeScanner use(Lookup lookup) {
+	public TypeScanner useLookup(Lookup lookup) {
 		inProgress.add(lookup);
 		return this;
 	}
@@ -217,21 +217,91 @@ public class TypeScanner {
 
 	/**
 	 * Adds a new configuration bundle that takes precedence over previously added bundles.
+	 * <p>
+	 * When in doubt between this and {@link #addFallbackBundle(Bundle)}, pick this.
+	 * Generally, when you add a bundle, you want it to do what it's designed to do,
+	 * and adding it last risks having some of its directives ignored.
+	 *
 	 * @return {@code this}
+	 * @see #addFallbackBundle(Bundle)
 	 */
-	public TypeScanner addFirst(Bundle bundle) {
+	public TypeScanner addBundle(Bundle bundle) {
 		bundles.addFirst(bundle);
-		bundle.lookups().forEach(this::use);
+		bundle.lookups().forEach(this::useLookup);
 		return this;
 	}
 
 	/**
 	 * Adds a new configuration bundle that applies only if no directives from existing bundles match.
+	 * Allows adding "fallback" bundles that supply default handling for types not covered
+	 * by other bundles.
+	 * <p>
+	 * <strong>TL;DR: it might actually be fine after all.</strong>
+	 * TODO: This is likely too simplistic, especially once we have built-in bundles.
+	 * We can imagine four use cases for adding bundles:
+	 * <ol>
+	 *     <li>
+	 *         No overlap with other bundles. This is probably the most common.
+	 *     </li>
+	 *     <li>
+	 *         Override some or all types from existing bundles.
+	 *     </li>
+	 *     <li>
+	 *         Supply defaults that override built-in functionality but not user-added bundles.
+	 *     </li>
+	 *     <li>
+	 *         Supply defaults that only apply if no other bundle (including built-in) applies.
+	 *     </li>
+	 * </ol>
+	 *
+	 * These options are a matter of how pairs of bundles interact, so it's not necessarily
+	 * feasible to require this to be specified in the bundles themselves, since
+	 * separately developed bundles wouldn't know of each other.
+	 * <p>
+	 * I'm picturing that, when we add bundles, we also specify types whose directives
+	 * should be overridden by the new bundle, and types whose directives should
+	 * be overridden by existing bundles.
+	 * This means that we can't implement this by resolving the bundles into a single
+	 * linear order, since the user might want A to override B for some types and B to
+	 * override A for others. This probably entails a topological sort of directives
+	 * rather than a simple list of bundles.
+	 * <p>
+	 * This could get very complicated if the
+	 * types don't exactly match those of the directives, because a particular directive
+	 * might be partially overridden. Perhaps we'd need to implement this by
+	 * generating new directives in this case. For example, if the existing directive
+	 * and the new directive both match {@code CharSequence} but we want to override
+	 * it only for {@code String}, we'd have a sequence of three directives:
+	 *
+	 * <ol>
+	 *     <li>
+	 *         A synthetic directive for {@code String} using the new bundle's handling,
+	 *     </li>
+	 *     <li>
+	 *         The existing directive matching {@code CharSequence} and finally
+	 *     </li>
+	 *     <li>
+	 *         The new directive matching {@code CharSequence}.
+	 *     </li>
+	 * </ol>
+	 *
+	 * A problem with the "no overlap" approach is that the natural interpretation of it,
+	 * where two directives overlap if there exists a type that matches both, would mean
+	 * that all (non-sealed) interfaces would conflict. This would likely cause more problems
+	 * than it solves. We probably need a less aggressive concept of "conflict". Perhaps
+	 * the notion would be that new bundles override existing ones, but if they add
+	 * directives that "dominate" existing ones (ie. the new type {@link DataType#isAssignableFromTypeArgument isAssignableFromTypeArgument}
+	 * the existing one), then it must declare that this is deliberate.
+	 * Again, it's not clear that this has value: the surprise occurs when you add
+	 * a bundle that does nothing, and that is not a risk if "override existing bundles"
+	 * is the contract.
+	 *
 	 * @return {@code this}
+	 * @see #addBundle(Bundle)
 	 */
-	public TypeScanner addLast(Bundle bundle) {
+	public TypeScanner addFallbackBundle(Bundle bundle) {
 		bundles.addLast(bundle);
-		bundle.lookups().forEach(this::use);
+		bundle.lookups().forEach(this::useLookup);
 		return this;
 	}
 
