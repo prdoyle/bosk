@@ -74,15 +74,9 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 			String jsonString;
 
 			if (variant == Variant.J2B) {
-				try {
-					jsonString = jackson.writerFor(referenceType).writeValueAsString(newValue);
-				} catch (JsonProcessingException e) {
-					throw new AssertionError(e);
-				}
+				jsonString = generateFromJackson(newValue, referenceType);
 			} else {
-				var writer = new StringWriter();
-				generator.generate(writer, newValue);
-				jsonString = writer.toString();
+				jsonString = generateFromBoson(newValue, generator);
 			}
 
 			LOGGER.debug("Intermediate JSON:\n{}", jsonString);
@@ -91,7 +85,7 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 				try {
 					return jackson.readerFor(referenceType).readValue(jsonString);
 				} catch (JsonProcessingException e) {
-					throw new AssertionError(e);
+					throw new AssertionError("Problem reading " + referenceType, e);
 				}
 			} else {
 				try {
@@ -102,12 +96,29 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 				}
 			}
 		}
+
+		private <T> String generateFromJackson(T newValue, JavaType referenceType) {
+			String jsonString;
+			try {
+				jsonString = jackson.writerFor(referenceType).writeValueAsString(newValue);
+			} catch (JsonProcessingException e) {
+				throw new AssertionError(e);
+			}
+			return jsonString;
+		}
+
+		private static <T> String generateFromBoson(T newValue, Generator generator) {
+			String jsonString;
+			var writer = new StringWriter();
+			generator.generate(writer, newValue);
+			jsonString = writer.toString();
+			return jsonString;
+		}
 	}
 
 	public enum Variant {B2B, J2B, B2J}
 
 	public static final class VariantInjector implements ParameterInjector {
-
 		@Override
 		public boolean supportsParameter(Parameter parameter) {
 			return parameter.getType().equals(Variant.class);

@@ -8,8 +8,11 @@ import java.util.Map;
 import works.bosk.boson.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.boson.mapping.spec.handles.ObjectEmitter;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
-import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.DataType;
+
+import static works.bosk.boson.mapping.spec.handles.TypedHandles.constant;
+import static works.bosk.boson.mapping.spec.handles.TypedHandles.notEquals;
+import static works.bosk.boson.types.DataType.INT;
 
 /**
  * @param keyNode must specify a JSON <em>string</em>. Can also accept a {@link TypeRefNode}
@@ -62,17 +65,21 @@ public record UniformMapNode(
 	 * @param keyNode   specification for the key
 	 * @param valueNode specification for the value
 	 * @param finisher  given a key and a value, returns value object
+	 * @param getKey    given the value object, returns the key (ie. member name)
+	 * @param getValue  given the value object, returns the member value
 	 */
 	public static UniformMapNode singleton(
 		JsonValueSpec keyNode,
 		JsonValueSpec valueNode,
-		TypedHandle finisher
+		TypedHandle finisher,
+		TypedHandle getKey,
+		TypedHandle getValue
 	) {
 		return new UniformMapNode(
 			keyNode,
 			valueNode,
-			new ObjectAccumulator(
-				TypedHandles.constant(finisher.returnType(), null),
+			new ObjectAccumulator( // The "accumulator" here calls the finisher the first time the integrator is called; the actual finisher does nothing
+				constant(finisher.returnType(), null), // Hmm what about primitives?
 				new TypedHandle(
 					SINGLETON_INTEGRATOR.bindTo(finisher)
 						.asType(MethodType.methodType(
@@ -85,16 +92,19 @@ public record UniformMapNode(
 					List.of(finisher.returnType(), keyNode.dataType(), valueNode.dataType())
 				),
 				new TypedHandle(
-					SINGLETON_FINISHER,
+					SINGLETON_FINISHER.asType(MethodType.methodType(
+						finisher.returnType().leastUpperBoundClass(),
+						finisher.returnType().leastUpperBoundClass())
+					),
 					finisher.returnType(), List.of(finisher.returnType())
 				)
 			),
-			new ObjectEmitter(
-				TypedHandles.constant(DataType.INT, 1),
-				TypedHandles.notEquals(TypedHandles.constant(DataType.INT, 0)),
-				next,
-				getKey,
-				getValue
+			new ObjectEmitter( // The "iterator" here is a kind of countdown of how many members are remaining
+				constant(INT, 1).dropArguments(0, finisher.returnType()),
+				notEquals(constant(INT, 0)),
+				constant(INT, 0).dropArguments(0, INT, finisher.returnType()), // Must accept the original object engage "for-loop" form
+				getKey.dropArguments(0, INT),
+				getValue.dropArguments(0, INT)
 			)
 		);
 	}

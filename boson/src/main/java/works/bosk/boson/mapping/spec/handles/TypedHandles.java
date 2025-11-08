@@ -61,8 +61,18 @@ public final class TypedHandles {
 		return new TypedHandle(NOT_EQUALS_HANDLE, BOOLEAN, List.of(OBJECT, OBJECT));
 	}
 
+	/**
+	 * @return a handle accepting an argument of the same type as retuned by {@code argument}
+	 */
 	public static TypedHandle notEquals(TypedHandle argument) {
-		return notEquals().bind(0, argument);
+		return new TypedHandle(
+			NOT_EQUALS_HANDLE.asType(MethodType.methodType(
+				boolean.class,
+				argument.returnType().leastUpperBoundClass(),
+				argument.returnType().leastUpperBoundClass()
+			)),
+			BOOLEAN, List.of(argument.returnType(), argument.returnType())
+		).bind(0, argument);
 	}
 
 	private static boolean notEquals(Object a, Object b) {

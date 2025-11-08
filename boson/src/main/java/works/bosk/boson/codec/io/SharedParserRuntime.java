@@ -132,7 +132,7 @@ public abstract class SharedParserRuntime {
 	}
 
 	protected String previewString() {
-		if (false && LOGGER.isDebugEnabled()) {
+		if (true && LOGGER.isDebugEnabled()) {
 			return input.previewString(10)
 				.replace('\n', ' ')
 				.replace('\r', ' ');

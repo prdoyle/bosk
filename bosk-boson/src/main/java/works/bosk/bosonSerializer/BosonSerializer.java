@@ -40,7 +40,9 @@ import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
+import works.bosk.boson.mapping.spec.UniformMapNode;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
+import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
@@ -138,7 +140,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		record SideTableEntry<V>(Identifier id, V value) {}
 		record SideTableRepresentation<K extends Entity, V>(
 			CatalogReference<K> domain,
-			List<SideTableEntry<V>> entries
+			List<SideTableEntry<V>> valuesById
 		) {}
 
 		directives.add(Directive.fixed(
@@ -154,26 +156,40 @@ public class BosonSerializer extends StateTreeSerializer {
 				@Override
 				public SideTable<E, T> fromRepresentation(SideTableRepresentation<E, T> representation) {
 					SideTable.Builder <E, T> builder = SideTable.builder(representation.domain);
-					for (var entry : representation.entries) {
+					for (var entry : representation.valuesById) {
 						builder.put(entry.id(), entry.value());
 					}
-					return null;
+					return builder.build();
 				}
 			})
 		));
 
+		DataType tType = DataType.of(new TypeReference<T>() {});
+		DataType sideTableEntryType = DataType.of(new TypeReference<SideTableEntry<T>>() {});
+		TypedHandle finisher = TypedHandles.<Identifier, T, SideTableEntry<T>>biFunction(
+			DataType.of(Identifier.class),
+			tType,
+			sideTableEntryType,
+			SideTableEntry::new
+		);
+		TypedHandle getKey = TypedHandles.<SideTableEntry<T>, Identifier>function(
+			sideTableEntryType,
+			DataType.of(Identifier.class),
+			SideTableEntry::id
+		);
+		TypedHandle getValue = TypedHandles.<SideTableEntry<T>, T>function(
+			sideTableEntryType,
+			new TypeVariable("T"),
+			SideTableEntry::value
+		);
 		directives.add(Directive.fixed(
-			RepresentAsSpec.of(new RepresentAsSpec.Wrangler<SideTableEntry<T>, Map<Identifier, T>>() {
-				@Override
-				public Map<Identifier, T> toRepresentation(SideTableEntry<T> value) {
-					return Map.of(value.id(), value.value());
-				}
-
-				@Override
-				public SideTableEntry<T> fromRepresentation(Map<Identifier, T> representation) {
-					return new SideTableEntry<>();
-				}
-			})
+			UniformMapNode.singleton(
+				new TypeRefNode(DataType.of(Identifier.class)),
+				new TypeRefNode(tType),
+				finisher,
+				getKey,
+				getValue
+			)
 		));
 
 		// It's remarkable how cumbersome this one is
