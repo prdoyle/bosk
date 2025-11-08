@@ -99,18 +99,20 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
-		// This probably should be a SequencedCollection, but
+		record MapEntry<V>(Identifier id, V value) {}
+
+		// This probably should be a SequencedCollection, but pcollections doesn't have that
 		directives.add(Directive.fixed(
-			RepresentAsSpec.of(new RepresentAsSpec.Wrangler<Catalog<E>, Collection<E>>() {
+			RepresentAsSpec.of(new RepresentAsSpec.Wrangler<Catalog<E>, Collection<MapEntry<E>>>() {
 				@Override
-				public Collection<E> toRepresentation(Catalog<E> value) {
-					return value.asCollection();
+				public Collection<MapEntry<E>> toRepresentation(Catalog<E> value) {
+					return value.stream().map(e -> new MapEntry<>(e.id(), e)).toList();
 				}
 
 				@Override
-				public Catalog<E> fromRepresentation(Collection<E> representation) {
+				public Catalog<E> fromRepresentation(Collection<MapEntry<E>> representation) {
 					// TODO: validate ids?
-					return Catalog.of(representation);
+					return Catalog.of(representation.stream().map(MapEntry::value));
 				}
 			})
 		));
@@ -137,10 +139,9 @@ public class BosonSerializer extends StateTreeSerializer {
 			})
 		));
 
-		record SideTableEntry<V>(Identifier id, V value) {}
 		record SideTableRepresentation<K extends Entity, V>(
 			CatalogReference<K> domain,
-			List<SideTableEntry<V>> valuesById
+			List<MapEntry<V>> valuesById
 		) {}
 
 		directives.add(Directive.fixed(
@@ -149,7 +150,7 @@ public class BosonSerializer extends StateTreeSerializer {
 				public SideTableRepresentation<E, T> toRepresentation(SideTable<E, T> value) {
 					return new SideTableRepresentation<>(
 						value.domain(),
-						value.idEntrySet().stream().map(e -> new SideTableEntry<>(e.getKey(), e.getValue())).toList()
+						value.idEntrySet().stream().map(e -> new MapEntry<>(e.getKey(), e.getValue())).toList()
 					);
 				}
 
@@ -165,22 +166,22 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		DataType tType = DataType.of(new TypeReference<T>() {});
-		DataType sideTableEntryType = DataType.of(new TypeReference<SideTableEntry<T>>() {});
-		TypedHandle finisher = TypedHandles.<Identifier, T, SideTableEntry<T>>biFunction(
+		DataType mapEntryType = DataType.of(new TypeReference<MapEntry<T>>() {});
+		TypedHandle finisher = TypedHandles.<Identifier, T, MapEntry<T>>biFunction(
 			DataType.of(Identifier.class),
 			tType,
-			sideTableEntryType,
-			SideTableEntry::new
+			mapEntryType,
+			MapEntry::new
 		);
-		TypedHandle getKey = TypedHandles.<SideTableEntry<T>, Identifier>function(
-			sideTableEntryType,
+		TypedHandle getKey = TypedHandles.<MapEntry<T>, Identifier>function(
+			mapEntryType,
 			DataType.of(Identifier.class),
-			SideTableEntry::id
+			MapEntry::id
 		);
-		TypedHandle getValue = TypedHandles.<SideTableEntry<T>, T>function(
-			sideTableEntryType,
+		TypedHandle getValue = TypedHandles.<MapEntry<T>, T>function(
+			mapEntryType,
 			new TypeVariable("T"),
-			SideTableEntry::value
+			MapEntry::value
 		);
 		directives.add(Directive.fixed(
 			UniformMapNode.singleton(
