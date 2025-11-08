@@ -3,6 +3,7 @@ package works.bosk.bosonSerializer;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import java.io.IOException;
@@ -30,6 +31,8 @@ import works.bosk.jackson.JacksonSerializer;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.ParameterInjector;
 import works.bosk.testing.drivers.DriverConformanceTest;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @InjectFrom(BosonRoundTripConformanceTest.VariantInjector.class)
 class BosonRoundTripConformanceTest extends DriverConformanceTest {
@@ -77,6 +80,14 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 				jsonString = generateFromJackson(newValue, referenceType);
 			} else {
 				jsonString = generateFromBoson(newValue, generator);
+				var jacksonString = generateFromJackson(newValue, referenceType);
+				try {
+					JsonNode fromBoson = jackson.readTree(jsonString);
+					JsonNode fromJackson = jackson.readTree(jacksonString);
+					assertEquals(fromJackson, fromBoson);
+				} catch (JsonProcessingException e) {
+					throw new AssertionError(e);
+				}
 			}
 
 			LOGGER.debug("Intermediate JSON:\n{}", jsonString);
