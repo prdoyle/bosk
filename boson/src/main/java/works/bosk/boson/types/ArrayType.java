@@ -27,11 +27,6 @@ public record ArrayType(KnownType elementType) implements KnownType {
 	}
 
 	@Override
-	public boolean isFullyKnown() {
-		return elementType.isFullyKnown();
-	}
-
-	@Override
 	public boolean hasWildcards() {
 		return elementType.hasWildcards();
 	}

@@ -9,58 +9,50 @@ import works.bosk.junit.ParameterInjector;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests properties of {@link DataType} including any child types it may have.
  */
 @InjectFrom({
 	PrimitiveTypeInjector.class,
-	DataTypeDeepPropertyTest.InstanceTypeInjector.class,
-	DataTypeDeepPropertyTest.UnknownTypeInjector.class
+	DataTypeHasWildcardsTest.InstanceTypeInjector.class,
+	DataTypeHasWildcardsTest.UnknownTypeInjector.class
 })
-public class DataTypeDeepPropertyTest {
+public class DataTypeHasWildcardsTest {
 
 	@InjectedTest
 	void primitiveType(PrimitiveType dataType) {
-		assertTrue(dataType.isFullyKnown());
 		assertFalse(dataType.hasWildcards());
 	}
 
 	@InjectedTest
 	void instanceType(InstanceTypeInjector.Case _case) {
-		assertEquals(_case.isFullyKnown(), _case.type.isFullyKnown());
 		assertEquals(_case.hasWildcards(), _case.type.hasWildcards());
 	}
 
 	@InjectedTest
 	void arrayType(InstanceTypeInjector.Case _case) {
-		assertEquals(_case.isFullyKnown(), new ArrayType(_case.type).isFullyKnown());
 		assertEquals(_case.hasWildcards(), new ArrayType(_case.type).hasWildcards());
 	}
 
 	@InjectedTest
 	void primitiveArrayType(PrimitiveType primitiveType) {
-		assertTrue(new ArrayType(primitiveType).isFullyKnown());
 		assertFalse(new ArrayType(primitiveType).hasWildcards());
 	}
 
 	@InjectedTest
 	void unknownType(UnknownTypeInjector.Case _case) {
-		assertEquals(_case.isFullyKnown(), _case.type.isFullyKnown());
 		assertEquals(_case.hasWildcards(), _case.type.hasWildcards());
 	}
 
 	@InjectedTest
 	void unknownArrayType(UnknownTypeInjector.Case _case) {
-		assertEquals(_case.isFullyKnown(), new UnknownArrayType(_case.type).isFullyKnown());
 		assertEquals(_case.hasWildcards(), new UnknownArrayType(_case.type).hasWildcards());
 	}
 
 	static class InstanceTypeInjector implements ParameterInjector {
 		record Case(
 			InstanceType type,
-			boolean isFullyKnown,
 			boolean hasWildcards
 		) {}
 
@@ -79,36 +71,30 @@ public class DataTypeDeepPropertyTest {
 			return List.of(
 				new Case(
 					DataType.STRING,
-					true,
 					false
 				),
 				new Case(
 					DataType.OBJECT,
-					true,
 					false
 				),
 				new Case(
 					(InstanceType) DataType.of(new TypeReference<List<?>>() {
 					}),
-					false,
 					true
 				),
 				new Case(
 					(InstanceType) DataType.of(new TypeReference<List<String>>() {
 					}),
-					true,
 					false
 				),
 				new Case(
 					(InstanceType) DataType.of(new TypeReference<List<T>>() {
 					}),
-					false,
 					false
 				),
 				new Case(
 					(InstanceType) DataType.of(new TypeReference<List>() {
 					}),
-					false,
 					true // Erased type is considered to have wildcards
 				)
 			);
@@ -118,7 +104,6 @@ public class DataTypeDeepPropertyTest {
 	static class UnknownTypeInjector implements ParameterInjector {
 		record Case(
 			UnknownType type,
-			boolean isFullyKnown,
 			boolean hasWildcards
 		) {}
 
@@ -136,22 +121,18 @@ public class DataTypeDeepPropertyTest {
 			return List.of(
 				new Case(
 					TypeVariable.unbounded("T"),
-					false,
 					false
 				),
 				new Case(
 					new UnboundedWildcardType(),
-					false,
 					true
 				),
 				new Case(
 					new UpperBoundedWildcardType(DataType.STRING),
-					false,
 					true
 				),
 				new Case(
 					new LowerBoundedWildcardType(DataType.STRING),
-					false,
 					true
 				)
 			);

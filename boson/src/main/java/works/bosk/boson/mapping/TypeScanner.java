@@ -294,8 +294,9 @@ public class TypeScanner {
 				"Spec produced by directive must not have wildcards: " + spec;
 
 			LOGGER.debug("Directive returned {}", spec);
-			if (!spec.dataType().isFullyKnown()) {
-				spec = spec.substitute(pattern.bindingsFor(type));
+			var specialized = spec.substitute(pattern.bindingsFor(type));
+			if (!specialized.equals(spec)) {
+				spec = specialized;
 				LOGGER.debug("Specialized: {}", spec);
 			}
 			assert type.equals(spec.dataType()):

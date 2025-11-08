@@ -75,7 +75,7 @@ public record TypeVariable(String name, List<Type> bounds) implements UnknownTyp
 	public boolean hasWildcards() {
 		// The type bounds can contain wildcards, but the important thing is that
 		// if this type variable were substituted with a wildcard-free type, the
-		// result would be fully known, and so we return false here.
+		// result would be wildcard-free regardless of the bounds, so we return false here.
 		return false;
 	}
 }

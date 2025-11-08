@@ -12,9 +12,6 @@ import static java.util.stream.Collectors.joining;
 /**
  * An {@link InstanceType} accompanied by generic type information.
  * <p>
- * The parameters could be {@link UnknownType}s, so this doesn't
- * necessarily mean it's a fully known type.
- * <p>
  * For ordinary classes, {@code typeArguments} will be empty,
  * indicating that the class has no type parameters.
  */
@@ -174,11 +171,6 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 			}
 			default -> throw new IllegalArgumentException("wat");
 		};
-	}
-
-	@Override
-	public boolean isFullyKnown() {
-		return bindings.stream().allMatch(DataType::isFullyKnown);
 	}
 
 	@Override

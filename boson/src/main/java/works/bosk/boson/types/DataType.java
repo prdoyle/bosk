@@ -118,15 +118,6 @@ public sealed interface DataType permits KnownType, UnknownType {
 	Map<String, DataType> bindingsFor(DataType other);
 
 	/**
-	 * @return true if this type has no {@link UnknownType} or {@link ErasedType} components.
-	 */
-	boolean isFullyKnown();
-
-	/**
-	 * Technically, the question answered here is: if we were to substitute all type variables
-	 * with wildcard-free types, would the resulting type be {@link #isFullyKnown}?
-	 * If so, this method returns false.
-	 *
 	 * @return true if this type contains any {@link WildcardType} or {@link ErasedType}.
 	 */
 	boolean hasWildcards();
