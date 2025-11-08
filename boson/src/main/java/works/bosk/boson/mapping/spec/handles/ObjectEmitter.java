@@ -87,41 +87,69 @@ public record ObjectEmitter(
 		DataType iteratorType = start.returnType();
 		if (next.parameterTypes().size() == 1) {
 			// Mutable iterator form
-			assert next.parameterTypes().getFirst().isAssignableFrom(iteratorType);
+			assert next.parameterTypes().getFirst().isAssignableFrom(iteratorType):
+				"next parameter type " + next.parameterTypes().getFirst()
+					+ " must be assignable from iterator type " + iteratorType;
 
 			assert hasNext.parameterTypes().size() == 1;
-			assert hasNext.parameterTypes().getFirst().isAssignableFrom(iteratorType);
-			assert hasNext.returnType().equals(BOOLEAN);
+			assert hasNext.parameterTypes().getFirst().isAssignableFrom(iteratorType):
+				"hasNext parameter type " + hasNext.parameterTypes().getFirst()
+					+ " must be assignable from iterator type " + iteratorType;
+			assert hasNext.returnType().equals(BOOLEAN):
+				"hasNext return type " + hasNext.returnType() + " must be boolean";
 
 			assert getKey.parameterTypes().size() == 1;
-			assert getKey.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+			assert getKey.parameterTypes().getFirst().isAssignableFrom(next.returnType()):
+				"getKey parameter type " + getKey.parameterTypes().getFirst()
+					+ " must be assignable from member type " + next.returnType();
 
 			assert getValue.parameterTypes().size() == 1;
-			assert getValue.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+			assert getValue.parameterTypes().getFirst().isAssignableFrom(next.returnType()):
+				"getValue parameter type " + getValue.parameterTypes().getFirst()
+					+ " must be assignable from member type " + next.returnType();
 		} else {
 			// For-loop form
 			assert next.parameterTypes().size() == 2;
-			assert next.parameterTypes().getFirst().isAssignableFrom(iteratorType);
-			assert next.parameterTypes().getLast().isAssignableFrom(object);
-			assert iteratorType.isAssignableFrom(next.returnType());
+			assert next.parameterTypes().getFirst().isAssignableFrom(iteratorType):
+				"next parameter type " + next.parameterTypes().getFirst()
+					+ " must be assignable from iterator type " + iteratorType;
+			assert next.parameterTypes().getLast().isAssignableFrom(object):
+				"next second parameter type " + next.parameterTypes().getLast()
+					+ " must be assignable from object type " + object;
+			assert iteratorType.isAssignableFrom(next.returnType()):
+				"next return type " + next.returnType()
+					+ " must be assignable to iterator type " + iteratorType;
 
 			assert hasNext.parameterTypes().size() <= 2;
-			assert hasNext.parameterTypes().getFirst().isAssignableFrom(iteratorType);
+			assert hasNext.parameterTypes().getFirst().isAssignableFrom(iteratorType):
+				"hasNext parameter type " + hasNext.parameterTypes().getFirst()
+					+ " must be assignable from iterator type " + iteratorType;
 			if (hasNext.parameterTypes().size() == 2) {
-				assert hasNext.parameterTypes().getLast().isAssignableFrom(object);
+				assert hasNext.parameterTypes().getLast().isAssignableFrom(object):
+					"hasNext second parameter type " + hasNext.parameterTypes().getLast()
+						+ " must be assignable from object type " + object;
 			}
-			assert hasNext.returnType().equals(BOOLEAN);
+			assert hasNext.returnType().equals(BOOLEAN):
+				"hasNext return type " + hasNext.returnType() + " must be boolean";
 
 			assert getKey.parameterTypes().size() <= 2;
-			assert getKey.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+			assert getKey.parameterTypes().getFirst().isAssignableFrom(next.returnType()):
+				"getKey parameter type " + getKey.parameterTypes().getFirst()
+					+ " must be assignable from member type " + next.returnType();
 			if (getKey.parameterTypes().size() == 2) {
-				assert getKey.parameterTypes().getLast().isAssignableFrom(object);
+				assert getKey.parameterTypes().getLast().isAssignableFrom(object):
+					"getKey second parameter type " + getKey.parameterTypes().getLast()
+						+ " must be assignable from object type " + object;
 			}
 
 			assert getValue.parameterTypes().size() <= 2;
-			assert getValue.parameterTypes().getFirst().isAssignableFrom(next.returnType());
+			assert getValue.parameterTypes().getFirst().isAssignableFrom(next.returnType()):
+				"getValue parameter type " + getValue.parameterTypes().getFirst()
+					+ " must be assignable from member type " + next.returnType();
 			if (getValue.parameterTypes().size() == 2) {
-				assert getValue.parameterTypes().getLast().isAssignableFrom(object);
+				assert getValue.parameterTypes().getLast().isAssignableFrom(object):
+					"getValue second parameter type " + getValue.parameterTypes().getLast()
+						+ " must be assignable from object type " + object;
 			}
 		}
 

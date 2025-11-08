@@ -26,14 +26,14 @@ public record UniformMapNode(
 		// TypeRef makes this almost impossible to check until we have a TypeMap.
 
 		assert accumulator.keyType().isAssignableFrom(keyNode.dataType()):
-			"accumulator must accept keys of type " + keyNode.dataType();
+			"accumulator must accept keys of type " + keyNode.dataType() + ", not " + accumulator.keyType();
 		assert accumulator.valueType().isAssignableFrom(valueNode.dataType()):
-			"accumulator must accept values of type " + valueNode.dataType();
+			"accumulator must accept values of type " + valueNode.dataType() + ", not " + accumulator.valueType();
 
 		assert emitter.getKey().returnType().isAssignableFrom(keyNode.dataType()):
-			"emitter must supply keys of type " + keyNode.dataType();
+			"emitter must supply keys of type " + keyNode.dataType() + ", not " + emitter.getKey().returnType();
 		assert emitter.getValue().returnType().isAssignableFrom(valueNode.dataType()):
-			"emitter must supply values of type " + valueNode.dataType();
+			"emitter must supply values of type " + valueNode.dataType() + ", not " + emitter.getValue().returnType();
 	}
 
 	@Override

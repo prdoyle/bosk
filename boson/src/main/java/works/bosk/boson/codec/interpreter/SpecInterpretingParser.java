@@ -584,7 +584,7 @@ public class SpecInterpretingParser implements Parser {
 				Token nextToken = input.peekToken();
 				Set<Token> expected = expectedTokens(valueSpec);
 				boolean result = expected.contains(nextToken);
-				LOGGER.debug("nodeIsApplicable: ({},{},{}) -> {}", node, expected, nextToken, result);
+				LOGGER.trace("nodeIsApplicable: ({},{},{}) -> {}", node, expected, nextToken, result);
 				return result;
 			} else {
 				// Besides JsonValueSpec, other specs don't correspond to JSON values,
