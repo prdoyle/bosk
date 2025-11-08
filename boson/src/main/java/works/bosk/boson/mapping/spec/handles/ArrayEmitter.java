@@ -8,7 +8,6 @@ import java.util.Map;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 import static works.bosk.boson.types.DataType.BOOLEAN;
 
@@ -90,19 +89,16 @@ public record ArrayEmitter(
 
 	public static ArrayEmitter of(Wrangler<?,?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.of(wrangler.getClass());
-		KnownType arrayType = (KnownType) wranglerType.parameterType(Wrangler.class, 0);
-		assert arrayType.isFullyKnown();
-		KnownType iteratorType = (KnownType) wranglerType.parameterType(Wrangler.class, 1);
-		assert iteratorType.isFullyKnown();
-		KnownType elementType = (KnownType) wranglerType.parameterType(Wrangler.class, 2);
-		assert elementType.isFullyKnown();
+		var arrayType = wranglerType.parameterType(Wrangler.class, 0);
+		var iteratorType = wranglerType.parameterType(Wrangler.class, 1);
+		var elementType = wranglerType.parameterType(Wrangler.class, 2);
 
 		return new ArrayEmitter(
 			new TypedHandle(
 				WRANGLER_START.bindTo(wrangler)
 					.asType(MethodType.methodType(
-						iteratorType.rawClass(),
-						arrayType.rawClass()
+						iteratorType.leastUpperBoundClass(),
+						arrayType.leastUpperBoundClass()
 					)),
 				iteratorType, List.of(arrayType)
 			),
@@ -110,15 +106,15 @@ public record ArrayEmitter(
 				WRANGLER_HAS_NEXT.bindTo(wrangler)
 					.asType(MethodType.methodType(
 						boolean.class,
-						iteratorType.rawClass()
+						iteratorType.leastUpperBoundClass()
 					)),
 				BOOLEAN, List.of(iteratorType)
 			),
 			new TypedHandle(
 				WRANGLER_NEXT.bindTo(wrangler)
 					.asType(MethodType.methodType(
-						elementType.rawClass(),
-						iteratorType.rawClass()
+						elementType.leastUpperBoundClass(),
+						iteratorType.leastUpperBoundClass()
 					)),
 				elementType, List.of(iteratorType)
 			)

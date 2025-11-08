@@ -9,7 +9,6 @@ import java.util.stream.Gatherer;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.KnownType;
 
 import static works.bosk.boson.types.DataType.VOID;
 
@@ -90,33 +89,30 @@ public record ArrayAccumulator(
 
 	public static ArrayAccumulator of(Wrangler<?,?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.of(wrangler.getClass());
-		KnownType accumulatorType = (KnownType) wranglerType.parameterType(Wrangler.class, 0);
-		assert accumulatorType.isFullyKnown();
-		KnownType elementType = (KnownType) wranglerType.parameterType(Wrangler.class, 1);
-		assert elementType.isFullyKnown();
-		KnownType resultType = (KnownType) wranglerType.parameterType(Wrangler.class, 2);
-		assert resultType.isFullyKnown();
+		var accumulatorType = wranglerType.parameterType(Wrangler.class, 0);
+		var elementType = wranglerType.parameterType(Wrangler.class, 1);
+		var resultType = wranglerType.parameterType(Wrangler.class, 2);
 
 		return new ArrayAccumulator(
 			new TypedHandle(
 				WRANGLER_CREATE.bindTo(wrangler)
-					.asType(MethodType.methodType(accumulatorType.rawClass())),
+					.asType(MethodType.methodType(accumulatorType.leastUpperBoundClass())),
 				accumulatorType, List.of()
 			),
 			new TypedHandle(
 				WRANGLER_INTEGRATE.bindTo(wrangler)
 					.asType(MethodType.methodType(
-						accumulatorType.rawClass(),
-						accumulatorType.rawClass(),
-						elementType.rawClass()
+						accumulatorType.leastUpperBoundClass(),
+						accumulatorType.leastUpperBoundClass(),
+						elementType.leastUpperBoundClass()
 					)),
 				accumulatorType, List.of(accumulatorType, elementType)
 			),
 			new TypedHandle(
 				WRANGLER_FINISH.bindTo(wrangler)
 					.asType(MethodType.methodType(
-						resultType.rawClass(),
-						accumulatorType.rawClass()
+						resultType.leastUpperBoundClass(),
+						accumulatorType.leastUpperBoundClass()
 					)),
 				resultType, List.of(accumulatorType)
 			)
