@@ -34,7 +34,7 @@ public record LowerBoundedWildcardType(DataType lowerBound) implements WildcardT
 	}
 
 	@Override
-	public boolean isAssignableFromGenericParameter(DataType other) {
+	public boolean isBindableFrom(DataType other) {
 		if (other instanceof LowerBoundedWildcardType(var otherLower)) {
 			return otherLower.isAssignableFrom(lowerBound);
 		} else {

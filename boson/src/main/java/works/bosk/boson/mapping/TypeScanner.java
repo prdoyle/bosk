@@ -300,7 +300,7 @@ public class TypeScanner {
 	 * that all (non-sealed) interfaces would conflict. This would likely cause more problems
 	 * than it solves. We probably need a less aggressive concept of "conflict". Perhaps
 	 * the notion would be that new bundles override existing ones, but if they add
-	 * directives that "dominate" existing ones (ie. the new type {@link DataType#isAssignableFromGenericParameter isAssignableFromGenericParameter}
+	 * directives that "dominate" existing ones (ie. the new type {@link DataType#isBindableFrom isBindableFrom}
 	 * the existing one), then it must declare that this is deliberate.
 	 * Again, it's not clear that this has value: the surprise occurs when you add
 	 * a bundle that does nothing, and that is not a risk if "override existing bundles"
@@ -426,7 +426,7 @@ public class TypeScanner {
 	private Directive findDirective(DataType type) {
 		for (var bundle : bundles) {
 			for (var directive : bundle.directives()) {
-				if (directive.pattern().isAssignableFromGenericParameter(type)) {
+				if (directive.pattern().isBindableFrom(type)) {
 					return directive;
 				}
 			}

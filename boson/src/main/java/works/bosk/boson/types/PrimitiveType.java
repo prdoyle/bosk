@@ -18,7 +18,7 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 	 * a reference type with no parameters.
 	 */
 	@Override
-	public boolean isAssignableFromGenericParameter(DataType other) {
+	public boolean isBindableFrom(DataType other) {
 		return other instanceof PrimitiveType(var otherRawClass)
 			&& rawClass.equals(otherRawClass);
 	}

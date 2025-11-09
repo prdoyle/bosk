@@ -58,20 +58,20 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 		// types hardly match anything.
 
 		return switch (patternArg) {
-			case KnownType t -> t.isAssignableFromGenericParameter(candidate);
+			case KnownType t -> t.isBindableFrom(candidate);
 			case UnknownType t -> t.isAssignableFrom(candidate);
 		};
 
 	}
 
 	@Override
-	public boolean isAssignableFromGenericParameter(DataType other) {
+	public boolean isBindableFrom(DataType other) {
 		return switch (other) {
 			case ArrayType _ -> rawClass().isAssignableFrom(Object[].class);
 			case PrimitiveType _ -> false; // No instance type matches any primitive
 			case BoundType bt ->
 				rawClass().equals(bt.rawClass())
-					&& isAssignableFrom(bt, DataType::isAssignableFromGenericParameter);
+					&& isAssignableFrom(bt, DataType::isBindableFrom);
 			case ErasedType(var t)  -> rawClass().equals(t);
 			case UnknownType _ -> false;
 		};
@@ -167,7 +167,7 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 
 	@Override
 	public Map<String, DataType> bindingsFor(DataType other) {
-		assert this.isAssignableFromGenericParameter(other):
+		assert this.isBindableFrom(other):
 			this + " must be assignable from " + other + " as a generic parameter";
 		return switch(other) {
 			case BoundType(var _, var otherBindings) -> {

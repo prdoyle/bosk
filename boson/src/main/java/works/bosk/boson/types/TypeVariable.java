@@ -43,7 +43,7 @@ public record TypeVariable(String name, List<Type> bounds) implements UnknownTyp
 	@Override
 	public boolean isAssignableFrom(DataType other) {
 		// For type variables, isAssignableFrom is stricter
-		// than isAssignableFromGenericParameter:
+		// than isBindableFrom:
 		// for T t = x, x must either be T itself or a provable subtype of T
 		if (this.equals(other)) {
 			return true;
@@ -74,7 +74,7 @@ public record TypeVariable(String name, List<Type> bounds) implements UnknownTyp
 	}
 
 	@Override
-	public boolean isAssignableFromGenericParameter(DataType other) {
+	public boolean isBindableFrom(DataType other) {
 		return bounds.stream().allMatch(t ->
 			DataType.of(t).isAssignableFrom(other));
 	}

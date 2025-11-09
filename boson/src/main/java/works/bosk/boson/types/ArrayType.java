@@ -19,10 +19,10 @@ public record ArrayType(KnownType elementType) implements KnownType {
 	}
 
 	@Override
-	public boolean isAssignableFromGenericParameter(DataType other) {
+	public boolean isBindableFrom(DataType other) {
 		// TODO: Check the semantics here and in UnknownArrayType
 		return other instanceof ArrayType(var otherElementType)
-			&& elementType.isAssignableFromGenericParameter(otherElementType);
+			&& elementType.isBindableFrom(otherElementType);
 	}
 
 	@Override

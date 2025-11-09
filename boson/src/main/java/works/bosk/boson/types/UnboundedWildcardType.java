@@ -14,7 +14,7 @@ public record UnboundedWildcardType() implements WildcardType {
 	}
 
 	@Override
-	public boolean isAssignableFromGenericParameter(DataType other) {
+	public boolean isBindableFrom(DataType other) {
 		return true;
 	}
 

@@ -93,7 +93,7 @@ public sealed interface DataType permits KnownType, UnknownType {
 	 * {@code A.isAssignableFrom(B)} if a value of type B can be assigned to
 	 * a variable of type A.
 	 * <p>
-	 * Note that this is neither weaker nor stronger than {@link #isAssignableFromGenericParameter(DataType)}.
+	 * Note that this is neither weaker nor stronger than {@link #isBindableFrom(DataType)}.
 	 * Type variables will only accept themselves or other type variables
 	 * that are nominally subtypes of them,
 	 * but concrete types can be assigned from subtypes.
@@ -101,14 +101,14 @@ public sealed interface DataType permits KnownType, UnknownType {
 	boolean isAssignableFrom(DataType other);
 
 	/**
-	 * {@code A.isAssignableFromGenericParameter(B)} if a value of type List<B>
+	 * {@code A.isBindableFrom(B)} if a value of type List<B>
 	 * can be passed to a method expecting List<A>.
 	 * <p>
 	 * Note that this is neither weaker nor stronger than {@link #isAssignableFrom(DataType)}.
 	 * Type variables will accept types that conform to their bounds,
 	 * but concrete types cannot be assigned from subtypes.
 	 */
-	boolean isAssignableFromGenericParameter(DataType other);
+	boolean isBindableFrom(DataType other);
 
 	default boolean isAssignableFrom(Type type) {
 		return isAssignableFrom(DataType.of(type));

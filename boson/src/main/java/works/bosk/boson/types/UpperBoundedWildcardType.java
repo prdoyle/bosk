@@ -14,7 +14,7 @@ public record UpperBoundedWildcardType(DataType upperBound) implements WildcardT
 	}
 
 	@Override
-	public boolean isAssignableFromGenericParameter(DataType other) {
+	public boolean isBindableFrom(DataType other) {
 		return upperBound.isAssignableFrom(other);
 	}
 

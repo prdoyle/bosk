@@ -17,10 +17,10 @@ public record UnknownArrayType(UnknownType elementType) implements UnknownType {
 	}
 
 	@Override
-	public boolean isAssignableFromGenericParameter(DataType other) {
+	public boolean isBindableFrom(DataType other) {
 		// TODO: Double-check the semantics here and in ArrayType
 		return switch (other) {
-			case ArrayType(var otherElementType) -> elementType.isAssignableFromGenericParameter(otherElementType);
+			case ArrayType(var otherElementType) -> elementType.isBindableFrom(otherElementType);
 			default -> false;
 		};
 	}
