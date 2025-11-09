@@ -156,22 +156,32 @@ public class TypeScanner {
 	}
 
 	/**
-	 * Indicates that the given {@code type} is to be associated with the given {@code spec}.
+	 * Indicates that types matching the given {@code type}
+	 * are to be associated with the given {@code spec}.
 	 * <p>
+	 * Equivalent to adding a {@link Bundle} with a single type
+	 * and a single {@link Directive}, like this:
+	 *
+	 * <pre>
+	 *  addBundle(new Bundle(
+	 *      List.of(type),
+	 *      List.of(),
+	 *      List.of(Directive.fixed(spec))
+	 *  ));
+	 * </pre>
 	 * <em>Note</em>: this can only specify handling for whole types. If you want to override
 	 * handling for one particular record field, or for the keys or values of a particular map,
 	 * or even the entries of a particular list, that can't be done here.
 	 *
 	 * @return this
-	 * @throws IllegalArgumentException if {@code type} is already associated with a different {@link JsonValueSpec}.
 	 */
 	public TypeScanner specify(DataType type, JsonValueSpec spec) {
-		var old = inProgress.put(type, spec);
-		if (old == null || old == spec) {
-			return this;
-		} else {
-			throw new IllegalArgumentException("Multiple specifications for the same type " + type + ": " + old + " and " + spec);
-		}
+		addBundle(new Bundle(
+			List.of(type),
+			List.of(),
+			List.of(Directive.fixed(spec)
+		)));
+		return this;
 	}
 
 	/**
