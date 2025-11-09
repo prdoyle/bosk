@@ -11,6 +11,8 @@ import static java.util.stream.Collectors.joining;
 
 /**
  * An {@link InstanceType} accompanied by generic type information.
+ * Not to be confused with a <em>bounded type</em>;
+ * this is about <em>bindings</em>, not <em>bounds</em>.
  * <p>
  * For ordinary classes, {@code typeArguments} will be empty,
  * indicating that the class has no type parameters.
@@ -34,7 +36,7 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 			case ArrayType _ -> rawClass().isAssignableFrom(Object[].class);
 			case PrimitiveType _ -> false; // No instance type matches any primitive
 			case BoundType bt -> isAssignableFrom(bt);
-			case ErasedType _ -> true; // Seems aggressive, but people use erased types when they don't want to think about generics
+			case ErasedType(var t)  -> rawClass().isAssignableFrom(t); // Seems aggressive, but people use erased types when they don't want to think about generics
 			case TypeVariable(_, var bounds) -> bounds.stream().anyMatch(t -> this.isAssignableFrom(DataType.of(t)));
 			case UnknownType _ -> rawClass().isAssignableFrom(other.leastUpperBoundClass());
 		};

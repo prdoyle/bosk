@@ -42,7 +42,38 @@ public record TypeVariable(String name, List<Type> bounds) implements UnknownTyp
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return bounds.stream().allMatch(t -> DataType.of(t).isAssignableFrom(other));
+		// For type variables, isAssignableFrom is stricter
+		// than isAssignableFromTypeArgument:
+		// for T t = x, x must either be T itself or a provable subtype of T
+		if (this.equals(other)) {
+			return true;
+		}
+
+		if (other instanceof TypeVariable otherTv) {
+			// JLS 5.1.6.1
+			// - case 4: S is a type variable, and a narrowing reference conversion exists from the upper bound of S to T.
+			// - case 6: S is an intersection type S1 & ... & Sn, and for all i (1 ≤ i ≤ n), either a widening reference conversion or a narrowing reference conversion exists from Si to T.
+			// This means T must be assignable from all bounds of S.
+			//
+			// Intuitively it seems like any bound would be enough--
+			// I'm not sure why the JLS requires all bounds--
+			// but it's academic for type variables anyway,
+			// because 4.4 disallows type variables
+			// from participating in intersection types,
+			// so if otherTv is not a singleton, it's not going to match.
+			//
+			return otherTv.bounds().stream().allMatch(t ->
+				this.isAssignableFrom(DataType.of(t)));
+		}
+
+		// Otherwise, a type variable is only assignable from itself
+		return false;
+	}
+
+	@Override
+	public boolean isAssignableFromTypeArgument(DataType other) {
+		return bounds.stream().allMatch(t ->
+			DataType.of(t).isAssignableFrom(other));
 	}
 
 	@Override

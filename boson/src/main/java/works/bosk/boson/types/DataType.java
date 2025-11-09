@@ -89,13 +89,24 @@ public sealed interface DataType permits KnownType, UnknownType {
 		return of(ref.reflectionType());
 	}
 
+	/**
+	 * {@code A.isAssignableFrom(B)} if a value of type B can be assigned to
+	 * a variable of type A.
+	 * <p>
+	 * Note that this is neither weaker nor stronger than {@link #isAssignableFromTypeArgument(DataType)}.
+	 * Type variables will only accept themselves or other type variables
+	 * that are nominally subtypes of them,
+	 * but concrete types can be assigned from subtypes.
+	 */
 	boolean isAssignableFrom(DataType other);
 
 	/**
-	 * Like {@link #isAssignableFrom(DataType)}, but does not consider
-	 * subtype relationships outside type bounds. Implements the rules for
-	 * assignability of type parameters in generic types, which are
-	 * neither covariant nor contravariant.
+	 * {@code A.isAssignableFromTypeArgument(B)} if a value of type List<B>
+	 * can be passed to a method expecting List<A>.
+	 * <p>
+	 * Note that this is neither weaker nor stronger than {@link #isAssignableFrom(DataType)}.
+	 * Type variables will accept types that conform to their bounds,
+	 * but concrete types cannot be assigned from subtypes.
 	 */
 	boolean isAssignableFromTypeArgument(DataType other);
 
