@@ -1,6 +1,8 @@
 package works.bosk.boson.types;
 
+import java.io.Serializable;
 import java.lang.constant.Constable;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +44,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<Comparable<String>>() { })
 			.isAssignableFrom(DataType.of(new TypeReference<String>() { })));
 		assertFalse(DataType.of(new TypeReference<Comparable<String>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<String>() { })),
+				.isAssignableFromTypeArgument(DataType.of(new TypeReference<String>() { })),
 			"Type argument assignability is not covariant");
 	}
 
@@ -147,7 +149,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.STRING
 			.isAssignableFrom(DataType.of(new TypeReference<S>() { })));
 		assertFalse(DataType.STRING
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<S>() { })),
+				.isAssignableFromTypeArgument(DataType.of(new TypeReference<S>() { })),
 			"Type argument assignability is not covariant");
 	}
 
@@ -164,7 +166,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.OBJECT
 			.isAssignableFrom(DataType.of(new TypeReference<X>() { })));
 		assertFalse(DataType.OBJECT
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<X>() { })),
+				.isAssignableFromTypeArgument(DataType.of(new TypeReference<X>() { })),
 			"Type argument assignability is not covariant");
 	}
 
@@ -181,7 +183,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(CharSequence.class)
 			.isAssignableFrom(DataType.of(new TypeReference<X>() { })));
 		assertFalse(DataType.of(CharSequence.class)
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<X>() { })),
+				.isAssignableFromTypeArgument(DataType.of(new TypeReference<X>() { })),
 			"Type argument assignability is not covariant");
 	}
 
@@ -223,6 +225,70 @@ public class DataTypeAssignableTest {
 			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
 		assertFalse(DataType.of(new TypeReference<List<S>>() { })
 			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<CharSequence>>() { })));
+	}
+
+	@Test
+	void rawTypeMatchesParameterizedType() {
+		assertTrue(DataType.of(List.class)
+			.isAssignableFrom(DataType.of(new TypeReference<List<String>>() { })));
+		assertTrue(DataType.of(List.class)
+			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<String>>() { })));
+		assertTrue(DataType.of(new TypeReference<List<String>>() { })
+			.isAssignableFrom(DataType.of(List.class)));
+		assertTrue(DataType.of(new TypeReference<List<String>>() { })
+			.isAssignableFromTypeArgument(DataType.of(List.class)));
+		assertTrue(DataType.of(Iterable.class)
+			.isAssignableFrom(DataType.of(new TypeReference<List<String>>() { })));
+	}
+
+	@Test
+	void upperBoundedWildcardComparedToUpperBoundedWildcard() {
+		assertTrue(DataType.of(new TypeReference<List<? extends CharSequence>>() { })
+			.isAssignableFrom(DataType.of(new TypeReference<List<? extends String>>() { })));
+		assertTrue(DataType.of(new TypeReference<List<? extends CharSequence>>() { })
+			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<? extends String>>() { })));
+	}
+
+	@Test
+	void lowerBoundedWildcardComparedToLowerBoundedWildcard() {
+		assertTrue(DataType.of(new TypeReference<List<? super String>>() { })
+			.isAssignableFrom(DataType.of(new TypeReference<List<? super CharSequence>>() { })));
+		assertTrue(DataType.of(new TypeReference<List<? super String>>() { })
+			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<? super CharSequence>>() { })));
+	}
+
+
+	@Test
+	void primitiveArrayMatchesSupertypes() {
+		assertTrue(DataType.of(Object.class).isAssignableFrom(DataType.of(int[].class)));
+		assertTrue(DataType.of(Cloneable.class).isAssignableFrom(DataType.of(int[].class)));
+		assertTrue(DataType.of(Serializable.class).isAssignableFrom(DataType.of(int[].class)));
+	}
+
+	@Test
+	void multiDimensionalArrayMatchesSupertypes() {
+		assertTrue(DataType.of(Object.class).isAssignableFrom(DataType.of(String[][].class)));
+		assertTrue(DataType.of(Cloneable.class).isAssignableFrom(DataType.of(String[][].class)));
+		assertTrue(DataType.of(Serializable.class).isAssignableFrom(DataType.of(String[][].class)));
+	}
+
+	@Test
+	void arrayCovariance() {
+		assertTrue(DataType.of(Object[].class).isAssignableFrom(DataType.of(String[].class)));
+		assertFalse(DataType.of(String[].class).isAssignableFrom(DataType.of(Object[].class)));
+	}
+
+	@Test
+	void arrayIsNotAssignableToUnrelatedInterface() {
+		assertFalse(DataType.of(List.class).isAssignableFrom(DataType.of(String[].class)));
+	}
+
+	@Test
+	void parameterTypeMappingThroughInheritance() {
+		assertTrue(DataType.of(new TypeReference<List<String>>() { })
+			.isAssignableFrom(DataType.of(new TypeReference<ArrayList<String>>() { })));
+		assertFalse(DataType.of(new TypeReference<List<String>>() { })
+			.isAssignableFromTypeArgument(DataType.of(new TypeReference<ArrayList<String>>() { })));
 	}
 
 }

@@ -31,7 +31,7 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 
 	public boolean isAssignableFrom(DataType other) {
 		return switch (other) {
-			case ArrayType _ -> Object.class.equals(rawClass());
+			case ArrayType _ -> rawClass().isAssignableFrom(Object[].class);
 			case PrimitiveType _ -> false; // No instance type matches any primitive
 			case BoundType bt -> isAssignableFrom(bt);
 			case ErasedType _ -> true; // Seems aggressive, but people use erased types when they don't want to think about generics
@@ -43,14 +43,14 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 
 	@Override
 	public boolean isAssignableFromTypeArgument(DataType other) {
-		if (other instanceof KnownType kt && rawClass().equals(kt.rawClass())) {
-			return isAssignableFrom(kt);
+		if (other instanceof KnownType t) {
+			return rawClass().equals(t.rawClass()) && isAssignableFrom(t);
 		} else {
 			return false;
 		}
 	}
 
-	private boolean isAssignableFrom(BoundType candidate) {
+	private boolean isAssignableFrom(InstanceType candidate) {
 		if (!rawClass().isAssignableFrom(candidate.rawClass())) {
 			return false;
 		}
@@ -94,33 +94,12 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 		for (int i = 0; i < resolvedArguments.size(); i++) {
 			DataType patternArg = resolvedArguments.get(i);
 			DataType candidateParameter = candidate.parameterType(this.rawClass(), i);
-			if (!isAssignableTypeArgument(patternArg, candidateParameter)) {
+			if (!patternArg.isAssignableFromTypeArgument(candidateParameter)) {
 				return false;
 			}
 		}
 
 		return true;
-	}
-
-	private boolean isAssignableTypeArgument(DataType patternArg, DataType candidateType) {
-		if (patternArg.equals(candidateType)) {
-			// Trivially assignable
-			return true;
-		}
-
-		if (!(candidateType instanceof KnownType candidate)) {
-			// If the candidate isn't a known type, we're bailing out
-			return false;
-		}
-
-		return switch (patternArg) {
-			case UnboundedWildcardType _ -> true;
-			case TypeVariable(_, var bounds) -> bounds.stream().allMatch(t -> DataType.of(t).isAssignableFrom(candidate));
-			case UpperBoundedWildcardType(var upperBound) -> upperBound.isAssignableFrom(candidate);
-			case LowerBoundedWildcardType(var lowerBound) -> candidate.isAssignableFrom(lowerBound);
-			default -> patternArg.equals(candidate); // Generics are neither covariant nor contravariant
-		};
-
 	}
 
 	@Override

@@ -13,6 +13,11 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 			&& rawClass.isAssignableFrom(otherRawClass);
 	}
 
+	/**
+	 * This is a bit artificial, since primitive types can't be type arguments.
+	 * We do allow them in type arguments, though, so we treat them as we would
+	 * a reference type with no parameters.
+	 */
 	@Override
 	public boolean isAssignableFromTypeArgument(DataType other) {
 		return other instanceof PrimitiveType(var otherRawClass)

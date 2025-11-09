@@ -10,7 +10,12 @@ public record LowerBoundedWildcardType(DataType lowerBound) implements WildcardT
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return other.isAssignableFrom(lowerBound);
+		if (other instanceof LowerBoundedWildcardType(var otherLower)) {
+			return otherLower.isAssignableFrom(lowerBound);
+		} else {
+			// For any other type, the candidate must be a supertype of the lower bound
+			return other.isAssignableFrom(lowerBound);
+		}
 	}
 
 	@Override
