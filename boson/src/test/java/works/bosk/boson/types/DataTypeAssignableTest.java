@@ -370,15 +370,21 @@ public class DataTypeAssignableTest {
 	@Test
 	void primitiveArrayMatchesSupertypes() {
 		assertTrue(DataType.of(Object.class).isAssignableFrom(DataType.of(int[].class)));
+		assertFalse(DataType.of(Object.class).isBindableFrom(DataType.of(int[].class)));
 		assertTrue(DataType.of(Cloneable.class).isAssignableFrom(DataType.of(int[].class)));
+		assertFalse(DataType.of(Cloneable.class).isBindableFrom(DataType.of(int[].class)));
 		assertTrue(DataType.of(Serializable.class).isAssignableFrom(DataType.of(int[].class)));
+		assertFalse(DataType.of(Serializable.class).isBindableFrom(DataType.of(int[].class)));
 	}
 
 	@Test
 	void multiDimensionalArrayMatchesSupertypes() {
 		assertTrue(DataType.of(Object.class).isAssignableFrom(DataType.of(String[][].class)));
+		assertFalse(DataType.of(Object.class).isBindableFrom(DataType.of(String[][].class)));
 		assertTrue(DataType.of(Cloneable.class).isAssignableFrom(DataType.of(String[][].class)));
+		assertFalse(DataType.of(Cloneable.class).isBindableFrom(DataType.of(String[][].class)));
 		assertTrue(DataType.of(Serializable.class).isAssignableFrom(DataType.of(String[][].class)));
+		assertFalse(DataType.of(Serializable.class).isBindableFrom(DataType.of(String[][].class)));
 	}
 
 	@Test
@@ -388,6 +394,10 @@ public class DataTypeAssignableTest {
 
 		assertFalse(DataType.of(Object[].class).isBindableFrom(DataType.of(String[].class)));
 		assertFalse(DataType.of(String[].class).isBindableFrom(DataType.of(Object[].class)));
+
+		assertTrue(DataType.of(String[].class).isAssignableFrom(new UpperBoundedWildcardType(DataType.of(String[].class))));
+		assertTrue(DataType.of(Object[].class).isAssignableFrom(new UpperBoundedWildcardType(DataType.of(String[].class))));
+		assertFalse(DataType.of(String[].class).isAssignableFrom(new UpperBoundedWildcardType(DataType.of(Object[].class))));
 	}
 
 	@Test

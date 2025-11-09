@@ -67,13 +67,11 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 	@Override
 	public boolean isBindableFrom(DataType other) {
 		return switch (other) {
-			case ArrayType _ -> rawClass().isAssignableFrom(Object[].class);
-			case PrimitiveType _ -> false; // No instance type matches any primitive
 			case BoundType bt ->
 				rawClass().equals(bt.rawClass())
 					&& isAssignableFrom(bt, DataType::isBindableFrom);
 			case ErasedType(var t)  -> rawClass().equals(t);
-			case UnknownType _ -> false;
+			default -> false;
 		};
 	}
 
