@@ -21,7 +21,7 @@ public record ErasedType(Class<?> rawClass) implements InstanceType {
 	public boolean isAssignableFrom(DataType other) {
 		// More lax than most isAssignableFrom implementations.
 		// Erased types are used when the user wants to ignore generic type parameters.
-		return other instanceof KnownType k && rawClass.isAssignableFrom(k.rawClass());
+		return rawClass.isAssignableFrom(other.leastUpperBoundClass());
 	}
 
 	@Override
