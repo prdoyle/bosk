@@ -167,7 +167,8 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 
 	@Override
 	public Map<String, DataType> bindingsFor(DataType other) {
-		assert this.isAssignableFrom(other);
+		assert this.isAssignableFromGenericParameter(other):
+			this + " must be assignable from " + other + " as a generic parameter";
 		return switch(other) {
 			case BoundType(var _, var otherBindings) -> {
 				var result = new HashMap<String, DataType>();
