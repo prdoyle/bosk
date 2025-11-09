@@ -15,24 +15,25 @@ public class DataTypeAssignableTest {
 	@Test
 	void simpleSubtype() {
 		assertTrue(DataType.of(Number.class).isAssignableFrom(DataType.of(Integer.class)));
-		assertFalse(DataType.of(Number.class).isAssignableFromTypeArgument(DataType.of(Integer.class)), "Type argument assignability is not covariant");
+		assertFalse(DataType.of(Number.class).isAssignableFromGenericParameter(DataType.of(Integer.class)), "Type argument assignability is not covariant");
 		assertFalse(DataType.of(Integer.class).isAssignableFrom(DataType.of(Number.class)));
-		assertFalse(DataType.of(Integer.class).isAssignableFromTypeArgument(DataType.of(Number.class)));
+		assertFalse(DataType.of(Integer.class).isAssignableFromGenericParameter(DataType.of(Number.class)));
 	}
 
 	@Test
 	void boxing() {
 		// Boxing/unboxing are allowed by assignment conversion (JLS §5.1.7 / §5.2)
-		assertTrue(DataType.of(int.class).isAssignableFrom(Integer.class));
-		assertTrue(DataType.of(int.class).isAssignableFrom(DataType.of(Integer.class)));
-		assertTrue(DataType.of(Integer.class).isAssignableFrom(int.class));
-		assertTrue(DataType.of(Integer.class).isAssignableFrom(DataType.of(int.class)));
+		// but Class.isAssignableFrom returns false for these, so who are we to argue?
+		assertFalse(DataType.of(int.class).isAssignableFrom(Integer.class));
+		assertFalse(DataType.of(int.class).isAssignableFrom(DataType.of(Integer.class)));
+		assertFalse(DataType.of(Integer.class).isAssignableFrom(int.class));
+		assertFalse(DataType.of(Integer.class).isAssignableFrom(DataType.of(int.class)));
 
 		// JLS doesn't support primitives as generic type arguments, so the semantics here are up to us really
-		assertFalse(DataType.of(int.class).isAssignableFromTypeArgument(DataType.of(Integer.class)));
-		assertFalse(DataType.of(int.class).isAssignableFromTypeArgument(DataType.of(Integer.class)));
-		assertFalse(DataType.of(Integer.class).isAssignableFromTypeArgument(DataType.of(int.class)));
-		assertFalse(DataType.of(Integer.class).isAssignableFromTypeArgument(DataType.of(int.class)));
+		assertFalse(DataType.of(int.class).isAssignableFromGenericParameter(DataType.of(Integer.class)));
+		assertFalse(DataType.of(int.class).isAssignableFromGenericParameter(DataType.of(Integer.class)));
+		assertFalse(DataType.of(Integer.class).isAssignableFromGenericParameter(DataType.of(int.class)));
+		assertFalse(DataType.of(Integer.class).isAssignableFromGenericParameter(DataType.of(int.class)));
 	}
 
 	@Test
@@ -40,7 +41,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<List<String>>() { })
 			.isAssignableFrom(DataType.of(new TypeReference<List<String>>() { })));
 		assertTrue(DataType.of(new TypeReference<List<String>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<String>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<String>>() { })));
 	}
 
 	@Test
@@ -48,7 +49,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<Comparable<String>>() { })
 			.isAssignableFrom(DataType.of(new TypeReference<String>() { })));
 		assertFalse(DataType.of(new TypeReference<Comparable<String>>() {} )
-				.isAssignableFromTypeArgument(DataType.of(new TypeReference<String>() { })),
+				.isAssignableFromGenericParameter(DataType.of(new TypeReference<String>() { })),
 			"Type argument assignability is not covariant");
 	}
 
@@ -57,7 +58,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<List<CharSequence>>() { })
 			.isAssignableFrom(new TypeReference<List<String>>() { }));
 		assertFalse(DataType.of(new TypeReference<List<CharSequence>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<String>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<String>>() { })));
 	}
 
 	@Test
@@ -65,7 +66,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<List<String>>() { })
 			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
 		assertFalse(DataType.of(new TypeReference<List<String>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<CharSequence>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<CharSequence>>() { })));
 	}
 
 	@Test
@@ -74,15 +75,15 @@ public class DataTypeAssignableTest {
 		var mapSS = DataType.of(new TypeReference<Map<String, String>>() { });
 		var mapSI = DataType.of(new TypeReference<Map<String, Integer>>() { });
 
-		assertTrue(mapTT
+		assertFalse(mapTT
 			.isAssignableFrom(mapSS));
 		assertTrue(mapTT
-			.isAssignableFromTypeArgument(mapSS));
+			.isAssignableFromGenericParameter(mapSS));
 
 		assertFalse(mapTT
 			.isAssignableFrom(mapSI));
 		assertFalse(mapTT
-			.isAssignableFromTypeArgument(mapSI));
+			.isAssignableFromGenericParameter(mapSI));
 	}
 
 	@Test
@@ -93,25 +94,25 @@ public class DataTypeAssignableTest {
 		assertFalse(mapExtendsT
 			.isAssignableFrom(mapCO));
 		assertFalse(mapExtendsT
-			.isAssignableFromTypeArgument(mapCO));
+			.isAssignableFromGenericParameter(mapCO));
 
 		var mapCC = DataType.of(new TypeReference<Map<CharSequence, CharSequence>>() { });
-		assertTrue(mapExtendsT
+		assertFalse(mapExtendsT
 			.isAssignableFrom(mapCC));
 		assertTrue(mapExtendsT
-			.isAssignableFromTypeArgument(mapCC));
+			.isAssignableFromGenericParameter(mapCC));
 
 		var mapCS = DataType.of(new TypeReference<Map<CharSequence, String>>() { });
-		assertTrue(mapExtendsT
+		assertFalse(mapExtendsT
 			.isAssignableFrom(mapCS));
 		assertTrue(mapExtendsT
-			.isAssignableFromTypeArgument(mapCS));
+			.isAssignableFromGenericParameter(mapCS));
 
 		var mapCI = DataType.of(new TypeReference<Map<CharSequence, Integer>>() { });
 		assertFalse(mapExtendsT
 			.isAssignableFrom(mapCI));
 		assertFalse(mapExtendsT
-			.isAssignableFromTypeArgument(mapCI));
+			.isAssignableFromGenericParameter(mapCI));
 	}
 
 	@Test
@@ -119,28 +120,28 @@ public class DataTypeAssignableTest {
 		var mapSuperT = DataType.of(new TypeReference<Map<T, ? super T>>() { });
 
 		var mapCO = DataType.of(new TypeReference<Map<CharSequence, Object>>() { });
-		assertTrue(mapSuperT
+		assertFalse(mapSuperT
 			.isAssignableFrom(mapCO));
 		assertTrue(mapSuperT
-			.isAssignableFromTypeArgument(mapCO));
+			.isAssignableFromGenericParameter(mapCO));
 
 		var mapCC = DataType.of(new TypeReference<Map<CharSequence, CharSequence>>() { });
-		assertTrue(mapSuperT
+		assertFalse(mapSuperT
 			.isAssignableFrom(mapCC));
 		assertTrue(mapSuperT
-			.isAssignableFromTypeArgument(mapCC));
+			.isAssignableFromGenericParameter(mapCC));
 
 		var mapCS = DataType.of(new TypeReference<Map<CharSequence, String>>() { });
 		assertFalse(mapSuperT
 			.isAssignableFrom(mapCS));
 		assertFalse(mapSuperT
-			.isAssignableFromTypeArgument(mapCS));
+			.isAssignableFromGenericParameter(mapCS));
 
 		var mapCI = DataType.of(new TypeReference<Map<CharSequence, Integer>>() { });
 		assertFalse(mapSuperT
 			.isAssignableFrom(mapCI));
 		assertFalse(mapSuperT
-			.isAssignableFromTypeArgument(mapCI));
+			.isAssignableFromGenericParameter(mapCI));
 	}
 
 	@Test
@@ -151,26 +152,26 @@ public class DataTypeAssignableTest {
 		assertTrue(listErased
 			.isAssignableFrom(listString));
 		assertTrue(listErased
-			.isAssignableFromTypeArgument(listString));
+			.isAssignableFromGenericParameter(listString));
 
 		assertTrue(listString
 			.isAssignableFrom(listErased));
 		assertTrue(listString
-			.isAssignableFromTypeArgument(listErased));
+			.isAssignableFromGenericParameter(listErased));
 
 		var listT = DataType.of(new TypeReference<T>() { });
 
 		assertFalse(listErased
 			.isAssignableFrom(listT));
 		assertFalse(listErased
-			.isAssignableFromTypeArgument(listT));
+			.isAssignableFromGenericParameter(listT));
 
 		var listL = DataType.of(new TypeReference<L>() { });
 
 		assertTrue(listErased
 			.isAssignableFrom(listL));
 		assertFalse(listErased
-			.isAssignableFromTypeArgument(listL));
+			.isAssignableFromGenericParameter(listL));
 	}
 
 	@Test
@@ -178,7 +179,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<List<?>>() { })
 			.isAssignableFrom(new TypeReference<List<String>>() { }));
 		assertTrue(DataType.of(new TypeReference<List<?>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<String>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<String>>() { })));
 	}
 
 	@Test
@@ -186,7 +187,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<List<? extends CharSequence>>() { })
 			.isAssignableFrom(new TypeReference<List<String>>() { }));
 		assertTrue(DataType.of(new TypeReference<List<? extends CharSequence>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<String>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<String>>() { })));
 	}
 
 	@Test
@@ -194,7 +195,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<List<? super String>>() { })
 			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
 		assertTrue(DataType.of(new TypeReference<List<? super String>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<CharSequence>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<CharSequence>>() { })));
 	}
 
 	@Test
@@ -202,7 +203,7 @@ public class DataTypeAssignableTest {
 		assertFalse(new TypeVariable("A")
 			.isAssignableFrom(new TypeVariable("B")));
 		assertTrue(new TypeVariable("A")
-			.isAssignableFromTypeArgument(new TypeVariable("B")));
+			.isAssignableFromGenericParameter(new TypeVariable("B")));
 	}
 
 	@Test
@@ -210,15 +211,15 @@ public class DataTypeAssignableTest {
 		assertFalse(new TypeVariable("A")
 			.isAssignableFrom(new TypeVariable("B", String.class)));
 		assertTrue(new TypeVariable("A")
-			.isAssignableFromTypeArgument(new TypeVariable("B", String.class)));
+			.isAssignableFromGenericParameter(new TypeVariable("B", String.class)));
 	}
 
 	@Test
 	void boundedTypeVariableDoesNotMatchUnboundedTypeVariable() {
 		assertFalse(new TypeVariable("A", String.class)
 			.isAssignableFrom(new TypeVariable("B")));
-		assertTrue(new TypeVariable("A", String.class)
-			.isAssignableFromTypeArgument(new TypeVariable("B")));
+		assertFalse(new TypeVariable("A", String.class)
+			.isAssignableFromGenericParameter(new TypeVariable("B")));
 	}
 
 	@Test
@@ -226,7 +227,7 @@ public class DataTypeAssignableTest {
 		assertFalse(new TypeVariable("A", CharSequence.class)
 			.isAssignableFrom(new TypeVariable("B", String.class)));
 		assertTrue(new TypeVariable("A", CharSequence.class)
-			.isAssignableFromTypeArgument(new TypeVariable("B", String.class)));
+			.isAssignableFromGenericParameter(new TypeVariable("B", String.class)));
 	}
 
 	@Test
@@ -234,15 +235,15 @@ public class DataTypeAssignableTest {
 		assertFalse(new TypeVariable("A", String.class)
 			.isAssignableFrom(new TypeVariable("B", CharSequence.class)));
 		assertFalse(new TypeVariable("A", String.class)
-			.isAssignableFromTypeArgument(new TypeVariable("B", CharSequence.class)));
+			.isAssignableFromGenericParameter(new TypeVariable("B", CharSequence.class)));
 	}
 
 	@Test
 	<X extends CharSequence & Constable> void typeVariableWithMultipleBoundsMatchesSubtype() {
 		assertFalse(DataType.of(new TypeReference<X>(){})
 			.isAssignableFrom(DataType.of(String.class)));
-		assertFalse(DataType.of(new TypeReference<X>(){})
-			.isAssignableFromTypeArgument(DataType.of(String.class)));
+		assertTrue(DataType.of(new TypeReference<X>(){})
+			.isAssignableFromGenericParameter(DataType.of(String.class)));
 	}
 
 	@Test
@@ -250,7 +251,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<X>(){})
 			.isAssignableFrom(DataType.of(Integer.class)));
 		assertFalse(DataType.of(new TypeReference<X>(){})
-			.isAssignableFromTypeArgument(DataType.of(Integer.class)));
+			.isAssignableFromGenericParameter(DataType.of(Integer.class)));
 	}
 
 	@Test
@@ -258,7 +259,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.STRING
 			.isAssignableFrom(DataType.of(new TypeReference<S>() { })));
 		assertFalse(DataType.STRING
-				.isAssignableFromTypeArgument(DataType.of(new TypeReference<S>() { })),
+				.isAssignableFromGenericParameter(DataType.of(new TypeReference<S>() { })),
 			"Type argument assignability is not covariant");
 	}
 
@@ -267,7 +268,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.STRING
 			.isAssignableFrom(DataType.of(new TypeReference<C>() { })));
 		assertFalse(DataType.STRING
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<C>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<C>() { })));
 	}
 
 	@Test
@@ -275,7 +276,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.OBJECT
 			.isAssignableFrom(DataType.of(new TypeReference<X>() { })));
 		assertFalse(DataType.OBJECT
-				.isAssignableFromTypeArgument(DataType.of(new TypeReference<X>() { })),
+				.isAssignableFromGenericParameter(DataType.of(new TypeReference<X>() { })),
 			"Type argument assignability is not covariant");
 	}
 
@@ -284,7 +285,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.STRING
 			.isAssignableFrom(DataType.of(new TypeReference<X>() { })));
 		assertFalse(DataType.STRING
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<X>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<X>() { })));
 	}
 
 	@Test
@@ -292,7 +293,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(CharSequence.class)
 			.isAssignableFrom(DataType.of(new TypeReference<X>() { })));
 		assertFalse(DataType.of(CharSequence.class)
-				.isAssignableFromTypeArgument(DataType.of(new TypeReference<X>() { })),
+				.isAssignableFromGenericParameter(DataType.of(new TypeReference<X>() { })),
 			"Type argument assignability is not covariant");
 	}
 
@@ -301,7 +302,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<List<V>>() { })
 			.isAssignableFrom(new TypeReference<List<String>>() { }));
 		assertTrue(DataType.of(new TypeReference<List<V>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<String>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<String>>() { })));
 	}
 
 	@Test
@@ -309,7 +310,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<List<C>>() { })
 			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
 		assertTrue(DataType.of(new TypeReference<List<C>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<CharSequence>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<CharSequence>>() { })));
 	}
 
 	@Test
@@ -317,7 +318,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<List<C>>() { })
 			.isAssignableFrom(new TypeReference<List<String>>() { }));
 		assertTrue(DataType.of(new TypeReference<List<C>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<String>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<String>>() { })));
 	}
 
 	@Test
@@ -325,7 +326,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<List<C>>() { })
 			.isAssignableFrom(new TypeReference<List<Integer>>() { }));
 		assertFalse(DataType.of(new TypeReference<List<C>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<Integer>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<Integer>>() { })));
 	}
 
 	@Test
@@ -333,7 +334,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<List<S>>() { })
 			.isAssignableFrom(new TypeReference<List<CharSequence>>() { }));
 		assertFalse(DataType.of(new TypeReference<List<S>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<CharSequence>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<CharSequence>>() { })));
 	}
 
 	@Test
@@ -341,11 +342,11 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(List.class)
 			.isAssignableFrom(DataType.of(new TypeReference<List<String>>() { })));
 		assertTrue(DataType.of(List.class)
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<String>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<String>>() { })));
 		assertTrue(DataType.of(new TypeReference<List<String>>() { })
 			.isAssignableFrom(DataType.of(List.class)));
 		assertTrue(DataType.of(new TypeReference<List<String>>() { })
-			.isAssignableFromTypeArgument(DataType.of(List.class)));
+			.isAssignableFromGenericParameter(DataType.of(List.class)));
 		assertTrue(DataType.of(Iterable.class)
 			.isAssignableFrom(DataType.of(new TypeReference<List<String>>() { })));
 	}
@@ -355,7 +356,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<List<? extends CharSequence>>() { })
 			.isAssignableFrom(DataType.of(new TypeReference<List<? extends String>>() { })));
 		assertTrue(DataType.of(new TypeReference<List<? extends CharSequence>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<? extends String>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<? extends String>>() { })));
 	}
 
 	@Test
@@ -363,7 +364,7 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<List<? super String>>() { })
 			.isAssignableFrom(DataType.of(new TypeReference<List<? super CharSequence>>() { })));
 		assertTrue(DataType.of(new TypeReference<List<? super String>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<List<? super CharSequence>>() { })));
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<List<? super CharSequence>>() { })));
 	}
 
 	@Test
@@ -385,8 +386,8 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(Object[].class).isAssignableFrom(DataType.of(String[].class)));
 		assertFalse(DataType.of(String[].class).isAssignableFrom(DataType.of(Object[].class)));
 
-		assertFalse(DataType.of(Object[].class).isAssignableFromTypeArgument(DataType.of(String[].class)));
-		assertFalse(DataType.of(String[].class).isAssignableFromTypeArgument(DataType.of(Object[].class)));
+		assertFalse(DataType.of(Object[].class).isAssignableFromGenericParameter(DataType.of(String[].class)));
+		assertFalse(DataType.of(String[].class).isAssignableFromGenericParameter(DataType.of(Object[].class)));
 	}
 
 	@Test
@@ -394,12 +395,12 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(String[].class)
 			.isAssignableFrom(DataType.of(Object.class)));
 		assertFalse(DataType.of(String[].class)
-			.isAssignableFromTypeArgument(DataType.of(Object.class)));
+			.isAssignableFromGenericParameter(DataType.of(Object.class)));
 
 		assertFalse(DataType.of(new TypeReference<T[]>(){})
 			.isAssignableFrom(DataType.of(Object.class)));
 		assertFalse(DataType.of(new TypeReference<T[]>(){})
-			.isAssignableFromTypeArgument(DataType.of(Object.class)));
+			.isAssignableFromGenericParameter(DataType.of(Object.class)));
 	}
 
 	@Test
@@ -410,42 +411,41 @@ public class DataTypeAssignableTest {
 	@Test
 	void primitiveArrayNotAssignableToObjectArray() {
 		assertFalse(DataType.of(Object[].class).isAssignableFrom(DataType.of(int[].class)));
-		assertFalse(DataType.of(Object[].class).isAssignableFromTypeArgument(DataType.of(int[].class)));
+		assertFalse(DataType.of(Object[].class).isAssignableFromGenericParameter(DataType.of(int[].class)));
 	}
 
 	@Test
-	<S extends CharSequence> void knownVsUnknownArray() {
+	<C extends CharSequence> void knownVsUnknownArray() {
 		var arrayOfObject = DataType.of(new TypeReference<Object[]>() { });
 		var arrayOfCharSequence = DataType.of(new TypeReference<CharSequence[]>() { });
 		var arrayOfString = DataType.of(new TypeReference<String[]>() { });
-		var arrayOfS = DataType.of(new TypeReference<S[]>() { });
+		var arrayOfC = DataType.of(new TypeReference<C[]>() { });
 
-		assertFalse(arrayOfObject.isAssignableFrom(arrayOfS));
-		assertFalse(arrayOfObject.isAssignableFromTypeArgument(arrayOfS));
+		assertTrue(arrayOfObject.isAssignableFrom(arrayOfC));
+		assertFalse(arrayOfObject.isAssignableFromGenericParameter(arrayOfC));
 
-		assertTrue(arrayOfCharSequence.isAssignableFrom(arrayOfS));
-		assertFalse(arrayOfCharSequence.isAssignableFromTypeArgument(arrayOfS));
+		assertTrue(arrayOfCharSequence.isAssignableFrom(arrayOfC));
+		assertFalse(arrayOfCharSequence.isAssignableFromGenericParameter(arrayOfC));
 
-		assertTrue(arrayOfString.isAssignableFrom(arrayOfS));
-		assertFalse(arrayOfString.isAssignableFromTypeArgument(arrayOfS));
+		assertFalse(arrayOfString.isAssignableFrom(arrayOfC));
+		assertFalse(arrayOfString.isAssignableFromGenericParameter(arrayOfC));
 
-		assertFalse(arrayOfS.isAssignableFrom(arrayOfObject));
-		assertFalse(arrayOfS.isAssignableFromTypeArgument(arrayOfObject));
+		assertFalse(arrayOfC.isAssignableFrom(arrayOfObject));
+		assertFalse(arrayOfC.isAssignableFromGenericParameter(arrayOfObject));
 
-		assertTrue(arrayOfS.isAssignableFrom(arrayOfCharSequence));
-		assertFalse(arrayOfS.isAssignableFromTypeArgument(arrayOfCharSequence));
+		assertFalse(arrayOfC.isAssignableFrom(arrayOfCharSequence));
+		assertTrue(arrayOfC.isAssignableFromGenericParameter(arrayOfCharSequence));
 
-		assertTrue(arrayOfS.isAssignableFrom(arrayOfString));
-		assertFalse(arrayOfS.isAssignableFromTypeArgument(arrayOfString));
+		assertFalse(arrayOfC.isAssignableFrom(arrayOfString));
+		assertTrue(arrayOfC.isAssignableFromGenericParameter(arrayOfString));
 	}
 
 	@Test
 	void parameterTypeMappingThroughInheritance() {
 		assertTrue(DataType.of(new TypeReference<List<String>>() { })
 			.isAssignableFrom(DataType.of(new TypeReference<ArrayList<String>>() { })));
-		// ArrayList<String> is assignable to List<String> in Java, so invocation mapping should allow it
-		assertTrue(DataType.of(new TypeReference<List<String>>() { })
-			.isAssignableFromTypeArgument(DataType.of(new TypeReference<ArrayList<String>>() { })));
+		assertFalse(DataType.of(new TypeReference<List<String>>() { })
+			.isAssignableFromGenericParameter(DataType.of(new TypeReference<ArrayList<String>>() { })));
 	}
 
 	@Test
@@ -453,7 +453,7 @@ public class DataTypeAssignableTest {
 	    var arrayOfT = DataType.of(new TypeReference<T[]>() { });
 		DataType arrayOfString = DataType.of(String[].class);
 		assertFalse(arrayOfT.isAssignableFrom(arrayOfString));
-	    assertTrue(arrayOfT.isAssignableFromTypeArgument(arrayOfString));
+	    assertTrue(arrayOfT.isAssignableFromGenericParameter(arrayOfString));
 	}
 
 	@Test
@@ -462,11 +462,11 @@ public class DataTypeAssignableTest {
 
 		DataType arrayOfString = DataType.of(String[].class);
 	    assertFalse(arrayOfT.isAssignableFrom(arrayOfString));
-	    assertTrue(arrayOfT.isAssignableFromTypeArgument(arrayOfString));
+	    assertTrue(arrayOfT.isAssignableFromGenericParameter(arrayOfString));
 
 		DataType arrayOfObject = DataType.of(Object[].class);
 	    assertFalse(arrayOfT.isAssignableFrom(arrayOfObject));
-	    assertFalse(arrayOfT.isAssignableFromTypeArgument(arrayOfObject));
+	    assertFalse(arrayOfT.isAssignableFromGenericParameter(arrayOfObject));
 	}
 
 	@Test
@@ -475,13 +475,13 @@ public class DataTypeAssignableTest {
 		assertFalse(arrayOfX
 			.isAssignableFrom(DataType.of(String[].class)));
 		assertTrue(arrayOfX
-			.isAssignableFromTypeArgument(DataType.of(String[].class)));
+			.isAssignableFromGenericParameter(DataType.of(String[].class)));
 
 		// Integer is Constable but not CharSequence
 		assertFalse(arrayOfX
 			.isAssignableFrom(DataType.of(Integer[].class)));
 		assertFalse(arrayOfX
-			.isAssignableFromTypeArgument(DataType.of(Integer[].class)));
+			.isAssignableFromGenericParameter(DataType.of(Integer[].class)));
 	}
 
 	@Test
@@ -491,7 +491,7 @@ public class DataTypeAssignableTest {
 		assertTrue(arrayOfWildcard
 			.isAssignableFrom(arrayofString));
 		assertTrue(arrayOfWildcard
-			.isAssignableFromTypeArgument(arrayofString));
+			.isAssignableFromGenericParameter(arrayofString));
 	}
 
 	@Test
@@ -504,19 +504,19 @@ public class DataTypeAssignableTest {
 		assertFalse(arrayOfWildcard
 			.isAssignableFrom(arrayOfObject));
 		assertFalse(arrayOfWildcard
-			.isAssignableFromTypeArgument(arrayOfObject));
+			.isAssignableFromGenericParameter(arrayOfObject));
 
 		var arrayOfCharSequence = DataType.of(new TypeReference<CharSequence[]>() { });
 		assertTrue(arrayOfWildcard
 			.isAssignableFrom(arrayOfCharSequence));
 		assertTrue(arrayOfWildcard
-			.isAssignableFromTypeArgument(arrayOfCharSequence));
+			.isAssignableFromGenericParameter(arrayOfCharSequence));
 
-		var arrayofString = DataType.of(new TypeReference<String[]>() { });
+		var arrayOfString = DataType.of(new TypeReference<String[]>() { });
 		assertTrue(arrayOfWildcard
-			.isAssignableFrom(arrayofString));
+			.isAssignableFrom(arrayOfString));
 		assertTrue(arrayOfWildcard
-			.isAssignableFromTypeArgument(arrayofString));
+			.isAssignableFromGenericParameter(arrayOfString));
 	}
 
 	@Test
@@ -529,19 +529,19 @@ public class DataTypeAssignableTest {
 		assertTrue(arrayOfWildcard
 			.isAssignableFrom(arrayOfObject));
 		assertTrue(arrayOfWildcard
-			.isAssignableFromTypeArgument(arrayOfObject));
+			.isAssignableFromGenericParameter(arrayOfObject));
 
 		var arrayOfCharSequence = DataType.of(new TypeReference<CharSequence[]>() { });
 		assertTrue(arrayOfWildcard
 			.isAssignableFrom(arrayOfCharSequence));
 		assertTrue(arrayOfWildcard
-			.isAssignableFromTypeArgument(arrayOfCharSequence));
+			.isAssignableFromGenericParameter(arrayOfCharSequence));
 
 		var arrayofString = DataType.of(new TypeReference<String[]>() { });
 		assertFalse(arrayOfWildcard
 			.isAssignableFrom(arrayofString));
 		assertFalse(arrayOfWildcard
-			.isAssignableFromTypeArgument(arrayofString));
+			.isAssignableFromGenericParameter(arrayofString));
 	}
 
 	@Test
@@ -549,7 +549,7 @@ public class DataTypeAssignableTest {
 		assertFalse(DataType.of(new TypeReference<List<String>>(){})
 			.isAssignableFrom(DataType.of(Map.class)));
 		assertFalse(DataType.of(new TypeReference<List<String>>(){})
-			.isAssignableFromTypeArgument(DataType.of(Map.class)));
+			.isAssignableFromGenericParameter(DataType.of(Map.class)));
 	}
 
 	@Test
@@ -557,7 +557,20 @@ public class DataTypeAssignableTest {
 		assertTrue(DataType.of(new TypeReference<List<String>>(){})
 			.isAssignableFrom(DataType.of(ArrayList.class)));
 		assertFalse(DataType.of(new TypeReference<List<String>>(){})
-			.isAssignableFromTypeArgument(DataType.of(ArrayList.class)));
+			.isAssignableFromGenericParameter(DataType.of(ArrayList.class)));
 	}
 
+	@Test
+	<T> void invariantListWithTypeVariable() {
+	    var listT = DataType.of(new TypeReference<List<T>>() { });
+	    var listString = DataType.of(new TypeReference<List<String>>() { });
+
+	    // Assignment to a variable of type List<T> should NOT accept List<String>
+	    assertFalse(listT.isAssignableFrom(listString),
+	      "List<T>.isAssignableFrom(List<String>) must be false (invariant for parameterized types)");
+
+	    // But type-argument conformance (passing List<String> as a type-argument to List<T>) remains true
+	    assertTrue(listT.isAssignableFromGenericParameter(listString),
+	      "List<T>.isAssignableFromGenericParameter(List<String>) should be true (type-argument/bounds semantics)");
+	}
 }

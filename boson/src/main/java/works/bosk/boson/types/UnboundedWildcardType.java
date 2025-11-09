@@ -14,6 +14,11 @@ public record UnboundedWildcardType() implements WildcardType {
 	}
 
 	@Override
+	public boolean isAssignableFromGenericParameter(DataType other) {
+		return true;
+	}
+
+	@Override
 	public Class<?> leastUpperBoundClass() {
 		return Object.class;
 	}

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiPredicate;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -31,11 +32,12 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 		return this.bindings().stream();
 	}
 
+	@Override
 	public boolean isAssignableFrom(DataType other) {
 		return switch (other) {
 			case ArrayType _ -> rawClass().isAssignableFrom(Object[].class);
 			case PrimitiveType _ -> false; // No instance type matches any primitive
-			case BoundType bt -> isAssignableFrom(bt);
+			case BoundType bt -> isAssignableFrom(bt, BoundType::isAssignableFromTypeParameter);
 			case ErasedType(var t)  -> rawClass().isAssignableFrom(t); // Seems aggressive, but people use erased types when they don't want to think about generics
 			case TypeVariable(_, var bounds) -> bounds.stream().anyMatch(t -> this.isAssignableFrom(DataType.of(t)));
 			case UnknownType _ -> rawClass().isAssignableFrom(other.leastUpperBoundClass());
@@ -43,16 +45,39 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 
 	}
 
-	@Override
-	public boolean isAssignableFromTypeArgument(DataType other) {
-		if (other instanceof KnownType t) {
-			return rawClass().equals(t.rawClass()) && isAssignableFrom(t);
-		} else {
-			return false;
-		}
+	/**
+	 * @return true if {@code List<patternArg>} is assignable from {@code List<candidate>}.
+	 */
+	private static boolean isAssignableFromTypeParameter(DataType patternArg, DataType candidate) {
+		// isAssignableGenericParameter is too lax because it's meant
+		// for invocation site compatibility, so it allows type variables
+		// to match things that aren't type variables.
+
+		// isAssignableFrom is too lax because allows types to
+		// match their subtypes, but too strict because unknown
+		// types hardly match anything.
+
+		return switch (patternArg) {
+			case KnownType t -> t.isAssignableFromGenericParameter(candidate);
+			case UnknownType t -> t.isAssignableFrom(candidate);
+		};
+
 	}
 
-	private boolean isAssignableFrom(InstanceType candidate) {
+	@Override
+	public boolean isAssignableFromGenericParameter(DataType other) {
+		return switch (other) {
+			case ArrayType _ -> rawClass().isAssignableFrom(Object[].class);
+			case PrimitiveType _ -> false; // No instance type matches any primitive
+			case BoundType bt ->
+				rawClass().equals(bt.rawClass())
+					&& isAssignableFrom(bt, DataType::isAssignableFromGenericParameter);
+			case ErasedType(var t)  -> rawClass().equals(t);
+			case UnknownType _ -> false;
+		};
+	}
+
+	private boolean isAssignableFrom(InstanceType candidate, BiPredicate<DataType, DataType> typeParameterCheck) {
 		if (!rawClass().isAssignableFrom(candidate.rawClass())) {
 			return false;
 		}
@@ -96,7 +121,7 @@ public record BoundType(Class<?> rawClass, List<? extends DataType> bindings) im
 		for (int i = 0; i < resolvedArguments.size(); i++) {
 			DataType patternArg = resolvedArguments.get(i);
 			DataType candidateParameter = candidate.parameterType(this.rawClass(), i);
-			if (!patternArg.isAssignableFromTypeArgument(candidateParameter)) {
+			if (!typeParameterCheck.test(patternArg, candidateParameter)) {
 				return false;
 			}
 		}

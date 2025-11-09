@@ -5,7 +5,7 @@ import java.util.Map;
 public record UnknownArrayType(UnknownType elementType) implements UnknownType {
 	@Override
 	public String toString() {
-		return elementType + "[]";
+		return "«" + elementType + "»[]";
 	}
 
 	@Override
@@ -17,10 +17,10 @@ public record UnknownArrayType(UnknownType elementType) implements UnknownType {
 	}
 
 	@Override
-	public boolean isAssignableFromTypeArgument(DataType other) {
+	public boolean isAssignableFromGenericParameter(DataType other) {
 		// TODO: Double-check the semantics here and in ArrayType
 		return switch (other) {
-			case ArrayType(var otherElementType) -> elementType.isAssignableFromTypeArgument(otherElementType);
+			case ArrayType(var otherElementType) -> elementType.isAssignableFromGenericParameter(otherElementType);
 			default -> false;
 		};
 	}

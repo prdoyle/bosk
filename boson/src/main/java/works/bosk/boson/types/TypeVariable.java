@@ -43,7 +43,7 @@ public record TypeVariable(String name, List<Type> bounds) implements UnknownTyp
 	@Override
 	public boolean isAssignableFrom(DataType other) {
 		// For type variables, isAssignableFrom is stricter
-		// than isAssignableFromTypeArgument:
+		// than isAssignableFromGenericParameter:
 		// for T t = x, x must either be T itself or a provable subtype of T
 		if (this.equals(other)) {
 			return true;
@@ -62,7 +62,10 @@ public record TypeVariable(String name, List<Type> bounds) implements UnknownTyp
 			// from participating in intersection types,
 			// so if otherTv is not a singleton, it's not going to match.
 			//
-			return otherTv.bounds().stream().allMatch(t ->
+ 			// However, allMatch returns true for an empty stream,
+			// which is wrong, so we use anyMatch instead.
+			//
+			return otherTv.bounds().stream().anyMatch(t ->
 				this.isAssignableFrom(DataType.of(t)));
 		}
 
@@ -71,7 +74,7 @@ public record TypeVariable(String name, List<Type> bounds) implements UnknownTyp
 	}
 
 	@Override
-	public boolean isAssignableFromTypeArgument(DataType other) {
+	public boolean isAssignableFromGenericParameter(DataType other) {
 		return bounds.stream().allMatch(t ->
 			DataType.of(t).isAssignableFrom(other));
 	}

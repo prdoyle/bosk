@@ -25,7 +25,7 @@ public record ErasedType(Class<?> rawClass) implements InstanceType {
 	}
 
 	@Override
-	public boolean isAssignableFromTypeArgument(DataType other) {
+	public boolean isAssignableFromGenericParameter(DataType other) {
 		return other instanceof KnownType k && rawClass.equals(k.rawClass());
 	}
 

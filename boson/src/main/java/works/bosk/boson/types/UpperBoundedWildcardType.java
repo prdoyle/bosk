@@ -14,6 +14,11 @@ public record UpperBoundedWildcardType(DataType upperBound) implements WildcardT
 	}
 
 	@Override
+	public boolean isAssignableFromGenericParameter(DataType other) {
+		return upperBound.isAssignableFrom(other);
+	}
+
+	@Override
 	public UpperBoundedWildcardType substitute(Map<String, DataType> actualArguments) {
 		return new UpperBoundedWildcardType(upperBound.substitute(actualArguments));
 	}

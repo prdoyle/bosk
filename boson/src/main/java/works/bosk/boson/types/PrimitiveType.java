@@ -9,8 +9,7 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 
 	@Override
 	public boolean isAssignableFrom(DataType other) {
-		return other instanceof PrimitiveType(var otherRawClass)
-			&& rawClass.isAssignableFrom(otherRawClass);
+		return rawClass.isAssignableFrom(other.leastUpperBoundClass());
 	}
 
 	/**
@@ -19,7 +18,7 @@ public record PrimitiveType(Class<?> rawClass) implements KnownType {
 	 * a reference type with no parameters.
 	 */
 	@Override
-	public boolean isAssignableFromTypeArgument(DataType other) {
+	public boolean isAssignableFromGenericParameter(DataType other) {
 		return other instanceof PrimitiveType(var otherRawClass)
 			&& rawClass.equals(otherRawClass);
 	}
