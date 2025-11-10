@@ -1,11 +1,17 @@
 package works.bosk.boson.mapping.spec.handles;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
 
 import static works.bosk.boson.types.DataType.BOOLEAN;
+import static works.bosk.boson.types.DataType.LONG;
 
 /**
  * Describes how a {@link UniformMapNode} is to be serialized.
@@ -175,5 +181,92 @@ public record ObjectEmitter(
 	@Override
 	public String toString() {
 		return dataType() + "->{"+getKey.returnType()+":"+getValue.returnType()+"}";
+	}
+
+	public interface ForLoopWrangler<T, K, V> {
+		long start(T obj);
+		boolean hasNext(long iter, T obj);
+		long next(long iter, T obj);
+		K getKey(long iter, T obj);
+		V getValue(long iter, T obj);
+	}
+
+	public static <T, K, V> ObjectEmitter forLoop(ForLoopWrangler<T, K, V> wrangler) {
+		var wranglerType = (BoundType)DataType.of(wrangler.getClass());
+		var objectType = wranglerType.parameterType(ForLoopWrangler.class, 0);
+		var keyType = wranglerType.parameterType(ForLoopWrangler.class, 1);
+		var valueType = wranglerType.parameterType(ForLoopWrangler.class, 2);
+
+		return new ObjectEmitter(
+			new TypedHandle(
+				FOR_LOOP_WRANGLER_START
+					.bindTo(wrangler)
+					.asType(MethodType.methodType(long.class, objectType.leastUpperBoundClass())),
+				LONG, List.of(objectType)
+			),
+			new TypedHandle(
+				FOR_LOOP_WRANGLER_HAS_NEXT
+					.bindTo(wrangler)
+					.asType(MethodType.methodType(boolean.class, long.class, objectType.leastUpperBoundClass())),
+				BOOLEAN, List.of(LONG, objectType)
+			),
+			new TypedHandle(
+				FOR_LOOP_WRANGLER_NEXT
+					.bindTo(wrangler)
+					.asType(MethodType.methodType(long.class, long.class, objectType.leastUpperBoundClass())),
+				LONG, List.of(LONG, objectType)
+			),
+			new TypedHandle(
+				FOR_LOOP_WRANGLER_GET_KEY
+					.bindTo(wrangler)
+					.asType(MethodType.methodType(keyType.leastUpperBoundClass(), long.class, objectType.leastUpperBoundClass())),
+				keyType, List.of(LONG, objectType)
+			),
+			new TypedHandle(
+				FOR_LOOP_WRANGLER_GET_VALUE
+					.bindTo(wrangler)
+					.asType(MethodType.methodType(valueType.leastUpperBoundClass(), long.class, objectType.leastUpperBoundClass())),
+				valueType, List.of(LONG, objectType)
+			)
+		);
+	}
+
+	private static final MethodHandle FOR_LOOP_WRANGLER_START;
+	private static final MethodHandle FOR_LOOP_WRANGLER_HAS_NEXT;
+	private static final MethodHandle FOR_LOOP_WRANGLER_NEXT;
+	private static final MethodHandle FOR_LOOP_WRANGLER_GET_KEY;
+	private static final MethodHandle FOR_LOOP_WRANGLER_GET_VALUE;
+
+	static {
+		try {
+			MethodHandles.Lookup lookup = MethodHandles.lookup();
+			FOR_LOOP_WRANGLER_START = lookup.findVirtual(
+				ForLoopWrangler.class,
+				"start",
+				MethodType.methodType(long.class, Object.class)
+			);
+			FOR_LOOP_WRANGLER_HAS_NEXT = lookup.findVirtual(
+				ForLoopWrangler.class,
+				"hasNext",
+				MethodType.methodType(boolean.class, long.class, Object.class)
+			);
+			FOR_LOOP_WRANGLER_NEXT = lookup.findVirtual(
+				ForLoopWrangler.class,
+				"next",
+				MethodType.methodType(long.class, long.class, Object.class)
+			);
+			FOR_LOOP_WRANGLER_GET_KEY = lookup.findVirtual(
+				ForLoopWrangler.class,
+				"getKey",
+				MethodType.methodType(Object.class, long.class, Object.class)
+			);
+			FOR_LOOP_WRANGLER_GET_VALUE = lookup.findVirtual(
+				ForLoopWrangler.class,
+				"getValue",
+				MethodType.methodType(Object.class, long.class, Object.class)
+			);
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new ExceptionInInitializerError(e);
+		}
 	}
 }
