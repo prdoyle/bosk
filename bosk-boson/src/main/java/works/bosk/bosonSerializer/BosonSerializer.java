@@ -42,7 +42,6 @@ import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
 import works.bosk.boson.mapping.spec.UniformMapNode;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
-import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
@@ -165,32 +164,23 @@ public class BosonSerializer extends StateTreeSerializer {
 			})
 		));
 
-		DataType tType = DataType.of(new TypeReference<T>() {});
-		DataType mapEntryType = DataType.of(new TypeReference<MapEntry<T>>() {});
-		TypedHandle finisher = TypedHandles.<Identifier, T, MapEntry<T>>biFunction(
-			DataType.of(Identifier.class),
-			tType,
-			mapEntryType,
-			MapEntry::new
-		);
-		TypedHandle getKey = TypedHandles.<MapEntry<T>, Identifier>function(
-			mapEntryType,
-			DataType.of(Identifier.class),
-			MapEntry::id
-		);
-		TypedHandle getValue = TypedHandles.<MapEntry<T>, T>function(
-			mapEntryType,
-			new TypeVariable("T"),
-			MapEntry::value
-		);
 		directives.add(Directive.fixed(
-			UniformMapNode.singleton(
-				new TypeRefNode(DataType.of(Identifier.class)),
-				new TypeRefNode(tType),
-				finisher,
-				getKey,
-				getValue
-			)
+			UniformMapNode.singleton(new UniformMapNode.SingletonWrangler<MapEntry<T>, Identifier, T>(){
+				@Override
+				public Identifier getKey(MapEntry<T> value) {
+					return value.id();
+				}
+
+				@Override
+				public T getValue(MapEntry<T> value) {
+					return value.value();
+				}
+
+				@Override
+				public MapEntry<T> finish(Identifier id, T value) {
+					return new MapEntry<>(id, value);
+				}
+			})
 		));
 
 		// It's remarkable how cumbersome this one is

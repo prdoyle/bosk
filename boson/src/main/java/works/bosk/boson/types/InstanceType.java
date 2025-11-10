@@ -22,10 +22,10 @@ sealed public interface InstanceType extends KnownType permits BoundType, Erased
 			};
 		} else {
 			// First, find some immediate supertype that is a subtype of targetClass.
-			works.bosk.boson.types.InstanceType immediateSuperType = null;
+			InstanceType immediateSuperType = null;
 			if (targetClass.isInterface()) {
 				for (var i : this.rawClass().getGenericInterfaces()) {
-					immediateSuperType = (works.bosk.boson.types.InstanceType) DataType.of(i);
+					immediateSuperType = (InstanceType) DataType.of(i);
 					if (targetClass.isAssignableFrom(immediateSuperType.rawClass())) {
 						break;
 					} else {
@@ -35,7 +35,7 @@ sealed public interface InstanceType extends KnownType permits BoundType, Erased
 			}
 			if (immediateSuperType == null) {
 				// If it's not an interface, then it must be from our superclass
-				immediateSuperType = (works.bosk.boson.types.InstanceType) DataType.of(rawClass().getGenericSuperclass());
+				immediateSuperType = (InstanceType) DataType.of(rawClass().getGenericSuperclass());
 			}
 
 			// For an example, suppose...
