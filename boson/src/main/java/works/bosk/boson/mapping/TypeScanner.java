@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.boson.exceptions.JsonFormatException;
 import works.bosk.boson.mapping.opt.Optimizer;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.mapping.spec.BigNumberNode;
@@ -51,6 +52,8 @@ import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.ErasedType;
 import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.PrimitiveType;
+import works.bosk.boson.types.TypeReference;
+import works.bosk.boson.types.TypeVariable;
 import works.bosk.boson.types.UnknownType;
 
 import static java.lang.invoke.MethodType.methodType;
@@ -58,6 +61,8 @@ import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static works.bosk.boson.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
+import static works.bosk.boson.types.DataType.CHAR;
+import static works.bosk.boson.types.DataType.STRING;
 
 /**
  * Collects information about {@link DataType}s,
@@ -71,6 +76,120 @@ public class TypeScanner {
 
 	public TypeScanner(TypeMap.Settings settings) {
 		this.inProgress = new TypeMap(settings);
+		addFallbackBundle(builtInBundle());
+	}
+
+	private <T> Bundle builtInBundle() {
+		List<Directive> directives = new ArrayList<>();
+
+		// boolean, boxed and unboxed
+		directives.add(Directive.fixed(new BooleanNode()));
+		directives.add(Directive.fixed(
+			RepresentAsSpec.as(
+				new BooleanNode(),
+				DataType.known(Boolean.class),
+				Boolean::booleanValue,
+				Boolean::valueOf
+			)
+		));
+
+		// char, boxed and unboxed
+		directives.add(Directive.fixed(
+			new RepresentAsSpec(
+				new StringNode(),
+				new TypedHandle(CHAR2STRING, STRING, List.of(CHAR)),
+				new TypedHandle(STRING2CHAR, CHAR, List.of(STRING))
+			)
+		));
+		directives.add(Directive.fixed(
+			RepresentAsSpec.as(
+				new StringNode(),
+				DataType.known(Character.class),
+				Object::toString,
+				string -> string.charAt(0)
+			)
+		));
+
+		// Primitive numbers, boxed and unboxed
+		for (var p: PRIMITIVE_NUMBER_CLASSES.entrySet()) {
+			directives.add(Directive.fixed(
+				new PrimitiveNumberNode(p.getKey())
+			));
+			directives.add(Directive.fixed(
+				new BoxedPrimitiveSpec(new PrimitiveNumberNode(p.getKey()))
+			));
+		}
+
+		// Arrays
+		//
+		// Ironically, we can't do much better than to represent arrays as lists,
+		// since we don't know their size ahead of time. Emitting them could be a bit more efficient.
+		directives.add(new Directive(
+			DataType.of(new TypeReference<T[]>(){}),
+			arrayType -> switch (arrayType) {
+				case ArrayType at -> RepresentAsSpec.of(new RepresentAsSpec.Wrangler<T[], List<T>>() {
+					final Object[] archetype = at.zeroLengthInstance();
+
+					@Override
+					public List<T> toRepresentation(T[] value) {
+						return List.of(value);
+					}
+
+					@Override
+					@SuppressWarnings("unchecked")
+					public T[] fromRepresentation(List<T> representation) {
+						return (T[])representation.toArray(archetype);
+					}
+				});
+				default ->
+					throw new IllegalStateException("Expected ArrayType but got " + arrayType);
+			}
+		));
+
+		directives.add(new Directive(
+			new TypeVariable("R", Record.class),
+			recordType -> switch (recordType) {
+				case BoundType bt -> scanRecord(bt);
+				default ->
+					throw new IllegalStateException("Expected record type but got " + recordType);
+			}
+		));
+
+		List<DataType> types = directives.stream()
+			.map(Directive::pattern)
+			.filter(t -> t instanceof BoundType b && b.actualArguments().isEmpty())
+			.toList();
+
+		return new Bundle(
+			"<built-in bundle>",
+			types,
+			List.of(MethodHandles.lookup()),
+			List.copyOf(directives)
+		);
+	}
+
+	private static String char2string(char c) {
+		return String.valueOf(c);
+	}
+
+	private static char string2char(String s) {
+		if (s.length() != 1) {
+			throw new JsonFormatException("String must have length 1 to convert to char: " + s);
+		}
+		return s.charAt(0);
+	}
+
+	private static final MethodHandle CHAR2STRING;
+	private static final MethodHandle STRING2CHAR;
+
+	static {
+		try {
+			var lookup = MethodHandles.lookup();
+			CHAR2STRING = lookup.findStatic(TypeScanner.class, "char2string", methodType(String.class, char.class));
+			STRING2CHAR = lookup.findStatic(TypeScanner.class, "string2char", methodType(char.class, String.class));
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new ExceptionInInitializerError(e);
+		}
 	}
 
 	/**
@@ -90,67 +209,6 @@ public class TypeScanner {
 		var node = inProgress.computeIfAbsent(type, this::computeSpecNode);
 		assert type.equals(node.dataType()):
 			"Node must have datatype " + type + " but has " + node.dataType() + ": " + node;
-
-		// TODO: The following happens every time we scan a type, even if we've scanned it before.
-
-		// Automatic boxing/unboxing
-		if (node instanceof PrimitiveNumberNode pnn) {
-			var boxed = new BoxedPrimitiveSpec(pnn);
-			inProgress.put(boxed.dataType(), boxed);
-		} else if (node instanceof BoxedPrimitiveSpec(PrimitiveNumberNode child)) {
-			inProgress.put(child.dataType(), child);
-		} else if (type.equals(DataType.CHAR)) {
-			inProgress.put(
-				DataType.of(Character.class),
-				RepresentAsSpec.as(
-					node,
-					DataType.known(Character.class),
-					Character::charValue,
-					Character::valueOf
-				)
-			);
-		} else if (type.equals(DataType.of(Character.class))) {
-			inProgress.put(
-				DataType.CHAR,
-				RepresentAsSpec.as(
-					node,
-					DataType.CHAR,
-					Character::valueOf,
-					Character::charValue
-				)
-			);
-		} else if (type.equals(DataType.BOOLEAN)) {
-			inProgress.put(
-				DataType.of(Boolean.class),
-				RepresentAsSpec.as(
-					node,
-					DataType.known(Boolean.class),
-					Boolean::booleanValue,
-					Boolean::valueOf
-				)
-			);
-		} else if (type.equals(DataType.of(Boolean.class))) {
-			inProgress.put(
-				DataType.BOOLEAN,
-				RepresentAsSpec.as(
-					node,
-					DataType.BOOLEAN,
-					Boolean::valueOf,
-					Boolean::booleanValue
-				)
-			);
-		} else if (type.equals(DataType.of(Boolean.class))) {
-			inProgress.put(
-				DataType.BOOLEAN,
-				RepresentAsSpec.as(
-					node,
-					DataType.BOOLEAN,
-					Boolean::valueOf,
-					Boolean::booleanValue
-				)
-			);
-		}
-
 		return this;
 	}
 
@@ -176,6 +234,7 @@ public class TypeScanner {
 	 */
 	public TypeScanner specify(DataType type, JsonValueSpec spec) {
 		addBundle(new Bundle(
+			"<ad hoc bundle for type: " + type + ">",
 			List.of(type),
 			List.of(),
 			List.of(Directive.fixed(spec)
@@ -195,21 +254,58 @@ public class TypeScanner {
 	}
 
 	/**
+	 * @param name has no significance other than for troubleshooting
 	 * @param types to scan even if not encountered during normal scanning
 	 * @param lookups to use for {@link MethodHandle} operations on types that would otherwise be inaccessible
 	 * @param directives are considered in order. The first matching directive is used.
 	 */
 	public record Bundle(
+		String name,
 		List<DataType> types,
 		List<Lookup> lookups,
 		List<Directive> directives
 	) { }
 
-	public record Directive(DataType pattern, Function<DataType, JsonValueSpec> spec) {
+	public record Directive(DataType pattern, Guard guard, Function<DataType, JsonValueSpec> spec) {
 		public Directive {
 			assert !pattern.hasWildcards():
 				"Directive pattern must not have wildcards; use type variables instead: " + pattern;
 		}
+
+		public Directive(DataType pattern, Function<DataType, JsonValueSpec> spec) {
+			this(pattern, ANY, spec);
+		}
+
+		/**
+		 * A restriction on the types to which a {@link Directive} applies.
+		 */
+		public sealed interface Guard {
+			boolean allows(DataType type);
+		}
+
+		/**
+		 * No restriction.
+		 */
+		public record Any() implements Guard {
+			@Override
+			public boolean allows(DataType type) {
+				return true;
+			}
+		}
+
+		/**
+		 * Allows any type that {@link DataType#isAssignableFrom isAssignableFrom}
+		 * the directive's pattern. Useful if the directive's spec returns a value
+		 * of type {@code subtype}.
+		 */
+		public record IsAssignableFrom(DataType subtype) implements Guard {
+			@Override
+			public boolean allows(DataType type) {
+				return type.isAssignableFrom(subtype);
+			}
+		}
+
+		public static final Guard ANY = new Any();
 
 		/**
 		 * @return a {@link Directive} that always returns the given {@code spec}
@@ -221,6 +317,10 @@ public class TypeScanner {
 				spec.dataType(),
 				_ -> spec
 			);
+		}
+
+		public boolean appliesTo(DataType type) {
+			return pattern.isBindableFrom(type) && guard().allows(type);
 		}
 	}
 
@@ -363,7 +463,7 @@ public class TypeScanner {
 
 	private JsonValueSpec computeSpecNode(DataType type) {
 		if (type instanceof DataType // Work around JDK 25 bug
-				&& findDirective(type) instanceof Directive(var pattern, var specFunction)) {
+				&& findDirective(type) instanceof Directive(var pattern, _, var specFunction)) {
 			LOGGER.debug("Type {} matched directive {}", type, pattern);
 			var spec = specFunction.apply(type);
 
@@ -388,9 +488,9 @@ public class TypeScanner {
 
 	private JsonValueSpec hardcodedScan(DataType type) {
 		return switch (type) {
-			case ArrayType t -> scanArray(t);
 			case BoundType t -> scrapeRefs(scanClass(t));
-			case PrimitiveType t -> scanPrimitive(t);
+			case ArrayType _, PrimitiveType _ ->
+				throw new IllegalStateException("Should be handled by build-in bundle: " + type);
 			case UnknownType _, ErasedType _ ->
 				throw new IllegalStateException("Unsupported type: " + type);
 		};
@@ -429,7 +529,7 @@ public class TypeScanner {
 	private Directive findDirective(DataType type) {
 		for (var bundle : bundles) {
 			for (var directive : bundle.directives()) {
-				if (directive.pattern().isBindableFrom(type)) {
+				if (directive.appliesTo(type)) {
 					return directive;
 				}
 			}
@@ -457,26 +557,11 @@ public class TypeScanner {
 		return refs.computeIfAbsent(type, TypeRefNode::new);
 	}
 
-	private JsonValueSpec scanArray(ArrayType array) {
-		throw new IllegalStateException("Not implemented");
-	}
-
-	private JsonValueSpec scanPrimitive(PrimitiveType primitive) {
-		var clazz = primitive.rawClass();
-		if (PRIMITIVE_NUMBER_CLASSES.containsKey(clazz)) {
-			return new PrimitiveNumberNode(clazz);
-		}
-		if (clazz == boolean.class) {
-			return new BooleanNode();
-		}
-		throw new IllegalStateException("Unsupported primitive type: " + primitive);
-	}
-
 	private JsonValueSpec scanClass(BoundType type) {
 		LOGGER.debug("scanClass({})", type);
 		var clazz = type.rawClass();
 		if (clazz.isRecord()) {
-			return scanRecord(type);
+			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
 		if (Number.class.isAssignableFrom(clazz)) {
 			if (clazz == BigDecimal.class) {
