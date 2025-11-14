@@ -22,6 +22,14 @@ public record ArrayNode(
 			"emitter must supply elements of type " + elementNode.dataType();
 	}
 
+	public ArrayNode(ArrayAccumulator accumulator, ArrayEmitter emitter) {
+		this(
+			new TypeRefNode(accumulator.elementType()),
+			accumulator,
+			emitter
+		);
+	}
+
 	@Override
 	public DataType dataType() {
 		return accumulator.resultType();
