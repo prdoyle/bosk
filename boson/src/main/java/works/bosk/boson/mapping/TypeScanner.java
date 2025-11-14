@@ -83,6 +83,17 @@ public class TypeScanner {
 	private <T> Bundle builtInBundle() {
 		List<Directive> directives = new ArrayList<>();
 
+		directives.add(new Directive(
+			new TypeVariable("E", Enum.class),
+			enumType -> switch (enumType) {
+				case BoundType bt -> EnumByNameNode.of(bt.rawClass());
+				default ->
+					throw new IllegalStateException("Expected enum type but got " + enumType);
+			}
+		));
+
+		directives.add(Directive.fixed(new StringNode()));
+
 		directives.add(Directive.fixed(
 			new IsAssignableFrom(DataType.of(ArrayList.class)),
 			new ArrayNode(ARRAY_ACCUMULATOR, ARRAY_EMITTER)
@@ -595,8 +606,9 @@ public class TypeScanner {
 			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
 		if (isStringParsingClass(type)) {
-			return scanStringParsingClass(type);
+			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
+
 		// At this point, we have a type that simply won't work unless
 		// it's handled by a directive. If anyone relies on the value
 		// we return here, they're wrong. Unfortunately, returning
@@ -629,18 +641,6 @@ public class TypeScanner {
 	private static boolean isStringParsingClass(KnownType type) {
 		var clazz = type.rawClass();
 		return clazz.isEnum() || clazz == String.class;
-	}
-
-	private static ScalarSpec scanStringParsingClass(KnownType type) {
-		assert isStringParsingClass(type);
-		var clazz = type.rawClass();
-		if (clazz.isEnum()) {
-			return EnumByNameNode.of(clazz);
-		}
-		if (clazz == String.class) {
-			return new StringNode();
-		}
-		throw new IllegalStateException("Unsupported type: " + clazz);
 	}
 
 	private JsonValueSpec scanRecord(BoundType recordType) {
