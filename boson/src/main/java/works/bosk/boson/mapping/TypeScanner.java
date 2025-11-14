@@ -383,6 +383,10 @@ public class TypeScanner {
 				+ "; got " + spec.dataType();
 			return scrapeRefs(spec);
 		}
+		return hardcodedScan(type);
+	}
+
+	private JsonValueSpec hardcodedScan(DataType type) {
 		return switch (type) {
 			case ArrayType t -> scanArray(t);
 			case BoundType t -> scrapeRefs(scanClass(t));
