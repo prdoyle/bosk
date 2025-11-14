@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.boson.exceptions.JsonFormatException;
+import works.bosk.boson.mapping.TypeScanner.Directive.IsAssignableFrom;
 import works.bosk.boson.mapping.opt.Optimizer;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.mapping.spec.BigNumberNode;
@@ -79,12 +80,17 @@ public class TypeScanner {
 		addFallbackBundle(builtInBundle());
 	}
 
-	private <T, I extends Iterable<T>> Bundle builtInBundle() {
+	private <T> Bundle builtInBundle() {
 		List<Directive> directives = new ArrayList<>();
 
 		directives.add(Directive.fixed(
-			new Directive.IsAssignableFrom(DataType.of(ArrayList.class)),
+			new IsAssignableFrom(DataType.of(ArrayList.class)),
 			new ArrayNode(ARRAY_ACCUMULATOR, ARRAY_EMITTER)
+		));
+
+		directives.add(Directive.fixed(
+			new IsAssignableFrom(DataType.of(LinkedHashMap.class)),
+			new UniformMapNode(OBJECT_ACCUMULATOR, OBJECT_EMITTER)
 		));
 
 		// boolean, boxed and unboxed
@@ -586,14 +592,7 @@ public class TypeScanner {
 			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
 		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(LinkedHashMap.class)) {
-			var keySpec = refNode(type.parameterType(Map.class, 0));
-			var valueSpec = refNode(type.parameterType(Map.class, 1));
-			return new UniformMapNode(
-				keySpec,
-				valueSpec,
-				mapAccumulator(type),
-				mapEmitter(type)
-			);
+			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
 		if (isStringParsingClass(type)) {
 			return scanStringParsingClass(type);
@@ -616,62 +615,11 @@ public class TypeScanner {
 	}
 
 	public static ObjectAccumulator mapAccumulator(BoundType linkedHashMapType) {
-		assert linkedHashMapType.rawClass().isAssignableFrom(LinkedHashMap.class);
-		if (!(linkedHashMapType.parameterType(Map.class, 0) instanceof KnownType keyType) ||
-			!(linkedHashMapType.parameterType(Map.class, 1) instanceof KnownType valueType)) {
-			throw new IllegalStateException("Can't accumulate into a map of unknown key or value type: " + linkedHashMapType);
-		}
-		MethodHandle creator, mapPut, finisher;
-		try {
-			creator = MethodHandles.lookup().unreflectConstructor(LinkedHashMap.class.getConstructor());
-			mapPut = MethodHandles.lookup().unreflect(Map.class.getDeclaredMethod("put", Object.class, Object.class));
-			finisher = MethodHandles.identity(Map.class).asType(methodType(linkedHashMapType.rawClass(), Map.class));
-		} catch (IllegalAccessException | NoSuchMethodException e) {
-			throw new IllegalStateException("Unexpected error doing reflection on List", e);
-		}
-		var upcastCreator = creator.asType(creator.type().changeReturnType(Map.class));
-		var integrator = mapPut.asType(mapPut.type()
-			.changeReturnType(void.class)
-			.changeParameterType(1, keyType.rawClass())
-			.changeParameterType(2, valueType.rawClass())
-		);
-		var mapType = new BoundType(Map.class, linkedHashMapType.bindings());
-		return new ObjectAccumulator(
-			new TypedHandle(upcastCreator, mapType, List.of()),
-			new TypedHandle(integrator, DataType.VOID, List.of(mapType, keyType, valueType)),
-			new TypedHandle(finisher, linkedHashMapType, List.of(mapType))
-		);
+		return OBJECT_ACCUMULATOR.substitute(OBJECT_ACCUMULATOR.resultType().bindingsFor(linkedHashMapType));
 	}
 
 	public static ObjectEmitter mapEmitter(BoundType mapType) {
-		assert Map.class.isAssignableFrom(mapType.rawClass());
-		if (!(mapType.parameterType(Map.class, 0) instanceof KnownType keyType) ||
-			!(mapType.parameterType(Map.class, 1) instanceof KnownType valueType)) {
-			throw new IllegalStateException("Can't emit from a map of unknown key or value type: " + mapType);
-		}
-		MethodHandle start, hasNext, next, getKey, getValue;
-		try {
-			start = MethodHandles.lookup().unreflect(TypeScanner.class.getDeclaredMethod("getIterator", Map.class));
-			hasNext = MethodHandles.lookup().unreflect(Iterator.class.getMethod("hasNext"));
-			next = MethodHandles.lookup().unreflect(Iterator.class.getMethod("next"));
-			getKey = MethodHandles.lookup().unreflect(Map.Entry.class.getMethod("getKey"));
-			getValue = MethodHandles.lookup().unreflect(Map.Entry.class.getMethod("getValue"));
-		} catch (IllegalAccessException | NoSuchMethodException e) {
-			throw new IllegalStateException("Unexpected error doing reflection on List", e);
-		}
-		var upcastStart = start.asType(start.type().changeParameterType(0, mapType.rawClass()));
-		var downcastGetKey = getKey.asType(getKey.type().changeReturnType(keyType.rawClass()));
-		var downcastGetValue = getValue.asType(getValue.type().changeReturnType(valueType.rawClass()));
-		var downcastNext = next.asType(next.type().changeReturnType(Map.Entry.class));
-		var mapEntryType = new BoundType(Map.Entry.class, mapType.bindings());
-		var iteratorType = new BoundType(Iterator.class, mapEntryType);
-		return new ObjectEmitter(
-			new TypedHandle(upcastStart, iteratorType, List.of(mapType)),
-			new TypedHandle(hasNext, DataType.BOOLEAN, List.of(iteratorType)),
-			new TypedHandle(downcastNext, mapEntryType, List.of(iteratorType)),
-			new TypedHandle(downcastGetKey, keyType, List.of(mapEntryType)),
-			new TypedHandle(downcastGetValue, valueType, List.of(mapEntryType))
-		);
+		return OBJECT_EMITTER.substitute(OBJECT_EMITTER.dataType().bindingsFor(mapType));
 	}
 
 	private static Iterator<?> getIterator(Map<?,?> map) {
@@ -772,11 +720,13 @@ public class TypeScanner {
 		return inProgress.lookupFor(c);
 	}
 
-	private static final ArrayAccumulator ARRAY_ACCUMULATOR = computeAccumulator();
-	private static final ArrayEmitter ARRAY_EMITTER = computeEmitter();
+	private static final ArrayAccumulator ARRAY_ACCUMULATOR = computeArrayAccumulator();
+	private static final ArrayEmitter ARRAY_EMITTER = computeArrayEmitter();
+	private static final ObjectAccumulator OBJECT_ACCUMULATOR = computeObjectAccumulator();
+	private static final ObjectEmitter OBJECT_EMITTER = computeObjectEmitter();
 
-	private static <T, L extends Iterable<T>> ArrayAccumulator computeAccumulator() {
-		return ArrayAccumulator.of(new ArrayAccumulator.Wrangler<ArrayList<T>, T, L>() {
+	private static <T, L extends Iterable<T>> ArrayAccumulator computeArrayAccumulator() {
+		return ArrayAccumulator.from(new ArrayAccumulator.Wrangler<ArrayList<T>, T, L>() {
 			@Override
 			public ArrayList<T> create() {
 				return new ArrayList<>();
@@ -796,8 +746,8 @@ public class TypeScanner {
 		});
 	}
 
-	private static <T, L extends Iterable<T>> ArrayEmitter computeEmitter() {
-		return ArrayEmitter.of(
+	private static <T, L extends Iterable<T>> ArrayEmitter computeArrayEmitter() {
+		return ArrayEmitter.from(
 			new ArrayEmitter.Wrangler<L, Iterator<T>, T>() {
 				@Override
 				public Iterator<T> start(L value) {
@@ -815,6 +765,58 @@ public class TypeScanner {
 				}
 			}
 		);
+	}
+
+	private static <K, V, M extends Map<K,V>> ObjectAccumulator computeObjectAccumulator() {
+		return ObjectAccumulator.from(
+			new ObjectAccumulator.Wrangler<M, LinkedHashMap<K,V>, K, V>() {
+				@Override
+				public LinkedHashMap<K, V> create() {
+					return new LinkedHashMap<>();
+				}
+
+				@Override
+				public LinkedHashMap<K, V> integrate(LinkedHashMap<K, V> accumulator, K key, V value) {
+					accumulator.put(key, value);
+					return accumulator;
+				}
+
+				@Override
+				@SuppressWarnings("unchecked")
+				public M finish(LinkedHashMap<K, V> accumulator) {
+					return (M)accumulator;
+				}
+			}
+		);
+	}
+
+	private static <K, V, M extends Map<K,V>> ObjectEmitter computeObjectEmitter() {
+		return ObjectEmitter.forIterator(new ObjectEmitter.IteratorWrangler<M, Iterator<Map.Entry<K, V>>, Map.Entry<K,V>, K, V>() {
+			@Override
+			public Iterator<Map.Entry<K, V>> start(M obj) {
+				return obj.entrySet().iterator();
+			}
+
+			@Override
+			public boolean hasNext(Iterator<Map.Entry<K, V>> iter) {
+				return iter.hasNext();
+			}
+
+			@Override
+			public Map.Entry<K, V> next(Iterator<Map.Entry<K, V>> iter) {
+				return iter.next();
+			}
+
+			@Override
+			public K getKey(Map.Entry<K, V> member) {
+				return member.getKey();
+			}
+
+			@Override
+			public V getValue(Map.Entry<K, V> member) {
+				return member.getValue();
+			}
+		});
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(TypeScanner.class);

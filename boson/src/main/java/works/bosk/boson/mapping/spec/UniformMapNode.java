@@ -33,6 +33,18 @@ public record UniformMapNode(
 			"emitter must supply values of type " + valueNode.dataType() + ", not " + emitter.getValue().returnType();
 	}
 
+	public UniformMapNode(
+		ObjectAccumulator accumulator,
+		ObjectEmitter emitter
+	) {
+		this(
+			new TypeRefNode(accumulator.keyType()),
+			new TypeRefNode(accumulator.valueType()),
+			accumulator,
+			emitter
+		);
+	}
+
 	@Override
 	public DataType dataType() {
 		return accumulator.resultType();
