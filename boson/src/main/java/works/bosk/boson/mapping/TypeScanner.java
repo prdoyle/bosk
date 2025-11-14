@@ -155,6 +155,8 @@ public class TypeScanner {
 			}
 		));
 
+		directives.add(Directive.fixed(new BigNumberNode(BigDecimal.class)));
+
 		List<DataType> types = directives.stream()
 			.map(Directive::pattern)
 			.filter(t -> t instanceof BoundType b && b.actualArguments().isEmpty())
@@ -564,15 +566,7 @@ public class TypeScanner {
 			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
 		if (Number.class.isAssignableFrom(clazz)) {
-			if (clazz == BigDecimal.class) {
-				return new BigNumberNode(BigDecimal.class);
-			}
-			Class<?> primitiveClass = PRIMITIVE_NUMBER_CLASSES.entrySet().stream()
-				.filter(e -> e.getValue() == clazz)
-				.map(Map.Entry::getKey)
-				.findFirst()
-				.orElseThrow(() -> new IllegalStateException("Unsupported number class: " + clazz));
-			return new BoxedPrimitiveSpec(new PrimitiveNumberNode(primitiveClass));
+			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
 		if (Iterable.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(ArrayList.class)) {
 			return new ArrayNode(
