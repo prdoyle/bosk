@@ -7,7 +7,6 @@ import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -57,6 +56,7 @@ import works.bosk.boson.types.TypeVariable;
 import works.bosk.boson.types.UnknownType;
 
 import static java.lang.invoke.MethodType.methodType;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -79,8 +79,13 @@ public class TypeScanner {
 		addFallbackBundle(builtInBundle());
 	}
 
-	private <T> Bundle builtInBundle() {
+	private <T, I extends Iterable<T>> Bundle builtInBundle() {
 		List<Directive> directives = new ArrayList<>();
+
+		directives.add(Directive.fixed(
+			new Directive.IsAssignableFrom(DataType.of(ArrayList.class)),
+			new ArrayNode(ARRAY_ACCUMULATOR, ARRAY_EMITTER)
+		));
 
 		// boolean, boxed and unboxed
 		directives.add(Directive.fixed(new BooleanNode()));
@@ -321,6 +326,14 @@ public class TypeScanner {
 			);
 		}
 
+		public static Directive fixed(Guard guard, JsonValueSpec spec) {
+			return new Directive(
+				spec.dataType(),
+				guard,
+				_ -> spec
+			);
+		}
+
 		public boolean appliesTo(DataType type) {
 			return pattern.isBindableFrom(type) && guard().allows(type);
 		}
@@ -530,6 +543,7 @@ public class TypeScanner {
 
 	private Directive findDirective(DataType type) {
 		for (var bundle : bundles) {
+			LOGGER.trace("Checking bundle {}", bundle.name());
 			for (var directive : bundle.directives()) {
 				if (directive.appliesTo(type)) {
 					return directive;
@@ -569,11 +583,7 @@ public class TypeScanner {
 			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
 		if (Iterable.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(ArrayList.class)) {
-			return new ArrayNode(
-				refNode(type.parameterType(Iterable.class, 0)),
-				listAccumulator(type),
-				listEmitter(type)
-			);
+			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
 		}
 		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(LinkedHashMap.class)) {
 			var keySpec = refNode(type.parameterType(Map.class, 0));
@@ -598,51 +608,11 @@ public class TypeScanner {
 	}
 
 	public static ArrayAccumulator listAccumulator(BoundType arrayListType) {
-		assert arrayListType.rawClass().isAssignableFrom(ArrayList.class);
-		if (!(arrayListType.parameterType(Iterable.class, 0) instanceof KnownType elementType)) {
-			throw new IllegalStateException("Can't accumulate into a list of unknown element type: " + arrayListType);
-		}
-		MethodHandle creator, listAdd, finisher;
-		try {
-			creator = MethodHandles.lookup().unreflectConstructor(ArrayList.class.getConstructor());
-			listAdd = MethodHandles.lookup().unreflect(List.class.getMethod("add", Object.class));
-			finisher = MethodHandles.lookup().unreflect(Collections.class.getMethod("unmodifiableList", List.class));
-		} catch (IllegalAccessException | NoSuchMethodException e) {
-			throw new IllegalStateException("Unexpected error doing reflection on List", e);
-		}
-		var upcastCreator = creator.asType(creator.type().changeReturnType(List.class));
-		var integrator = listAdd.asType(listAdd.type()
-			.changeReturnType(void.class)
-			.changeParameterType(1, elementType.rawClass()));
-		var upcastFinisher = finisher.asType(finisher.type().changeReturnType(arrayListType.rawClass()));
-		var listType = new BoundType(List.class, arrayListType.bindings());
-		return new ArrayAccumulator(
-			new TypedHandle(upcastCreator, listType, List.of()),
-			new TypedHandle(integrator, DataType.VOID, List.of(listType, elementType)),
-			new TypedHandle(upcastFinisher, arrayListType, List.of(listType))
-		);
+		return ARRAY_ACCUMULATOR.substitute(ARRAY_ACCUMULATOR.resultType().bindingsFor(arrayListType));
 	}
 
 	public static ArrayEmitter listEmitter(BoundType iterableType) {
-		assert Iterable.class.isAssignableFrom(iterableType.rawClass());
-		if (!(iterableType.parameterType(Iterable.class, 0) instanceof KnownType elementType)) {
-			throw new IllegalStateException("Can't emit from a list of unknown element type: " + iterableType);
-		}
-		MethodHandle iterator, hasNext, next;
-		try {
-			iterator = MethodHandles.lookup().unreflect(iterableType.rawClass().getMethod("iterator"));
-			hasNext = MethodHandles.lookup().unreflect(Iterator.class.getMethod("hasNext"));
-			next = MethodHandles.lookup().unreflect(Iterator.class.getMethod("next"));
-		} catch (IllegalAccessException | NoSuchMethodException e) {
-			throw new IllegalStateException("Unexpected error doing reflection on Iterable", e);
-		}
-		var downcastNext = next.asType(next.type().changeReturnType(elementType.rawClass()));
-		var iteratorType = new BoundType(Iterator.class, iterableType.bindings());
-		return new ArrayEmitter(
-			new TypedHandle(iterator, iteratorType, List.of(iterableType)),
-			new TypedHandle(hasNext, DataType.BOOLEAN, List.of(iteratorType)),
-			new TypedHandle(downcastNext, elementType, List.of(iteratorType))
-		);
+		return ARRAY_EMITTER.substitute(ARRAY_EMITTER.dataType().bindingsFor(iterableType));
 	}
 
 	public static ObjectAccumulator mapAccumulator(BoundType linkedHashMapType) {
@@ -800,6 +770,51 @@ public class TypeScanner {
 
 	private Lookup lookupFor(Class<?> c) {
 		return inProgress.lookupFor(c);
+	}
+
+	private static final ArrayAccumulator ARRAY_ACCUMULATOR = computeAccumulator();
+	private static final ArrayEmitter ARRAY_EMITTER = computeEmitter();
+
+	private static <T, L extends Iterable<T>> ArrayAccumulator computeAccumulator() {
+		return ArrayAccumulator.of(new ArrayAccumulator.Wrangler<ArrayList<T>, T, L>() {
+			@Override
+			public ArrayList<T> create() {
+				return new ArrayList<>();
+			}
+
+			@Override
+			public ArrayList<T> integrate(ArrayList<T> accumulator, T element) {
+				accumulator.add(element);
+				return accumulator;
+			}
+
+			@Override
+			@SuppressWarnings("unchecked")
+			public L finish(ArrayList<T> accumulator) {
+				return (L)unmodifiableList(accumulator);
+			}
+		});
+	}
+
+	private static <T, L extends Iterable<T>> ArrayEmitter computeEmitter() {
+		return ArrayEmitter.of(
+			new ArrayEmitter.Wrangler<L, Iterator<T>, T>() {
+				@Override
+				public Iterator<T> start(L value) {
+					return value.iterator();
+				}
+
+				@Override
+				public boolean hasNext(Iterator<T> iterator) {
+					return iterator.hasNext();
+				}
+
+				@Override
+				public T next(Iterator<T> iterator) {
+					return iterator.next();
+				}
+			}
+		);
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(TypeScanner.class);
