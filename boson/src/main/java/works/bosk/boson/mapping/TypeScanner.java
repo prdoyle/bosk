@@ -49,12 +49,9 @@ import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.types.ArrayType;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
-import works.bosk.boson.types.ErasedType;
 import works.bosk.boson.types.KnownType;
-import works.bosk.boson.types.PrimitiveType;
 import works.bosk.boson.types.TypeReference;
 import works.bosk.boson.types.TypeVariable;
-import works.bosk.boson.types.UnknownType;
 
 import static java.lang.invoke.MethodType.methodType;
 import static java.util.Collections.unmodifiableList;
@@ -515,17 +512,19 @@ public class TypeScanner {
 				+ "; got " + spec.dataType();
 			return scrapeRefs(spec);
 		}
-		return hardcodedScan(type);
-	}
 
-	private JsonValueSpec hardcodedScan(DataType type) {
-		return switch (type) {
-			case BoundType t -> scrapeRefs(scanClass(t));
-			case ArrayType _, PrimitiveType _ ->
-				throw new IllegalStateException("Should be handled by build-in bundle: " + type);
-			case UnknownType _, ErasedType _ ->
-				throw new IllegalStateException("Unsupported type: " + type);
-		};
+		// We have a type that has no directive yet.
+		// We'll defer it with a TypeRefNode in the hopes that
+		// a subsequent bundle resolves it.
+		// If anyone relies on the value we return here, they're wrong.
+		//
+		// Unfortunately, returning
+		// this TypeRefNode, while not incorrect on its own, can cause
+		// a StackOverflowError if no directives override this.
+		// TODO: Handle this case more cleanly
+		// TODO: Do we really want to handle this case? Why not require
+		// all bundles to be added before scanning starts?
+		return new TypeRefNode(type);
 	}
 
 	private <T extends SpecNode> T scrapeRefs(T spec) {
@@ -590,34 +589,6 @@ public class TypeScanner {
 		return refs.computeIfAbsent(type, TypeRefNode::new);
 	}
 
-	private JsonValueSpec scanClass(BoundType type) {
-		LOGGER.debug("scanClass({})", type);
-		var clazz = type.rawClass();
-		if (clazz.isRecord()) {
-			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
-		}
-		if (Number.class.isAssignableFrom(clazz)) {
-			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
-		}
-		if (Iterable.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(ArrayList.class)) {
-			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
-		}
-		if (Map.class.isAssignableFrom(clazz) && clazz.isAssignableFrom(LinkedHashMap.class)) {
-			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
-		}
-		if (isStringParsingClass(type)) {
-			throw new IllegalStateException("Should be handled by built-in bundle: " + type);
-		}
-
-		// At this point, we have a type that simply won't work unless
-		// it's handled by a directive. If anyone relies on the value
-		// we return here, they're wrong. Unfortunately, returning
-		// this TypeRefNode, while not incorrect on its own, can cause
-		// a StackOverflowError if no directives override this.
-		// TODO: Handle this case more cleanly
-		return new TypeRefNode(type);
-	}
-
 	public static ArrayAccumulator listAccumulator(BoundType arrayListType) {
 		return ARRAY_ACCUMULATOR.substitute(ARRAY_ACCUMULATOR.resultType().bindingsFor(arrayListType));
 	}
@@ -632,15 +603,6 @@ public class TypeScanner {
 
 	public static ObjectEmitter mapEmitter(BoundType mapType) {
 		return OBJECT_EMITTER.substitute(OBJECT_EMITTER.dataType().bindingsFor(mapType));
-	}
-
-	private static Iterator<?> getIterator(Map<?,?> map) {
-		return map.entrySet().iterator();
-	}
-
-	private static boolean isStringParsingClass(KnownType type) {
-		var clazz = type.rawClass();
-		return clazz.isEnum() || clazz == String.class;
 	}
 
 	private JsonValueSpec scanRecord(BoundType recordType) {
