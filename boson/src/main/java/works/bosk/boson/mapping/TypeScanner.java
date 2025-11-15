@@ -58,6 +58,7 @@ import static java.util.Collections.unmodifiableList;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
+import static works.bosk.boson.mapping.TypeScanner.Directive.fixed;
 import static works.bosk.boson.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
 import static works.bosk.boson.types.DataType.CHAR;
 import static works.bosk.boson.types.DataType.STRING;
@@ -80,6 +81,19 @@ public class TypeScanner {
 	private <T> Bundle builtInBundle() {
 		List<Directive> directives = new ArrayList<>();
 
+		directives.add(fixed(new StringNode()));
+		directives.add(fixed(new BigNumberNode(BigDecimal.class)));
+
+		directives.add(fixed(
+			new IsAssignableFrom(DataType.of(ArrayList.class)),
+			new ArrayNode(ARRAY_ACCUMULATOR, ARRAY_EMITTER)
+		));
+
+		directives.add(fixed(
+			new IsAssignableFrom(DataType.of(LinkedHashMap.class)),
+			new UniformMapNode(OBJECT_ACCUMULATOR, OBJECT_EMITTER)
+		));
+
 		directives.add(new Directive(
 			new TypeVariable("E", Enum.class),
 			enumType -> switch (enumType) {
@@ -89,21 +103,9 @@ public class TypeScanner {
 			}
 		));
 
-		directives.add(Directive.fixed(new StringNode()));
-
-		directives.add(Directive.fixed(
-			new IsAssignableFrom(DataType.of(ArrayList.class)),
-			new ArrayNode(ARRAY_ACCUMULATOR, ARRAY_EMITTER)
-		));
-
-		directives.add(Directive.fixed(
-			new IsAssignableFrom(DataType.of(LinkedHashMap.class)),
-			new UniformMapNode(OBJECT_ACCUMULATOR, OBJECT_EMITTER)
-		));
-
 		// boolean, boxed and unboxed
-		directives.add(Directive.fixed(new BooleanNode()));
-		directives.add(Directive.fixed(
+		directives.add(fixed(new BooleanNode()));
+		directives.add(fixed(
 			RepresentAsSpec.as(
 				new BooleanNode(),
 				DataType.known(Boolean.class),
@@ -113,14 +115,14 @@ public class TypeScanner {
 		));
 
 		// char, boxed and unboxed
-		directives.add(Directive.fixed(
+		directives.add(fixed(
 			new RepresentAsSpec(
 				new StringNode(),
 				new TypedHandle(CHAR2STRING, STRING, List.of(CHAR)),
 				new TypedHandle(STRING2CHAR, CHAR, List.of(STRING))
 			)
 		));
-		directives.add(Directive.fixed(
+		directives.add(fixed(
 			RepresentAsSpec.as(
 				new StringNode(),
 				DataType.known(Character.class),
@@ -131,10 +133,10 @@ public class TypeScanner {
 
 		// Primitive numbers, boxed and unboxed
 		for (var p: PRIMITIVE_NUMBER_CLASSES.entrySet()) {
-			directives.add(Directive.fixed(
+			directives.add(fixed(
 				new PrimitiveNumberNode(p.getKey())
 			));
-			directives.add(Directive.fixed(
+			directives.add(fixed(
 				new BoxedPrimitiveSpec(new PrimitiveNumberNode(p.getKey()))
 			));
 		}
@@ -173,8 +175,6 @@ public class TypeScanner {
 					throw new IllegalStateException("Expected record type but got " + recordType);
 			}
 		));
-
-		directives.add(Directive.fixed(new BigNumberNode(BigDecimal.class)));
 
 		List<DataType> types = directives.stream()
 			.map(Directive::pattern)
@@ -258,7 +258,7 @@ public class TypeScanner {
 			"<ad hoc bundle for type: " + type + ">",
 			List.of(type),
 			List.of(),
-			List.of(Directive.fixed(spec)
+			List.of(fixed(spec)
 		)));
 		return this;
 	}
