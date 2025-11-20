@@ -7,7 +7,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.boson.codec.Generator;
-import works.bosk.boson.exceptions.JsonException;
+import works.bosk.boson.exceptions.JsonParseException;
 import works.bosk.boson.exceptions.JsonProcessingException;
 import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.spec.ArrayNode;
@@ -95,8 +95,8 @@ public class SpecInterpretingGenerator implements Generator {
 					case StringNode _ -> generateString(value);
 					case TypeRefNode node -> generateAny(typeMap.get(node.type()), value);
 				}
-			} catch (JsonException e) {
-				throw JsonException.wrap(e, spec.briefIdentifier() + ": ");
+			} catch (JsonParseException e) {
+				throw JsonParseException.wrap(e, spec.briefIdentifier() + ": ");
 			}
 		}
 

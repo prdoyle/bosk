@@ -1,7 +1,7 @@
 package works.bosk.boson.mapping.spec;
 
 import java.util.Map;
-import works.bosk.boson.exceptions.JsonFormatException;
+import works.bosk.boson.exceptions.JsonContentException;
 import works.bosk.boson.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.boson.mapping.spec.handles.ObjectEmitter;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
@@ -107,14 +107,14 @@ public record UniformMapNode(
 				if (acc == null) {
 					return wrangler.finish(key, value);
 				} else {
-					throw new JsonFormatException("More than one entry in singleton map");
+					throw new JsonContentException("More than one entry in singleton map");
 				}
 			}
 
 			@Override
 			public T finish(T acc) {
 				if (acc == null) {
-					throw new JsonFormatException("Empty singleton map");
+					throw new JsonContentException("Empty singleton map");
 				} else {
 					return acc;
 				}

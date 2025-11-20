@@ -1,19 +1,21 @@
 package works.bosk.boson.exceptions;
 
 /**
- * Indicates a problem with either invalid JSON text or valid JSON
- * that does not contain the expected contents.
+ * The parser has encountered input text that does meet expectations.
  */
-public final class JsonFormatException extends JsonException {
-	public JsonFormatException(String message) {
+public abstract sealed class JsonFormatException extends JsonParseException permits
+	JsonValidityException,
+	JsonContentException
+{
+	JsonFormatException(String message) {
 		super(message);
 	}
 
-	public JsonFormatException(Throwable cause) {
+	JsonFormatException(Throwable cause) {
 		super(cause);
 	}
 
-	public JsonFormatException(String message, Throwable cause) {
+	JsonFormatException(String message, Throwable cause) {
 		super(message, cause);
 	}
 }

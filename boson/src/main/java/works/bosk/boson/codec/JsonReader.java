@@ -5,9 +5,20 @@ import works.bosk.boson.codec.io.ByteArrayChunkFiller;
 import works.bosk.boson.codec.io.ByteChunkJsonReader;
 import works.bosk.boson.codec.io.CharArrayJsonReader;
 import works.bosk.boson.codec.io.SynchronousChunkFiller;
+import works.bosk.boson.exceptions.JsonContentException;
+import works.bosk.boson.exceptions.JsonSyntaxException;
+import works.bosk.boson.exceptions.JsonValidityException;
 
 /**
  * A streaming JSON reader abstraction for high-performance parsing.
+ * <p>
+ * Throws {@link works.bosk.boson.exceptions.JsonSyntaxException JsonSyntaxException}
+ * for input that does not conform to the JSON standard.
+ * Users of this interface are responsible for throwing
+ * {@link JsonContentException JsonContentException}
+ * when the input is syntactically correct but does not conform
+ * to the expected specification.
+ * <p>
  * This interface is rather unfriendly by design.
  * Methods mutate the reader's internal state in ways that are not obvious
  * from the outside.
@@ -17,7 +28,14 @@ import works.bosk.boson.codec.io.SynchronousChunkFiller;
  * its precise requirements in a way that allows the implementation to avoid
  * all unnecessary work.
  */
-public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonReader, CharArrayJsonReader {
+public sealed interface JsonReader extends AutoCloseable permits
+	ByteChunkJsonReader,
+	CharArrayJsonReader,
+	ValidatingReader
+{
+	/**
+	 * Ok to call multiple times
+	 */
 	@Override void close(); // No throws Exception
 
 	/**
@@ -46,6 +64,10 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 		return new CharArrayJsonReader(string.toCharArray());
 	}
 
+	default ValidatingReader withValidation() {
+		return new ValidatingReader(this);
+	}
+
 	/**
 	 * Start by calling this.
 	 * Skips insignificant characters and returns the next token encountered.
@@ -65,13 +87,18 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 	 * </ul>
 	 *
 	 * This method is idempotent; calling it repeatedly will return the same result.
+	 * <p>
+	 * The token is determined from its first character only.
+	 * For example, if the next character is a digit,
+	 * this will return {@link Token#NUMBER},
+	 * even though the full token might turn out to be invalid.
 	 */
 	Token peekToken();
 
 	default void peekToken(Token expected) {
 		Token actual = peekToken();
 		if (actual != expected) {
-			throw new IllegalStateException("Expected " + expected + " but got " + actual);
+			throw new JsonSyntaxException("Expected " + expected + " but got " + actual);
 		}
 	}
 
@@ -108,8 +135,6 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 	 */
 	CharSequence consumeNumber();
 
-	// String processing, used after peekToken returns STRING
-
 	/**
 	 * After {@link #peekToken} returns {@link Token#STRING STRING},
 	 * this prepares to decode the string's contents.
@@ -135,6 +160,10 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 	 * @return next decoded code point of the string,
 	 * or -1 to indicate the end of the string,
 	 * at which point the closing quote has been consumed from the input.
+	 *
+	 * TODO: This specification makes it sound like this method
+	 * handles surrogate pairs. It does not: it returns them one char at a time.
+	 * Fix the javadocs.
 	 */
 	int nextStringChar();
 
@@ -148,7 +177,7 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 	 *
 	 * @param n number of characters to skip
 	 * @throws IllegalArgumentException if {@code n} is negative
-	 * @throws IllegalStateException if {@code n} is more than the remaining characters in the string
+	 * @throws JsonValidityException if {@code n} is more than the remaining characters in the string
 	 */
 	void skipStringChars(int n);
 
@@ -156,6 +185,8 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 	 * Skips the remainder of the string token, as though {@link #nextStringChar()}
 	 * had been called repeatedly until it returned -1.
 	 * Useful if the rest of the string's value isn't needed.
+	 *
+	 * TODO: Throw JsonValidityException if end of input is reached before end of string.
 	 */
 	void skipToEndOfString();
 
@@ -201,6 +232,26 @@ public sealed interface JsonReader extends AutoCloseable permits ByteChunkJsonRe
 		consumeStringContents(sb);
 		return sb.toString();
 	}
+
+	/**
+	 * Consumes the next characters in the input, verifying that they match
+	 * exactly the {@code expectedCharacters}.
+	 * If they match, nothing happens.
+	 * If they do not match, throws {@link JsonSyntaxException},
+	 * and consumes some unspecified number of characters.
+	 * In effect, this reader is no longer usable.
+	 * <p>
+	 * This can be used by callers that require a higher level of input validation
+	 * compared to other skipping methods like {@link #consumeFixedToken consumeFixedToken},
+	 * which simply assume that the input is correct.
+	 * <p>
+	 * This can only handle JSON syntax outside strings, which is always ASCII.
+	 *
+	 * @param expectedCharacters the sequence of characters to consume
+	 * @throws JsonSyntaxException if the next characters in the input
+	 *         do not match the expected characters
+	 */
+	void validateCharacters(CharSequence expectedCharacters);
 
 	// Diagnostics etc
 

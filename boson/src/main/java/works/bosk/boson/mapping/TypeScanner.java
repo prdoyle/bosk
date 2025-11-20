@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.boson.exceptions.JsonFormatException;
+import works.bosk.boson.exceptions.JsonContentException;
 import works.bosk.boson.mapping.TypeScanner.Directive.IsAssignableFrom;
 import works.bosk.boson.mapping.opt.Optimizer;
 import works.bosk.boson.mapping.spec.ArrayNode;
@@ -210,7 +210,7 @@ public class TypeScanner {
 
 	private static char string2char(String s) {
 		if (s.length() != 1) {
-			throw new JsonFormatException("String must have length 1 to convert to char: " + s);
+			throw new JsonContentException("String must have length 1 to convert to char: " + s);
 		}
 		return s.charAt(0);
 	}

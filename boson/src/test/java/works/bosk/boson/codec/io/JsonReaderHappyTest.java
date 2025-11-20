@@ -7,7 +7,6 @@ import works.bosk.boson.codec.Token;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static works.bosk.boson.codec.Token.END_ARRAY;
 import static works.bosk.boson.codec.Token.END_OBJECT;
 import static works.bosk.boson.codec.Token.END_TEXT;
@@ -19,7 +18,7 @@ import static works.bosk.boson.codec.Token.START_OBJECT;
 import static works.bosk.boson.codec.Token.STRING;
 import static works.bosk.boson.codec.Token.TRUE;
 
-class JsonReaderTest {
+class JsonReaderHappyTest {
 
 	@Test
 	void simpleString() {
@@ -40,6 +39,16 @@ class JsonReaderTest {
 	}
 
 	@Test
+	void stringWithSurrogates() {
+		try (JsonReader reader = readerFor("\"\uD83D\uDE0E\"")) {
+			assertEquals(STRING, peekToken(reader));
+			String string = reader.consumeString();
+			assertEquals("\uD83D\uDE0E", string);
+			assertEquals("😎", string);
+		}
+	}
+
+	@Test
 	void stringWithEscapes() {
 		try (JsonReader reader = readerFor("\"he\\\"llo\\nworld\\\\\"")) {
 			assertEquals(STRING, peekToken(reader));
@@ -54,6 +63,34 @@ class JsonReaderTest {
 			assertEquals("ABC", reader.consumeString());
 		}
 	}
+
+	/**
+	 * JSON has no rules requiring surrogates to be correctly paired.
+	 */
+	@Test
+	void stringWithBackwardSurrogatePair() {
+		try (JsonReader reader = readerFor("\"\\uDC00\\uD800\"")) { // Low surrogate before high surrogate
+			assertEquals(STRING, peekToken(reader));
+			assertEquals("\uDC00\uD800", reader.consumeString());
+		}
+	}
+
+	@Test
+	void stringWithHighSurrogateOnly() {
+		try (JsonReader reader = readerFor("\"\\uD800\"")) {
+			assertEquals(STRING, reader.peekToken());
+			assertEquals("\uD800", reader.consumeString());
+		}
+	}
+
+	@Test
+	void stringWithLowSurrogateOnly() {
+		try (JsonReader reader = readerFor("\"\\uDC00\"")) {
+			assertEquals(STRING, reader.peekToken());
+			assertEquals("\uDC00", reader.consumeString());
+		}
+	}
+
 
 	@Test
 	void emptyString() {
@@ -113,22 +150,6 @@ class JsonReaderTest {
 		try (JsonReader reader = readerFor("\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"")) {
 			assertEquals(STRING, peekToken(reader));
 			assertEquals("\"\\/\b\f\n\r\t", reader.consumeString());
-		}
-	}
-
-	@Test
-	void unterminatedStringThrows() {
-		try (JsonReader reader = readerFor("\"abc")) {
-			assertEquals(STRING, peekToken(reader));
-			assertThrows(IllegalStateException.class, reader::consumeString);
-		}
-	}
-
-	@Test
-	void invalidEscapeThrows() {
-		try (JsonReader reader = readerFor("\"abc\\x\"")) {
-			assertEquals(STRING, peekToken(reader));
-			assertThrows(IllegalStateException.class, reader::consumeString);
 		}
 	}
 

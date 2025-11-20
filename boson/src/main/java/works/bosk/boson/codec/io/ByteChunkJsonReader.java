@@ -2,6 +2,8 @@ package works.bosk.boson.codec.io;
 
 import works.bosk.boson.codec.JsonReader;
 import works.bosk.boson.codec.Token;
+import works.bosk.boson.exceptions.JsonLexicalException;
+import works.bosk.boson.exceptions.JsonProcessingException;
 
 import static java.lang.Math.min;
 import static java.nio.charset.StandardCharsets.US_ASCII;
@@ -59,7 +61,6 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 	@Override
 	public Token peekToken() {
-		new String(new byte[0], US_ASCII);
 		skipInsignificant();
 		return peekRawToken();
 	}
@@ -148,7 +149,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 				return decodeUtf8Char(b);
 			}
 		} catch (ArrayIndexOutOfBoundsException e) {
-			throw new IllegalStateException("Unexpected end of text in the middle of a string character", e);
+			throw new JsonLexicalException("Unexpected end of text in the middle of a string character", e);
 		}
 	}
 
@@ -182,13 +183,13 @@ public final class ByteChunkJsonReader implements JsonReader {
 	@Override
 	public void skipStringChars(int n) {
 		if (n < 0) {
-			throw new IllegalArgumentException("Must skip a non-negative number of characters, got " + n);
+			throw new JsonProcessingException("Must skip a non-negative number of characters, got " + n);
 		}
 		for (int i = n; i > 0; --i) {
 			int c = nextStringChar();
 			if (c == -1) {
 				if (i != 1) {
-					throw new IllegalStateException("Unexpected end of string while skipping characters");
+					throw new JsonLexicalException("Unexpected end of string while skipping characters");
 				}
 			}
 		}
@@ -208,6 +209,37 @@ public final class ByteChunkJsonReader implements JsonReader {
 		// as well simplify things and read directly from the chunk's byte array.
 //		return consumeStringWithStagingBuffer();
 		return consumeStringDirectly();
+	}
+
+	@Override
+	public void validateCharacters(CharSequence expectedCharacters) {
+		int matchedSoFar = 0;
+		while (matchedSoFar < expectedCharacters.length()) {
+			if (currentChunk == null) {
+				throw new JsonLexicalException("Unexpected end of input; expected \"" + expectedCharacters + "\"");
+			}
+
+			byte[] buf = currentChunk.bytes();
+
+			// Go to the end of the chunk, or to the end of expectedCharacters, whichever comes first
+			int limit = Integer.min(
+				currentChunk.stop() - currentChunkPos,
+				expectedCharacters.length() - matchedSoFar
+			);
+
+			while (limit-- > 0) {
+				byte b = buf[currentChunkPos++];
+				char expectedChar = expectedCharacters.charAt(matchedSoFar++);
+				assert 1 <= expectedChar && expectedChar <= 127: "ASCII characters only: " + Character.getName(expectedChar);
+				if (b != expectedChar) {
+					throw new JsonLexicalException("Unexpected character '" + (char) b +
+						"'; expected '" + expectedChar + "'");
+				}
+			}
+			if (currentChunkPos >= currentChunk.stop()) {
+				nextBuffer();
+			}
+		}
 	}
 
 	private String consumeStringWithStagingBuffer() {
@@ -334,7 +366,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 			return;
 		}
 		if (n < 0) {
-			throw new IllegalArgumentException("Can't skip a negative number of bytes: " + n);
+			throw new JsonProcessingException("Can't skip a negative number of bytes: " + n);
 		}
 
 		while (n > 0) {
@@ -408,6 +440,8 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 	/**
 	 * Relatively slow way to advance one byte, loading a new buffer if needed.
+	 * Callers can avoid calling this by using fast-path logic when they
+	 * can prove that there are enough characters in the current chunk.
 	 */
 	void advance() {
 		if (currentChunk != null) {
@@ -424,7 +458,11 @@ public final class ByteChunkJsonReader implements JsonReader {
 		for (int i = 0; i < 4; i++) {
 			int b = bytes[currentChunkPos++];
 			value <<= 4;
-			value |= Character.digit(b, 16);
+			int digitValue = Character.digit(b, 16);
+			if (digitValue == -1) {
+				throw new JsonLexicalException("Invalid hex digit in Unicode escape: " + (char) b);
+			}
+			value |= digitValue;
 		}
 		return value;
 	}
@@ -439,7 +477,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 			case 'n' -> '\n';
 			case 'r' -> '\r';
 			case 't' -> '\t';
-			default -> throw new IllegalStateException("Invalid escape: \\" + (char) b);
+			default -> throw new JsonLexicalException("Invalid escape: \\" + (char) b);
 		};
 	}
 
@@ -457,14 +495,14 @@ public final class ByteChunkJsonReader implements JsonReader {
 			sequenceLength = 4;
 			codePoint = firstChar & 0x07;
 		} else {
-			throw new IllegalStateException("Invalid UTF-8 start byte: " + firstChar);
+			throw new JsonLexicalException("Invalid UTF-8 start byte: " + firstChar);
 		}
 
 		byte[] bytes = currentChunk.bytes();
 		for (int i = 1; i < sequenceLength; i++) {
 			int bx = bytes[currentChunkPos++];
 			if ((bx & 0xC0) != 0x80) {
-				throw new IllegalStateException("Invalid UTF-8 continuation byte: " + bx);
+				throw new JsonLexicalException("Invalid UTF-8 continuation byte: " + bx);
 			}
 			codePoint = (codePoint << 6) | (bx & 0x3F);
 		}

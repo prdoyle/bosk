@@ -2,6 +2,9 @@ package works.bosk.boson.codec.io;
 
 import works.bosk.boson.codec.JsonReader;
 import works.bosk.boson.codec.Token;
+import works.bosk.boson.exceptions.JsonContentException;
+import works.bosk.boson.exceptions.JsonLexicalException;
+import works.bosk.boson.exceptions.JsonSyntaxException;
 
 import static java.lang.Math.min;
 
@@ -112,7 +115,7 @@ public final class CharArrayJsonReader implements JsonReader {
 					}
 					yield value;
 				}
-				default -> throw new IllegalStateException("Invalid escape: \\" + esc);
+				default -> throw new JsonSyntaxException("Invalid escape: \\" + esc);
 			};
 		} else {
 			return c;
@@ -124,7 +127,7 @@ public final class CharArrayJsonReader implements JsonReader {
 		for (int i = 0; i < n; i++) {
 			int c = nextStringChar();
 			if (c == -1) {
-				throw new IllegalStateException("Attempt to skip past end of string");
+				throw new JsonContentException("Attempt to skip past end of string");
 			}
 		}
 	}
@@ -155,6 +158,21 @@ public final class CharArrayJsonReader implements JsonReader {
 		String result = new String(chars, start, pos - start);
 		pos++; // Skip closing quote
 		return result;
+	}
+
+	@Override
+	public void validateCharacters(CharSequence expectedCharacters) {
+		if (expectedCharacters.length() > chars.length - pos) {
+			throw new JsonLexicalException("Unexpected end of input; expecting '" + expectedCharacters + "'");
+		} else {
+			for (int i = 0; i < expectedCharacters.length(); i++) {
+				if (chars[pos + i] != expectedCharacters.charAt(i)) {
+					throw new JsonLexicalException("Unexpected character '" + chars[pos + i] +
+							"'; expecting '" + expectedCharacters.charAt(i) + "'");
+				}
+			}
+			pos += expectedCharacters.length();
+		}
 	}
 
 	@Override

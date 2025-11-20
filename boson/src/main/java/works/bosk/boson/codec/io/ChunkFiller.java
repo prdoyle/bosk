@@ -14,6 +14,9 @@ package works.bosk.boson.codec.io;
  * and could be inferred automatically upon the next call to {@link #nextChunk()}.
  */
 public interface ChunkFiller extends AutoCloseable {
+	/**
+	 * @return null when there are no more
+	 */
 	ByteChunk nextChunk();
 
 	void recycleChunk(ByteChunk chunk);
