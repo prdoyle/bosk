@@ -26,6 +26,8 @@ class JsonReaderHappyTest {
 			assertEquals(STRING, peekToken(reader));
 			assertEquals("hello", reader.consumeString());
 			assertEquals(END_TEXT, consumeToken(reader));
+			assertEquals(END_TEXT, consumeToken(reader),
+				"A limitless sequence of END_TEXT tokens at end of input");
 		}
 	}
 
