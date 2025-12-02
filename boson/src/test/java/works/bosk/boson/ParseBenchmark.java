@@ -130,7 +130,7 @@ public class ParseBenchmark {
 
 	@Benchmark
 	public Object compiled_experimental() throws IOException {
-		return compiledExperimental.parse(new CharArrayJsonReader(json).withValidation());
+		return compiledExperimental.parse(new CharArrayJsonReader(json).withSyntaxValidation());
 	}
 
 	@Benchmark

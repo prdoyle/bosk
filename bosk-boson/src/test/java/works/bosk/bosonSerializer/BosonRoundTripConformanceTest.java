@@ -100,7 +100,7 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 			} else {
 				JsonReader json = CharArrayJsonReader.forString(jsonString);
 				if (variant == Variant.VALIDATING) {
-					json = json.withValidation();
+					json = json.withSyntaxValidation();
 				}
 				try {
 					Object parsed = parser.parse(json);

@@ -32,7 +32,7 @@ public class JsonSuiteTest extends AbstractJsonReaderTest {
 
 	@Override
 	protected JsonReader readerFor(String json) {
-		return super.readerFor(json).withValidation();
+		return super.readerFor(json).withSyntaxValidation();
 	}
 
 	@ParameterizedTest

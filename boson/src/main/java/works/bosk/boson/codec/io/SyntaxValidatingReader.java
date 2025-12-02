@@ -253,7 +253,7 @@ public final class SyntaxValidatingReader implements JsonReader {
 	}
 
 	@Override
-	public JsonReader withValidation() {
+	public JsonReader withSyntaxValidation() {
 		// Already validating
 		return this;
 	}

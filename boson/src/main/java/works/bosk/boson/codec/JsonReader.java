@@ -68,7 +68,17 @@ public sealed interface JsonReader extends AutoCloseable permits
 		return new CharArrayJsonReader(string.toCharArray());
 	}
 
-	default JsonReader withValidation() {
+	/**
+	 * The task of validation is split into two parts:
+	 * syntax validation, and content validation.
+	 * Syntax validation ensures that the input is valid JSON,
+	 * and that does not depend on object mapping,
+	 * so we do it here in the reader, rather than in the codec.
+	 * <p>
+	 * If you know that your input must be valid JSON,
+	 * then you can skip syntax validation for better performance.
+	 */
+	default JsonReader withSyntaxValidation() {
 		return new SyntaxValidatingReader(new TokenValidatingReader(this));
 	}
 

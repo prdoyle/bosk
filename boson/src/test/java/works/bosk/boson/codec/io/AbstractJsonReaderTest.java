@@ -55,7 +55,7 @@ public class AbstractJsonReaderTest {
 			new CharArray() {
 				@Override
 				public JsonReader apply(String s) {
-					return super.apply(s).withValidation();
+					return super.apply(s).withSyntaxValidation();
 				}
 
 				@Override

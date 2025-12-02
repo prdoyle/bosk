@@ -30,7 +30,7 @@ class JsonReaderInvalidTokenTest extends AbstractJsonReaderTest {
 	@Override
 	protected JsonReader readerFor(String json) {
 		// We need validation on all readers here
-		return super.readerFor(json).withValidation();
+		return super.readerFor(json).withSyntaxValidation();
 	}
 
 	@ParameterizedTest
