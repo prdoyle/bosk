@@ -2,7 +2,7 @@ package works.bosk.boson.codec.io;
 
 import works.bosk.boson.codec.JsonReader;
 import works.bosk.boson.codec.Token;
-import works.bosk.boson.exceptions.JsonFormatException;
+import works.bosk.boson.exceptions.JsonContentException;
 import works.bosk.boson.exceptions.JsonSyntaxException;
 
 import static java.lang.Math.min;
@@ -234,7 +234,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 		int matchedSoFar = 0;
 		while (matchedSoFar < expectedCharacters.length()) {
 			if (currentChunk == null) {
-				throw new JsonFormatException("Unexpected end of input; expected \"" + expectedCharacters + "\"");
+				throw new JsonContentException("Unexpected end of input; expected \"" + expectedCharacters + "\"");
 			}
 
 			byte[] buf = currentChunk.bytes();
@@ -250,7 +250,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 				char expectedChar = expectedCharacters.charAt(matchedSoFar++);
 				assert 1 <= expectedChar && expectedChar <= 127: "ASCII characters only: " + Character.getName(expectedChar);
 				if (b != expectedChar) {
-					throw new JsonFormatException("Unexpected character '" + (char) b +
+					throw new JsonContentException("Unexpected character '" + (char) b +
 						"'; expected '" + expectedChar + "'");
 				}
 			}

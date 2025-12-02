@@ -2,7 +2,7 @@ package works.bosk.boson.codec.io;
 
 import works.bosk.boson.codec.JsonReader;
 import works.bosk.boson.codec.Token;
-import works.bosk.boson.exceptions.JsonFormatException;
+import works.bosk.boson.exceptions.JsonContentException;
 import works.bosk.boson.exceptions.JsonSyntaxException;
 
 import static java.lang.Math.min;
@@ -166,11 +166,11 @@ public final class CharArrayJsonReader implements JsonReader {
 	@Override
 	public void validateCharacters(CharSequence expectedCharacters) {
 		if (expectedCharacters.length() > chars.length - pos) {
-			throw new JsonFormatException("Unexpected end of input; expecting '" + expectedCharacters + "'");
+			throw new JsonContentException("Unexpected end of input; expecting '" + expectedCharacters + "'");
 		} else {
 			for (int i = 0; i < expectedCharacters.length(); i++) {
 				if (chars[pos + i] != expectedCharacters.charAt(i)) {
-					throw new JsonFormatException("Unexpected character '" + chars[pos + i] +
+					throw new JsonContentException("Unexpected character '" + chars[pos + i] +
 						"'; expecting '" + expectedCharacters.charAt(i) + "'");
 				}
 			}

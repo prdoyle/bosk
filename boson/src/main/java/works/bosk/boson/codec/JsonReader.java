@@ -116,20 +116,19 @@ public sealed interface JsonReader extends AutoCloseable permits
 	Token peekValueToken();
 
 	/**
-	 * A variant of {@link #peekValueToken} that throws if the next token is not the expected one.
+	 * A variant of {@link #peekValueToken()} that throws {@link JsonContentException}
+	 * if the next token is not the expected one.
 	 * <p>
-	 * Since we don't know whether to throw {@link JsonSyntaxException} or {@link JsonContentException},
-	 * because that depends on the calling context,
-	 * we throw {@link JsonSyntaxException} itself.
-	 * Consider catching that and re-throwing a more specific subclass
-	 * based on your context.
+	 * It's conceivable that {@link JsonSyntaxException} would be more appropriate in some cases,
+	 * though a content error is so overwhelmingly more likely that the risk
+	 * of getting this wrong is low.
 	 *
-	 * @throws JsonFormatException if the input is not valid JSON.
+	 * @throws JsonContentException if the input is not valid JSON.
 	 */
 	default void peekValueToken(Token expected) {
 		Token actual = peekValueToken();
 		if (actual != expected) {
-			throw new JsonFormatException("Expected " + expected + " but got " + actual);
+			throw new JsonContentException("Expected " + expected + " but got " + actual);
 		}
 	}
 
@@ -173,7 +172,7 @@ public sealed interface JsonReader extends AutoCloseable permits
 	void consumeFixedToken(Token token);
 
 	/**
-	 * @throws JsonFormatException if the next token is not the expected one.
+	 * @throws JsonContentException if the next token is not the expected one.
 	 */
 	default void expectFixedToken(Token expected) {
 		assert expected.hasFixedRepresentation();
