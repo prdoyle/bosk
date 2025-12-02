@@ -33,18 +33,6 @@ class JsonReaderInvalidTokenTest extends AbstractJsonReaderTest {
 		return super.readerFor(json).withSyntaxValidation();
 	}
 
-	@ParameterizedTest
-	@ValueSource(strings = {
-		"",
-		" ",
-		"\n\t\r"
-	})
-	void emptyInput(String json) {
-		try (JsonReader reader = readerFor(json)) {
-			assertEquals(Token.END_TEXT, reader.peekValueToken());
-		}
-	}
-
 	@Test
 	void unterminatedString() {
 		try (JsonReader reader = readerFor("\"unterminated")) {

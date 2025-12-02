@@ -22,6 +22,7 @@ import static works.bosk.boson.codec.Token.ERROR;
  * This class does not detect invalid sequences of tokens, such as unbalanced braces,
  * so it does not detect all possible invalid JSON inputs;
  * but it does reduce the problem of validating JSON syntax to merely validating token sequences.
+ * It roughly corresponds to the checking that can be sped up by SIMD acceleration.
  * <p>
  * This class does not necessarily catch invalid tokens as early as possible.
  * In particular, the {@code peek} methods only check the first character,
@@ -29,6 +30,11 @@ import static works.bosk.boson.codec.Token.ERROR;
  * when the rest of the token is consumed.
  */
 public record TokenValidatingReader(JsonReader downstream) implements JsonReader {
+	@Override
+	public JsonReader withSyntaxValidation() {
+		// We're going to be adding validation, which includes token validation; no need to double up.
+		return downstream.withSyntaxValidation();
+	}
 
 	/**
 	 * Closing this closes {@link #downstream}.

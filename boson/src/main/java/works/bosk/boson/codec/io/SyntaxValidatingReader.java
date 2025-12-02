@@ -25,6 +25,12 @@ import static works.bosk.boson.codec.Token.TRUE;
  * Stackable layer that ensures the token stream from {@code downstream} is valid JSON.
  * While the {@link TokenValidatingReader} ensures that individual tokens are valid,
  * this class ensures the token sequence can be validly parsed as a JSON value.
+ * <p>
+ * The {@code peek} methods never return a token that would be invalid in the current context;
+ * instead, they throw {@link JsonSyntaxException}.
+ * They can, though, "optimistically" return a token,
+ * based on its first character, that later turns out
+ * not to be that token when the rest of the token is processed.
  */
 public final class SyntaxValidatingReader implements JsonReader {
 	private final TokenValidatingReader downstream;
@@ -188,6 +194,8 @@ public final class SyntaxValidatingReader implements JsonReader {
 			if (result.isInsignificant()) {
 				downstream.consumeFixedToken(result);
 				doStateTransition(result);
+			} else if (currentState.transitions().get(result) == null) {
+				throw new JsonSyntaxException("Unexpected " + result + " at " + currentOffset());
 			} else {
 				return result;
 			}

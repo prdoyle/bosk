@@ -9,6 +9,7 @@ import works.bosk.boson.codec.JsonReader;
 import works.bosk.boson.codec.Token;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.boson.codec.JsonReader.END_OF_STRING;
 import static works.bosk.boson.codec.Token.COLON;
 import static works.bosk.boson.codec.Token.COMMA;
 import static works.bosk.boson.codec.Token.END_ARRAY;
@@ -59,7 +60,7 @@ class JsonReaderHappyTest extends AbstractJsonReaderTest {
 					"Entire code point");
 			}
 
-			assertEquals(-2, reader.nextStringChar());
+			assertEquals(END_OF_STRING, reader.nextStringChar());
 			assertEquals(END_TEXT, consumeValueToken(reader));
 		}
 	}
@@ -74,7 +75,7 @@ class JsonReaderHappyTest extends AbstractJsonReaderTest {
 			assertEquals(STRING, peekValueToken(reader));
 			reader.startConsumingString();
 			reader.skipStringChars(3);
-			assertEquals(-2, reader.nextStringChar());
+			assertEquals(END_OF_STRING, reader.nextStringChar());
 			assertEquals(END_TEXT, consumeValueToken(reader));
 		}
 	}
@@ -88,7 +89,7 @@ class JsonReaderHappyTest extends AbstractJsonReaderTest {
 				"First surrogate, even though invalid");
 			assertEquals(0xd83d, reader.nextStringChar(),
 				"Second surrogate");
-			assertEquals(-2, reader.nextStringChar());
+			assertEquals(END_OF_STRING, reader.nextStringChar());
 			assertEquals(END_TEXT, consumeValueToken(reader));
 		}
 	}
