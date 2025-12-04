@@ -23,15 +23,16 @@ import works.bosk.boson.mapping.spec.BooleanNode;
 import works.bosk.boson.mapping.spec.BoxedPrimitiveSpec;
 import works.bosk.boson.mapping.spec.ComputedSpec;
 import works.bosk.boson.mapping.spec.EnumByNameNode;
-import works.bosk.boson.mapping.spec.RecognizedMember;
-import works.bosk.boson.mapping.spec.ObjectNode;
+import works.bosk.boson.mapping.spec.JsonValueSpec;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.MaybeNullSpec;
+import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.ParseCallbackSpec;
 import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
+import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
 import works.bosk.boson.mapping.spec.handles.ArrayAccumulator;
 import works.bosk.boson.mapping.spec.handles.ArrayEmitter;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
@@ -49,6 +50,7 @@ import works.bosk.junit.InjectedTest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_METHOD;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
 import static works.bosk.boson.types.DataType.BOOLEAN;
 import static works.bosk.boson.types.DataType.INT;
 import static works.bosk.boson.types.DataType.STRING;
@@ -226,6 +228,7 @@ public class CodecHappyParseTest {
 		);
 		var spec = new ObjectNode(
 			memberSpecs,
+			DISALLOW,
 			TypedHandles.<Integer, String, String>biFunction(INT, STRING, STRING,
 				(i, s) -> i + ":" + s
 			)
@@ -319,12 +322,12 @@ public class CodecHappyParseTest {
 	@InjectedTest
 	void uniformMapNode() throws IOException, NoSuchMethodException, IllegalAccessException {
 		BoundType mapType = (BoundType) DataType.known(new TypeReference<LinkedHashMap<String, BigDecimal>>() { });
-		var spec = new UniformMapNode(
+		JsonValueSpec spec = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
 			new StringNode(),
 			new BigNumberNode(BigDecimal.class),
 			TypeScanner.mapAccumulator(mapType),
 			TypeScanner.mapEmitter(mapType)
-		);
+		));
 
 		var typeMap = scanner
 			.scan(STRING)
@@ -351,7 +354,7 @@ public class CodecHappyParseTest {
 	}
 
 	/**
-	 * This is a silly test, but it demonstrates the expressiveness of UniformMapNode
+	 * This is a silly test, but it demonstrates the expressiveness of UniformMapPolicy
 	 * by directly summing the map values during parsing, entirely with primitives.
 	 */
 	@InjectedTest
@@ -360,7 +363,7 @@ public class CodecHappyParseTest {
 			MethodHandles.identity(int.class),
 			INT, List.of(INT)
 		);
-		var spec = new UniformMapNode(
+		JsonValueSpec spec = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
 			new StringNode(),
 			new PrimitiveNumberNode(int.class),
 			new ObjectAccumulator(
@@ -377,7 +380,7 @@ public class CodecHappyParseTest {
 			// The emitter isn't used here, but it needs to be realistic enough
 			// to satisfy the validation assertions.
 			Unsummer.emitter()
-		);
+		));
 
 		var typeMap = scanner
 			.scan(INT)

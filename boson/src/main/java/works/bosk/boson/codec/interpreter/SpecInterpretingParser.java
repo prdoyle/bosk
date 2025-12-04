@@ -28,19 +28,19 @@ import works.bosk.boson.mapping.spec.BooleanNode;
 import works.bosk.boson.mapping.spec.BoxedPrimitiveSpec;
 import works.bosk.boson.mapping.spec.ComputedSpec;
 import works.bosk.boson.mapping.spec.EnumByNameNode;
-import works.bosk.boson.mapping.spec.RecognizedMember;
-import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.JsonValueSpec;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.MaybeNullSpec;
+import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.ParseCallbackSpec;
 import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
+import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.ScalarSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
 
 import static java.util.Objects.requireNonNull;
@@ -101,7 +101,6 @@ public class SpecInterpretingParser implements Parser {
 			return switch (node) {
 				case ScalarSpec n -> parseScalar(n);
 				case ArrayNode n -> parseArray(n);
-				case UniformMapNode n -> parseUniformMap(n);
 				case MaybeNullSpec n -> parseMaybeNull(n);
 				case ParseCallbackSpec n -> parseCallback(n);
 				case ObjectNode n -> parseObjectNode(n);
@@ -196,7 +195,7 @@ public class SpecInterpretingParser implements Parser {
 							continue;
 						}
 					}
-					case UniformMapNode n -> {
+					case ObjectNode(_, UniformMapPolicy n, _) -> {
 						expect(START_OBJECT);
 						if (nextTokenIs(END_OBJECT)) {
 							var acc = n.accumulator().creator().invoke();
@@ -214,7 +213,7 @@ public class SpecInterpretingParser implements Parser {
 						} else {
 							String memberName = parseString();
 							stack.push(new ObjectAccumulator(n, memberName));
-							RecognizedMember member = requireNonNull(n.recognizedMembers().get(memberName),
+							RecognizedMember member = requireNonNull(n.recognized().get(memberName),
 								"Unexpected member name [" + memberName + "]");
 							node = switch (member.valueSpec()) {
 								case JsonValueSpec j -> j; // The normal case: proceed with the member's value
@@ -325,11 +324,11 @@ public class SpecInterpretingParser implements Parser {
 		}
 
 		private class MapAccumulator implements Accumulator {
-			private final UniformMapNode n;
+			private final UniformMapPolicy n;
 			private final Object accumulator;
 			Object key;
 
-			public MapAccumulator(UniformMapNode n, Object firstKey) {
+			public MapAccumulator(UniformMapPolicy n, Object firstKey) {
 				this.n = n;
 				this.key = firstKey;
 				this.accumulator = n.accumulator().creator().invoke();
@@ -360,8 +359,8 @@ public class SpecInterpretingParser implements Parser {
 
 			public ObjectAccumulator(ObjectNode n, String firstKey) {
 				this.n = n;
-				this.ctorArgs = new Object[n.recognizedMembers().size()];
-				var iter = n.recognizedMembers().values().iterator();
+				this.ctorArgs = new Object[n.recognized().size()];
+				var iter = n.recognized().values().iterator();
 				for (int i = 0; i < ctorArgs.length; i++) {
 					switch (iter.next().valueSpec()) {
 						case ComputedSpec(var supplier) -> ctorArgs[i] = supplier.invoke();
@@ -505,7 +504,7 @@ public class SpecInterpretingParser implements Parser {
 			return acc.finisher().invoke(accumulator);
 		}
 
-		private Object parseUniformMap(UniformMapNode node) throws IOException {
+		private Object parseUniformMap(UniformMapPolicy node) throws IOException {
 			logEntry("parseUniformMap", node);
 			input.expectFixedToken(START_OBJECT);
 			works.bosk.boson.mapping.spec.handles.ObjectAccumulator acc = node.accumulator();
@@ -533,9 +532,12 @@ public class SpecInterpretingParser implements Parser {
 		}
 
 		private Object parseObjectNode(ObjectNode node) throws IOException {
+			if (node.unrecognized() instanceof UniformMapPolicy p) {
+				return parseUniformMap(p);
+			}
 			logEntry("parseObjectNode", node);
 			input.expectFixedToken(START_OBJECT);
-			List<Object> memberValues = readMembers(node.recognizedMembers());
+			List<Object> memberValues = readMembers(node.recognized());
 			return node.finisher().invoke(memberValues.toArray());
 		}
 
@@ -599,7 +601,6 @@ public class SpecInterpretingParser implements Parser {
 				case BoxedPrimitiveSpec _ -> Set.of(NUMBER);
 				case EnumByNameNode _ -> Set.of(STRING);
 				case ArrayNode _ -> Set.of(START_ARRAY);
-				case UniformMapNode _ -> Set.of(START_OBJECT);
 				case MaybeNullSpec n -> Stream.of(expectedTokens(n.child()).stream(), Stream.of(NULL)).flatMap(identity()).collect(toSet());
 				case ParseCallbackSpec n -> expectedTokens(n.child());
 				case PrimitiveNumberNode _ -> Set.of(NUMBER);
@@ -622,7 +623,7 @@ public class SpecInterpretingParser implements Parser {
 
 	private static RecognizedMemberInfo recognizedMemberInfo(ObjectNode node) {
 		Map<String, KeyInfo> keyInfoByName = new LinkedHashMap<>();
-		node.recognizedMembers().forEach((name, member) -> {
+		node.recognized().forEach((name, member) -> {
 			keyInfoByName.put(name, new KeyInfo(keyInfoByName.size(), member.valueSpec()));
 		});
 		return new RecognizedMemberInfo(Map.copyOf(keyInfoByName));

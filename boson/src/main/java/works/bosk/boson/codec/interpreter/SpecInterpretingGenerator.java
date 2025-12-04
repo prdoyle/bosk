@@ -26,7 +26,7 @@ import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.EnclosingObject;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.MemberValue;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.Nullary;
@@ -88,7 +88,6 @@ public class SpecInterpretingGenerator implements Generator {
 							generateAny(maybeNullSpec.child(), value);
 						}
 					}
-					case UniformMapNode node -> generateUniformMap(node, value);
 					case ParseCallbackSpec node -> generateAny(node.child(), value);
 					case ObjectNode node -> generateObject(node, value);
 					case RepresentAsSpec node -> convertAndGenerate(node, value);
@@ -131,7 +130,7 @@ public class SpecInterpretingGenerator implements Generator {
 			out.print(END_ARRAY.fixedRepresentation());
 		}
 
-		private void generateUniformMap(UniformMapNode node, Object value) {
+		private void generateUniformMap(UnrecognizedMemberPolicy.UniformMapPolicy node, Object value) {
 			// Unpack the handles
 			TypedHandle start = node.emitter().start();
 			TypedHandle hasNext = node.emitter().hasNext();
@@ -181,10 +180,15 @@ public class SpecInterpretingGenerator implements Generator {
 		}
 
 		private void generateObject(ObjectNode node, Object map) {
+			if (node.unrecognized() instanceof UnrecognizedMemberPolicy.UniformMapPolicy uniformMapPolicy) {
+				assert node.recognized().isEmpty(); // TODO
+				generateUniformMap(uniformMapPolicy, map);
+				return;
+			}
 			LOGGER.debug("Generating object for value of type {} using spec {}", map.getClass(), node);
 			out.print("{");
 			String sep = "";
-			for (Map.Entry<String, RecognizedMember> entry : node.recognizedMembers().entrySet()) {
+			for (Map.Entry<String, RecognizedMember> entry : node.recognized().entrySet()) {
 				RecognizedMember member = entry.getValue();
 				switch (member.valueSpec()) {
 					case JsonValueSpec v -> {

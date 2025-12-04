@@ -6,6 +6,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.TypeScanner;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.DataType;
@@ -72,18 +73,19 @@ public class SubstitutionTest {
 	<T> void uniformMap() {
 		DataType unknownType = DataType.of(new TypeReference<Map<String, List<T>>>() { });
 		DataType knownType = DataType.of(new TypeReference<Map<String, List<String>>>() { });
-		var original = scanner
+		JsonValueSpec original = scanner
 			.useLookup(MethodHandles.lookup())
 			.scan(unknownType)
 			.build()
 			.get(unknownType);
-		UniformMapNode actual = (UniformMapNode) original.specialize(Map.of("T", STRING));
+		ObjectNode actual = (ObjectNode) original.specialize(Map.of("T", STRING));
 		assertEquals(knownType, actual.dataType());
-		assertEquals(knownType, actual.accumulator().resultType());
-		assertEquals(knownType, actual.emitter().dataType());
-		assertEquals(LIST_OF_STRING, actual.valueNode().dataType());
-		assertEquals(LIST_OF_STRING, actual.accumulator().valueType());
-		assertEquals(LIST_OF_STRING, actual.emitter().getValue().returnType());
+		UniformMapPolicy p = (UniformMapPolicy) actual.unrecognized();
+		assertEquals(knownType, p.accumulator().resultType());
+		assertEquals(knownType, p.emitter().dataType());
+		assertEquals(LIST_OF_STRING, p.valueNode().dataType());
+		assertEquals(LIST_OF_STRING, p.accumulator().valueType());
+		assertEquals(LIST_OF_STRING, p.emitter().getValue().returnType());
 	}
 
 	@Test

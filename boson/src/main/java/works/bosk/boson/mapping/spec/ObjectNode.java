@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.function.Function;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
@@ -16,21 +17,48 @@ import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.TypeReference;
 
 import static java.lang.invoke.MethodType.methodType;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
 
 public record ObjectNode(
-	SequencedMap<String, RecognizedMember> recognizedMembers,
+	SequencedMap<String, RecognizedMember> recognized,
+	UnrecognizedMemberPolicy unrecognized,
 	TypedHandle finisher
 ) implements ObjectSpec {
+	@Override
+	public boolean equals(Object obj) {
+		if (obj == this) return true;
+		if (obj == null || obj.getClass() != this.getClass()) return false;
+		var that = (ObjectNode) obj;
+		return Objects.equals(this.recognized, that.recognized) &&
+			Objects.equals(this.unrecognized, that.unrecognized) &&
+			Objects.equals(this.finisher, that.finisher);
+	}
+
 	public ObjectNode {
-		assert finisher.parameterTypes().size() == recognizedMembers.size();
+		assert finisher.parameterTypes().size() == recognized.size() + unrecognized.finisherArguments().size();
 		Iterator<? extends DataType> iter = finisher.parameterTypes().iterator();
-		recognizedMembers.forEach((name, member) -> {
+		recognized.forEach((name, member) -> {
 			DataType finisherParameter = iter.next();
 			assert finisherParameter.isAssignableFrom(member.valueSpec().dataType()):
 				"Finisher parameter type " + finisherParameter +
 				" must be assignable from member '" + name +
 				"' value type " + member.valueSpec().dataType();
 		});
+		unrecognized.finisherArguments().forEach(argType -> {
+			DataType finisherParameter = iter.next();
+			assert finisherParameter.isAssignableFrom(argType):
+				"Finisher parameter type " + finisherParameter +
+				" must be assignable from unrecognized member policy " + argType;
+		});
+	}
+
+	public static ObjectNode uniformMapNode(UniformMapPolicy unrecognized) {
+		return new ObjectNode(
+			new LinkedHashMap<>(),
+			unrecognized,
+			TypedHandles.identity(unrecognized.accumulator().resultType())
+		);
 	}
 
 	/**
@@ -66,7 +94,7 @@ public record ObjectNode(
 				.map(m -> m.valueSpec().dataType())
 				.toList()
 		);
-		return new ObjectNode(memberSpecs, collectorHandle);
+		return new ObjectNode(memberSpecs, DISALLOW, collectorHandle);
 	}
 
 	@Override
@@ -82,10 +110,11 @@ public record ObjectNode(
 	@Override
 	public ObjectNode specialize(Map<String, DataType> actualArguments) {
 		var memberSpecs = new LinkedHashMap<String, RecognizedMember>();
-		this.recognizedMembers.forEach((name, member) ->
+		this.recognized.forEach((name, member) ->
 			memberSpecs.put(name, member.substitute(actualArguments)));
 		return new ObjectNode(
 			memberSpecs,
+			this.unrecognized.specialize(actualArguments),
 			this.finisher.substitute(actualArguments)
 		);
 	}
@@ -139,7 +168,7 @@ public record ObjectNode(
 			),
 			valueType, List.of(arg1Type)
 		);
-		return new ObjectNode(memberSpecs, finisher);
+		return new ObjectNode(memberSpecs, DISALLOW, finisher);
 	}
 
 	public static ObjectNode of(Wrangler2<?, ?,?> wrangler) {
@@ -177,7 +206,7 @@ public record ObjectNode(
 			),
 			valueType, List.of(arg1Type, arg2Type)
 		);
-		return new ObjectNode(memberSpecs, finisher);
+		return new ObjectNode(memberSpecs, DISALLOW, finisher);
 	}
 
 	private static final MethodHandle WRANGLER1_ACCESSOR1;

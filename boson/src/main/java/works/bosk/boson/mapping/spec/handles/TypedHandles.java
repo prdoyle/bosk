@@ -4,7 +4,10 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.RecordComponent;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -166,7 +169,22 @@ public final class TypedHandles {
 		);
 	}
 
+	/**
+	 * We want to use the same handle whenever possible so {@link Object#equals}
+	 * works as often as possible. {@link MethodHandles@identity(Class)}
+	 * does not always intern the handles it creates, so we do it ourselves.
+	 */
+	private static final Map<DataType, TypedHandle> IDENTITY_HANDLES = Collections.synchronizedMap(new HashMap<>());
+
+	/**
+	 * @return a handle that returns its argument unmodified.
+	 *   Two identity handles for the same type will be {@link Object#equals equal}.
+	 */
 	public static TypedHandle identity(DataType type) {
+		return IDENTITY_HANDLES.computeIfAbsent(type, TypedHandles::computeIdentity);
+	}
+
+	private static TypedHandle computeIdentity(DataType type) {
 		return new TypedHandle(
 			MethodHandles.identity(type.leastUpperBoundClass()),
 			type, List.of(type)

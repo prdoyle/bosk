@@ -6,14 +6,14 @@ import java.lang.invoke.MethodType;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Gatherer;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
 
 import static works.bosk.boson.types.DataType.VOID;
 
 /**
- * Describes how a {@link UniformMapNode} is to be deserialized.
+ * Describes how a {@link UnrecognizedMemberPolicy.UniformMapPolicy} is to be deserialized.
  * Like {@link Gatherer} but supports primitives and key-value pairs.
  *
  * <p>
@@ -21,10 +21,10 @@ import static works.bosk.boson.types.DataType.VOID;
  * There are some additional rules the caller should follow:
  * <ul>
  *   <li>
- *     {@code integrator} must accept values of the {@link UniformMapNode#keyNode() keyNode}'s and {@link UniformMapNode#valueNode() valueNode}'s types
+ *     {@code integrator} must accept values of the {@link UnrecognizedMemberPolicy.UniformMapPolicy#keyNode() keyNode}'s and {@link UnrecognizedMemberPolicy.UniformMapPolicy#valueNode() valueNode}'s types
  *   </li>
  *   <li>
- *     {@code finisher} must return a value of the {@link UniformMapNode}'s type
+ *     {@code finisher} must return a value of the {@link UnrecognizedMemberPolicy.UniformMapPolicy}'s type
  *   </li>
  * </ul>
  *

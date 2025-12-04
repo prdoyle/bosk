@@ -29,19 +29,18 @@ import works.bosk.boson.mapping.spec.BooleanNode;
 import works.bosk.boson.mapping.spec.BoxedPrimitiveSpec;
 import works.bosk.boson.mapping.spec.ComputedSpec;
 import works.bosk.boson.mapping.spec.EnumByNameNode;
-import works.bosk.boson.mapping.spec.RecognizedMember;
-import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.JsonValueSpec;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.MaybeNullSpec;
+import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.ParseCallbackSpec;
 import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
+import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.ScalarSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
 import works.bosk.boson.mapping.spec.handles.ArrayAccumulator;
 import works.bosk.boson.mapping.spec.handles.ArrayEmitter;
 import works.bosk.boson.mapping.spec.handles.ObjectAccumulator;
@@ -61,6 +60,10 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static works.bosk.boson.mapping.TypeScanner.Directive.fixed;
 import static works.bosk.boson.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Disallow;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Ignore;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
 import static works.bosk.boson.types.DataType.CHAR;
 import static works.bosk.boson.types.DataType.STRING;
 
@@ -107,7 +110,7 @@ public final class TypeScanner {
 
 		directives.add(fixed(
 			new IsAssignableFrom(DataType.of(LinkedHashMap.class)),
-			new UniformMapNode(LINKED_HASH_MAP_ACCUMULATOR, MAP_EMITTER)
+			ObjectNode.uniformMapNode(new UniformMapPolicy(LINKED_HASH_MAP_ACCUMULATOR, MAP_EMITTER))
 		));
 
 		directives.add(new Directive(
@@ -595,12 +598,15 @@ public final class TypeScanner {
 			case ArrayNode(var elementSpec, _, _) -> scrapeRefs(elementSpec);
 			case ParseCallbackSpec(_, var child, _) -> scrapeRefs(child);
 			case RepresentAsSpec(var representation, _, _) -> scrapeRefs(representation);
-			case ObjectNode(var members, var _) -> {
-				members.values().forEach(m -> scrapeRefs(m.valueSpec()));
-			}
-			case UniformMapNode(var keySpec, var valueSpec, _, _) -> {
-				scrapeRefs(keySpec);
-				scrapeRefs(valueSpec);
+			case ObjectNode(var recognized, var unrecognized, var _) -> {
+				recognized.values().forEach(m -> scrapeRefs(m.valueSpec()));
+				switch (unrecognized) {
+					case Ignore _, Disallow _ -> { }
+					case UniformMapPolicy(var keySpec, var valueSpec, _, _) -> {
+						scrapeRefs(keySpec);
+						scrapeRefs(valueSpec);
+					}
+				}
 			}
 			case MaybeAbsentSpec(var ifPresent, var ifAbsent, _) -> {
 				scrapeRefs(ifPresent);
@@ -674,6 +680,7 @@ public final class TypeScanner {
 			);
 		return new ObjectNode(
 			collect,
+			DISALLOW,
 			recordFinisher(recordType, collect)
 		);
 	}

@@ -17,7 +17,7 @@ import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
@@ -29,6 +29,7 @@ import works.bosk.junit.InjectedTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.boson.mapping.TypeMap.Settings.SHALLOW;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
 import static works.bosk.boson.types.DataType.BOOLEAN;
 import static works.bosk.boson.types.DataType.STRING;
 
@@ -98,12 +99,12 @@ class InlineScalarRefsTest {
 		BoundType mapType = (BoundType) DataType.of(new TypeReference<Map<String, Integer>>() { });
 		var accumulator = TypeScanner.mapAccumulator(mapType);
 		var emitter = TypeScanner.mapEmitter(mapType);
-		typeMap.put(mapType, new UniformMapNode(
+		typeMap.put(mapType, ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
 			new StringNode(),
 			new BoxedPrimitiveSpec(new PrimitiveNumberNode(int.class)),
 			accumulator,
 			emitter
-		));
+		)));
 		var optimized = new InlineScalarRefs(typeMap)
 			.optimize(new TypeRefNode(mapType));
 		assertEquals(new TypeRefNode(mapType), optimized,
@@ -118,18 +119,18 @@ class InlineScalarRefsTest {
 		typeMap.put(integerType, boxedIntegerSpec);
 		var accumulator = TypeScanner.mapAccumulator(mapType);
 		var emitter = TypeScanner.mapEmitter(mapType);
-		var original = new UniformMapNode(
+		var original = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
 			new TypeRefNode(STRING),      // Should get inlined
 			new TypeRefNode(integerType), // Should also get inlined
 			accumulator,
 			emitter
-		);
-		var expected = new UniformMapNode(
+		));
+		var expected = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
 			new StringNode(), // Inlined key node
 			boxedIntegerSpec, // Inlined value node
 			accumulator,
 			emitter
-		);
+		));
 		var actual = new InlineScalarRefs(typeMap).optimize(original);
 		assertEquals(expected, actual);
 	}
@@ -142,7 +143,7 @@ class InlineScalarRefsTest {
 			new StringNode(),
 			stringIdentity
 		));
-		var original = new ObjectNode(memberSpecs, stringIdentity);
+		var original = new ObjectNode(memberSpecs, DISALLOW, stringIdentity);
 		var optimized = new InlineScalarRefs(typeMap).optimize(original);
 		assertEquals(original, optimized,
 			"ObjectNode member TypeRefs are not inlined");
@@ -156,13 +157,13 @@ class InlineScalarRefsTest {
 			new TypeRefNode(STRING), // Should get inlined
 			stringIdentity
 		));
-		var original = new ObjectNode(memberSpecs, stringIdentity);
+		var original = new ObjectNode(memberSpecs, DISALLOW, stringIdentity);
 		var expectedMemberSpecs = new LinkedHashMap<String, RecognizedMember>();
 		expectedMemberSpecs.put("theField", new RecognizedMember(
 			new StringNode(), // Inlined node
 			stringIdentity
 		));
-		var expected = new ObjectNode(expectedMemberSpecs, stringIdentity);
+		var expected = new ObjectNode(expectedMemberSpecs, DISALLOW, stringIdentity);
 		var actual = new InlineScalarRefs(typeMap).optimize(original);
 		assertEquals(expected, actual);
 	}

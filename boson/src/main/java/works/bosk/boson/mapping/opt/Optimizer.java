@@ -9,16 +9,19 @@ import org.slf4j.LoggerFactory;
 import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.mapping.spec.ComputedSpec;
-import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.MaybeNullSpec;
+import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.ParseCallbackSpec;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.ScalarSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
 import works.bosk.boson.types.DataType;
+
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Disallow;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Ignore;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
 
 public class Optimizer {
 
@@ -91,13 +94,18 @@ public class Optimizer {
 			case ParseCallbackSpec(_, var child, _) -> postorderWalk(child, typeMap, checklist, postorder);
 			case RepresentAsSpec(var child, _, _) -> postorderWalk(child, typeMap, checklist, postorder);
 			case ArrayNode(var child, _, _) -> postorderWalk(child, typeMap, checklist, postorder);
-			case UniformMapNode(var c1, var c2, _, _) -> {
-				postorderWalk(c1, typeMap, checklist, postorder);
-				postorderWalk(c2, typeMap, checklist, postorder);
+			case ObjectNode(var recognized, var unrecognized, _) -> {
+				recognized.values().forEach(child ->
+					postorderWalk(child.valueSpec(), typeMap, checklist, postorder)
+				);
+				switch (unrecognized) {
+					case Ignore _, Disallow _ -> {}
+					case UniformMapPolicy(var c1, var c2, _, _) -> {
+						postorderWalk(c1, typeMap, checklist, postorder);
+						postorderWalk(c2, typeMap, checklist, postorder);
+					}
+				}
 			}
-			case ObjectNode(var memberSpecs, _) -> memberSpecs.values().forEach(child ->
-				postorderWalk(child.valueSpec(), typeMap, checklist, postorder)
-			);
 		}
 	}
 

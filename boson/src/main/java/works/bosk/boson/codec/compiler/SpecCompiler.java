@@ -47,17 +47,18 @@ import works.bosk.boson.mapping.spec.BooleanNode;
 import works.bosk.boson.mapping.spec.BoxedPrimitiveSpec;
 import works.bosk.boson.mapping.spec.ComputedSpec;
 import works.bosk.boson.mapping.spec.EnumByNameNode;
-import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.JsonValueSpec;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.MaybeNullSpec;
+import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.ParseCallbackSpec;
 import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
+import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.PrimitiveType;
 
@@ -284,7 +285,7 @@ public class SpecCompiler {
 			mb -> mb.withCode(cb -> {
 				new ParserCodeBuilder(classBuilder, mb, cb, currier)
 					._parseAny(spec);
-				cb.return_(nodeReturnTypeKind(spec));
+				cb.return_(typeKind(spec.dataType()));
 			})
 		);
 	}
@@ -310,8 +311,8 @@ public class SpecCompiler {
 		}
 	}
 
-	public TypeKind nodeReturnTypeKind(SpecNode node) {
-		return TypeKind.fromDescriptor(node.dataType().leastUpperBoundClass().descriptorString());
+	public TypeKind typeKind(DataType dataType) {
+		return TypeKind.fromDescriptor(dataType.leastUpperBoundClass().descriptorString());
 	}
 
 	record CurriedValue(
@@ -403,7 +404,6 @@ public class SpecCompiler {
 				case BoxedPrimitiveSpec node -> _parseBoxedPrimitive(node);
 				case EnumByNameNode node -> _parseEnumByName(node);
 				case ArrayNode node -> _parseArray(node);
-				case UniformMapNode node -> _parseUniformMap(node);
 				case MaybeNullSpec node -> _parseMaybeNull(node);
 				case ParseCallbackSpec node -> _parseCallBack(node);
 				case PrimitiveNumberNode node -> _parsePrimitiveNumber(node);
@@ -435,7 +435,7 @@ public class SpecCompiler {
 			// Writing it in the following way makes the datatypes all work out.
 
 			try (var locals = localVariableAllocator.newScope()) {
-				TypeKind returnKind = nodeReturnTypeKind(node);
+				TypeKind returnKind = typeKind(node.dataType());
 				LocalVariable result = locals.allocate(returnKind);
 
 				// Get this MH in the right place on the call stack before things get hairy
@@ -541,8 +541,8 @@ public class SpecCompiler {
 			}
 		}
 
-		private void _parseUniformMap(UniformMapNode node) {
-			var acc = node.accumulator();
+		private void _parseUniformMap(UniformMapPolicy policy) {
+			var acc = policy.accumulator();
 			try (var locals = localVariableAllocator.newScope()) {
 				// Allocate labels
 				Label loop = codeBuilder.newLabel();
@@ -552,7 +552,7 @@ public class SpecCompiler {
 
 				_skipToken(START_OBJECT);
 
-				LocalVariable accumulator = locals.allocate(nodeReturnTypeKind(node));
+				LocalVariable accumulator = locals.allocate(typeKind(acc.resultType()));
 				_invokeExact(curryAndLoad(acc.creator().handle(), "acc_creator"));
 				accumulator.store(codeBuilder);
 
@@ -568,8 +568,8 @@ public class SpecCompiler {
 				codeBuilder.labelBinding(member);
 				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
 				accumulator.load(codeBuilder);
-				_parseAny(node.keyNode());
-				_parseAny(node.valueNode());
+				_parseAny(policy.keyNode());
+				_parseAny(policy.valueNode());
 				_invokeExact(integratorType);
 				if (integratorType.returnType() != void.class) {
 					accumulator.store(codeBuilder);
@@ -685,7 +685,12 @@ public class SpecCompiler {
 
 		private void _parseObject(ObjectNode objectNode) {
 			LOGGER.debug("_parseObject on:\n{}", objectNode);
-			TrieNode trie = TrieNode.from(objectNode.recognizedMembers().keySet());
+			if (objectNode.unrecognized() instanceof UniformMapPolicy p) {
+				assert objectNode.recognized().isEmpty(); // TODO
+				_parseUniformMap(p);
+				return;
+			}
+			TrieNode trie = TrieNode.from(objectNode.recognized().keySet());
 			LOGGER.debug(" -> trie: {}", trie);
 //			codeBuilder.dup(); // This causes a stack underflow that makes the classfile API dump the bytecode
 
@@ -698,8 +703,8 @@ public class SpecCompiler {
 
 				// Allocate locals
 				Map<String, LocalVariable> componentLocalsByName = new LinkedHashMap<>(); // ORDER MATTERS
-				objectNode.recognizedMembers().forEach((name, componentNode) -> {
-					TypeKind typeKind = nodeReturnTypeKind(componentNode.valueSpec());
+				objectNode.recognized().forEach((name, componentNode) -> {
+					TypeKind typeKind = typeKind(componentNode.valueSpec().dataType());
 					LocalVariable v = locals.allocate(typeKind);
 					componentLocalsByName.put(name, v);
 
@@ -728,7 +733,7 @@ public class SpecCompiler {
 				generateCodePointSwitch(trie, objectNode, componentLocalsByName, loop, error);
 
 				codeBuilder.labelBinding(error);
-				_throwParseError("Unexpected character; was expecting one of " + objectNode.recognizedMembers().keySet());
+				_throwParseError("Unexpected character; was expecting one of " + objectNode.recognized().keySet());
 
 				codeBuilder.labelBinding(endObject);
 				_skipToken(END_OBJECT);
@@ -736,7 +741,7 @@ public class SpecCompiler {
 				// All the local variables should have their values now.
 				// Time to call the finisher
 				var mt = curryAndLoad(objectNode.finisher().handle(), "objectNode_finisher");
-				objectNode.recognizedMembers().forEach((name, node) -> {
+				objectNode.recognized().forEach((name, node) -> {
 					var local = componentLocalsByName.get(name);
 					local.load(codeBuilder);
 					if (local.typeKind() == REFERENCE) {
@@ -768,7 +773,7 @@ public class SpecCompiler {
 			switch (node) {
 				case TrieNode.LeafNode(String memberName, int matchedPrefix) -> {
 					_skipToEnd(memberName.length() - matchedPrefix);
-					var child = objectNode.recognizedMembers().get(memberName);
+					var child = objectNode.recognized().get(memberName);
 					LOGGER.debug("-> leaf({})", child);
 					switch (child.valueSpec()) {
 						case JsonValueSpec v -> {

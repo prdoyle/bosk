@@ -34,13 +34,13 @@ import works.bosk.boson.mapping.TypeScanner;
 import works.bosk.boson.mapping.TypeScanner.Directive;
 import works.bosk.boson.mapping.spec.BooleanNode;
 import works.bosk.boson.mapping.spec.ComputedSpec;
-import works.bosk.boson.mapping.spec.RecognizedMember;
-import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
+import works.bosk.boson.mapping.spec.ObjectNode;
+import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
@@ -51,6 +51,7 @@ import works.bosk.boson.types.TypeVariable;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static works.bosk.ListingEntry.LISTING_ENTRY;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.IGNORE;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memberValue;
 import static works.bosk.boson.mapping.spec.handles.TypedHandles.canonicalConstructor;
 import static works.bosk.boson.mapping.spec.handles.TypedHandles.componentAccessor;
@@ -155,7 +156,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(Directive.fixed(
-			UniformMapNode.singleton(new UniformMapNode.SingletonWrangler<MapEntry<T>, Identifier, T>(){
+			ObjectNode.uniformMapNode(UniformMapPolicy.singleton(new UniformMapPolicy.SingletonWrangler<MapEntry<T>, Identifier, T>(){
 				@Override
 				public Identifier getKey(MapEntry<T> value) {
 					return value.id();
@@ -170,7 +171,7 @@ public class BosonSerializer extends StateTreeSerializer {
 				public MapEntry<T> finish(Identifier id, T value) {
 					return new MapEntry<>(id, value);
 				}
-			})
+			}))
 		));
 
 		// It's remarkable how cumbersome this one is
@@ -308,6 +309,7 @@ public class BosonSerializer extends StateTreeSerializer {
 					}
 					yield new ObjectNode(
 						componentsByName,
+						IGNORE, // TODO: Warn?
 						canonicalConstructor(recordClass, lookup)
 					);
 				}

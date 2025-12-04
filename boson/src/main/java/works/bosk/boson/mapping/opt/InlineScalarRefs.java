@@ -12,21 +12,24 @@ import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.spec.ArrayNode;
 import works.bosk.boson.mapping.spec.ArraySpec;
 import works.bosk.boson.mapping.spec.ComputedSpec;
-import works.bosk.boson.mapping.spec.RecognizedMember;
-import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.JsonValueSpec;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.MaybeNullSpec;
+import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.ObjectSpec;
 import works.bosk.boson.mapping.spec.ParseCallbackSpec;
+import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.ScalarSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
 
 import static java.util.Collections.newSetFromMap;
 import static works.bosk.boson.mapping.spec.SpecNode.transform;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Disallow;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Ignore;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
 
 /**
  * Identifies each {@link TypeRefNode} pointing to a {@link ScalarSpec} node,
@@ -66,10 +69,8 @@ public class InlineScalarRefs {
 					new RepresentAsSpec(optimize(x.representation()), x.toRepresentation(), x.fromRepresentation()));
 				case ArrayNode n -> transform(n, x ->
 					new ArrayNode(optimize(x.elementNode()), x.accumulator(), x.emitter()));
-				case UniformMapNode n -> transform(n, x ->
-					new UniformMapNode(optimize(x.keyNode()), optimize(x.valueNode()), x.accumulator(), x.emitter())); // TODO: optimize keyNode?
 				case ObjectNode n -> transform(n, x ->
-					new ObjectNode(optimizeMembers(x.recognizedMembers()), x.finisher()));
+					new ObjectNode(optimizeMembers(x.recognized()), optimize(x.unrecognized()), x.finisher()));
 			};
 			LOGGER.debug("Optimized {}", result);
 			inProgress.remove(node);
@@ -81,6 +82,19 @@ public class InlineScalarRefs {
 			// is already processing it and may produce a better result.
 			return node;
 		}
+	}
+
+	private UnrecognizedMemberPolicy optimize(UnrecognizedMemberPolicy policy) {
+		return switch (policy) {
+			case Ignore p -> p;
+			case Disallow p -> p;
+			case UniformMapPolicy p -> new UniformMapPolicy(
+				optimize(p.keyNode()),
+				optimize(p.valueNode()),
+				p.accumulator(),
+				p.emitter()
+			);
+		};
 	}
 
 	SpecNode optimize(SpecNode node) {

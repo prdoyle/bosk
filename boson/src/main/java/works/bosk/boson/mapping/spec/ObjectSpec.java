@@ -7,7 +7,6 @@ package works.bosk.boson.mapping.spec;
  * @see ArraySpec
  */
 public sealed interface ObjectSpec extends JsonValueSpec permits
-	ObjectNode,
-	UniformMapNode
+	ObjectNode
 {
 }

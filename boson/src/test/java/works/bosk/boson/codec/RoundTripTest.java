@@ -31,7 +31,7 @@ import works.bosk.boson.mapping.spec.MaybeNullSpec;
 import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
-import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
 import works.bosk.boson.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.boson.mapping.spec.handles.ObjectEmitter;
@@ -47,6 +47,7 @@ import works.bosk.junit.ParameterInjector;
 import static java.time.DayOfWeek.WEDNESDAY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_METHOD;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.enclosingObject;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memberValue;
 import static works.bosk.boson.mapping.spec.handles.TypedHandles.canonicalConstructor;
@@ -108,6 +109,7 @@ public final class RoundTripTest {
 					maybeAbsent,
 					TypedHandles.componentAccessor(RecordWithOptionalField.class.getRecordComponents()[0], lookup))
 			)),
+			DISALLOW,
 			canonicalConstructor(RecordWithOptionalField.class, lookup)
 		);
 		testRoundTrip(node, "{}", new RecordWithOptionalField("default"));
@@ -171,12 +173,12 @@ public final class RoundTripTest {
 	@InjectedTest
 	void uniformMapUsingIterator() throws IOException {
 		BoundType linkedHashMapType = (BoundType) DataType.of(new TypeReference<LinkedHashMap<String, Integer>>() {});
-		var node = new UniformMapNode(
+		JsonValueSpec node = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
 			new StringNode(),
 			new BoxedPrimitiveSpec(new PrimitiveNumberNode(int.class)),
 			TypeScanner.mapAccumulator(linkedHashMapType),
 			TypeScanner.mapEmitter(linkedHashMapType)
-		);
+		));
 		testRoundTrip(node, """
 			{"one":1,"two":2,"three":3}""",
 			new LinkedHashMap<>(Map.of(
@@ -217,12 +219,12 @@ public final class RoundTripTest {
 			),
 			TypedHandles.identity(INT)
 		);
-		var node = new UniformMapNode(
+		JsonValueSpec node = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
 			new StringNode(),
 			new PrimitiveNumberNode(int.class),
 			accumulator,
 			emitter
-		);
+		));
 		testRoundTrip(node, """
 			{"1":1,"2":2,"3":3}""",
 			3
