@@ -17,15 +17,14 @@ import works.bosk.boson.types.TypeReference;
 
 import static java.lang.invoke.MethodType.methodType;
 
-// TODO: Find a way to deal with unrecognized members
-public record FixedMapNode(
-	SequencedMap<String, FixedMapMember> memberSpecs,
+public record ObjectNode(
+	SequencedMap<String, RecognizedMember> recognizedMembers,
 	TypedHandle finisher
 ) implements ObjectSpec {
-	public FixedMapNode {
-		assert finisher.parameterTypes().size() == memberSpecs.size();
+	public ObjectNode {
+		assert finisher.parameterTypes().size() == recognizedMembers.size();
 		Iterator<? extends DataType> iter = finisher.parameterTypes().iterator();
-		memberSpecs.forEach((name, member) -> {
+		recognizedMembers.forEach((name, member) -> {
 			DataType finisherParameter = iter.next();
 			assert finisherParameter.isAssignableFrom(member.valueSpec().dataType()):
 				"Finisher parameter type " + finisherParameter +
@@ -35,13 +34,13 @@ public record FixedMapNode(
 	}
 
 	/**
-	 * Less stringent way to make a {@link FixedMapNode}, where the finisher
+	 * Less stringent way to make a {@link ObjectNode}, where the finisher
 	 * accepts a single array of {@link Object} instead of the individual parameters.
 	 * This will naturally be less efficient, as it requires an array allocation.
 	 */
-	public static FixedMapNode withArrayFinisher(
+	public static ObjectNode withArrayFinisher(
 		DataType resultType,
-		SequencedMap<String, FixedMapMember> memberSpecs,
+		SequencedMap<String, RecognizedMember> memberSpecs,
 		Function<Object[], ?> arrayFinisher
 	) {
 		KnownType objectArray = DataType.known(new TypeReference<Object[]>() {});
@@ -54,7 +53,7 @@ public record FixedMapNode(
 		var castMH = collectorMH.asType(
 			methodType(resultType.leastUpperBoundClass(),
 				memberSpecs.values().stream()
-					.map(FixedMapMember::valueSpec)
+					.map(RecognizedMember::valueSpec)
 					.map(SpecNode::dataType)
 					.map(DataType::leastUpperBoundClass)
 					.toArray(Class<?>[]::new)
@@ -67,7 +66,7 @@ public record FixedMapNode(
 				.map(m -> m.valueSpec().dataType())
 				.toList()
 		);
-		return new FixedMapNode(memberSpecs, collectorHandle);
+		return new ObjectNode(memberSpecs, collectorHandle);
 	}
 
 	@Override
@@ -81,11 +80,11 @@ public record FixedMapNode(
 	}
 
 	@Override
-	public FixedMapNode specialize(Map<String, DataType> actualArguments) {
-		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
-		this.memberSpecs.forEach((name, member) ->
+	public ObjectNode specialize(Map<String, DataType> actualArguments) {
+		var memberSpecs = new LinkedHashMap<String, RecognizedMember>();
+		this.recognizedMembers.forEach((name, member) ->
 			memberSpecs.put(name, member.substitute(actualArguments)));
-		return new FixedMapNode(
+		return new ObjectNode(
 			memberSpecs,
 			this.finisher.substitute(actualArguments)
 		);
@@ -116,13 +115,13 @@ public record FixedMapNode(
 		public abstract V finish(T1 member1, T2 member2);
 	}
 
-	public static FixedMapNode of(Wrangler1<?, ?> wrangler) {
+	public static ObjectNode of(Wrangler1<?, ?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
 		DataType valueType = wranglerType.parameterType(Wrangler1.class, 0);
 
-		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
+		var memberSpecs = new LinkedHashMap<String, RecognizedMember>();
 		DataType arg1Type = wranglerType.parameterType(Wrangler1.class, 1);
-		memberSpecs.put(wrangler.member1Name, new FixedMapMember(
+		memberSpecs.put(wrangler.member1Name, new RecognizedMember(
 			new TypeRefNode(arg1Type),
 			new TypedHandle(
 				WRANGLER1_ACCESSOR1.bindTo(wrangler).asType(
@@ -140,17 +139,17 @@ public record FixedMapNode(
 			),
 			valueType, List.of(arg1Type)
 		);
-		return new FixedMapNode(memberSpecs, finisher);
+		return new ObjectNode(memberSpecs, finisher);
 	}
 
-	public static FixedMapNode of(Wrangler2<?, ?,?> wrangler) {
+	public static ObjectNode of(Wrangler2<?, ?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
 		DataType valueType = wranglerType.parameterType(Wrangler2.class, 0);
 
-		var memberSpecs = new LinkedHashMap<String, FixedMapMember>();
+		var memberSpecs = new LinkedHashMap<String, RecognizedMember>();
 		DataType arg1Type = wranglerType.parameterType(Wrangler2.class, 1);
 		DataType arg2Type = wranglerType.parameterType(Wrangler2.class, 2);
-		memberSpecs.put(wrangler.member1Name, new FixedMapMember(
+		memberSpecs.put(wrangler.member1Name, new RecognizedMember(
 			new TypeRefNode(arg1Type),
 			new TypedHandle(
 				WRANGLER2_ACCESSOR1.bindTo(wrangler).asType(
@@ -159,7 +158,7 @@ public record FixedMapNode(
 				arg1Type, List.of(valueType)
 			)
 		));
-		memberSpecs.put(wrangler.member2Name, new FixedMapMember(
+		memberSpecs.put(wrangler.member2Name, new RecognizedMember(
 			new TypeRefNode(arg2Type),
 			new TypedHandle(
 				WRANGLER2_ACCESSOR2.bindTo(wrangler).asType(
@@ -178,7 +177,7 @@ public record FixedMapNode(
 			),
 			valueType, List.of(arg1Type, arg2Type)
 		);
-		return new FixedMapNode(memberSpecs, finisher);
+		return new ObjectNode(memberSpecs, finisher);
 	}
 
 	private static final MethodHandle WRANGLER1_ACCESSOR1;
