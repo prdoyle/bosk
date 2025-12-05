@@ -40,7 +40,8 @@ import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.UniformMapSpec;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
@@ -51,7 +52,7 @@ import works.bosk.boson.types.TypeVariable;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static works.bosk.ListingEntry.LISTING_ENTRY;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.IGNORE;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.IGNORE;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memberValue;
 import static works.bosk.boson.mapping.spec.handles.TypedHandles.canonicalConstructor;
 import static works.bosk.boson.mapping.spec.handles.TypedHandles.componentAccessor;
@@ -156,7 +157,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(Directive.fixed(
-			ObjectNode.uniformMapNode(UniformMapPolicy.singleton(new UniformMapPolicy.SingletonWrangler<MapEntry<T>, Identifier, T>(){
+			ObjectNode.uniformMapNode(UniformMapSpec.singleton(new UnrecognizedMemberSpec.UniformMapSpec.SingletonWrangler<MapEntry<T>, Identifier, T>(){
 				@Override
 				public Identifier getKey(MapEntry<T> value) {
 					return value.id();

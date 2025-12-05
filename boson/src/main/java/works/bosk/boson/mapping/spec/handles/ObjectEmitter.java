@@ -6,7 +6,7 @@ import java.lang.invoke.MethodType;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
 
@@ -14,20 +14,20 @@ import static works.bosk.boson.types.DataType.BOOLEAN;
 import static works.bosk.boson.types.DataType.LONG;
 
 /**
- * Describes how a {@link UnrecognizedMemberPolicy.UniformMapPolicy} is to be serialized.
+ * Describes how a {@link UnrecognizedMemberSpec.UniformMapSpec} is to be serialized.
  * Like {@link Iterable}, but supports primitive values, and key-value pairs.
  * <p>
  * The handles have internal consistency rules enforced by the constructor.
  * There are some additional rules the caller should follow:
  * <ul>
  *     <li>
- *         {@code start} must accept a value of {@link UnrecognizedMemberPolicy.UniformMapPolicy}'s type.
+ *         {@code start} must accept a value of {@link UnrecognizedMemberSpec.UniformMapSpec}'s type.
  *     </li>
  *     <li>
- *         {@code getKey} must return a value of {@link UnrecognizedMemberPolicy.UniformMapPolicy#keyNode() keyNode}'s type.
+ *         {@code getKey} must return a value of {@link UnrecognizedMemberSpec.UniformMapSpec#keyNode() keyNode}'s type.
  *     </li>
  *     <li>
- *         {@code getValue} must return a value of {@link UnrecognizedMemberPolicy.UniformMapPolicy#valueNode() valueNode}'s type.
+ *         {@code getValue} must return a value of {@link UnrecognizedMemberSpec.UniformMapSpec#valueNode() valueNode}'s type.
  *     </li>
  * </ul>
  *

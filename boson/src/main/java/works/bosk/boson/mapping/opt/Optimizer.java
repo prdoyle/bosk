@@ -17,11 +17,11 @@ import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.ScalarSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
 import works.bosk.boson.types.DataType;
 
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Disallow;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Ignore;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.Disallow;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.Ignore;
 
 public class Optimizer {
 
@@ -100,7 +100,7 @@ public class Optimizer {
 				);
 				switch (unrecognized) {
 					case Ignore _, Disallow _ -> {}
-					case UniformMapPolicy(var c1, var c2, _, _) -> {
+					case UnrecognizedMemberSpec.UniformMapSpec(var c1, var c2, _, _) -> {
 						postorderWalk(c1, typeMap, checklist, postorder);
 						postorderWalk(c2, typeMap, checklist, postorder);
 					}

@@ -60,10 +60,10 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static works.bosk.boson.mapping.TypeScanner.Directive.fixed;
 import static works.bosk.boson.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Disallow;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Ignore;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.DISALLOW;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.Disallow;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.Ignore;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.UniformMapSpec;
 import static works.bosk.boson.types.DataType.CHAR;
 import static works.bosk.boson.types.DataType.STRING;
 
@@ -110,7 +110,7 @@ public final class TypeScanner {
 
 		directives.add(fixed(
 			new IsAssignableFrom(DataType.of(LinkedHashMap.class)),
-			ObjectNode.uniformMapNode(new UniformMapPolicy(LINKED_HASH_MAP_ACCUMULATOR, MAP_EMITTER))
+			ObjectNode.uniformMapNode(new UniformMapSpec(LINKED_HASH_MAP_ACCUMULATOR, MAP_EMITTER))
 		));
 
 		directives.add(new Directive(
@@ -602,7 +602,7 @@ public final class TypeScanner {
 				recognized.values().forEach(m -> scrapeRefs(m.valueSpec()));
 				switch (unrecognized) {
 					case Ignore _, Disallow _ -> { }
-					case UniformMapPolicy(var keySpec, var valueSpec, _, _) -> {
+					case UniformMapSpec(var keySpec, var valueSpec, _, _) -> {
 						scrapeRefs(keySpec);
 						scrapeRefs(valueSpec);
 					}

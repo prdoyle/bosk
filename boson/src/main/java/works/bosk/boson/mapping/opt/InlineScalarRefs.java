@@ -23,13 +23,13 @@ import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.ScalarSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
 
 import static java.util.Collections.newSetFromMap;
 import static works.bosk.boson.mapping.spec.SpecNode.transform;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Disallow;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.Ignore;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.Disallow;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.Ignore;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.UniformMapSpec;
 
 /**
  * Identifies each {@link TypeRefNode} pointing to a {@link ScalarSpec} node,
@@ -84,11 +84,11 @@ public class InlineScalarRefs {
 		}
 	}
 
-	private UnrecognizedMemberPolicy optimize(UnrecognizedMemberPolicy policy) {
-		return switch (policy) {
+	private UnrecognizedMemberSpec optimize(UnrecognizedMemberSpec spec) {
+		return switch (spec) {
 			case Ignore p -> p;
 			case Disallow p -> p;
-			case UniformMapPolicy p -> new UniformMapPolicy(
+			case UniformMapSpec p -> new UniformMapSpec(
 				optimize(p.keyNode()),
 				optimize(p.valueNode()),
 				p.accumulator(),

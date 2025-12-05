@@ -8,15 +8,15 @@ import works.bosk.boson.mapping.spec.handles.ObjectEmitter;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
 
-public sealed interface UnrecognizedMemberPolicy {
-	UnrecognizedMemberPolicy specialize(Map<String, DataType> actualArguments);
+public sealed interface UnrecognizedMemberSpec {
+	UnrecognizedMemberSpec specialize(Map<String, DataType> actualArguments);
 
 	List<DataType> finisherArguments();
 
 	Ignore IGNORE = new Ignore();
 	Disallow DISALLOW = new Disallow();
 
-	record Ignore() implements UnrecognizedMemberPolicy {
+	record Ignore() implements UnrecognizedMemberSpec {
 		@Override
 		public Ignore specialize(Map<String, DataType> actualArguments) {
 			return this;
@@ -28,7 +28,7 @@ public sealed interface UnrecognizedMemberPolicy {
 		}
 	}
 
-	record Disallow() implements UnrecognizedMemberPolicy {
+	record Disallow() implements UnrecognizedMemberSpec {
 		@Override
 		public Disallow specialize(Map<String, DataType> actualArguments) {
 			return this;
@@ -44,13 +44,13 @@ public sealed interface UnrecognizedMemberPolicy {
 	 * @param keyNode must specify a JSON <em>string</em>. Can also accept a {@link TypeRefNode}
 	 *                that maps to a spec that specifies a <em>string</em>.
 	 */
-	record UniformMapPolicy(
+	record UniformMapSpec(
 		JsonValueSpec keyNode,
 		JsonValueSpec valueNode,
 		ObjectAccumulator accumulator,
 		ObjectEmitter emitter
-	) implements UnrecognizedMemberPolicy {
-		public UniformMapPolicy {
+	) implements UnrecognizedMemberSpec {
+		public UniformMapSpec {
 			// TODO: How to assert that keyNode can accept strings?
 			// TypeRef makes this almost impossible to check until we have a TypeMap.
 
@@ -68,7 +68,7 @@ public sealed interface UnrecognizedMemberPolicy {
 		/**
 		 * Uses {@link TypeRefNode}s for {@link #keyNode()} and {@link #valueNode()}.
 		 */
-		public UniformMapPolicy(
+		public UniformMapSpec(
 			ObjectAccumulator accumulator,
 			ObjectEmitter emitter
 		) {
@@ -80,8 +80,8 @@ public sealed interface UnrecognizedMemberPolicy {
 			);
 		}
 
-		public UniformMapPolicy specialize(Map<String, DataType> actualArguments) {
-			return new UniformMapPolicy(
+		public UniformMapSpec specialize(Map<String, DataType> actualArguments) {
+			return new UniformMapSpec(
 				keyNode.specialize(actualArguments),
 				valueNode.specialize(actualArguments),
 				accumulator.substitute(actualArguments),
@@ -101,7 +101,7 @@ public sealed interface UnrecognizedMemberPolicy {
 		}
 
 		/**
-		 * An efficient {@link UniformMapPolicy} for maps that have just one entry.
+		 * An efficient {@link UniformMapSpec} for maps that have just one entry.
 		 *
 		 * @param wrangler object that knows how to extract the single key and value,
 		 *                  and how to create the value object from a key and a value
@@ -109,7 +109,7 @@ public sealed interface UnrecognizedMemberPolicy {
 		 * @param <K> the type of the map key (which corresponds to the JSON member name)
 		 * @param <V> the type of the map value (which corresponds to the JSON member value)
 		 */
-		public static <T,K,V> UniformMapPolicy singleton(SingletonWrangler<T,K,V> wrangler) {
+		public static <T,K,V> UniformMapSpec singleton(SingletonWrangler<T,K,V> wrangler) {
 			var wranglerType = (BoundType)DataType.of(wrangler.getClass());
 			var resultType = wranglerType.parameterType(SingletonWrangler.class, 0);
 			var keyType = wranglerType.parameterType(SingletonWrangler.class, 1);
@@ -178,7 +178,7 @@ public sealed interface UnrecognizedMemberPolicy {
 				}
 			}).substitute(actualArguments);
 
-			return new UniformMapPolicy(
+			return new UniformMapSpec(
 				new TypeRefNode(keyType),
 				new TypeRefNode(valueType),
 				accumulator,

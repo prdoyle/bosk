@@ -17,12 +17,12 @@ import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.TypeReference;
 
 import static java.lang.invoke.MethodType.methodType;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.DISALLOW;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.UniformMapSpec;
 
 public record ObjectNode(
 	SequencedMap<String, RecognizedMember> recognized,
-	UnrecognizedMemberPolicy unrecognized,
+	UnrecognizedMemberSpec unrecognized,
 	TypedHandle finisher
 ) implements ObjectSpec {
 	@Override
@@ -53,7 +53,7 @@ public record ObjectNode(
 		});
 	}
 
-	public static ObjectNode uniformMapNode(UniformMapPolicy unrecognized) {
+	public static ObjectNode uniformMapNode(UniformMapSpec unrecognized) {
 		return new ObjectNode(
 			new LinkedHashMap<>(),
 			unrecognized,

@@ -40,7 +40,8 @@ import works.bosk.boson.mapping.spec.ScalarSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.UniformMapSpec;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
 
 import static java.util.Objects.requireNonNull;
@@ -195,7 +196,7 @@ public class SpecInterpretingParser implements Parser {
 							continue;
 						}
 					}
-					case ObjectNode(_, UniformMapPolicy n, _) -> {
+					case ObjectNode(_, UniformMapSpec n, _) -> {
 						expect(START_OBJECT);
 						if (nextTokenIs(END_OBJECT)) {
 							var acc = n.accumulator().creator().invoke();
@@ -324,11 +325,11 @@ public class SpecInterpretingParser implements Parser {
 		}
 
 		private class MapAccumulator implements Accumulator {
-			private final UniformMapPolicy n;
+			private final UniformMapSpec n;
 			private final Object accumulator;
 			Object key;
 
-			public MapAccumulator(UniformMapPolicy n, Object firstKey) {
+			public MapAccumulator(UniformMapSpec n, Object firstKey) {
 				this.n = n;
 				this.key = firstKey;
 				this.accumulator = n.accumulator().creator().invoke();
@@ -504,7 +505,7 @@ public class SpecInterpretingParser implements Parser {
 			return acc.finisher().invoke(accumulator);
 		}
 
-		private Object parseUniformMap(UniformMapPolicy node) throws IOException {
+		private Object parseUniformMap(UnrecognizedMemberSpec.UniformMapSpec node) throws IOException {
 			logEntry("parseUniformMap", node);
 			input.expectFixedToken(START_OBJECT);
 			works.bosk.boson.mapping.spec.handles.ObjectAccumulator acc = node.accumulator();
@@ -532,7 +533,7 @@ public class SpecInterpretingParser implements Parser {
 		}
 
 		private Object parseObjectNode(ObjectNode node) throws IOException {
-			if (node.unrecognized() instanceof UniformMapPolicy p) {
+			if (node.unrecognized() instanceof UniformMapSpec p) {
 				return parseUniformMap(p);
 			}
 			logEntry("parseObjectNode", node);

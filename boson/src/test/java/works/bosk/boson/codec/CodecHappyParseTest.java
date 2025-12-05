@@ -32,7 +32,7 @@ import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
 import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
 import works.bosk.boson.mapping.spec.handles.ArrayAccumulator;
 import works.bosk.boson.mapping.spec.handles.ArrayEmitter;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
@@ -50,7 +50,7 @@ import works.bosk.junit.InjectedTest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_METHOD;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.DISALLOW;
 import static works.bosk.boson.types.DataType.BOOLEAN;
 import static works.bosk.boson.types.DataType.INT;
 import static works.bosk.boson.types.DataType.STRING;
@@ -322,7 +322,7 @@ public class CodecHappyParseTest {
 	@InjectedTest
 	void uniformMapNode() throws IOException, NoSuchMethodException, IllegalAccessException {
 		BoundType mapType = (BoundType) DataType.known(new TypeReference<LinkedHashMap<String, BigDecimal>>() { });
-		JsonValueSpec spec = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
+		JsonValueSpec spec = ObjectNode.uniformMapNode(new UnrecognizedMemberSpec.UniformMapSpec(
 			new StringNode(),
 			new BigNumberNode(BigDecimal.class),
 			TypeScanner.mapAccumulator(mapType),
@@ -354,7 +354,7 @@ public class CodecHappyParseTest {
 	}
 
 	/**
-	 * This is a silly test, but it demonstrates the expressiveness of UniformMapPolicy
+	 * This is a silly test, but it demonstrates the expressiveness of UniformMapSpec
 	 * by directly summing the map values during parsing, entirely with primitives.
 	 */
 	@InjectedTest
@@ -363,7 +363,7 @@ public class CodecHappyParseTest {
 			MethodHandles.identity(int.class),
 			INT, List.of(INT)
 		);
-		JsonValueSpec spec = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
+		JsonValueSpec spec = ObjectNode.uniformMapNode(new UnrecognizedMemberSpec.UniformMapSpec(
 			new StringNode(),
 			new PrimitiveNumberNode(int.class),
 			new ObjectAccumulator(

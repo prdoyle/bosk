@@ -17,7 +17,7 @@ import works.bosk.boson.mapping.spec.ObjectNode;
 import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
@@ -29,7 +29,7 @@ import works.bosk.junit.InjectedTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.boson.mapping.TypeMap.Settings.SHALLOW;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.DISALLOW;
 import static works.bosk.boson.types.DataType.BOOLEAN;
 import static works.bosk.boson.types.DataType.STRING;
 
@@ -99,7 +99,7 @@ class InlineScalarRefsTest {
 		BoundType mapType = (BoundType) DataType.of(new TypeReference<Map<String, Integer>>() { });
 		var accumulator = TypeScanner.mapAccumulator(mapType);
 		var emitter = TypeScanner.mapEmitter(mapType);
-		typeMap.put(mapType, ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
+		typeMap.put(mapType, ObjectNode.uniformMapNode(new UnrecognizedMemberSpec.UniformMapSpec(
 			new StringNode(),
 			new BoxedPrimitiveSpec(new PrimitiveNumberNode(int.class)),
 			accumulator,
@@ -119,13 +119,13 @@ class InlineScalarRefsTest {
 		typeMap.put(integerType, boxedIntegerSpec);
 		var accumulator = TypeScanner.mapAccumulator(mapType);
 		var emitter = TypeScanner.mapEmitter(mapType);
-		var original = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
+		var original = ObjectNode.uniformMapNode(new UnrecognizedMemberSpec.UniformMapSpec(
 			new TypeRefNode(STRING),      // Should get inlined
 			new TypeRefNode(integerType), // Should also get inlined
 			accumulator,
 			emitter
 		));
-		var expected = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
+		var expected = ObjectNode.uniformMapNode(new UnrecognizedMemberSpec.UniformMapSpec(
 			new StringNode(), // Inlined key node
 			boxedIntegerSpec, // Inlined value node
 			accumulator,

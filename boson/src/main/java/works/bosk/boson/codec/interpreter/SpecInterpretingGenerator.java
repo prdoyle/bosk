@@ -26,7 +26,7 @@ import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.EnclosingObject;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.MemberValue;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.Nullary;
@@ -130,7 +130,7 @@ public class SpecInterpretingGenerator implements Generator {
 			out.print(END_ARRAY.fixedRepresentation());
 		}
 
-		private void generateUniformMap(UnrecognizedMemberPolicy.UniformMapPolicy node, Object value) {
+		private void generateUniformMap(UnrecognizedMemberSpec.UniformMapSpec node, Object value) {
 			// Unpack the handles
 			TypedHandle start = node.emitter().start();
 			TypedHandle hasNext = node.emitter().hasNext();
@@ -180,9 +180,9 @@ public class SpecInterpretingGenerator implements Generator {
 		}
 
 		private void generateObject(ObjectNode node, Object map) {
-			if (node.unrecognized() instanceof UnrecognizedMemberPolicy.UniformMapPolicy uniformMapPolicy) {
+			if (node.unrecognized() instanceof UnrecognizedMemberSpec.UniformMapSpec u) {
 				assert node.recognized().isEmpty(); // TODO
-				generateUniformMap(uniformMapPolicy, map);
+				generateUniformMap(u, map);
 				return;
 			}
 			LOGGER.debug("Generating object for value of type {} using spec {}", map.getClass(), node);

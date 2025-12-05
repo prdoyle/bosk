@@ -57,7 +57,6 @@ import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
 import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.PrimitiveType;
@@ -77,6 +76,7 @@ import static works.bosk.boson.codec.Token.START_OBJECT;
 import static works.bosk.boson.codec.Token.STRING;
 import static works.bosk.boson.codec.io.SharedParserRuntime.PRIMITIVE_PARSE_METHOD_NAMES;
 import static works.bosk.boson.mapping.spec.PrimitiveNumberNode.PRIMITIVE_NUMBER_CLASSES;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.UniformMapSpec;
 
 /**
  * <em>Maintenance node</em>: currently compiles only parsers, not generators.
@@ -541,8 +541,8 @@ public class SpecCompiler {
 			}
 		}
 
-		private void _parseUniformMap(UniformMapPolicy policy) {
-			var acc = policy.accumulator();
+		private void _parseUniformMap(UniformMapSpec spec) {
+			var acc = spec.accumulator();
 			try (var locals = localVariableAllocator.newScope()) {
 				// Allocate labels
 				Label loop = codeBuilder.newLabel();
@@ -568,8 +568,8 @@ public class SpecCompiler {
 				codeBuilder.labelBinding(member);
 				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
 				accumulator.load(codeBuilder);
-				_parseAny(policy.keyNode());
-				_parseAny(policy.valueNode());
+				_parseAny(spec.keyNode());
+				_parseAny(spec.valueNode());
 				_invokeExact(integratorType);
 				if (integratorType.returnType() != void.class) {
 					accumulator.store(codeBuilder);
@@ -685,7 +685,7 @@ public class SpecCompiler {
 
 		private void _parseObject(ObjectNode objectNode) {
 			LOGGER.debug("_parseObject on:\n{}", objectNode);
-			if (objectNode.unrecognized() instanceof UniformMapPolicy p) {
+			if (objectNode.unrecognized() instanceof UniformMapSpec p) {
 				assert objectNode.recognized().isEmpty(); // TODO
 				_parseUniformMap(p);
 				return;

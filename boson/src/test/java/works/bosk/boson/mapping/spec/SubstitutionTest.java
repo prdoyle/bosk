@@ -6,7 +6,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import works.bosk.boson.mapping.TypeMap;
 import works.bosk.boson.mapping.TypeScanner;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.UniformMapPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.UniformMapSpec;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.DataType;
@@ -80,7 +80,7 @@ public class SubstitutionTest {
 			.get(unknownType);
 		ObjectNode actual = (ObjectNode) original.specialize(Map.of("T", STRING));
 		assertEquals(knownType, actual.dataType());
-		UniformMapPolicy p = (UniformMapPolicy) actual.unrecognized();
+		UnrecognizedMemberSpec.UniformMapSpec p = (UniformMapSpec) actual.unrecognized();
 		assertEquals(knownType, p.accumulator().resultType());
 		assertEquals(knownType, p.emitter().dataType());
 		assertEquals(LIST_OF_STRING, p.valueNode().dataType());

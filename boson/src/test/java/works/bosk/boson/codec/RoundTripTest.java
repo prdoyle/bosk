@@ -31,7 +31,7 @@ import works.bosk.boson.mapping.spec.MaybeNullSpec;
 import works.bosk.boson.mapping.spec.PrimitiveNumberNode;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
-import works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy;
+import works.bosk.boson.mapping.spec.UnrecognizedMemberSpec;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
 import works.bosk.boson.mapping.spec.handles.ObjectAccumulator;
 import works.bosk.boson.mapping.spec.handles.ObjectEmitter;
@@ -47,7 +47,7 @@ import works.bosk.junit.ParameterInjector;
 import static java.time.DayOfWeek.WEDNESDAY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.TestInstance.Lifecycle.PER_METHOD;
-import static works.bosk.boson.mapping.spec.UnrecognizedMemberPolicy.DISALLOW;
+import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.DISALLOW;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.enclosingObject;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memberValue;
 import static works.bosk.boson.mapping.spec.handles.TypedHandles.canonicalConstructor;
@@ -173,7 +173,7 @@ public final class RoundTripTest {
 	@InjectedTest
 	void uniformMapUsingIterator() throws IOException {
 		BoundType linkedHashMapType = (BoundType) DataType.of(new TypeReference<LinkedHashMap<String, Integer>>() {});
-		JsonValueSpec node = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
+		JsonValueSpec node = ObjectNode.uniformMapNode(new UnrecognizedMemberSpec.UniformMapSpec(
 			new StringNode(),
 			new BoxedPrimitiveSpec(new PrimitiveNumberNode(int.class)),
 			TypeScanner.mapAccumulator(linkedHashMapType),
@@ -219,7 +219,7 @@ public final class RoundTripTest {
 			),
 			TypedHandles.identity(INT)
 		);
-		JsonValueSpec node = ObjectNode.uniformMapNode(new UnrecognizedMemberPolicy.UniformMapPolicy(
+		JsonValueSpec node = ObjectNode.uniformMapNode(new UnrecognizedMemberSpec.UniformMapSpec(
 			new StringNode(),
 			new PrimitiveNumberNode(int.class),
 			accumulator,
