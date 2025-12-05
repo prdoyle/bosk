@@ -6,7 +6,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.function.Function;
 import works.bosk.boson.mapping.spec.handles.TypedHandle;
@@ -20,21 +19,17 @@ import static java.lang.invoke.MethodType.methodType;
 import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.DISALLOW;
 import static works.bosk.boson.mapping.spec.UnrecognizedMemberSpec.UniformMapSpec;
 
+/**
+ * @param recognized specifies members whose names are known ahead of time
+ * @param unrecognized specifies how to handle members whose names are not specified by {@code recognized}
+ * @param finisher specifies how to produce the result object,
+ *                given the values of the recognized members plus any objects created by {@code unrecognized}
+ */
 public record ObjectNode(
 	SequencedMap<String, RecognizedMember> recognized,
 	UnrecognizedMemberSpec unrecognized,
 	TypedHandle finisher
 ) implements ObjectSpec {
-	@Override
-	public boolean equals(Object obj) {
-		if (obj == this) return true;
-		if (obj == null || obj.getClass() != this.getClass()) return false;
-		var that = (ObjectNode) obj;
-		return Objects.equals(this.recognized, that.recognized) &&
-			Objects.equals(this.unrecognized, that.unrecognized) &&
-			Objects.equals(this.finisher, that.finisher);
-	}
-
 	public ObjectNode {
 		assert finisher.parameterTypes().size() == recognized.size() + unrecognized.finisherArguments().size();
 		Iterator<? extends DataType> iter = finisher.parameterTypes().iterator();
