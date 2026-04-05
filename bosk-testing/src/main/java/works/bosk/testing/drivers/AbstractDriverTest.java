@@ -15,10 +15,15 @@ import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
+import works.bosk.BoskConfig.TenancyModel.OneTree;
+import works.bosk.BoskConfig.TenancyModel.TreePerTenant;
 import works.bosk.BoskContext.ContextScope;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.InitialState.MultiTree;
+import works.bosk.BoskDriver.InitialState.SingleTree;
 import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
 import works.bosk.DriverStack;
@@ -59,7 +64,7 @@ public abstract class AbstractDriverTest {
 		NO_TENANTS(TenancyModel.NONE, Tenant.NONE),
 		FIXED_TENANT(new Fixed(TENANT1), Tenant.setTo(TENANT1)),
 		TRANSIENT_TENANT(TenancyModel.TRANSIENT, Tenant.setTo(TENANT1)),
-		PERSISTENT_TENANT(TenancyModel.PERSISTENT, Tenant.setTo(TENANT1))
+		TREE_PER_TENANT(TenancyModel.TREE_PER_TENANT, Tenant.setTo(TENANT1)),
 		;
 
 		public final TenancyModel tenancyModel;
@@ -90,6 +95,19 @@ public abstract class AbstractDriverTest {
 			this.startingTenant = startingTenant;
 		}
 
+	}
+
+	record AllScenarioInjector() implements Injector {
+		@Override
+		public boolean supports(AnnotatedElement element, Class<?> elementType) {
+			return elementType.equals(Scenario.class);
+		}
+
+		@Override
+		public List<?> values() {
+//			return Arrays.asList(Scenario.values());
+			return List.of(Scenario.TRANSIENT_TENANT, Scenario.TREE_PER_TENANT);
+		}
 	}
 
 	/**
@@ -175,7 +193,10 @@ public abstract class AbstractDriverTest {
 
 	public InitialState<TestEntity> initialState(Bosk<TestEntity> b) throws InvalidTypeException {
 		TestEntity root = TestEntity.empty(Identifier.from("root"), b.rootReference().thenCatalog(TestEntity.class, Path.just(Fields.catalog)));
-		return InitialState.of(root);
+		return switch (scenario.tenancyModel) {
+			case OneTree _ -> new SingleTree<>(root);
+			case TreePerTenant _ -> MultiTree.singleton((SetTo) scenario.startingTenant, root);
+		};
 	}
 
 	protected TestEntity autoInitialize(Reference<TestEntity> ref) {
@@ -234,10 +255,10 @@ public abstract class AbstractDriverTest {
 			throw new AssertionError("Unexpected exception", e);
 		}
 		TestEntity expected, actual;
-		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadSession session = canonicalBosk.readSession()) {
+		try (var _ = canonicalBosk.readSession()) {
 			expected = canonicalBosk.rootReference().value();
 		}
-		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadSession session = bosk.readSession()) {
+		try (var _ = bosk.readSession()) {
 			actual = bosk.rootReference().value();
 		}
 		assertEquals(expected, actual);

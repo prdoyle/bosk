@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import org.pcollections.TreePMap;
 import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.drivers.ForwardingDriver;
 import works.bosk.exceptions.FlushFailureException;
@@ -84,6 +85,22 @@ public interface BoskDriver {
 		record MultiTree<R extends StateTreeNode>(SortedMap<SetTo, R> tenantRoots) implements InitialState<R> {
 			public MultiTree {
 				requireNonNull(tenantRoots);
+			}
+
+			public static <RR extends StateTreeNode> MultiTree<RR> empty() {
+				return new MultiTree<>(TreePMap.empty());
+			}
+
+			public static <RR extends StateTreeNode> MultiTree<RR> singleton(SetTo tenant, RR root) {
+				return new MultiTree<>(TreePMap.singleton(tenant, root));
+			}
+
+			public MultiTree<R> with(SetTo tenant, R root) {
+				if (tenantRoots instanceof TreePMap<SetTo,R> t) {
+					return new MultiTree<>(t.plus(tenant, root));
+				} else {
+					return new MultiTree<>(TreePMap.from(tenantRoots).plus(tenant, root));
+				}
 			}
 
 			@Override

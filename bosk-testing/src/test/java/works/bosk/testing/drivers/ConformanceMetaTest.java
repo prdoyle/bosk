@@ -2,6 +2,8 @@ package works.bosk.testing.drivers;
 
 import org.junit.jupiter.api.BeforeEach;
 import works.bosk.BoskConfig;
+import works.bosk.junit.InjectFrom;
+import works.bosk.testing.drivers.AbstractDriverTest.AllScenarioInjector;
 
 import static works.bosk.BoskConfig.simpleDriver;
 
@@ -9,6 +11,7 @@ import static works.bosk.BoskConfig.simpleDriver;
  * Makes sure {@link DriverConformanceTest} works properly by testing
  * {@link BoskConfig#simpleDriver} against itself.
  */
+@InjectFrom(AllScenarioInjector.class)
 public class ConformanceMetaTest extends DriverConformanceTest {
 
 	@BeforeEach

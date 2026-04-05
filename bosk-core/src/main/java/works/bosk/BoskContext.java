@@ -110,7 +110,12 @@ public final class BoskContext {
 		 * <p>
 		 * For a bosk configured without multi-tenancy, this value is not allowed.
 		 */
-		record SetTo(Identifier tenant) implements Established {}
+		record SetTo(Identifier tenant) implements Established, Comparable<SetTo> {
+			@Override
+			public int compareTo(@NotNull BoskContext.Tenant.SetTo o) {
+				return tenant.toString().compareTo(o.tenant.toString());
+			}
+		}
 
 		/**
 		 * @see NotEstablished
@@ -163,6 +168,15 @@ public final class BoskContext {
 			return established;
 		} else {
 			throw new IllegalStateException("Tenant is not established on thread " + Thread.currentThread());
+		}
+	}
+
+	public Tenant.SetTo getSpecificTenant() {
+		Tenant tenant = getTenant();
+		if (tenant instanceof Tenant.SetTo setTo) {
+			return setTo;
+		} else {
+			throw new IllegalStateException("Invalid tenant " + tenant + " on thread " + Thread.currentThread());
 		}
 	}
 

@@ -71,8 +71,8 @@ public record BoskConfig<R extends StateTreeNode> (
 			return tenancyModel(TenancyModel.TRANSIENT);
 		}
 
-		public Builder<R> persistentTenants() {
-			return tenancyModel(TenancyModel.PERSISTENT);
+		public Builder<R> treePerTenant() {
+			return tenancyModel(TenancyModel.TREE_PER_TENANT);
 		}
 
 		public Builder<R> tenancyModel(TenancyModel tenancyModel) {
@@ -96,10 +96,15 @@ public record BoskConfig<R extends StateTreeNode> (
 
 	public sealed interface TenancyModel {
 		/**
+		 * The in-memory bosk state has a single state tree.
+		 */
+		sealed interface OneTree extends TenancyModel {}
+
+		/**
 		 * All threads are automatically {@link Tenant.Established},
 		 * so driver updates can be called without first establishing a tenant on the thread.
 		 */
-		sealed interface Implicit extends TenancyModel {}
+		sealed interface Implicit extends OneTree {}
 
 		/**
 		 * All threads are initially {@link Tenant.NotEstablished not established}.
@@ -139,7 +144,7 @@ public record BoskConfig<R extends StateTreeNode> (
 		 * <em>Evolution note</em>: Due to the weirdness around hooks,
 		 * this tenancy model is likely to disappear.
 		 */
-		record Transient() implements Explicit {}
+		record Transient() implements Explicit, OneTree {}
 
 		/**
 		 * Tenant information is stored in the bosk state, and is propagated into hooks.
@@ -147,7 +152,7 @@ public record BoskConfig<R extends StateTreeNode> (
 		 * This is useful in a multi-tree system, where each tenant has its own state,
 		 * since tenant information is essential for disambiguating reads and updates.
 		 */
-		record Persistent() implements Explicit {}
+		record TreePerTenant() implements Explicit {}
 
 		/**
 		 * @see works.bosk.BoskConfig.TenancyModel.None
@@ -160,9 +165,9 @@ public record BoskConfig<R extends StateTreeNode> (
 		Transient TRANSIENT = new Transient();
 
 		/**
-		 * @see works.bosk.BoskConfig.TenancyModel.Persistent
+		 * @see TreePerTenant
 		 */
-		Persistent PERSISTENT = new Persistent();
+		TreePerTenant TREE_PER_TENANT = new TreePerTenant();
 	}
 
 	private static final DriverFactory<?> SIMPLE_DRIVER_FACTORY = (_, d) -> d;

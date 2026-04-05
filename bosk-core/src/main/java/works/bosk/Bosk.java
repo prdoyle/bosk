@@ -502,7 +502,13 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		private void forEachRoot(Consumer<R> action) {
 			switch (currentState) {
 				case null -> throw new IllegalStateException("Bosk state is not yet initialized");
+				case MultiTree(var roots) -> roots.forEach((tenant, root) -> {
+					try (var _ = context.withTenant(tenant)) {
+						action.accept(root);
+					}
+				});
 				case SingleTree<R>(var root) -> {
+					// This is ironically (temporarily) more complex than the multi-tree case because we need to determine the tenant ID
 					var tenant = switch (tenancyModel) {
 						case None _ -> Tenant.NONE;
 						case Fixed(var id) -> new Tenant.SetTo(id);
@@ -546,9 +552,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 						}
 					}
 				}
-				case MultiTree<R> _ -> {
-					throw new NotYetImplementedException();
-				}
 			}
 		}
 
@@ -567,7 +570,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> InitialState.of(newRoot);
 					case SingleTree<R> _ -> InitialState.of(newRoot);
-					case MultiTree<R> _ -> throw new IllegalStateException("Multi-tree state is not yet supported");
+					case MultiTree<R> m -> m.with(context.getSpecificTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Replacement at {} changed root from {} to {}",
@@ -1416,12 +1419,12 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		@Override
 		@SuppressWarnings("unchecked")
 		public T valueIfExists() {
-			R snapshot = switch (rootSnapshot.get()) {
-				case null -> throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
-				case SingleTree<R>(var r) -> r;
-				case MultiTree<R>(var _) -> throw new NotYetImplementedException();
-			};
+			R snapshot = tenantState(rootSnapshot.get());
 			LOGGER.trace("Snapshot is {}", System.identityHashCode(snapshot));
+			if (snapshot == null) {
+				// Can happen for the multi-tree case for a nonexistent tenant
+				return null;
+			}
 			try {
 				return (T) dereferencer().get(snapshot, this);
 			} catch (NonexistentEntryException e) {
@@ -1440,6 +1443,14 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		public Dereferencer dereferencer() {
 			return this.dereferencer;
 		}
+	}
+
+	private R tenantState(InitialState<R> state) {
+		return switch (state) {
+			case null -> throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
+			case SingleTree<R>(var r) -> r;
+			case MultiTree<R>(var roots) -> roots.get(context.getSpecificTenant());
+		};
 	}
 
 	/**
@@ -1541,13 +1552,13 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		return instanceID() + " \"" + name + "\"::" + rootRef.targetClass().getSimpleName();
 	}
 
+	/**
+	 * @return the state tree root for the current thread's established tenant,
+	 * or null if the bosk is still initializing.
+	 */
 	@Nullable
 	final R currentRoot() {
-		return switch (currentState) {
-			case null -> null; // Bosk is still initializing
-			case SingleTree<R>(var r) -> r;
-			case MultiTree<R>(var _) -> throw new NotYetImplementedException();
-		};
+		return tenantState(currentState);
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})

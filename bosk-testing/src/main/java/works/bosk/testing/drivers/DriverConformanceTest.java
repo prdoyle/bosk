@@ -20,7 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig;
 import works.bosk.BoskConfig.TenancyModel.Implicit;
-import works.bosk.BoskConfig.TenancyModel.Persistent;
+import works.bosk.BoskConfig.TenancyModel.TreePerTenant;
 import works.bosk.BoskConfig.TenancyModel.Transient;
 import works.bosk.BoskContext;
 import works.bosk.BoskContext.Tenant;
@@ -580,7 +580,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	private void testContextPropagation(Runnable operation) throws IOException, InterruptedException {
 		var expectedTenant = switch (scenario.tenancyModel) {
 			case Transient _ -> Tenant.NOT_ESTABLISHED; // Transient models don't propagate tenant info into hooks
-			case Implicit _, Persistent _ -> scenario.startingTenant;
+			case Implicit _, TreePerTenant _ -> scenario.startingTenant;
 		};
 		AtomicBoolean hookEnabled = new AtomicBoolean(false);
 		Semaphore contextVerified = new Semaphore(0);
