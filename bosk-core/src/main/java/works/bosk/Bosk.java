@@ -339,11 +339,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			}
 		}
 
-		private void assertTenantEstablished() {
-			assert context().getTenant() instanceof Established:
-				"Tenant must be established for driver operations";
-		}
-
 		private <T> void assertCorrectBosk(Reference<T> target) {
 			// TODO: Do we need to be this strict?
 			// On the one hand, we could write conditional updates in a way that don't require the
@@ -1419,6 +1414,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		@Override
 		@SuppressWarnings("unchecked")
 		public T valueIfExists() {
+			assertTenantEstablished();
 			R snapshot = tenantState(rootSnapshot.get());
 			LOGGER.trace("Snapshot is {}", System.identityHashCode(snapshot));
 			if (snapshot == null) {
@@ -1564,6 +1560,11 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static Class<EnumerableByIdentifier<?>> enumerableByIdentifierClass() {
 		return (Class) EnumerableByIdentifier.class;
+	}
+
+	private void assertTenantEstablished() {
+		assert context().getTenant() instanceof Established:
+			"Tenant must be established";
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(Bosk.class);

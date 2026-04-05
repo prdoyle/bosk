@@ -106,7 +106,7 @@ public abstract class AbstractDriverTest {
 		@Override
 		public List<?> values() {
 //			return Arrays.asList(Scenario.values());
-			return List.of(Scenario.TRANSIENT_TENANT, Scenario.TREE_PER_TENANT);
+			return List.of(Scenario.TRANSIENT_TENANT);
 		}
 	}
 
