@@ -7,12 +7,15 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 import works.bosk.BoskDriver;
+import works.bosk.BoskDriver.InitialState.MultiTree;
+import works.bosk.BoskDriver.InitialState.SingleTree;
 import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
 import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
 
@@ -43,7 +46,8 @@ public class JsonNodeDriver implements BoskDriver {
 	public synchronized <R extends StateTreeNode> InitialState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		var result = downstream.initialState(rootType);
 		var root = switch (result) {
-			case InitialState.SingleTree(var r) -> r;
+			case SingleTree(var r) -> r;
+			case MultiTree(var _) -> throw new NotYetImplementedException();
 		};
 		currentRoot = mapper.convertValue(root, JsonNode.class);
 		traceCurrentState("After initialState");

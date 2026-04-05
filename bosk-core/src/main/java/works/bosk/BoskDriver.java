@@ -1,11 +1,17 @@
 package works.bosk;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.drivers.ForwardingDriver;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * Receives update requests for some {@link Bosk}.
@@ -72,6 +78,56 @@ public interface BoskDriver {
 			@Override
 			public <T extends StateTreeNode> SingleTree<T> map(InitialStateFunction<R, T> function) throws InvalidTypeException, IOException, InterruptedException {
 				return new SingleTree<>(function.apply(rootNode()));
+			}
+		}
+
+		record MultiTree<R extends StateTreeNode>(SortedMap<SetTo, R> tenantRoots) implements InitialState<R> {
+			public MultiTree {
+				requireNonNull(tenantRoots);
+			}
+
+			@Override
+			public <T extends StateTreeNode> MultiTree<T> cast(Class<T> newRootType) {
+				return new MultiTree<>(tenantRoots.entrySet().stream().collect(
+					toMap(
+						Entry::getKey,
+						entry -> newRootType.cast(entry.getValue()),
+						(_, _) -> {
+							throw new AssertionError("No duplicate keys");
+						},
+						TreeMap::new
+					)
+				));
+			}
+
+			@Override
+			public <T extends StateTreeNode> MultiTree<T> map(InitialStateFunction<R, T> function) throws InvalidTypeException, IOException, InterruptedException {
+				try {
+					return new MultiTree<>(tenantRoots.entrySet().stream().collect(
+						toMap(
+							Map.Entry::getKey,
+							entry -> {
+								try {
+									return function.apply(entry.getValue());
+								} catch (InvalidTypeException | IOException | InterruptedException e) {
+									throw new TunneledCheckedException(e);
+								}
+							},
+							(_, _) -> {
+								throw new AssertionError("No duplicate keys");
+							},
+							TreeMap::new
+						)
+					));
+				} catch (TunneledCheckedException e) {
+					try {
+						throw e.getCause();
+					} catch (InvalidTypeException | IOException | InterruptedException ex) {
+						throw ex;
+					} catch (Throwable ex) {
+						throw new AssertionError("Should be impossible", ex);
+					}
+				}
 			}
 		}
 

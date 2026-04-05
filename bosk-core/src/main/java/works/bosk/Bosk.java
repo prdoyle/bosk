@@ -33,6 +33,7 @@ import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskContext.Tenant.NotEstablished;
 import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.InitialState.MultiTree;
 import works.bosk.BoskDriver.InitialState.SingleTree;
 import works.bosk.ReferenceUtils.CatalogRef;
 import works.bosk.ReferenceUtils.ListingRef;
@@ -545,6 +546,9 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 						}
 					}
 				}
+				case MultiTree<R> _ -> {
+					throw new NotYetImplementedException();
+				}
 			}
 		}
 
@@ -563,6 +567,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> InitialState.of(newRoot);
 					case SingleTree<R> _ -> InitialState.of(newRoot);
+					case MultiTree<R> _ -> throw new IllegalStateException("Multi-tree state is not yet supported");
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Replacement at {} changed root from {} to {}",
@@ -593,6 +598,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
 					case SingleTree<R> _ -> InitialState.of(newRoot);
+					case MultiTree<R> _ -> throw new IllegalStateException("Multi-tree state is not yet supported");
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Deletion at {} changed root from {} to {}",
@@ -1413,6 +1419,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			R snapshot = switch (rootSnapshot.get()) {
 				case null -> throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
 				case SingleTree<R>(var r) -> r;
+				case MultiTree<R>(var _) -> throw new NotYetImplementedException();
 			};
 			LOGGER.trace("Snapshot is {}", System.identityHashCode(snapshot));
 			try {
@@ -1539,6 +1546,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		return switch (currentState) {
 			case null -> null; // Bosk is still initializing
 			case SingleTree<R>(var r) -> r;
+			case MultiTree<R>(var _) -> throw new NotYetImplementedException();
 		};
 	}
 
