@@ -3,6 +3,7 @@ package works.bosk.testing.drivers;
 import java.io.IOException;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,9 +17,11 @@ import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
 import works.bosk.BoskConfig.TenancyModel.OneTree;
+import works.bosk.BoskConfig.TenancyModel.Transient;
 import works.bosk.BoskConfig.TenancyModel.TreePerTenant;
 import works.bosk.BoskContext.ContextScope;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.InitialState;
@@ -105,8 +108,8 @@ public abstract class AbstractDriverTest {
 
 		@Override
 		public List<?> values() {
-//			return Arrays.asList(Scenario.values());
-			return List.of(Scenario.TRANSIENT_TENANT);
+			return Arrays.asList(Scenario.values());
+//			return List.of(Scenario.TRANSIENT_TENANT);
 		}
 	}
 
@@ -254,13 +257,31 @@ public abstract class AbstractDriverTest {
 		} catch (IOException e) {
 			throw new AssertionError("Unexpected exception", e);
 		}
-		TestEntity expected, actual;
-		try (var _ = canonicalBosk.readSession()) {
-			expected = canonicalBosk.rootReference().value();
+		try (
+			var _ = canonicalBosk.readSession();
+			var _ = bosk.readSession()
+		) {
+			switch (bosk.tenancyModel()) {
+				case Transient _ -> extracted((Established) scenario.startingTenant);
+				default -> {
+					for (var tenant: bosk.tenants()) {
+						extracted(tenant);
+					}
+				}
+			}
 		}
-		try (var _ = bosk.readSession()) {
-			actual = bosk.rootReference().value();
+	}
+
+	private void extracted(Established tenant) {
+		try (var _ = canonicalBosk.context().withTenant(tenant);
+			 var _ = bosk.context().withTenant(tenant)) {
+			assertStateTreesEqual();
 		}
+	}
+
+	private void assertStateTreesEqual() {
+		TestEntity expected = canonicalBosk.rootReference().value();
+		TestEntity actual = bosk.rootReference().value();
 		assertEquals(expected, actual);
 	}
 

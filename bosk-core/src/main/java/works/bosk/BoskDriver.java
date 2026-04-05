@@ -82,9 +82,15 @@ public interface BoskDriver {
 			}
 		}
 
+		/**
+		 * @param tenantRoots will be copied into an immutable map if it isn't one already
+		 */
 		record MultiTree<R extends StateTreeNode>(SortedMap<SetTo, R> tenantRoots) implements InitialState<R> {
 			public MultiTree {
 				requireNonNull(tenantRoots);
+				if (!(tenantRoots instanceof TreePMap)) {
+					tenantRoots = TreePMap.from(tenantRoots);
+				}
 			}
 
 			public static <RR extends StateTreeNode> MultiTree<RR> empty() {
@@ -100,6 +106,14 @@ public interface BoskDriver {
 					return new MultiTree<>(t.plus(tenant, root));
 				} else {
 					return new MultiTree<>(TreePMap.from(tenantRoots).plus(tenant, root));
+				}
+			}
+
+			public MultiTree<R> withAll(Map<SetTo, R> additionalTenantRoots) {
+				if (tenantRoots instanceof TreePMap<SetTo,R> t) {
+					return new MultiTree<>(t.plusAll(additionalTenantRoots));
+				} else {
+					return new MultiTree<>(TreePMap.from(tenantRoots).plusAll(additionalTenantRoots));
 				}
 			}
 

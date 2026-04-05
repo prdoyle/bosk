@@ -53,6 +53,7 @@ import static java.lang.Thread.holdsLock;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
+import static works.bosk.BoskContext.Tenant.NONE;
 import static works.bosk.Path.parameterNameFromSegment;
 import static works.bosk.ReferenceUtils.rawClass;
 import static works.bosk.TypeValidation.validateType;
@@ -190,6 +191,28 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	@Override
 	public TenancyModel tenancyModel() {
 		return this.tenancyModel;
+	}
+
+	/**
+	 * Returns a collection of the tenants present in the bosk, suitable to
+	 * pass to {@link BoskContext#withTenant(Tenant.Established) context.withTenant}
+	 * to access each tenant's state tree.
+	 * <p>
+	 * If the tenancy model is {@link TenancyModel.None None},
+	 * returns the single entry {@link Tenant#NONE}.
+	 * This is different from the case of a multitenant bosk with zero tenants,
+	 * which is represented by an empty collection.
+	 *
+	 * @return the tenants present in the bosk.
+	 * @throws NoReadSessionException if there is no active read session on the current thread
+	 */
+	public Collection<? extends Tenant.Established> tenants() {
+		InitialState<R> snapshot = rootSnapshot.get();
+		return switch (snapshot) {
+			case SingleTree<R> _ -> (tenancyModel instanceof Fixed(var id))? List.of(new Tenant.SetTo(id)) : List.of(NONE);
+			case MultiTree<R>(var roots) -> roots.keySet();
+			case null -> throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
+		};
 	}
 
 	/**
@@ -505,7 +528,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				case SingleTree<R>(var root) -> {
 					// This is ironically (temporarily) more complex than the multi-tree case because we need to determine the tenant ID
 					var tenant = switch (tenancyModel) {
-						case None _ -> Tenant.NONE;
+						case None _ -> NONE;
 						case Fixed(var id) -> new Tenant.SetTo(id);
 						case Explicit _ -> {
 							// This is a wart in the shared tree model. I suspect this is fatal, and we'll
@@ -596,7 +619,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
 					case SingleTree<R> _ -> InitialState.of(newRoot);
-					case MultiTree<R> _ -> throw new IllegalStateException("Multi-tree state is not yet supported");
+					case MultiTree<R> m -> m.with(context.getSpecificTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Deletion at {} changed root from {} to {}",
@@ -1563,8 +1586,11 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	}
 
 	private void assertTenantEstablished() {
-		assert context().getTenant() instanceof Established:
-			"Tenant must be established";
+		// With Transient, we don't have an established tenant during
+		// triggerEverywhere. Rather than fret over trying to get this working
+		// cleanly, we just make a special case for it. It's going way anyway.
+		assert tenancyModel() instanceof Transient || context().getTenant() instanceof Established:
+			"Tenant must be established in all modes but transient";
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(Bosk.class);
