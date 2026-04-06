@@ -67,10 +67,6 @@ public record BoskConfig<R extends StateTreeNode> (
 			return tenancyModel(new TenancyModel.Fixed(tenantId));
 		}
 
-		public Builder<R> transientTenants() {
-			return tenancyModel(TenancyModel.TRANSIENT);
-		}
-
 		public Builder<R> persistentTenants() {
 			return tenancyModel(TenancyModel.PERSISTENT);
 		}
@@ -125,23 +121,6 @@ public record BoskConfig<R extends StateTreeNode> (
 		record Fixed(Identifier id) implements Implicit {}
 
 		/**
-		 * Tenant information is not stored in the bosk state
-		 * and is only propagated by driver updates.
-		 * <p>
-		 * Tenant information is not propagated into hooks:
-		 * because it's not stored in the bosk state, any hooks that fire initially upon registration can't be given tenant information,
-		 * and so for consistency, <em>no</em> hooks get tenant information.
-		 * <p>
-		 * This is useful in a shared-tree system, where all tenants use the same bosk state,
-		 * and the tenant information, while reliable, is advisory only
-		 * and has no other effect on reads or updates.
-		 * <p>
-		 * <em>Evolution note</em>: Due to the weirdness around hooks,
-		 * this tenancy model is likely to disappear.
-		 */
-		record Transient() implements Explicit {}
-
-		/**
 		 * Tenant information is stored in the bosk state, and is propagated into hooks.
 		 * <p>
 		 * This is useful in a multi-tree system, where each tenant has its own state,
@@ -153,11 +132,6 @@ public record BoskConfig<R extends StateTreeNode> (
 		 * @see works.bosk.BoskConfig.TenancyModel.None
 		 */
 		None NONE = new None();
-
-		/**
-		 * @see works.bosk.BoskConfig.TenancyModel.Transient
-		 */
-		Transient TRANSIENT = new Transient();
 
 		/**
 		 * @see works.bosk.BoskConfig.TenancyModel.Persistent

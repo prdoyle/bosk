@@ -28,7 +28,6 @@ import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
 import works.bosk.BoskConfig.TenancyModel.Persistent;
-import works.bosk.BoskConfig.TenancyModel.Transient;
 import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
@@ -524,44 +523,9 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 						case None _ -> Tenant.NONE;
 						case Fixed(var id) -> new Tenant.SetTo(id);
 						case Persistent _ -> throw new IllegalStateException("Persistent tenancy model is not supported in single-tree bosk");
-						case Transient _ -> {
-							// This is a wart in the shared tree model. I suspect this is fatal, and we'll
-							// deprecate and remove the shared tree model.
-							//
-							// When an update comes in, we have tenant info and could propagate it to hooks,
-							// but during `triggerEverywhere`, we have no tenant info for what amounts to
-							// past updates. Using NOT_ESTABLISHED lets the hooks themselves set
-							// the tenant info if they need to make further updates.
-							//
-							// Based on the principle that if it can't always work it should never work,
-							// we ought to use NOT_ESTABLISHED for all hooks, even those triggered by new updates,
-							// at least in Explicit mode but probably in all modes.
-							// However, given that only the shared tree model has this problem,
-							// and that we're likely to remove that model soon enough,
-							// I think it makes more sense to limit the scope of the weirdness,
-							// so we use NOT_ESTABLISHED only here.
-							//
-							// This is a problem we didn't encounter with the diagnostic attributes, only because
-							// it's questionable whether diagnostics ought to be propagated from past updates anyway.
-							// It will be a problem for any new piece of context though, which is unfortunate.
-							//
-							// Hooks run during `triggerEverywhere` seem doomed to be different from hooks run
-							// during normal updates unless we keep all context from past updates, which seems infeasible.
-							//
-							yield Tenant.NOT_ESTABLISHED;
-						}
 					};
-					switch (tenant) {
-						case NotEstablished _ -> {
-							try (var _ = context.withTenantTemporarilyIgnored()) {
-								action.accept(root);
-							}
-						}
-						case Established t -> {
-							try (var _ = context.withTenant(t)) {
-								action.accept(root);
-							}
-						}
+					try (var _ = context.withTenant(tenant)) {
+						action.accept(root);
 					}
 				}
 				case MultiTree<R> _ -> {
@@ -650,17 +614,14 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 * on every matching object that exists in <code>rootForHook</code>.
 		 */
 		private <T, S> void triggerQueueingOfHooks(Reference<T> target, @Nullable R priorRoot, R rootForHook, HookRegistration<S> reg) {
-			Tenant tenant = switch (tenancyModel) {
-				case Transient _ -> Tenant.NOT_ESTABLISHED;
-				default -> context.getEstablishedTenant();
-			};
+			var tenant = context.getEstablishedTenant();
 			MapValue<String> attributes = context.getAttributes();
 			reg.triggerAction(priorRoot, rootForHook, target, changedRef -> {
 				LOGGER.debug("Hook: queue {}({}) due to {}", reg.name, changedRef, target);
 				hookExecutionQueue.addLast(() -> {
 					// We use two nested try statements here so that the "finally" clause runs within the diagnostic scope
 					try (var _ = context.withOnly(attributes);
-						var _ = context.withMaybeTenant(tenant) // Can be withTenant once TenancyModel.Transient is gone
+						var _ = context.withTenant(tenant)
 					) {
 						try (ReadSession _ = new ReadSession(InitialState.of(rootForHook))) {
 							LOGGER.debug("Hook: RUN {}({})", reg.name, changedRef);
