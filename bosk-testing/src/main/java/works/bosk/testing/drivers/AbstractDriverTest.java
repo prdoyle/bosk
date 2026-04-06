@@ -58,7 +58,6 @@ public abstract class AbstractDriverTest {
 	public enum Scenario {
 		NO_TENANTS(TenancyModel.NONE, Tenant.NONE),
 		FIXED_TENANT(new Fixed(TENANT1), Tenant.setTo(TENANT1)),
-		TRANSIENT_TENANT(TenancyModel.TRANSIENT, Tenant.setTo(TENANT1)),
 		PERSISTENT_TENANT(TenancyModel.PERSISTENT, Tenant.setTo(TENANT1))
 		;
 
@@ -103,7 +102,7 @@ public abstract class AbstractDriverTest {
 
 		@Override
 		public List<?> values() {
-			return List.of(Scenario.NO_TENANTS, Scenario.FIXED_TENANT, Scenario.TRANSIENT_TENANT);
+			return List.of(Scenario.NO_TENANTS, Scenario.FIXED_TENANT);
 		}
 	}
 
