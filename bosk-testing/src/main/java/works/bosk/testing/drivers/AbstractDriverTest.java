@@ -5,6 +5,7 @@ import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
@@ -264,6 +265,7 @@ public abstract class AbstractDriverTest {
 			switch (bosk.tenancyModel()) {
 				case Transient _ -> extracted((Established) scenario.startingTenant);
 				default -> {
+					assertEquals(Set.copyOf(canonicalBosk.tenants()), Set.copyOf(bosk.tenants()));
 					for (var tenant: bosk.tenants()) {
 						extracted(tenant);
 					}

@@ -264,6 +264,7 @@ class SqlDriverImpl implements SqlDriver {
 					result = downstream.initialState(rootType);
 					var root = switch (result) {
 						case InitialState.SingleTree(var r) -> r;
+						case InitialState.MultiTree<R> _ -> throw new NotYetImplementedException("Multi-tree initial state not yet implemented");
 					};
 					String stateJson = mapper.writeValueAsString(root);
 

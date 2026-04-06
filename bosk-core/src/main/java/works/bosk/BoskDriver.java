@@ -117,6 +117,14 @@ public interface BoskDriver {
 				}
 			}
 
+			public MultiTree<R> without(SetTo tenant) {
+				if (tenantRoots instanceof TreePMap<SetTo,R> t) {
+					return new MultiTree<>(t.minus(tenant));
+				} else {
+					return new MultiTree<>(TreePMap.from(tenantRoots).minus(tenant));
+				}
+			}
+
 			@Override
 			public <T extends StateTreeNode> MultiTree<T> cast(Class<T> newRootType) {
 				return new MultiTree<>(tenantRoots.entrySet().stream().collect(

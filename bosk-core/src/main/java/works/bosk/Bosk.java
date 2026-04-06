@@ -28,6 +28,7 @@ import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
 import works.bosk.BoskConfig.TenancyModel.Transient;
+import works.bosk.BoskConfig.TenancyModel.TreePerTenant;
 import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
@@ -329,7 +330,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		@Override
 		public <T> void submitDeletion(Reference<T> target) {
-			if (target.path().isEmpty()) {
+			if (!(tenancyModel instanceof TreePerTenant) && target.path().isEmpty()) {
 				// TODO: Augment dereferencer so it can tell us this for all references, not just the root
 				throw new IllegalArgumentException("Cannot delete root object");
 			}
@@ -609,6 +610,14 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		private <T> boolean tryGraftDeletion(Reference<T> target) {
 			assert holdsLock(this);
 			Path targetPath = target.path();
+			if (tenancyModel instanceof TreePerTenant && targetPath.isEmpty()) {
+				currentState = switch (currentState) {
+					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
+					case MultiTree<R> m -> m.without(context.getSpecificTenant());
+					case InitialState<R> s -> throw new IllegalStateException("Unexpected state type " + s.getClass() + " for tenancy model " + tenancyModel);
+				};
+				return true;
+			}
 			assert !targetPath.isEmpty();
 			Dereferencer dereferencer = dereferencerFor(target);
 			try {
@@ -1466,6 +1475,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 	private R tenantState(InitialState<R> state) {
 		return switch (state) {
+			// HEY this seems to happen when the bosk is still initializing. What's going on
 			case null -> throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
 			case SingleTree<R>(var r) -> r;
 			case MultiTree<R>(var roots) -> roots.get(context.getSpecificTenant());

@@ -533,6 +533,18 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	}
 
 	@Test
+	void deleteRoot() {
+		setupBosksAndReferences(driverFactory);
+		if (scenario.tenancyModel instanceof TreePerTenant) {
+			// Should have the effect of deleting the tenant
+			driver.submitDeletion(bosk.rootReference());
+		} else {
+			assertThrows(IllegalArgumentException.class, () -> driver.submitDeletion(bosk.rootReference()));
+		}
+		assertCorrectBoskContents();
+	}
+
+	@Test
 	void submitReplacement_propagatesContext() throws InvalidTypeException, IOException, InterruptedException {
 		initializeBoskWithBlankValues(Path.just(TestEntity.Fields.catalog));
 		Reference<String> ref = bosk.rootReference().then(String.class, "string");
