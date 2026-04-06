@@ -521,7 +521,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 					var tenant = switch (tenancyModel) {
 						case None _ -> Tenant.NONE;
 						case Fixed(var id) -> new Tenant.SetTo(id);
-						case Explicit _ -> {
+						case Transient _ -> {
 							// This is a wart in the shared tree model. I suspect this is fatal, and we'll
 							// deprecate and remove the shared tree model.
 							//
