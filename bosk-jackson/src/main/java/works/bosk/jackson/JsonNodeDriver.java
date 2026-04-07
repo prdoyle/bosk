@@ -24,7 +24,7 @@ public class JsonNodeDriver implements BoskDriver {
 	final BoskDriver downstream;
 	final ObjectMapper mapper;
 	final JsonNodeSurgeon surgeon;
-	protected JsonNode currentRoot;
+	JsonNode currentRoot;
 	int updateNumber = 0;
 
 	public static <R extends StateTreeNode> DriverFactory<R> factory(JacksonSerializer jacksonSerializer) {

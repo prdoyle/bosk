@@ -1,12 +1,34 @@
 package works.bosk.jackson;
 
 import org.junit.jupiter.api.BeforeEach;
+import tools.jackson.databind.JsonNode;
+import works.bosk.BoskDriver;
 import works.bosk.testing.drivers.DriverConformanceTest;
+import works.bosk.testing.drivers.state.TestEntity;
 
-// TODO: This currently doesn't test much beyond the driver's ability to pass updates downstream
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 class JsonNodeDriverConformanceTest extends DriverConformanceTest {
+	private JsonNodeDriver jsonNodeDriver;
+
 	@BeforeEach
 	void setUp() {
-		driverFactory = JsonNodeDriver.factory(new JacksonSerializer());
+		driverFactory = (b,d) -> {
+			BoskDriver result = JsonNodeDriver.<TestEntity>factory(new JacksonSerializer()).build(b, d);
+			jsonNodeDriver = (JsonNodeDriver) result;
+			return result;
+		};
+	}
+
+	@Override
+	protected void assertCorrectBoskContents() {
+		super.assertCorrectBoskContents();
+		JsonNode expected, actual;
+		try (var _ = bosk.readSession()) {
+			var root = bosk.rootReference().value();
+			expected = jsonNodeDriver.mapper.convertValue(root, JsonNode.class);
+			actual = jsonNodeDriver.currentRoot;
+		}
+		assertEquals(expected, actual);
 	}
 }
