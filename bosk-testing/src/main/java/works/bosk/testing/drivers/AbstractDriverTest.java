@@ -231,10 +231,14 @@ public abstract class AbstractDriverTest {
 			throw new AssertionError("Unexpected exception", e);
 		}
 		TestEntity expected, actual;
-		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadSession session = canonicalBosk.readSession()) {
+		try (
+			var _ = canonicalBosk.readSession()
+		) {
 			expected = canonicalBosk.rootReference().value();
 		}
-		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadSession session = bosk.readSession()) {
+		try (
+			var _ = bosk.readSession()
+		) {
 			actual = bosk.rootReference().value();
 		}
 		assertEquals(expected, actual);
