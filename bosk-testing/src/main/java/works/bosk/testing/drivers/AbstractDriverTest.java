@@ -15,10 +15,13 @@ import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
+import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.ContextScope;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.InitialState.MultiTree;
 import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
 import works.bosk.DriverStack;
@@ -32,7 +35,7 @@ import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
 import works.bosk.junit.Injector;
-import works.bosk.testing.drivers.AbstractDriverTest.SingleTreeScenarioInjector;
+import works.bosk.testing.drivers.AbstractDriverTest.ScenarioInjector;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.testing.drivers.state.TestEntity.Fields;
 import works.bosk.util.Classes;
@@ -42,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
 @InjectFields
-@InjectFrom(SingleTreeScenarioInjector.class)
+@InjectFrom(ScenarioInjector.class)
 public abstract class AbstractDriverTest {
 	public static final Identifier TENANT1 = Identifier.from("tenant1");
 	protected final Identifier child1ID = Identifier.from("child1");
@@ -89,6 +92,19 @@ public abstract class AbstractDriverTest {
 			this.startingTenant = startingTenant;
 		}
 
+	}
+
+	record ScenarioInjector() implements Injector {
+		@Override
+		public boolean supports(AnnotatedElement element, Class<?> elementType) {
+			return elementType.equals(Scenario.class);
+		}
+
+		@Override
+		public List<?> values() {
+			return List.of(Scenario.PERSISTENT_TENANT);
+//			return Arrays.asList(Scenario.values());
+		}
 	}
 
 	/**
@@ -144,15 +160,13 @@ public abstract class AbstractDriverTest {
 	}
 
 	protected void setupBosksAndReferences(DriverFactory<TestEntity> driverFactory) {
-		TenancyModel tenancyModel = scenario.tenancyModel;
-
 		// This is the bosk whose behaviour we'll consider to be correct by definition
 		canonicalBosk = new Bosk<>(
 			boskName("Canonical", 1),
 			TestEntity.class,
 			this::initialState,
 			BoskConfig.<TestEntity>builder()
-				.tenancyModel(tenancyModel)
+				.tenancyModel(scenario.tenancyModel)
 				.build()
 		);
 
@@ -166,7 +180,7 @@ public abstract class AbstractDriverTest {
 					ReplicaSet.mirroringTo(canonicalBosk),
 					DriverStateVerifier.wrap(driverFactory, TestEntity.class, this::initialState)
 				))
-				.tenancyModel(tenancyModel)
+				.tenancyModel(scenario.tenancyModel)
 				.build());
 		driver = bosk.driver();
 		tenantScope = bosk.context().withMaybeTenant(scenario.startingTenant);
@@ -174,7 +188,10 @@ public abstract class AbstractDriverTest {
 
 	public InitialState<TestEntity> initialState(Bosk<TestEntity> b) throws InvalidTypeException {
 		TestEntity root = TestEntity.empty(Identifier.from("root"), b.rootReference().thenCatalog(TestEntity.class, Path.just(Fields.catalog)));
-		return InitialState.of(root);
+		return switch (scenario.tenancyModel) {
+			case Persistent _ -> MultiTree.singleton((SetTo) scenario.startingTenant, root);
+			case None _, Fixed _ -> InitialState.of(root);
+		};
 	}
 
 	protected TestEntity autoInitialize(Reference<TestEntity> ref) {
