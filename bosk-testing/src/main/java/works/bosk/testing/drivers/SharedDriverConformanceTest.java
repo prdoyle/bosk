@@ -2,6 +2,7 @@ package works.bosk.testing.drivers;
 
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
+import works.bosk.BoskDriver.InitialState;
 import works.bosk.testing.BoskTestUtils;
 import works.bosk.testing.drivers.state.TestEntity;
 
@@ -28,12 +29,16 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		} catch (Exception e) {
 			throw new AssertionError("Unexpected exception", e);
 		}
-		TestEntity expected, actual;
-		try (var _ = canonicalBosk.readSession()) {
-			expected = canonicalBosk.rootReference().value();
+		InitialState<TestEntity> expected, actual;
+		try (
+			var _ = canonicalBosk.readSession()
+		) {
+			expected = canonicalBosk.entireState();
 		}
-		try (var _ = latecomer.readSession()) {
-			actual = latecomer.rootReference().value();
+		try (
+			var _ = latecomer.readSession()
+		) {
+			actual = latecomer.entireState();
 		}
 		assertEquals(expected, actual);
 	}

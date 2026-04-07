@@ -23,6 +23,7 @@ import works.bosk.junit.Injected;
 import works.bosk.junit.InjectedTest;
 import works.bosk.logback.BoskLogFilter;
 import works.bosk.testing.drivers.AbstractDriverTest;
+import works.bosk.testing.drivers.AbstractDriverTest.SingleTreeScenarioInjector;
 import works.bosk.testing.drivers.state.TestEntity;
 
 import static ch.qos.logback.classic.Level.ERROR;
@@ -34,7 +35,7 @@ import static works.bosk.testing.BoskTestUtils.boskName;
 
 @Testcontainers
 @InjectFields
-@InjectFrom(DatabaseInjector.class)
+@InjectFrom({DatabaseInjector.class, SingleTreeScenarioInjector.class})
 public class SqlDriverDurabilityTest extends AbstractDriverTest {
 	@Injected Database database;
 

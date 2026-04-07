@@ -110,7 +110,7 @@ public abstract class AbstractDriverTest {
 	/**
 	 * For drivers that don't yet support the tree-per-tenant model.
 	 */
-	record SingleTreeScenarioInjector() implements Injector {
+	public record SingleTreeScenarioInjector() implements Injector {
 		@Override
 		public boolean supports(AnnotatedElement element, Class<?> elementType) {
 			return elementType.equals(Scenario.class);
