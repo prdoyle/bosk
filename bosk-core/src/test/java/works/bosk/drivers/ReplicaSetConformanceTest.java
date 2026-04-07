@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
+import works.bosk.BoskDriver.InitialState;
 import works.bosk.testing.drivers.SharedDriverConformanceTest;
 import works.bosk.testing.drivers.state.TestEntity;
 
@@ -29,12 +30,16 @@ class ReplicaSetConformanceTest extends SharedDriverConformanceTest {
 
 	@AfterEach
 	void checkFinalState() {
-		TestEntity expected, actual;
-		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadSession session = canonicalBosk.readSession()) {
-			expected = canonicalBosk.rootReference().value();
+		InitialState<TestEntity> expected, actual;
+		try (
+			var _ = canonicalBosk.readSession()
+		) {
+			expected = canonicalBosk.entireState();
 		}
-		try (@SuppressWarnings("unused") Bosk<TestEntity>.ReadSession session = replicaBosk.readSession()) {
-			actual = replicaBosk.rootReference().value();
+		try (
+			var _ = replicaBosk.readSession()
+		) {
+			actual = replicaBosk.entireState();
 		}
 		assertEquals(expected, actual);
 	}
