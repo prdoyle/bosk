@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -204,6 +205,21 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 */
 	public static <RR extends StateTreeNode> Bosk<RR> simple(String name, RR initialRoot) {
 		return new Bosk<>(requireNonNull(name), initialRoot.getClass(), _ -> InitialState.of(initialRoot), BoskConfig.simple());
+	}
+
+	public Collection<? extends Tenant.Established> tenants() {
+		return switch (rootSnapshot.get()) {
+			case null -> throw new NoReadSessionException("Cannot get tenants outside of a read session");
+			case SingleTree<R> _ -> Set.of(Tenant.NONE);
+			case MultiTree<R> m -> m.tenantRoots().keySet();
+		};
+	}
+
+	public InitialState<R> entireState() {
+		return switch (rootSnapshot.get()) {
+			case null -> throw new NoReadSessionException("Cannot get state outside of a read session");
+			case InitialState<R> s -> s;
+		};
 	}
 
 	public interface DefaultStateFunction<RR extends StateTreeNode> {
@@ -577,7 +593,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
 					case SingleTree<R> _ -> InitialState.of(newRoot);
-					case MultiTree<R> _ -> throw new IllegalStateException("Multi-tree state is not yet supported");
+					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Deletion at {} changed root from {} to {}",

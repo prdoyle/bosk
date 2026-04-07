@@ -3,6 +3,7 @@ package works.bosk.testing.drivers;
 import java.io.IOException;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,8 +103,7 @@ public abstract class AbstractDriverTest {
 
 		@Override
 		public List<?> values() {
-			return List.of(Scenario.PERSISTENT_TENANT);
-//			return Arrays.asList(Scenario.values());
+			return Arrays.asList(Scenario.values());
 		}
 	}
 
@@ -251,11 +251,13 @@ public abstract class AbstractDriverTest {
 		}
 		TestEntity expected, actual;
 		try (
+			var _ = canonicalBosk.context().withMaybeTenant(scenario.startingTenant);
 			var _ = canonicalBosk.readSession()
 		) {
 			expected = canonicalBosk.rootReference().value();
 		}
 		try (
+			var _ = bosk.context().withMaybeTenant(scenario.startingTenant);
 			var _ = bosk.readSession()
 		) {
 			actual = bosk.rootReference().value();
