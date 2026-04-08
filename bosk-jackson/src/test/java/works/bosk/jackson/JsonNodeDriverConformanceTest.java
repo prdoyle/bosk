@@ -1,16 +1,18 @@
 package works.bosk.jackson;
 
+import java.util.Map.Entry;
 import org.junit.jupiter.api.BeforeEach;
 import tools.jackson.databind.JsonNode;
 import works.bosk.BoskDriver;
-import works.bosk.junit.InjectFrom;
-import works.bosk.testing.drivers.AbstractDriverTest.SingleTreeScenarioInjector;
+import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.InitialState.SingleTree;
+import works.bosk.jackson.JsonNodeDriver.Contents;
 import works.bosk.testing.drivers.DriverConformanceTest;
 import works.bosk.testing.drivers.state.TestEntity;
 
+import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@InjectFrom(SingleTreeScenarioInjector.class)
 class JsonNodeDriverConformanceTest extends DriverConformanceTest {
 	private JsonNodeDriver jsonNodeDriver;
 
@@ -26,11 +28,19 @@ class JsonNodeDriverConformanceTest extends DriverConformanceTest {
 	@Override
 	protected void assertCorrectBoskContents() {
 		super.assertCorrectBoskContents();
-		JsonNode expected, actual;
+		Contents expected, actual;
 		try (var _ = bosk.readSession()) {
-			var root = bosk.rootReference().value();
-			expected = jsonNodeDriver.mapper.convertValue(root, JsonNode.class);
-			actual = jsonNodeDriver.currentRoot;
+			var state = bosk.entireState();
+			expected = switch (state) {
+				case SingleTree(var root) -> new Contents.SingleTree(jsonNodeDriver.mapper.convertValue(root, JsonNode.class));
+				case InitialState.MultiTree(var roots) -> new Contents.MultiTree(roots.entrySet().stream().collect(toMap(
+					Entry::getKey,
+					e -> jsonNodeDriver.mapper.convertValue(e.getValue(), JsonNode.class),
+					(_,b) -> b,
+					java.util.TreeMap::new
+				)));
+			};
+			actual = jsonNodeDriver.contents;
 		}
 		assertEquals(expected, actual);
 	}
