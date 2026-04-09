@@ -3,6 +3,15 @@
 build/
 */build/
 
+# OpenCode nonsense
+.project
+.classpath
+.factorypath
+.settings/
+.metadata/
+.recommenders/
+bin
+
 # Ignore Gradle GUI config
 gradle-app.setting
 
