@@ -17,8 +17,6 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
@@ -28,7 +26,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
-import org.bson.BsonArray;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonString;
@@ -56,6 +53,7 @@ import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
+import static com.mongodb.client.model.Sorts.ascending;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ONE;
@@ -328,7 +326,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.warn("Failed to initialize database; disconnecting", e2);
 				setDisconnectedDriver(e2);
 			}
-		} catch (RuntimeException | UnrecognizedFormatException | IOException | FailedMongoClientSessionException e) {
+		} catch (RuntimeException | UnrecognizedFormatException | InvalidCollectionContentsException | IOException | FailedMongoClientSessionException e) {
 			switch (driverSettings.initialDatabaseUnavailableMode()) {
 				case FAIL_FAST:
 					LOGGER.debug("Unable to load initial state from database; aborting initialization", e);
@@ -377,9 +375,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// FormatDriver must cope with deletions of the manifest document
 			// to avoid disconnection during refurbish operations,
 			// which is a burden. Let's just not.
-			// Note that this does delete the other manifest if it exists,
-			// which is deliberate.
-			BsonDocument deletionFilter = new BsonDocument("_id", new BsonDocument("$ne", driverSettings.manifestDocumentIdMode().manifestDocumentId()));
+			BsonDocument deletionFilter = new BsonDocument("_id", new BsonDocument("$ne", MANIFEST_ID));
 			LOGGER.trace("Deleting state documents: {}", deletionFilter);
 			queryCollection.deleteMany(deletionFilter);
 
@@ -506,7 +502,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			InterruptedException,
 			IOException,
 			InitialStateActionException,
-			TimeoutException
+			TimeoutException,
+			InvalidCollectionContentsException
 		{
 			LOGGER.debug("onConnectionSucceeded");
 			FutureTask<InitialState<R>> initialStateAction = this.taskRef.get();
@@ -619,16 +616,12 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private FormatDriver<R> newPreferredFormatDriver() {
 		DatabaseFormat preferred = driverSettings.preferredDatabaseFormat();
 		if (preferred.equals(SEQUOIA) || preferred instanceof PandoFormat) {
-			return newFormatDriver(
-				REVISION_ZERO.longValue(),
-				preferred,
-				driverSettings.manifestDocumentIdMode().manifestDocumentId()
-			);
+			return newFormatDriver(REVISION_ZERO.longValue(), preferred);
 		}
 		throw new AssertionError("Unknown database format setting: " + preferred);
 	}
 
-	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException {
+	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException, InvalidCollectionContentsException {
 		LOGGER.debug("Detecting format");
 		var manifestInfo = loadManifest();
 		Manifest manifest = manifestInfo.manifest();
@@ -652,14 +645,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				// TODO: We really need a better way to deal with revision numbers
 				long revisionAlreadySeen = revision.longValue()-1;
 
-				return newFormatDriver(revisionAlreadySeen, format, manifestInfo.manifestId());
+				return newFormatDriver(revisionAlreadySeen, format);
 			} else {
-				// Note that this message is confusing if the user specified
-				// a preference for Pando but no manifest file exists, because
-				// the message will say it couldn't find the Sequoia document.
-				// One day when we drop support for collections with no
-				// manifest, we can eliminate this confusion.
-				throw new UninitializedCollectionException("Document doesn't exist: "
+				throw new InvalidCollectionContentsException(format, "Document doesn't exist: "
 					+ "collection=" + driverSettings.database()
 					+ "." + COLLECTION_NAME
 					+ " id=" + documentId.getValue());
@@ -669,26 +657,28 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 	record ManifestInfo(Manifest manifest, @Nullable BsonString manifestId) {}
 
-	private ManifestInfo loadManifest() throws UnrecognizedFormatException {
-		try (MongoCursor<BsonDocument> cursor = queryCollection.find(new BsonDocument("_id",
-			new BsonDocument("$in", new BsonArray(List.of(MANIFEST_ID, LEGACY_MANIFEST_ID)))
-		)).cursor()) {
+	private ManifestInfo loadManifest() throws UnrecognizedFormatException, UninitializedCollectionException, InvalidCollectionContentsException {
+		// The manifest ID is deliberately chosen to sort first by ID.
+		// This way we can distinguish three cases in one query:
+		// 1) No documents at all: the collection is uninitialized.
+		// 2) A manifest document exists: the collection is initialized and we can proceed.
+		// 3) No manifest document, but another document exists: the collection contents are invalid.
+		try (MongoCursor<BsonDocument> cursor = queryCollection
+			.find(new BsonDocument()).sort(ascending("_id")).limit(1).cursor()
+		) {
 			if (cursor.hasNext()) {
 				BsonDocument doc = cursor.next();
-				if (doc.get("_id").equals(LEGACY_MANIFEST_ID)) {
-					LOGGER.info("Found legacy manifest");
+				if (MANIFEST_ID.equals(doc.getString("_id"))) {
+					return new ManifestInfo(formatter.decodeManifest(doc), doc.getString("_id"));
 				} else {
-					LOGGER.debug("Found manifest");
+					// TODO: we don't actually know this is supposed to be SEQUOIA. Represent this in a cleaner way.
+					throw new InvalidCollectionContentsException(SEQUOIA, "Manifest is missing");
 				}
-				Manifest result = formatter.decodeManifest(doc);
-				if (cursor.hasNext()) {
-					throw new UnrecognizedFormatException("Multiple manifest documents found");
-				}
-				return new ManifestInfo(result, doc.getString("_id"));
 			} else {
-				// For legacy databases with no manifest
-				LOGGER.debug("Manifest is missing; checking for Sequoia format in {}", driverSettings.database());
-				return new ManifestInfo(Manifest.forSequoia(), null);
+				throw new UninitializedCollectionException("No manifest document: "
+					+ "collection=" + driverSettings.database()
+					+ "." + COLLECTION_NAME
+					+ " id=" + MANIFEST_ID);
 			}
 		}
 	}
@@ -696,13 +686,13 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	/**
 	 * Meant for tests
 	 */
-	ManifestInfo loadManifestInfo() throws UnrecognizedFormatException, FailedMongoClientSessionException {
+	ManifestInfo loadManifestInfo() throws UnrecognizedFormatException, FailedMongoClientSessionException, UninitializedCollectionException, InvalidCollectionContentsException {
 		try (var _ = queryCollection.newReadOnlySession()) {
 			return loadManifest();
 		}
 	}
 
-	private FormatDriver<R> newFormatDriver(long revisionAlreadySeen, DatabaseFormat format, @Nullable BsonString manifestId) {
+	private FormatDriver<R> newFormatDriver(long revisionAlreadySeen, DatabaseFormat format) {
 		if (format.equals(SEQUOIA)) {
 			return new SequoiaFormatDriver<>(
 				boskInfo,
@@ -710,7 +700,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				driverSettings,
 				bsonSerializer,
 				new FlushLock(revisionAlreadySeen, flushTimeout),
-				manifestId,
 				downstream);
 		} else if (format instanceof PandoFormat pandoFormat) {
 			return new PandoFormatDriver<>(
@@ -720,7 +709,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				pandoFormat,
 				bsonSerializer,
 				new FlushLock(revisionAlreadySeen, flushTimeout),
-				manifestId,
 				downstream);
 		}
 		throw new IllegalArgumentException("Unexpected database format: " + format);
@@ -875,8 +863,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 	public static final String COLLECTION_NAME = "boskCollection";
 	public static final BsonString MANIFEST_ID = new BsonString("!Manifest");
-	public static final BsonString LEGACY_MANIFEST_ID = new BsonString("manifest");
-	public static final Set<BsonValue> MANIFEST_IDS = Set.of(MANIFEST_ID, LEGACY_MANIFEST_ID);
 	private static final Exception FAILURE_TO_COMPUTE_INITIAL_STATE = new InitialStateFailureException("Failure to compute initial state");
 	private static final Logger LOGGER = LoggerFactory.getLogger(MainDriver.class);
 	private static final Logger UNINITIALIZED_COLLECTION_LOGGER = LoggerFactory.getLogger(UNINITIALIZED_COLLECTION_LOGGER_NAME);

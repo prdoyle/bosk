@@ -21,6 +21,7 @@ import works.bosk.Reference;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
+import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.internal.MainDriver.ManifestInfo;
 import works.bosk.junit.InjectFields;
@@ -32,9 +33,6 @@ import works.bosk.testing.junit.Slow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
-import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestDocumentIdMode.LEGACY;
-import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestDocumentIdMode.STANDARD;
-import static works.bosk.drivers.mongo.internal.MainDriver.LEGACY_MANIFEST_ID;
 import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_ID;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
@@ -237,23 +235,17 @@ public class SchemaEvolutionTest {
 		);
 	}
 
-	record Configuration(
-		MongoDriverSettings.DatabaseFormat preferredFormat,
-		MongoDriverSettings.ManifestDocumentIdMode manifestDocumentIdMode
-	) {
+	record Configuration(DatabaseFormat preferredFormat) {
 		public ManifestInfo expectedManifestInfo() {
 			return new ManifestInfo(
 				Manifest.forFormat(preferredFormat),
-				switch (manifestDocumentIdMode) {
-					case LEGACY -> LEGACY_MANIFEST_ID;
-					case STANDARD -> MANIFEST_ID;
-				}
+				MANIFEST_ID
 			);
 		}
 
 		@Override
 		public String toString() {
-			return manifestDocumentIdMode.toString() + "+" + preferredFormat.toString();
+			return preferredFormat.toString();
 		}
 	}
 
@@ -292,10 +284,7 @@ public class SchemaEvolutionTest {
 		SEQUOIA,
 		PandoFormat.oneBigDocument(),
 		PandoFormat.withGraftPoints("/catalog", "/sideTable")
-	).flatMap(format -> Stream.of(
-		new Configuration(format, LEGACY),
-		new Configuration(format, STANDARD)
-	)).toList();
+	).map(Configuration::new).toList();
 
 	static final class Helper extends AbstractMongoDriverTest {
 		final String name;
@@ -304,7 +293,6 @@ public class SchemaEvolutionTest {
 			super(MongoDriverSettings.builder()
 				.database(SchemaEvolutionTest.class.getSimpleName() + "_" + dbCounter)
 				.preferredDatabaseFormat(config.preferredFormat())
-				.manifestDocumentIdMode(config.manifestDocumentIdMode())
 			);
 			this.name = config.preferredFormat().toString().toLowerCase(Locale.ROOT);
 		}
