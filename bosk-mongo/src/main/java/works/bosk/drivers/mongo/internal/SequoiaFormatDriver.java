@@ -30,6 +30,7 @@ import works.bosk.exceptions.InvalidTypeException;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static org.bson.BsonBoolean.FALSE;
+import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.referenceTo;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
@@ -48,7 +49,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		MongoDriverSettings driverSettings,
 		BsonSerializer bsonSerializer,
 		long flushTimeoutMS,
-		@Nullable BsonString manifestId,
 		BoskDriver downstream
 	) {
 		super(
@@ -58,8 +58,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			new Formatter(boskInfo, bsonSerializer),
 			collection,
 			downstream,
-			flushTimeoutMS,
-			manifestId
+			flushTimeoutMS
 		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 	}
@@ -100,7 +99,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	BsonStateAndMetadata loadBsonStateAndMetadata() throws UninitializedCollectionException {
+	BsonStateAndMetadata loadBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		try (MongoCursor<BsonDocument> cursor = collection
 			.withReadConcern(LOCAL) // The revision field needs to be the latest
 			.find(documentFilter())
@@ -114,7 +113,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				Formatter.getDiagnosticAttributesIfAny(document)
 			);
 		} catch (NoSuchElementException e) {
-			throw new UninitializedCollectionException("No existing document", e);
+			throw new InvalidCollectionContentsException(SEQUOIA, "State document not found: " + DOCUMENT_ID, e);
 		}
 
 	}

@@ -158,6 +158,7 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
 
 ### Testing
 
+- When developing a bug fix, write the test first and verify it fails against the unfixed code. Then apply the fix and confirm the test passes. This ensures the test would actually catch the bug.
 - Prefer building the entire expected data structure and using `assertEquals` over checking individual fields one-by-one. Tests with per-field assertions get stale when the object acquires new fields.
 - Assertion message strings should state what was expected (e.g. `"Set must have the new item"`), not describe the error (e.g. `"Set does not contain the new item"`).
 - Use `./gradlew <task> --rerun` (not `--rerun-tasks`) to force Gradle to re-execute a task when cached results exist.

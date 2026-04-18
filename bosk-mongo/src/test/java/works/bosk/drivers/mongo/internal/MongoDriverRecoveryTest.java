@@ -14,6 +14,7 @@ import org.bson.Document;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedClass;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.Logger;
@@ -21,12 +22,18 @@ import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
 import works.bosk.BoskDriver;
+import works.bosk.DriverFactory;
+import works.bosk.DriverStack;
 import works.bosk.Listing;
+import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
+import works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode;
 import works.bosk.drivers.mongo.PandoFormat;
+import works.bosk.drivers.mongo.exceptions.InitialStateFailureException;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.logback.BoskLogFilter;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.testing.junit.Slow;
 
@@ -35,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.drivers.mongo.internal.MainDriver.COLLECTION_NAME;
+import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_ID;
 import static works.bosk.drivers.mongo.internal.TestParameters.SHORT_TIMESCALE;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
@@ -286,6 +294,42 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 		try (var _ = bosk.readSession()) {
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
+	}
+
+	@Test
+	void stateDocumentDeletedBeforeStartup_failsOnInitialize(TestInfo testInfo) {
+		// Initialize the database with content that differs from initialState
+		TestEntity beforeState = initializeDatabase("state document deleted");
+
+		// Delete all non-manifest documents, simulating a state document getting lost
+		mongoService.client()
+			.getDatabase(driverSettings.database())
+			.getCollection(COLLECTION_NAME, BsonDocument.class)
+			.deleteMany(new BsonDocument("_id", new BsonDocument("$ne", MANIFEST_ID)));
+
+		// Starting a new Bosk in FAIL_FAST mode should throw because the
+		// manifest exists but the state document is missing
+		MongoDriverSettings failFastSettings = driverSettings.toBuilder()
+			.initialDatabaseUnavailableMode(InitialDatabaseUnavailableMode.FAIL_FAST)
+			.build();
+		DriverFactory<TestEntity> failFastFactory = DriverStack.of(
+			BoskLogFilter.withController(logController),
+			(info, downstream) ->
+				MongoDriver.<TestEntity>factory(
+					mongoService.clientSettings(testInfo),
+					failFastSettings,
+					new BsonSerializer()
+				).build(info, downstream)
+		);
+
+		assertThrows(InitialStateFailureException.class, () -> new Bosk<>(
+			boskName("stateDocDeleted"),
+			TestEntity.class,
+			AbstractMongoDriverTest::initialState,
+			BoskConfig.<TestEntity>builder()
+				.driverFactory(failFastFactory)
+				.build()
+		));
 	}
 
 	private void setRevision(long revisionNumber) {

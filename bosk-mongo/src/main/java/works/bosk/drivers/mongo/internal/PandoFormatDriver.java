@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.NoSuchElementException;
 import java.util.regex.Pattern;
 import org.bson.BsonDocument;
 import org.bson.BsonInt32;
@@ -77,7 +76,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		MongoDriverSettings driverSettings,
 		PandoFormat format, BsonSerializer bsonSerializer,
 		long flushTimeoutMS,
-		BsonString manifestId,
 		BoskDriver downstream
 	) {
 		super(
@@ -87,8 +85,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			new Formatter(boskInfo, bsonSerializer),
 			collection,
 			downstream,
-			flushTimeoutMS,
-			manifestId
+			flushTimeoutMS
 		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;
@@ -153,7 +150,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	BsonStateAndMetadata loadBsonStateAndMetadata() throws UninitializedCollectionException {
+	BsonStateAndMetadata loadBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		List<BsonDocument> allParts = new ArrayList<>();
 		try (MongoCursor<BsonDocument> cursor = collection
 			.withReadConcern(LOCAL) // The revision field needs to be the latest
@@ -164,8 +161,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			while (cursor.hasNext()) {
 				allParts.add(cursor.next());
 			}
-		} catch (NoSuchElementException e) {
-			throw new UninitializedCollectionException("No existing document", e);
 		}
 		BsonDocument mainPart = allParts.getLast();
 		if (!ROOT_DOCUMENT_ID.equals(mainPart.get("_id"))) {
