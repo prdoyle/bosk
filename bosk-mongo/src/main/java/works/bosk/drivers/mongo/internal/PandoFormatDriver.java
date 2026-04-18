@@ -78,10 +78,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		MongoDriverSettings driverSettings,
 		PandoFormat format, BsonSerializer bsonSerializer,
 		FlushLock flushLock,
-		BsonString manifestId,
 		BoskDriver downstream
 	) {
-		super(boskInfo.rootReference(), boskInfo.context(), new Formatter(boskInfo, bsonSerializer), collection, downstream, flushLock, manifestId);
+		super(boskInfo.rootReference(), boskInfo.context(), new Formatter(boskInfo, bsonSerializer), collection, downstream, flushLock);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;
 		this.format = format;

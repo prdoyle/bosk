@@ -3,9 +3,7 @@ package works.bosk.drivers.mongo.internal;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.result.UpdateResult;
-import jakarta.annotation.Nullable;
 import java.io.IOException;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +33,7 @@ import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
-import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_IDS;
+import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_ID;
 
 @RequiredArgsConstructor
 abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implements FormatDriver<R> {
@@ -45,7 +43,6 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	final TransactionalCollection collection;
 	final BoskDriver downstream;
 	final FlushLock flushLock;
-	@Nullable final BsonString manifestId;
 
 	@Override
 	public MongoStatus readStatus() {
@@ -160,16 +157,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 */
 	protected void validateManifestEvent(ChangeStreamDocument<BsonDocument> event, Manifest effectiveManifest) throws UnprocessableEventException {
 		LOGGER.debug("onManifestEvent({})", event.getOperationType().name());
-		if (!Objects.equals(manifestId, event.getDocumentKey().get("_id"))) {
-			// This is important to avoid additional disconnect churn when a refurbish
-			// deletes the old manifest and creates a new one with a different ID.
-			// We'll already be handling this when the manifest we care about changes;
-			// no need to react to the other one.
-			// Note that it actually doesn't matter which one we watch, as long
-			// as we watch just one.
-			LOGGER.debug("Ignoring event for different manifest document with ID {}", event.getDocumentKey().get("_id"));
-			return;
-		} else if (event.getOperationType() == INSERT || event.getOperationType() == REPLACE) {
+		if (event.getOperationType() == INSERT || event.getOperationType() == REPLACE) {
 			BsonDocument manifestDoc = requireNonNull(event.getFullDocument());
 			Manifest manifest;
 			try {
@@ -204,9 +192,9 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	protected void writeManifest(Manifest manifest) {
-		BsonDocument doc = new BsonDocument("_id", requireNonNull(manifestId));
+		BsonDocument doc = new BsonDocument("_id", requireNonNull(MANIFEST_ID));
 		doc.putAll((BsonDocument) formatter.object2bsonValue(manifest, Manifest.class));
-		BsonDocument filter = new BsonDocument("_id", manifestId);
+		BsonDocument filter = new BsonDocument("_id", MANIFEST_ID);
 		LOGGER.debug("| Initial manifest: {}", doc);
 		ReplaceOptions options = new ReplaceOptions().upsert(true);
 		UpdateResult result = collection.replaceOne(filter, doc, options);
@@ -226,7 +214,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	protected boolean isManifestID(BsonValue documentId) {
-		return MANIFEST_IDS.contains(documentId);
+		return MANIFEST_ID.equals(documentId);
 	}
 
 	/**
