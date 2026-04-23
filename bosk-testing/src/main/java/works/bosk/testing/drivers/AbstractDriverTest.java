@@ -3,7 +3,6 @@ package works.bosk.testing.drivers;
 import java.io.IOException;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +32,7 @@ import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
 import works.bosk.junit.Injector;
-import works.bosk.testing.drivers.AbstractDriverTest.ScenarioInjector;
+import works.bosk.testing.drivers.AbstractDriverTest.SingleTreeScenarioInjector;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.testing.drivers.state.TestEntity.Fields;
 import works.bosk.util.Classes;
@@ -43,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
 @InjectFields
-@InjectFrom(ScenarioInjector.class)
+@InjectFrom(SingleTreeScenarioInjector.class)
 public abstract class AbstractDriverTest {
 	public static final Identifier TENANT1 = Identifier.from("tenant1");
 	protected final Identifier child1ID = Identifier.from("child1");
@@ -59,7 +58,8 @@ public abstract class AbstractDriverTest {
 	public enum Scenario {
 		NO_TENANTS(TenancyModel.NONE, Tenant.NONE),
 		FIXED_TENANT(new Fixed(TENANT1), Tenant.setTo(TENANT1)),
-		TRANSIENT_TENANT(TenancyModel.TRANSIENT, Tenant.setTo(TENANT1))
+		TRANSIENT_TENANT(TenancyModel.TRANSIENT, Tenant.setTo(TENANT1)),
+		PERSISTENT_TENANT(TenancyModel.PERSISTENT, Tenant.setTo(TENANT1))
 		;
 
 		public final TenancyModel tenancyModel;
@@ -92,7 +92,10 @@ public abstract class AbstractDriverTest {
 
 	}
 
-	record ScenarioInjector() implements Injector {
+	/**
+	 * For drivers that don't yet support the tree-per-tenant model.
+	 */
+	record SingleTreeScenarioInjector() implements Injector {
 		@Override
 		public boolean supports(AnnotatedElement element, Class<?> elementType) {
 			return elementType.equals(Scenario.class);
@@ -100,7 +103,7 @@ public abstract class AbstractDriverTest {
 
 		@Override
 		public List<?> values() {
-			return Arrays.asList(Scenario.values());
+			return List.of(Scenario.NO_TENANTS, Scenario.FIXED_TENANT, Scenario.TRANSIENT_TENANT);
 		}
 	}
 

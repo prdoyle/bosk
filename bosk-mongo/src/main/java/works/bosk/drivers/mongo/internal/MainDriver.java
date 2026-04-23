@@ -36,6 +36,7 @@ import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskDriver;
+import works.bosk.BoskDriver.InitialState.MultiTree;
 import works.bosk.BoskDriver.InitialState.SingleTree;
 import works.bosk.BoskInfo;
 import works.bosk.Identifier;
@@ -53,6 +54,7 @@ import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
@@ -318,6 +320,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
 				var root = switch (initialState) {
 					case SingleTree(var r) -> r;
+					case MultiTree<R> _ -> throw new NotYetImplementedException();
 				};
 				preferredDriver.initializeCollection(new StateAndMetadata<>(root, REVISION_ZERO, boskInfo.context().getAttributes()));
 				session.commitTransactionIfAny();

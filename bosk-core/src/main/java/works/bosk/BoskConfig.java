@@ -71,9 +71,9 @@ public record BoskConfig<R extends StateTreeNode> (
 			return tenancyModel(TenancyModel.TRANSIENT);
 		}
 
-//		public Builder<R> persistentTenants() {
-//			return tenancyModel(TenancyModel.PERSISTENT);
-//		}
+		public Builder<R> persistentTenants() {
+			return tenancyModel(TenancyModel.PERSISTENT);
+		}
 
 		public Builder<R> tenancyModel(TenancyModel tenancyModel) {
 			this.tenancyModel = requireNonNull(tenancyModel);
@@ -141,13 +141,13 @@ public record BoskConfig<R extends StateTreeNode> (
 		 */
 		record Transient() implements Explicit {}
 
-//		/**
-//		 * Tenant information is stored in the bosk state, and is propagated into hooks.
-//		 * <p>
-//		 * This is useful in a multi-tree system, where each tenant has its own state,
-//		 * since tenant information is essential for disambiguating reads and updates.
-//		 */
-//		record Persistent() implements Explicit {}
+		/**
+		 * Tenant information is stored in the bosk state, and is propagated into hooks.
+		 * <p>
+		 * This is useful in a multi-tree system, where each tenant has its own state,
+		 * since tenant information is essential for disambiguating reads and updates.
+		 */
+		record Persistent() implements Explicit {}
 
 		/**
 		 * @see works.bosk.BoskConfig.TenancyModel.None
@@ -159,10 +159,10 @@ public record BoskConfig<R extends StateTreeNode> (
 		 */
 		Transient TRANSIENT = new Transient();
 
-//		/**
-//		 * @see works.bosk.BoskConfig.TenancyModel.Persistent
-//		 */
-//		Persistent PERSISTENT = new Persistent();
+		/**
+		 * @see works.bosk.BoskConfig.TenancyModel.Persistent
+		 */
+		Persistent PERSISTENT = new Persistent();
 	}
 
 	private static final DriverFactory<?> SIMPLE_DRIVER_FACTORY = (_, d) -> d;
