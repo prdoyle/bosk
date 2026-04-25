@@ -5,10 +5,14 @@ import java.sql.SQLException;
 import java.util.function.BiFunction;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
+import works.bosk.BoskConfig.TenancyModel.Fixed;
+import works.bosk.BoskConfig.TenancyModel.None;
+import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
 import works.bosk.StateTreeNode;
+import works.bosk.exceptions.TenancyShenanigansException;
 import works.bosk.jackson.JacksonSerializer;
 
 public interface SqlDriver extends BoskDriver {
@@ -21,6 +25,12 @@ public interface SqlDriver extends BoskDriver {
 		BiFunction<BoskInfo<RR>, JsonMapper.Builder, JsonMapper.Builder> objectMapperCustomizer
 	) {
 		return (b, d) -> {
+			switch (b.tenancyModel()) {
+				case None _, Fixed _ -> {}
+				case Persistent p -> {
+					throw new TenancyShenanigansException(p + " tenancy model is not supported");
+				}
+			}
 			JacksonSerializer jacksonSerializer = new JacksonSerializer();
 			ObjectMapper mapper = objectMapperCustomizer.apply(b, JsonMapper.builder().addModule(jacksonSerializer.moduleFor(b))).build();
 			return new SqlDriverFacade(jacksonSerializer, new SqlDriverImpl(

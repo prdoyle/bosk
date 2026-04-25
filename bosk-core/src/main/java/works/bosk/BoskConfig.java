@@ -1,6 +1,7 @@
 package works.bosk;
 
 import works.bosk.BoskContext.Tenant;
+import works.bosk.exceptions.TenancyShenanigansException;
 
 import static java.util.Objects.requireNonNull;
 
@@ -92,6 +93,17 @@ public record BoskConfig<R extends StateTreeNode> (
 
 	public sealed interface TenancyModel {
 		/**
+		 * We take tenant IDs fairly seriously: if two bosks sharing the same underlying state with different
+		 * tenant information, that opens the possibility of leaking information between tenants,
+		 * which we strongly want to avoid.
+		 * <p>
+		 * With {@link Explicit} tenancy, it's still possible to supply the wrong tenant explicitly.
+		 * This method only ensures that it's not impossible to supply the right tenant.
+		 * @throws TenancyShenanigansException if the two tenancy models cannot be used by two bosks sharing the same underlying state
+		 */
+		void checkCompatibility(TenancyModel other) throws TenancyShenanigansException;
+
+		/**
 		 * All threads are automatically {@link Tenant.Established},
 		 * so driver updates can be called without first establishing a tenant on the thread.
 		 */
@@ -108,7 +120,16 @@ public record BoskConfig<R extends StateTreeNode> (
 		 * <p>
 		 * This is a good default choice for a bosk that doesn't yet need multitenancy.
 		 */
-		record None() implements Implicit {}
+		record None() implements Implicit {
+			@Override
+			public void checkCompatibility(TenancyModel other) throws TenancyShenanigansException {
+				switch (other) {
+					case None _, Fixed _ -> {}
+					default ->
+						throw new TenancyShenanigansException(this + " is not compatible with " + other);
+				}
+			}
+		}
 
 		/**
 		 * {@link Tenant.SetTo} is automatically established on all threads,
@@ -118,7 +139,17 @@ public record BoskConfig<R extends StateTreeNode> (
 		 * updating databases or other systems to become tenant-aware with a single tenant
 		 * without having to update all application code to establish the tenant context.
 		 */
-		record Fixed(Identifier id) implements Implicit {}
+		record Fixed(Identifier id) implements Implicit {
+			@Override
+			public void checkCompatibility(TenancyModel other) throws TenancyShenanigansException {
+				switch (other) {
+					case None _ -> {}
+					case Fixed f when f.id.equals(id) -> {}
+					default ->
+						throw new TenancyShenanigansException(this + " is not compatible with " + other);
+				}
+			}
+		}
 
 		/**
 		 * Tenant information is stored in the bosk state, and is propagated into hooks.
@@ -126,7 +157,16 @@ public record BoskConfig<R extends StateTreeNode> (
 		 * This is useful in a multi-tree system, where each tenant has its own state,
 		 * since tenant information is essential for disambiguating reads and updates.
 		 */
-		record Persistent() implements Explicit {}
+		record Persistent() implements Explicit {
+			@Override
+			public void checkCompatibility(TenancyModel other) throws TenancyShenanigansException {
+				switch (other) {
+					case Fixed _, Persistent _ -> {}
+					default ->
+						throw new TenancyShenanigansException(this + " is not compatible with " + other);
+				}
+			}
+		}
 
 		/**
 		 * @see works.bosk.BoskConfig.TenancyModel.None
