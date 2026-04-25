@@ -661,7 +661,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}
 	}
 
-	private BsonDocument rootDocumentFilter() {
+	protected BsonDocument rootDocumentFilter() {
 		return new BsonDocument("_id", ROOT_DOCUMENT_ID);
 	}
 

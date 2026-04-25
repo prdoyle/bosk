@@ -1,9 +1,12 @@
 package works.bosk.drivers.mongo.internal;
 
+import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.result.UpdateResult;
+import jakarta.annotation.Nonnull;
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.bson.BsonDocument;
@@ -26,6 +29,9 @@ import works.bosk.drivers.mongo.status.StateStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 
+import static com.mongodb.ReadConcern.LOCAL;
+import static com.mongodb.client.model.Projections.fields;
+import static com.mongodb.client.model.Projections.include;
 import static com.mongodb.client.model.changestream.OperationType.INSERT;
 import static com.mongodb.client.model.changestream.OperationType.REPLACE;
 import static java.util.Collections.newSetFromMap;
@@ -196,7 +202,41 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		LOGGER.debug("Ignoring benign manifest change event");
 	}
 
-	protected abstract BsonInt64 readRevisionNumber() throws FlushFailureException;
+	protected abstract BsonDocument rootDocumentFilter();
+
+	/**
+	 * @return Revision number as per the database.
+	 * If the database contains no revision number, returns {@link Formatter#REVISION_ZERO}.
+	 */
+	protected @Nonnull BsonInt64 readRevisionNumber() throws FlushFailureException {
+		LOGGER.debug("readRevisionNumber");
+		try {
+			try (MongoCursor<BsonDocument> cursor = collection
+				.withReadConcern(LOCAL)
+				.find(rootDocumentFilter())
+				.limit(1)
+				.projection(fields(include(DocumentFields.revision.name())))
+				.cursor()
+			) {
+				BsonDocument doc = cursor.next();
+				BsonInt64 result = doc.getInt64(DocumentFields.revision.name(), null);
+				if (result == null) {
+					// TODO: Is this still relevant? Seems like legacy
+					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
+					return REVISION_ZERO;
+				} else {
+					LOGGER.debug("Read revision {}", result.longValue());
+					return result;
+				}
+			}
+		} catch (NoSuchElementException e) {
+			LOGGER.debug("Document is missing", e);
+			throw new RevisionFieldDisruptedException("State document is missing", e);
+		} catch (RuntimeException e) {
+			LOGGER.debug("readRevisionNumber failed", e);
+			throw new FlushFailureException(e);
+		}
+	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
