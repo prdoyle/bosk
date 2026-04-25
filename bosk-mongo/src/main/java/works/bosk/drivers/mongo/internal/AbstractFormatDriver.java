@@ -46,6 +46,17 @@ import static works.bosk.drivers.mongo.internal.Formatter.REVISION_BEFORE_ANY;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_ID;
 
+/**
+ * Shared code for format drivers, whose behaviour can be complex and subtle,
+ * so we definitely want to avoid duplicating it between Sequoia and Pando.
+ * <p>
+ * This is not a fully general base class for format drivers,
+ * but rather a common foundation for Sequoia and Pando specifically.
+ * If we were to add a third format, this base class might need some
+ * refactoring, or it might not be useful at all.
+ *
+ * @param <R>
+ */
 abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implements FormatDriver<R> {
 	final RootReference<R> rootRef;
 	final BoskContext context;

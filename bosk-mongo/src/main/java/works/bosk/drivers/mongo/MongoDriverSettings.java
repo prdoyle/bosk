@@ -140,7 +140,7 @@ public class MongoDriverSettings {
 		EARNEST,
 
 		/**
-		 * Unused documents may be left behind, to be cleaned up later.
+		 * Unused documents may be left behind, to be cleaned up later by {@link MongoDriver#refurbish() refurbish}.
 		 */
 		HASTY,
 	}

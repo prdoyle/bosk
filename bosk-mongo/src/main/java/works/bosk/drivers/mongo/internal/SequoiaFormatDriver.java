@@ -3,11 +3,8 @@ package works.bosk.drivers.mongo.internal;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
-import com.mongodb.client.model.changestream.OperationType;
 import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.UpdateResult;
-import com.mongodb.lang.Nullable;
-import java.util.List;
 import java.util.NoSuchElementException;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
@@ -204,8 +201,8 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 							var _ = context.withTenant(tenant);
 							var _ = context.withOnly(diagnosticAttributes)
 						) {
-							replaceUpdatedFields(updateDescription.getUpdatedFields());
-							deleteRemovedFields(updateDescription.getRemovedFields(), event.getOperationType());
+							replaceUpdatedFields(rootRef, updateDescription.getUpdatedFields());
+							deleteRemovedFields(rootRef, updateDescription.getRemovedFields(), event.getOperationType());
 						}
 					}
 					flushLock.finishedRevision(revision);
@@ -287,22 +284,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			LOGGER.trace("Details of MongoDB write not acknowledged:\n\tFilter: {}\n\tUpdate: {}\n\tResult: {}", filter, updateDoc, result);
 			throw new IllegalStateException("Mongo write was not acknowledged: " + result);
 		}
-	}
-
-	/**
-	 * Call <code>downstream.{@link BoskDriver#submitReplacement submitReplacement}</code>
-	 * for each updated field.
-	 */
-	private void replaceUpdatedFields(@Nullable BsonDocument updatedFields) {
-		replaceUpdatedFields(rootRef, updatedFields);
-	}
-
-	/**
-	 * Call <code>downstream.{@link BoskDriver#submitDeletion submitDeletion}</code>
-	 * for each removed field.
-	 */
-	private void deleteRemovedFields(@Nullable List<String> removedFields, OperationType operationType) throws UnprocessableEventException {
-		deleteRemovedFields(rootRef, removedFields, operationType);
 	}
 
 	@Override

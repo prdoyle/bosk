@@ -54,7 +54,9 @@ import static java.util.stream.Collectors.toList;
 import static org.bson.BsonBoolean.TRUE;
 import static works.bosk.Path.parseParameterized;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.docBsonPath;
+import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
+import static works.bosk.drivers.mongo.internal.Formatter.getDiagnosticAttributesIfAny;
 import static works.bosk.util.Classes.enumerableByIdentifier;
 
 /**
@@ -114,7 +116,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		collection.ensureTransactionStarted();
 		Reference<?> mainRef = mainRef(target);
 		BsonDocument filter = documentFilter(mainRef)
-			.append(BsonFormatter.dottedFieldNameOf(target, mainRef), new BsonDocument("$exists", TRUE));
+			.append(dottedFieldNameOf(target, mainRef), new BsonDocument("$exists", TRUE));
 		if (documentExists(filter)) {
 			LOGGER.debug("Already exists: {}", filter);
 			collection.abortTransaction();
@@ -172,7 +174,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return new BsonStateAndMetadata(
 			bsonSurgeon.gather(allParts),
 			mainPart.getInt64(DocumentFields.revision.name(), null),
-			Formatter.getDiagnosticAttributesIfAny(mainPart)
+			getDiagnosticAttributesIfAny(mainPart)
 		);
 	}
 
@@ -499,7 +501,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		if (rootRef.equals(mainRef)) {
 			LOGGER.debug("| Root ref is main ref");
 			LOGGER.debug("| Pre-delete on root document");
-			String key = BsonFormatter.dottedFieldNameOf(target, rootRef);
+			String key = dottedFieldNameOf(target, rootRef);
 			LOGGER.debug("| Pre-delete field {}", key);
 			doUpdate( // Important: don't bump the revision field because that's how we identify the last event in a transaction
 				new BsonDocument("$unset", new BsonDocument(key, BsonNull.VALUE)),
@@ -531,7 +533,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			}
 
 			// Update part of the main doc (which must already exist)
-			String key = BsonFormatter.dottedFieldNameOf(target, mainRef);
+			String key = dottedFieldNameOf(target, mainRef);
 			LOGGER.debug("| Pre-delete field {} in {}", key, mainRef);
 			BsonDocument preDelete = new BsonDocument("$unset", new BsonDocument(key, BsonNull.VALUE));
 			doUpdate(preDelete, standardPreconditions(target, mainRef, filter));
@@ -575,7 +577,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	private boolean preconditionFailed(Reference<Identifier> precondition, Identifier requiredValue) {
 		Reference<?> mainRef = mainRef(precondition);
 		BsonDocument filter = documentFilter(mainRef)
-			.append(BsonFormatter.dottedFieldNameOf(precondition, mainRef), new BsonString(requiredValue.toString()));
+			.append(dottedFieldNameOf(precondition, mainRef), new BsonString(requiredValue.toString()));
 		LOGGER.debug("Precondition filter: {}", filter);
 		boolean result = !documentExists(filter);
 		if (result) {
@@ -634,7 +636,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 	private <T> BsonDocument standardPreconditions(Reference<T> target, Reference<?> startingRef, BsonDocument filter) {
 		if (!target.path().equals(startingRef.path())) {
-			String enclosingObjectKey = BsonFormatter.dottedFieldNameOf(target.enclosingReference(Object.class), startingRef);
+			String enclosingObjectKey = dottedFieldNameOf(target.enclosingReference(Object.class), startingRef);
 			BsonDocument condition = new BsonDocument("$type", new BsonString("object"));
 			filter.put(enclosingObjectKey, condition);
 			LOGGER.debug("| Precondition: {} {}", enclosingObjectKey, condition);
@@ -784,7 +786,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return description;
 	}
 
-	private static final BsonDocument ROOT_DOCUMENT_FILTER = new BsonDocument("_id", ROOT_DOCUMENT_ID);
 	private static final EnumSet<OperationType> OPERATIONS_TO_INCLUDE_IN_GATHER = EnumSet.of(INSERT);
 	private static final Logger LOGGER = LoggerFactory.getLogger(PandoFormatDriver.class);
 }
