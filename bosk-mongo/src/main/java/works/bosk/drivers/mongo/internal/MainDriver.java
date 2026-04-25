@@ -27,7 +27,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.bson.BsonDocument;
-import org.bson.BsonInt64;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
@@ -43,10 +42,10 @@ import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
 import works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode;
+import works.bosk.drivers.mongo.MongoDriverSettings.SequoiaFormat;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.exceptions.DisconnectedException;
 import works.bosk.drivers.mongo.exceptions.InitialStateFailureException;
-import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
@@ -56,7 +55,6 @@ import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static com.mongodb.client.model.Sorts.ascending;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
-import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ONE;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.logging.MappedDiagnosticContext.setupMDC;
 
@@ -304,7 +302,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			StateAndMetadata<R> loadedState = detectedDriver.loadAllState();
 			initialState = InitialState.of(loadedState.state());
 			publishFormatDriver(detectedDriver);
-			detectedDriver.onRevisionToSkip(loadedState.revision());
 		} catch (UninitializedCollectionException e) {
 			// We log this at warn because, in production, this is a big deal.
 			// Annoying in tests, so we log it with UNINITIALIZED_COLLECTION_LOGGER so we can selectively disable it.
@@ -321,7 +318,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				session.commitTransactionIfAny();
 				// We can now publish the driver knowing that the transaction, if there is one, has committed
 				publishFormatDriver(preferredDriver);
-				preferredDriver.onRevisionToSkip(REVISION_ONE); // initialState handles REVISION_ONE; downstream only needs to know about changes after that
 			} catch (RuntimeException | FailedMongoClientSessionException e2) {
 				LOGGER.warn("Failed to initialize database; disconnecting", e2);
 				setDisconnectedDriver(e2);
@@ -502,7 +498,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			InterruptedException,
 			IOException,
 			InitialStateActionException,
-			TimeoutException,
 			InvalidCollectionContentsException
 		{
 			LOGGER.debug("onConnectionSucceeded");
@@ -538,15 +533,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 					downstream.submitReplacement(boskInfo.rootReference(), loadedState.state());
 					LOGGER.debug("Done submitting downstream");
 				}
-
-				// Now that the state is submitted downstream, we can establish that there's no need to wait
-				// for a change event with that revision number; a downstream flush is now sufficient.
-				newDriver.onRevisionToSkip(loadedState.revision());
 			} else {
 				LOGGER.debug("Running initialState action");
 				runInitialStateAction(initialStateAction);
-				//TODO: Both branches of this "if" end with calls to onRevisionToSkip and publishFormatDriver.
-				// Is there a way to rearrange the code so those calls can be in one place?
 			}
 		}
 
@@ -614,11 +603,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	}
 
 	private FormatDriver<R> newPreferredFormatDriver() {
-		DatabaseFormat preferred = driverSettings.preferredDatabaseFormat();
-		if (preferred.equals(SEQUOIA) || preferred instanceof PandoFormat) {
-			return newFormatDriver(REVISION_ZERO.longValue(), preferred);
-		}
-		throw new AssertionError("Unknown database format setting: " + preferred);
+		return newFormatDriver(driverSettings.preferredDatabaseFormat());
 	}
 
 	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException, InvalidCollectionContentsException {
@@ -632,20 +617,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		FindIterable<BsonDocument> result = queryCollection.find(new BsonDocument("_id", documentId));
 		try (MongoCursor<BsonDocument> cursor = result.cursor()) {
 			if (cursor.hasNext()) {
-				BsonInt64 revision = cursor
-					.next()
-					.getInt64(DocumentFields.revision.name(), REVISION_ZERO);
-
-				// We're in the midst of loading the existing state, so at this point,
-				// the downstream driver has not yet "already seen" the current database
-				// contents. So we temporarily "back-date" the revision number; that way,
-				// any flush operations that occur before we send this state downstream will wait.
-				// After sending the state downstream, the caller will call onRevisionToSkip,
-				// thereby establishing the correct revision number.
-				// TODO: We really need a better way to deal with revision numbers
-				long revisionAlreadySeen = revision.longValue()-1;
-
-				return newFormatDriver(revisionAlreadySeen, format);
+				return newFormatDriver(format);
 			} else {
 				throw new InvalidCollectionContentsException(format, "Document doesn't exist: "
 					+ "collection=" + driverSettings.database()
@@ -692,26 +664,25 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		}
 	}
 
-	private FormatDriver<R> newFormatDriver(long revisionAlreadySeen, DatabaseFormat format) {
-		if (format.equals(SEQUOIA)) {
-			return new SequoiaFormatDriver<>(
+	private FormatDriver<R> newFormatDriver(DatabaseFormat format) {
+		return switch (format) {
+			case SequoiaFormat _ -> new SequoiaFormatDriver<>(
 				boskInfo,
 				queryCollection,
 				driverSettings,
 				bsonSerializer,
-				new FlushLock(revisionAlreadySeen, flushTimeout),
-				downstream);
-		} else if (format instanceof PandoFormat pandoFormat) {
-			return new PandoFormatDriver<>(
+				flushTimeout,
+				downstream
+			);
+			case PandoFormat pandoFormat -> new PandoFormatDriver<>(
 				boskInfo,
 				queryCollection,
 				driverSettings,
 				pandoFormat,
 				bsonSerializer,
-				new FlushLock(revisionAlreadySeen, flushTimeout),
+				flushTimeout,
 				downstream);
-		}
-		throw new IllegalArgumentException("Unexpected database format: " + format);
+		};
 	}
 
 
