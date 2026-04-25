@@ -213,7 +213,11 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		assert event.getDocumentKey() != null;
 		BsonValue bsonDocumentID = event.getDocumentKey().get("_id");
 		if (isManifestID(bsonDocumentID)) {
-			onManifestEvent(event);
+			/* We're required to cope with anything we might ourselves do in {@link #initializeCollection},
+			 * but outside that, we want to be as strict as we can
+			 * so incompatible database changes don't go unnoticed.
+			 */
+			validateManifestEvent(event, Manifest.forPando(format));
 			return;
 		}
 		if (!(bsonDocumentID instanceof BsonString s) || !(s.getValue().startsWith("|"))) {
@@ -404,10 +408,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		} catch (InvalidTypeException e) {
 			throw new UnprocessableEventException("Invalid path from document ID: \"" + pipedPath + "\"", e, event.getOperationType());
 		}
-	}
-
-	private void onManifestEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
-		validateManifestEvent(event, Manifest.forPando(format));
 	}
 
 	private static boolean updateEventHasField(ChangeStreamDocument<BsonDocument> event, DocumentFields field) {

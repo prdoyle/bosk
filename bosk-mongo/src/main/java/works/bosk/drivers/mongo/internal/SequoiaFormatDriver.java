@@ -153,7 +153,11 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	public void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
 		assert event.getDocumentKey() != null;
 		if (isManifestID(event.getDocumentKey().get("_id"))) {
-			onManifestEvent(event);
+			/* We're required to cope with anything we might ourselves do in {@link #initializeCollection},
+			 * but outside that, we want to be as strict as we can
+			 * so incompatible database changes don't go unnoticed.
+			 */
+			validateManifestEvent(event, Manifest.forSequoia());
 			return;
 		}
 		if (!DOCUMENT_FILTER.equals(event.getDocumentKey())) {
@@ -220,15 +224,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				throw new UnprocessableEventException("Cannot process event", event.getOperationType());
 			}
 		}
-	}
-
-	/**
-	 * We're required to cope with anything we might ourselves do in {@link #initializeCollection},
-	 * but outside that, we want to be as strict as we can
-	 * so incompatible database changes don't go unnoticed.
-	 */
-	private void onManifestEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
-		validateManifestEvent(event, Manifest.forSequoia());
 	}
 
 	//
