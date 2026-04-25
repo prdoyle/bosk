@@ -64,6 +64,7 @@ public class ReplicaSet<R extends StateTreeNode> {
 			var theSeed = existing != null ? existing : replica;
 			assert theSeed.boskInfo.rootReference().targetType().equals(b.rootReference().targetType()):
 				"All bosks in a replica set must have the same root type because they share state data";
+			theSeed.boskInfo().tenancyModel().checkCompatibility(b.tenancyModel());
 			replicas.add(replica);
 			return new BroadcastDriver(b.context(), d);
 		};

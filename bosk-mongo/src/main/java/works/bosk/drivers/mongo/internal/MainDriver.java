@@ -31,6 +31,9 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskConfig.TenancyModel.Fixed;
+import works.bosk.BoskConfig.TenancyModel.None;
+import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.InitialState.MultiTree;
 import works.bosk.BoskDriver.InitialState.SingleTree;
@@ -51,6 +54,7 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
+import works.bosk.exceptions.TenancyShenanigansException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
@@ -140,6 +144,13 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.driverSettings = driverSettings;
 			this.bsonSerializer = bsonSerializer;
 			this.downstream = downstream;
+
+			switch (boskInfo.tenancyModel()) {
+				case None _, Fixed _ -> {}
+				case Persistent p -> {
+					throw new TenancyShenanigansException(p + " tenancy model is not supported");
+				}
+			}
 
 			// Flushes work by waiting for the latest version to arrive on the change stream.
 			// If we wait for two heartbeats and don't see the update, something has gone wrong.
