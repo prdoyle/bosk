@@ -8,7 +8,6 @@ import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.UpdateResult;
 import com.mongodb.lang.Nullable;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
@@ -26,14 +25,10 @@ import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
-import works.bosk.exceptions.InvalidTypeException;
 
 import static com.mongodb.ReadConcern.LOCAL;
-import static com.mongodb.client.model.Projections.fields;
-import static com.mongodb.client.model.Projections.include;
 import static org.bson.BsonBoolean.FALSE;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
-import static works.bosk.drivers.mongo.internal.BsonFormatter.referenceTo;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 
 /**
@@ -100,19 +95,21 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 
 	@Override
 	BsonStateAndMetadata loadBsonStateAndMetadata() throws UninitializedCollectionException {
-		try (MongoCursor<BsonDocument> cursor = collection
-			.withReadConcern(LOCAL) // The revision field needs to be the latest
-			.find(documentFilter())
-			.limit(1)
-			.cursor()
-		) {
-			BsonDocument document = cursor.next();
-			formatter.eventTenantFromFullDocument(document); // Saves the tenant info for subsequent events
-			return new BsonStateAndMetadata(
-				document.getDocument(DocumentFields.state.name(), null),
-				document.getInt64(DocumentFields.revision.name(), null),
-				Formatter.getDiagnosticAttributesIfAny(document)
-			);
+		try {
+			try (MongoCursor<BsonDocument> cursor = collection
+				.withReadConcern(LOCAL) // The revision field needs to be the latest
+				.find(rootDocumentFilter())
+				.limit(1)
+				.cursor()
+			) {
+				BsonDocument document = cursor.next();
+				formatter.eventTenantFromFullDocument(document); // Saves the tenant info for subsequent events
+				return new BsonStateAndMetadata(
+					document.getDocument(DocumentFields.state.name(), null),
+					document.getInt64(DocumentFields.revision.name(), null),
+					Formatter.getDiagnosticAttributesIfAny(document)
+				);
+			}
 		} catch (NoSuchElementException e) {
 			throw new UninitializedCollectionException("No existing document", e);
 		}
@@ -125,7 +122,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision().longValue());
 		// Note that priorContents.diagnosticAttributes are ignored, and we use the attributes from this thread
 		BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, DOCUMENT_ID));
-		BsonDocument filter = documentFilter();
+		BsonDocument filter = rootDocumentFilter();
 		UpdateOptions options = new UpdateOptions().upsert(true);
 		LOGGER.debug("** Initial upsert for {}", DOCUMENT_ID);
 		LOGGER.trace("| Filter: {}", filter);
@@ -229,17 +226,14 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	// MongoDB helpers
 	//
 
-	private BsonDocument documentFilter() {
-		return new BsonDocument("_id", DOCUMENT_ID);
-	}
-
 	@Override
-	protected BsonDocument rootDocumentFilter() {
+	BsonDocument rootDocumentFilter() {
+		// We have just the one document, so it's the "root document"
 		return DOCUMENT_FILTER;
 	}
 
 	private <T> BsonDocument standardPreconditions(Reference<T> target) {
-		BsonDocument filter = documentFilter();
+		BsonDocument filter = rootDocumentFilter();
 		if (!target.path().isEmpty()) {
 			String enclosingObjectKey = dottedFieldNameOf(target.enclosingReference(Object.class), rootRef);
 			BsonDocument condition = new BsonDocument("$type", new BsonString("object"));
@@ -301,23 +295,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	 * for each updated field.
 	 */
 	private void replaceUpdatedFields(@Nullable BsonDocument updatedFields) {
-		if (updatedFields != null) {
-			for (Map.Entry<String, BsonValue> entry : updatedFields.entrySet()) {
-				String dottedName = entry.getKey();
-				if (dottedName.startsWith(DocumentFields.state.name())) {
-					Reference<Object> ref;
-					try {
-						ref = referenceTo(dottedName, rootRef);
-					} catch (InvalidTypeException e) {
-						logNonexistentField(dottedName, e);
-						continue;
-					}
-					LOGGER.debug("| Replace {}", ref);
-					Object replacement = formatter.bsonValue2object(entry.getValue(), ref);
-					downstream.submitReplacement(ref, replacement);
-				}
-			}
-		}
+		replaceUpdatedFields(rootRef, updatedFields);
 	}
 
 	/**
@@ -325,23 +303,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	 * for each removed field.
 	 */
 	private void deleteRemovedFields(@Nullable List<String> removedFields, OperationType operationType) throws UnprocessableEventException {
-		if (removedFields != null) {
-			for (String dottedName : removedFields) {
-				if (dottedName.startsWith(DocumentFields.state.name())) {
-					Reference<Object> ref;
-					try {
-						ref = referenceTo(dottedName, rootRef);
-					} catch (InvalidTypeException e) {
-						logNonexistentField(dottedName, e);
-						continue;
-					}
-					LOGGER.debug("| Delete {}", ref);
-					downstream.submitDeletion(ref);
-				} else {
-					throw new UnprocessableEventException("Deletion of metadata field " + dottedName, operationType);
-				}
-			}
-		}
+		deleteRemovedFields(rootRef, removedFields, operationType);
 	}
 
 	@Override

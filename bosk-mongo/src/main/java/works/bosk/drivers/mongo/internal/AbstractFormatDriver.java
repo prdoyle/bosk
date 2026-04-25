@@ -3,9 +3,13 @@ package works.bosk.drivers.mongo.internal;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import com.mongodb.client.model.changestream.OperationType;
 import com.mongodb.client.result.UpdateResult;
+import com.mongodb.lang.Nullable;
 import jakarta.annotation.Nonnull;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +41,7 @@ import static com.mongodb.client.model.changestream.OperationType.REPLACE;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
+import static works.bosk.drivers.mongo.internal.BsonFormatter.referenceTo;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_BEFORE_ANY;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_ID;
@@ -71,6 +76,21 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		// on the basis that blocking is safer than accidentally proceeding without waiting on a flush.
 		this.flushLock = new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS);
 	}
+
+	/**
+	 * Low-level read of the database contents, with only the minimum interpretation
+	 * necessary to determine what the various parts correspond to.
+	 *
+	 * @return the contents of the database; fields of the returned
+	 * record can be null if they don't exist in the database.
+	 */
+	abstract BsonStateAndMetadata loadBsonStateAndMetadata() throws UninitializedCollectionException;
+
+	/**
+	 * @return MongoDB filter that identifies the document containing
+	 * the state tree's root node as well as the revision number.
+	 */
+	abstract BsonDocument rootDocumentFilter();
 
 	@Override
 	public MongoStatus readStatus() {
@@ -117,15 +137,6 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 
 		return new StateAndMetadata<>(root, revision, diagnosticAttributes);
 	}
-
-	/**
-	 * Low-level read of the database contents, with only the minimum interpretation
-	 * necessary to determine what the various parts correspond to.
-	 *
-	 * @return the contents of the database; fields of the returned
-	 * record can be null if they don't exist in the database.
-	 */
-	abstract BsonStateAndMetadata loadBsonStateAndMetadata() throws UninitializedCollectionException;
 
 	protected BsonDocument blankUpdateDoc() {
 		return new BsonDocument()
@@ -201,8 +212,6 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		}
 		LOGGER.debug("Ignoring benign manifest change event");
 	}
-
-	protected abstract BsonDocument rootDocumentFilter();
 
 	/**
 	 * @return Revision number as per the database.
@@ -285,6 +294,62 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		BsonInt64 revision,
 		BsonDocument diagnosticAttributes
 	){}
+
+	/**
+	 * Calls <code>downstream.{@link BoskDriver#submitReplacement submitReplacement}</code>
+	 * for each updated field in <code>updatedFields</code> whose key starts with {@code state.}.
+	 *
+	 * @param rootRef the reference to interpret dotted names against
+	 * @param updatedFields the BSON document containing updated field names and values
+	 */
+	protected void replaceUpdatedFields(Reference<?> rootRef, @Nullable BsonDocument updatedFields) {
+		if (updatedFields != null) {
+			for (Map.Entry<String, BsonValue> entry : updatedFields.entrySet()) {
+				String dottedName = entry.getKey();
+				if (dottedName.startsWith(DocumentFields.state.name())) {
+					Reference<Object> ref;
+					try {
+						ref = referenceTo(dottedName, rootRef);
+					} catch (InvalidTypeException e) {
+						logNonexistentField(dottedName, e);
+						continue;
+					}
+					LOGGER.debug("| Replace {}", ref);
+					Object replacement = formatter.bsonValue2object(entry.getValue(), ref);
+					downstream.submitReplacement(ref, replacement);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Calls <code>downstream.{@link BoskDriver#submitDeletion submitDeletion}</code>
+	 * for each removed field in <code>removedFields</code> whose name starts with {@code state.}.
+	 *
+	 * @param rootRef the reference to interpret dotted names against
+	 * @param removedFields the list of removed field names
+	 * @param operationType the type of change stream event (used in error messages)
+	 * @throws UnprocessableEventException if a removed field is not a state field
+	 */
+	protected void deleteRemovedFields(Reference<?> rootRef, @Nullable List<String> removedFields, OperationType operationType) throws UnprocessableEventException {
+		if (removedFields != null) {
+			for (String dottedName : removedFields) {
+				if (dottedName.startsWith(DocumentFields.state.name())) {
+					Reference<Object> ref;
+					try {
+						ref = referenceTo(dottedName, rootRef);
+					} catch (InvalidTypeException e) {
+						logNonexistentField(dottedName, e);
+						continue;
+					}
+					LOGGER.debug("| Delete {}", ref);
+					downstream.submitDeletion(ref);
+				} else {
+					throw new UnprocessableEventException("Deletion of metadata field " + dottedName, operationType);
+				}
+			}
+		}
+	}
 
 	private static final Set<String> ALREADY_WARNED = newSetFromMap(new ConcurrentHashMap<>());
 	private static final Logger LOGGER = LoggerFactory.getLogger(AbstractFormatDriver.class);
