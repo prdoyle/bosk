@@ -5,7 +5,6 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import java.io.IOException;
 import org.bson.BsonDocument;
-import org.bson.BsonInt64;
 import works.bosk.BoskContext;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriver;
@@ -39,15 +38,13 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException;
 
 	/**
-	 * Implementations should ignore subsequent calls to {@link #onEvent}
-	 * associated with revisions less than or equal to <code>revision</code>.
-	 * <p>
-	 * TODO: This feels pretty lame. Need a better way to get FormatDriver to cope with its own revision numbers
-	 * @param revision the last revision to skip
-	 */
-	void onRevisionToSkip(BsonInt64 revision);
-
-	/**
+	 * Loads the entire collection contents for the purpose of establishing the bosk state tree.
+	 * This involves more than merely reading the state:
+	 * this also has the side effect of establishing the state that the
+	 * driver "knows about".
+	 * Specifically, it ensures that change stream events before this point are ignored,
+	 * and that {@link #flush()} operations won't wait if the state hasn't changed after this point.
+	 *
 	 * @throws UninitializedCollectionException if it looks like the database has not yet
 	 * been created (as opposed to being in a damaged or unrecognizable state).
 	 * This signals to {@link MainDriver} that it may, if appropriate,
@@ -56,6 +53,11 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException;
 
 	/**
+	 * Initializes the collection to the given state.
+	 * <p>
+	 * Like {@link #loadAllState}, this also has the side effect of establishing
+	 * the state that the driver "knows about".
+	 * <p>
 	 * Can assume that the collection is empty or nonexistent,
 	 * in the sense that there is no mess to clean up,
 	 * but should tolerate documents already existing,
