@@ -50,10 +50,17 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		TransactionalCollection collection,
 		MongoDriverSettings driverSettings,
 		BsonSerializer bsonSerializer,
-		FlushLock flushLock,
+		long flushTimeoutMS,
 		BoskDriver downstream
 	) {
-		super(boskInfo.rootReference(), boskInfo.context(), new Formatter(boskInfo, bsonSerializer), collection, downstream, flushLock);
+		super(
+			boskInfo.rootReference(),
+			boskInfo.context(),
+			new Formatter(boskInfo, bsonSerializer),
+			collection,
+			downstream,
+			flushTimeoutMS
+		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 	}
 
@@ -133,6 +140,10 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		// and it's not even a strong reason, because this still works correctly
 		// if interpreted as two separate events.
 		writeManifest(Manifest.forSequoia());
+
+		// Update the state that we "know about"
+		revisionToSkip = newRevision;
+		flushLock.finishedRevision(newRevision);
 	}
 
 	/**

@@ -57,6 +57,7 @@ import static java.util.stream.Collectors.toList;
 import static org.bson.BsonBoolean.TRUE;
 import static works.bosk.Path.parseParameterized;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.docBsonPath;
+import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.util.Classes.enumerableByIdentifier;
 
 /**
@@ -77,10 +78,17 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		TransactionalCollection collection,
 		MongoDriverSettings driverSettings,
 		PandoFormat format, BsonSerializer bsonSerializer,
-		FlushLock flushLock,
+		long flushTimeoutMS,
 		BoskDriver downstream
 	) {
-		super(boskInfo.rootReference(), boskInfo.context(), new Formatter(boskInfo, bsonSerializer), collection, downstream, flushLock);
+		super(
+			boskInfo.rootReference(),
+			boskInfo.context(),
+			new Formatter(boskInfo, bsonSerializer),
+			collection,
+			downstream,
+			flushTimeoutMS
+		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;
 		this.format = format;
@@ -191,6 +199,10 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		UpdateResult result = collection.updateOne(filter, update, options);
 		LOGGER.debug("| Result: {}", result);
 		writeManifest(Manifest.forPando(format));
+
+		// Update the state that we "know about"
+		revisionToSkip = newRevision;
+		flushLock.finishedRevision(newRevision);
 	}
 
 	/**
@@ -302,7 +314,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			case DELETE: {
 				// No other events in the transaction matter if the root document is gone
 				LOGGER.debug("Document containing revision field has been deleted; assuming revision=0");
-				flushLock.finishedRevision(Formatter.REVISION_ZERO);
+				flushLock.finishedRevision(REVISION_ZERO);
 				revisionToSkip = null;
 			} break;
 			default: {
@@ -633,8 +645,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					// In that case, newer servers (including this one) will create the
 					// the field upon initialization, and we're ok to wait for any old
 					// revision number at all.
-					LOGGER.debug("No revision field; assuming {}", Formatter.REVISION_ZERO.longValue());
-					return Formatter.REVISION_ZERO;
+					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
+					return REVISION_ZERO;
 				} else {
 					LOGGER.debug("Read revision {}", result);
 					return result;
