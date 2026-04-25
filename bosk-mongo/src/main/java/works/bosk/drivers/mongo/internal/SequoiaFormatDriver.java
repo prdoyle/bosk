@@ -156,7 +156,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			validateManifestEvent(event, Manifest.forSequoia());
 			return;
 		}
-		if (!DOCUMENT_FILTER.equals(event.getDocumentKey())) {
+		if (!new BsonDocument("_id", DOCUMENT_ID).equals(event.getDocumentKey())) {
 			LOGGER.debug("Ignoring event for unrecognized document key: {}", event.getDocumentKey());
 			return;
 		}
@@ -229,7 +229,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	@Override
 	BsonDocument rootDocumentFilter() {
 		// We have just the one document, so it's the "root document"
-		return DOCUMENT_FILTER;
+		return new BsonDocument("_id", DOCUMENT_ID);
 	}
 
 	private <T> BsonDocument standardPreconditions(Reference<T> target) {
@@ -311,6 +311,5 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		return description;
 	}
 
-	private static final BsonDocument DOCUMENT_FILTER = new BsonDocument("_id", DOCUMENT_ID);
 	private static final Logger LOGGER = LoggerFactory.getLogger(SequoiaFormatDriver.class);
 }
