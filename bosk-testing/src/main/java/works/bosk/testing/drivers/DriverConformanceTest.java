@@ -95,7 +95,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 
 	@Order(1) // If this doesn't work, nothing will
 	@InjectedTest
-	void initialState(@EnclosingCatalog Path enclosingCatalogPath) {
+	void startingState(@EnclosingCatalog Path enclosingCatalogPath) {
 		initializeBoskWithCatalog(enclosingCatalogPath);
 		assertCorrectBoskContents();
 	}
