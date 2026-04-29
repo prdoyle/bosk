@@ -142,7 +142,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		writeManifest(Manifest.forSequoia());
 
 		// Update the state that we "know about"
-		revisionToSkip = newRevision;
 		flushLock.finishedRevision(newRevision);
 	}
 

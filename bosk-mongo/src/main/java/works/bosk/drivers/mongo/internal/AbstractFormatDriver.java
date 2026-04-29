@@ -104,9 +104,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			? MapValue.empty() // It's not clear what missing attributes mean, but using null here would have the effect of leaving the old attributes in place, which seems flaky
 			: formatter.decodeDiagnosticAttributes(bsonStateAndMetadata.diagnosticAttributes());
 
-
 		// Update the state that we "know about"
-		revisionToSkip = revision;
 		flushLock.finishedRevision(revision);
 
 		return new StateAndMetadata<>(root, revision, diagnosticAttributes);
@@ -163,11 +161,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		return blankUpdateDoc().append("$unset", new BsonDocument(key, BsonNull.VALUE));
 	}
 
-	protected volatile BsonInt64 revisionToSkip = null;
-
 	protected boolean shouldSkip(BsonInt64 revision) {
-		return revision != null && revisionToSkip != null
-			&& revision.longValue() <= revisionToSkip.longValue();
+		return revision != null && flushLock.alreadySeen(revision);
 	}
 
 	/**

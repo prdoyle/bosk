@@ -201,7 +201,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		writeManifest(Manifest.forPando(format));
 
 		// Update the state that we "know about"
-		revisionToSkip = newRevision;
 		flushLock.finishedRevision(newRevision);
 	}
 
@@ -315,7 +314,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				// No other events in the transaction matter if the root document is gone
 				LOGGER.debug("Document containing revision field has been deleted; assuming revision=0");
 				flushLock.finishedRevision(REVISION_ZERO);
-				revisionToSkip = null;
 			} break;
 			default: {
 				throw new UnprocessableEventException("Cannot process event", finalEvent.getOperationType());
