@@ -313,7 +313,7 @@ class RecordingTurboFilterTest {
 		assertEquals(1, events.size());
 
 		var event = (ch.qos.logback.classic.spi.LoggingEvent) events.iterator().next();
-		assertEquals(marker, event.getMarker());
+		assertEquals(List.of(marker), event.getMarkerList());
 	}
 
 	/**
