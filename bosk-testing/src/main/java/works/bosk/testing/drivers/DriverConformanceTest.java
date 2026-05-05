@@ -12,10 +12,7 @@ import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig;
@@ -40,9 +37,11 @@ import works.bosk.SideTableReference;
 import works.bosk.TaggedUnion;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.junit.Ante;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.InjectedTest;
 import works.bosk.junit.Injector;
+import works.bosk.junit.RunAnteTestsFirst;
 import works.bosk.testing.drivers.state.Primitives;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.testing.drivers.state.TestEntity.IdentifierCase;
@@ -74,7 +73,7 @@ import static works.bosk.util.ReflectionHelpers.boxedClass;
  * Use this by extending it and supplying a value for
  * the {@link #driverFactory} to test.
  */
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@RunAnteTestsFirst
 @InjectFrom({
 	DriverConformanceTest.EnclosingPathInjector.class,
 	DriverConformanceTest.ChildIdInjector.class,
@@ -93,9 +92,9 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		@ReferencePath("/values/string") Reference<String> valuesString();
 	}
 
-	@Order(1) // If this doesn't work, nothing will
+	@Ante // If this doesn't work, nothing will; don't thrash around running hopeless tests
 	@InjectedTest
-	void initialState(@EnclosingCatalog Path enclosingCatalogPath) {
+	void startingState(@EnclosingCatalog Path enclosingCatalogPath) {
 		initializeBoskWithCatalog(enclosingCatalogPath);
 		assertCorrectBoskContents();
 	}

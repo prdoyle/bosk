@@ -5,6 +5,7 @@ import org.jooq.TableField;
 import org.jooq.impl.TableImpl;
 
 import static org.jooq.impl.DSL.name;
+import static org.jooq.impl.QOM.GenerationMode.BY_DEFAULT;
 import static org.jooq.impl.SQLDataType.BIGINT;
 import static org.jooq.impl.SQLDataType.CLOB;
 import static org.jooq.impl.SQLDataType.VARCHAR;
@@ -18,7 +19,7 @@ public class ChangesTable extends TableImpl<org.jooq.Record> {
 	public final TableField<Record, String> EPOCH = createField(
 		name("epoch"), VARCHAR.notNull());
 	public final TableField<Record, Long> REVISION = createField(
-		name("revision"), BIGINT.null_().identity(true));
+		name("revision"), BIGINT.null_().identityMode(BY_DEFAULT));
 	public final TableField<Record, String> REF = createField(
 		name("ref"), VARCHAR.notNull());
 	public final TableField<Record, String> NEW_STATE = createField(
