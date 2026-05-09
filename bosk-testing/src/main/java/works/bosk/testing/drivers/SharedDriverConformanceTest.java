@@ -11,6 +11,7 @@ import works.bosk.testing.drivers.state.TestEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Tests the ability of a driver to share state between two bosks.
@@ -54,9 +55,8 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		setupBosksAndReferences(driverFactory);
 		Refs refs = bosk.buildReferences(Refs.class);
 
-		if (!(scenario.tenancyModel instanceof Persistent)) {
-			return;
-		}
+		// Note: do this assume after the setup is done, or cleanup will crash!
+		assumeTrue(scenario.tenancyModel instanceof Persistent);
 
 		tenantScope.close();
 		tenantScope = null;

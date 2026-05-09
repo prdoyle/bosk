@@ -119,6 +119,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * so that's what we're calling it.
 	 * <p>
 	 * This is null before the constructor finishes.
+	 * <p>
+	 * TODO: Whenever this is updated, check that it's consistent with the tenancy model
 	 */
 	@Nullable private volatile InitialState<R> currentState;
 
