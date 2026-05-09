@@ -152,8 +152,7 @@ public class ReplicaSet<R extends StateTreeNode> {
 				// to violate this--but unfortunately we have no way to verify it here,
 				// because at this point in the code, we cannot tell which replica we're initializing.
 				try (var _ = seedReadSession(seed)) {
-					return InitialState.of(seed.boskInfo().rootReference().value())
-						.cast(rootType);
+					return seed.boskInfo().bosk().entireState().cast(rootType);
 				}
 			} else {
 				// The first time this is called, we assume it's for the seed replica.

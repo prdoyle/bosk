@@ -14,12 +14,13 @@ import works.bosk.drivers.sql.schema.Schema;
 import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
+import works.bosk.testing.drivers.AbstractDriverTest.SingleTreeScenarioInjector;
 import works.bosk.testing.drivers.PolyfillDriverConformanceTest;
 
 import static works.bosk.drivers.sql.SqlTestService.sqlDriverFactory;
 
 @InjectFields
-@InjectFrom(DatabaseInjector.class)
+@InjectFrom({DatabaseInjector.class, SingleTreeScenarioInjector.class})
 @Testcontainers
 class SqlDriverConformanceTest extends PolyfillDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();

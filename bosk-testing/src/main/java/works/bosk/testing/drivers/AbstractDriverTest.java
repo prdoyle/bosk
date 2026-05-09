@@ -16,10 +16,13 @@ import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
+import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.ContextScope;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.InitialState.MultiTree;
 import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
 import works.bosk.DriverStack;
@@ -46,6 +49,7 @@ import static works.bosk.testing.BoskTestUtils.boskName;
 @InjectFrom(ScenarioInjector.class)
 public abstract class AbstractDriverTest {
 	public static final Identifier TENANT1 = Identifier.from("tenant1");
+	public static final Identifier TENANT2 = Identifier.from("tenant2");
 	protected final Identifier child1ID = Identifier.from("child1");
 	protected final Identifier child2ID = Identifier.from("child2");
 	protected TestInfo testInfo;
@@ -59,7 +63,7 @@ public abstract class AbstractDriverTest {
 	public enum Scenario {
 		NO_TENANTS(TenancyModel.NONE, Tenant.NONE),
 		FIXED_TENANT(new Fixed(TENANT1), Tenant.setTo(TENANT1)),
-		TRANSIENT_TENANT(TenancyModel.TRANSIENT, Tenant.setTo(TENANT1))
+		PERSISTENT_TENANT(TenancyModel.PERSISTENT, Tenant.setTo(TENANT1))
 		;
 
 		public final TenancyModel tenancyModel;
@@ -104,6 +108,21 @@ public abstract class AbstractDriverTest {
 		}
 	}
 
+	/**
+	 * For drivers that don't yet support the tree-per-tenant model.
+	 */
+	public record SingleTreeScenarioInjector() implements Injector {
+		@Override
+		public boolean supports(AnnotatedElement element, Class<?> elementType) {
+			return elementType.equals(Scenario.class);
+		}
+
+		@Override
+		public List<?> values() {
+			return List.of(Scenario.NO_TENANTS, Scenario.FIXED_TENANT);
+		}
+	}
+
 	@BeforeEach
 	void clearTenantScope() {
 		tenantScope = null;
@@ -142,15 +161,13 @@ public abstract class AbstractDriverTest {
 	}
 
 	protected void setupBosksAndReferences(DriverFactory<TestEntity> driverFactory) {
-		TenancyModel tenancyModel = scenario.tenancyModel;
-
 		// This is the bosk whose behaviour we'll consider to be correct by definition
 		canonicalBosk = new Bosk<>(
 			boskName("Canonical", 1),
 			TestEntity.class,
 			this::initialState,
 			BoskConfig.<TestEntity>builder()
-				.tenancyModel(tenancyModel)
+				.tenancyModel(scenario.tenancyModel)
 				.build()
 		);
 
@@ -164,7 +181,7 @@ public abstract class AbstractDriverTest {
 					ReplicaSet.mirroringTo(canonicalBosk),
 					DriverStateVerifier.wrap(driverFactory, TestEntity.class, this::initialState)
 				))
-				.tenancyModel(tenancyModel)
+				.tenancyModel(scenario.tenancyModel)
 				.build());
 		driver = bosk.driver();
 		tenantScope = bosk.context().withMaybeTenant(scenario.startingTenant);
@@ -172,7 +189,12 @@ public abstract class AbstractDriverTest {
 
 	public InitialState<TestEntity> initialState(Bosk<TestEntity> b) throws InvalidTypeException {
 		TestEntity root = TestEntity.empty(Identifier.from("root"), b.rootReference().thenCatalog(TestEntity.class, Path.just(Fields.catalog)));
-		return InitialState.of(root);
+		return switch (scenario.tenancyModel) {
+			case Persistent _ -> MultiTree.<TestEntity>empty()
+				.with((SetTo) scenario.startingTenant, root)
+				.with(Tenant.setTo(TENANT2), root.withId(Identifier.from(TENANT2 + " root")));
+			case None _, Fixed _ -> InitialState.of(root);
+		};
 	}
 
 	protected TestEntity autoInitialize(Reference<TestEntity> ref) {
@@ -232,11 +254,13 @@ public abstract class AbstractDriverTest {
 		}
 		TestEntity expected, actual;
 		try (
+			var _ = canonicalBosk.context().withMaybeTenant(scenario.startingTenant);
 			var _ = canonicalBosk.readSession()
 		) {
 			expected = canonicalBosk.rootReference().value();
 		}
 		try (
+			var _ = bosk.context().withMaybeTenant(scenario.startingTenant);
 			var _ = bosk.readSession()
 		) {
 			actual = bosk.rootReference().value();

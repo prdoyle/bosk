@@ -27,6 +27,7 @@ import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
 import works.bosk.junit.Injector;
+import works.bosk.logback.ReplayLogsOnFailure;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.testing.junit.Slow;
 
@@ -44,6 +45,7 @@ import static works.bosk.testing.BoskTestUtils.boskName;
 	SchemaEvolutionTest.FromConfigInjector.class,
 	SchemaEvolutionTest.ToConfigInjector.class,
 })
+@ReplayLogsOnFailure
 public class SchemaEvolutionTest {
 
 	@Injected

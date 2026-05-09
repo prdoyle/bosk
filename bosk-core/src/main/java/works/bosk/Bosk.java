@@ -27,12 +27,13 @@ import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
-import works.bosk.BoskConfig.TenancyModel.Transient;
+import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
-import works.bosk.BoskContext.Tenant.NotEstablished;
+import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.InitialState.MultiTree;
 import works.bosk.BoskDriver.InitialState.SingleTree;
 import works.bosk.ReferenceUtils.CatalogRef;
 import works.bosk.ReferenceUtils.ListingRef;
@@ -118,6 +119,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * so that's what we're calling it.
 	 * <p>
 	 * This is null before the constructor finishes.
+	 * <p>
+	 * TODO: Whenever this is updated, check that it's consistent with the tenancy model
 	 */
 	@Nullable private volatile InitialState<R> currentState;
 
@@ -203,6 +206,13 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 */
 	public static <RR extends StateTreeNode> Bosk<RR> simple(String name, RR initialRoot) {
 		return new Bosk<>(requireNonNull(name), initialRoot.getClass(), _ -> InitialState.of(initialRoot), BoskConfig.simple());
+	}
+
+	public InitialState<R> entireState() {
+		return switch (rootSnapshot.get()) {
+			case null -> throw new NoReadSessionException("Cannot get state outside of a read session");
+			case InitialState<R> s -> s;
+		};
 	}
 
 	public interface DefaultStateFunction<RR extends StateTreeNode> {
@@ -352,11 +362,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			) {
 				downstream.flush();
 			}
-		}
-
-		private void assertTenantEstablished() {
-			assert context().getTenant() instanceof Established:
-				"Tenant must be established for driver operations";
 		}
 
 		private <T> void assertCorrectBosk(Reference<T> target) {
@@ -515,51 +520,24 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 * with the appropriate tenant information established.
 		 */
 		private void forEachRoot(Consumer<R> action) {
-			switch (currentState) {
-				case null -> throw new IllegalStateException("Bosk state is not yet initialized");
-				case SingleTree<R>(var root) -> {
-					var tenant = switch (tenancyModel) {
-						case None _ -> Tenant.NONE;
-						case Fixed(var id) -> new Tenant.SetTo(id);
-						case Transient _ -> {
-							// This is a wart in the shared tree model. I suspect this is fatal, and we'll
-							// deprecate and remove the shared tree model.
-							//
-							// When an update comes in, we have tenant info and could propagate it to hooks,
-							// but during `triggerEverywhere`, we have no tenant info for what amounts to
-							// past updates. Using NOT_ESTABLISHED lets the hooks themselves set
-							// the tenant info if they need to make further updates.
-							//
-							// Based on the principle that if it can't always work it should never work,
-							// we ought to use NOT_ESTABLISHED for all hooks, even those triggered by new updates,
-							// at least in Explicit mode but probably in all modes.
-							// However, given that only the shared tree model has this problem,
-							// and that we're likely to remove that model soon enough,
-							// I think it makes more sense to limit the scope of the weirdness,
-							// so we use NOT_ESTABLISHED only here.
-							//
-							// This is a problem we didn't encounter with the diagnostic attributes, only because
-							// it's questionable whether diagnostics ought to be propagated from past updates anyway.
-							// It will be a problem for any new piece of context though, which is unfortunate.
-							//
-							// Hooks run during `triggerEverywhere` seem doomed to be different from hooks run
-							// during normal updates unless we keep all context from past updates, which seems infeasible.
-							//
-							yield Tenant.NOT_ESTABLISHED;
-						}
-					};
-					switch (tenant) {
-						case NotEstablished _ -> {
-							try (var _ = context.withTenantTemporarilyIgnored()) {
-								action.accept(root);
-							}
-						}
-						case Established t -> {
-							try (var _ = context.withTenant(t)) {
-								action.accept(root);
-							}
+			try (var _ = context.withTenantTemporarilyIgnored()) {
+				switch (currentState) {
+					case null -> throw new IllegalStateException("Bosk state is not yet initialized");
+					case SingleTree<R>(var root) -> {
+						var tenant = switch (tenancyModel) {
+							case None _ -> Tenant.NONE;
+							case Fixed(var id) -> new Tenant.SetTo(id);
+							case Persistent _ -> throw new IllegalStateException("Persistent tenancy model is not supported in single-tree bosk");
+						};
+						try (var _ = context.withTenant(tenant)) {
+							action.accept(root);
 						}
 					}
+					case MultiTree<R> m -> m.tenantRoots().forEach((tenant, root) -> {
+						try (var _ = context.withTenant(tenant)) {
+							action.accept(root);
+						}
+					});
 				}
 			}
 		}
@@ -579,6 +557,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> InitialState.of(newRoot);
 					case SingleTree<R> _ -> InitialState.of(newRoot);
+					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Replacement at {} changed root from {} to {}",
@@ -609,6 +588,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
 					case SingleTree<R> _ -> InitialState.of(newRoot);
+					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Deletion at {} changed root from {} to {}",
@@ -642,17 +622,14 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 * on every matching object that exists in <code>rootForHook</code>.
 		 */
 		private <T, S> void triggerQueueingOfHooks(Reference<T> target, @Nullable R priorRoot, R rootForHook, HookRegistration<S> reg) {
-			Tenant tenant = switch (tenancyModel) {
-				case Transient _ -> Tenant.NOT_ESTABLISHED;
-				default -> context.getEstablishedTenant();
-			};
+			var tenant = context.getEstablishedTenant();
 			MapValue<String> attributes = context.getAttributes();
 			reg.triggerAction(priorRoot, rootForHook, target, changedRef -> {
 				LOGGER.debug("Hook: queue {}({}) due to {}", reg.name, changedRef, target);
 				hookExecutionQueue.addLast(() -> {
 					// We use two nested try statements here so that the "finally" clause runs within the diagnostic scope
 					try (var _ = context.withOnly(attributes);
-						var _ = context.withMaybeTenant(tenant) // Can be withTenant once TenancyModel.Transient is gone
+						var _ = context.withTenant(tenant)
 					) {
 						try (ReadSession _ = new ReadSession(InitialState.of(rootForHook))) {
 							LOGGER.debug("Hook: RUN {}({})", reg.name, changedRef);
@@ -1426,10 +1403,11 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		@Override
 		@SuppressWarnings("unchecked")
 		public T valueIfExists() {
-			R snapshot = switch (rootSnapshot.get()) {
-				case null -> throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
-				case SingleTree<R>(var r) -> r;
-			};
+			assertTenantEstablished();
+			R snapshot = getRoot(rootSnapshot.get());
+			if (snapshot == null) {
+				throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
+			}
 			LOGGER.trace("Snapshot is {}", System.identityHashCode(snapshot));
 			try {
 				return (T) dereferencer().get(snapshot, this);
@@ -1552,15 +1530,35 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 	@Nullable
 	final R currentRoot() {
-		return switch (currentState) {
+		return getRoot(currentState);
+	}
+
+	private <RR extends StateTreeNode> @Nullable RR getRoot(InitialState<RR> state) {
+		return switch (state) {
 			case null -> null; // Bosk is still initializing
-			case SingleTree<R>(var r) -> r;
+			case SingleTree<RR>(var r) -> r;
+			case MultiTree<RR>(var r) -> {
+				if (context().getTenant() instanceof SetTo s) {
+					RR result = r.get(s);
+					if (result == null) {
+						throw new IllegalStateException("Tenant " + s + " does not exist");
+					}
+					yield result;
+				} else {
+					throw new IllegalStateException("Tenant must be SetTo for multi-tenant bosk");
+				}
+			}
 		};
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static Class<EnumerableByIdentifier<?>> enumerableByIdentifierClass() {
 		return (Class) EnumerableByIdentifier.class;
+	}
+
+	private void assertTenantEstablished() {
+		assert context().getTenant() instanceof Established:
+			"Tenant must be established for driver operations";
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(Bosk.class);
