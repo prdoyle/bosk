@@ -1,6 +1,25 @@
-* text eol=lf
-*.ico binary
-*.jar binary
-*.jpg binary
+# Repository line-ending normalization for Bosk
+# Treat text files automatically, but force common script files to the appropriate EOLs
+* text=auto
+
+# Windows batch files: CRLF in working tree
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# PowerShell scripts: CRLF in working tree
+*.ps1 text eol=crlf
+
+# Unix shell scripts: LF in working tree
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Assets and build artifacts are binary
 *.png binary
-*.svg binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.class binary
+*.jar binary
+
+# Keep SVG and XML as text (they are textual by default)
+# End of .gitattributes
