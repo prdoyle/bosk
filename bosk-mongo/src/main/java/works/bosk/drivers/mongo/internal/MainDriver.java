@@ -35,6 +35,7 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskConfig.TenancyModel.Implicit;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.InitialState.MultiTree;
 import works.bosk.BoskDriver.InitialState.SingleTree;
@@ -144,6 +145,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.driverSettings = driverSettings;
 			this.bsonSerializer = bsonSerializer;
 			this.downstream = downstream;
+
+			switch (boskInfo.tenancyModel()) {
+				case Implicit _ -> {}
+				default -> throw new IllegalArgumentException("Tenancy model not yet supported: " + boskInfo.tenancyModel());
+			}
 
 			// Flushes work by waiting for the latest version to arrive on the change stream.
 			// If we wait for two heartbeats and don't see the update, something has gone wrong.

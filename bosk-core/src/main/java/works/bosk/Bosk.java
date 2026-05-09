@@ -31,7 +31,7 @@ import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
-import works.bosk.BoskContext.Tenant.NotEstablished;
+import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver.InitialState;
 import works.bosk.BoskDriver.InitialState.MultiTree;
 import works.bosk.BoskDriver.InitialState.SingleTree;
@@ -206,6 +206,13 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		return new Bosk<>(requireNonNull(name), initialRoot.getClass(), _ -> InitialState.of(initialRoot), BoskConfig.simple());
 	}
 
+	public InitialState<R> entireState() {
+		return switch (rootSnapshot.get()) {
+			case null -> throw new NoReadSessionException("Cannot get state outside of a read session");
+			case InitialState<R> s -> s;
+		};
+	}
+
 	public interface DefaultStateFunction<RR extends StateTreeNode> {
 		InitialState<RR> apply(Bosk<RR> bosk) throws InvalidTypeException, IOException, InterruptedException;
 	}
@@ -353,11 +360,6 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			) {
 				downstream.flush();
 			}
-		}
-
-		private void assertTenantEstablished() {
-			assert context().getTenant() instanceof Established:
-				"Tenant must be established for driver operations";
 		}
 
 		private <T> void assertCorrectBosk(Reference<T> target) {
@@ -516,20 +518,24 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 * with the appropriate tenant information established.
 		 */
 		private void forEachRoot(Consumer<R> action) {
-			switch (currentState) {
-				case null -> throw new IllegalStateException("Bosk state is not yet initialized");
-				case SingleTree<R>(var root) -> {
-					var tenant = switch (tenancyModel) {
-						case None _ -> Tenant.NONE;
-						case Fixed(var id) -> new Tenant.SetTo(id);
-						case Persistent _ -> throw new IllegalStateException("Persistent tenancy model is not supported in single-tree bosk");
-					};
-					try (var _ = context.withTenant(tenant)) {
-						action.accept(root);
+			try (var _ = context.withTenantTemporarilyIgnored()) {
+				switch (currentState) {
+					case null -> throw new IllegalStateException("Bosk state is not yet initialized");
+					case SingleTree<R>(var root) -> {
+						var tenant = switch (tenancyModel) {
+							case None _ -> Tenant.NONE;
+							case Fixed(var id) -> new Tenant.SetTo(id);
+							case Persistent _ -> throw new IllegalStateException("Persistent tenancy model is not supported in single-tree bosk");
+						};
+						try (var _ = context.withTenant(tenant)) {
+							action.accept(root);
+						}
 					}
-				}
-				case MultiTree<R> _ -> {
-					throw new NotYetImplementedException();
+					case MultiTree<R> m -> m.tenantRoots().forEach((tenant, root) -> {
+						try (var _ = context.withTenant(tenant)) {
+							action.accept(root);
+						}
+					});
 				}
 			}
 		}
@@ -549,7 +555,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> InitialState.of(newRoot);
 					case SingleTree<R> _ -> InitialState.of(newRoot);
-					case MultiTree<R> _ -> throw new IllegalStateException("Multi-tree state is not yet supported");
+					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Replacement at {} changed root from {} to {}",
@@ -580,7 +586,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
 					case SingleTree<R> _ -> InitialState.of(newRoot);
-					case MultiTree<R> _ -> throw new IllegalStateException("Multi-tree state is not yet supported");
+					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Deletion at {} changed root from {} to {}",
@@ -1395,11 +1401,11 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		@Override
 		@SuppressWarnings("unchecked")
 		public T valueIfExists() {
-			R snapshot = switch (rootSnapshot.get()) {
-				case null -> throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
-				case SingleTree<R>(var r) -> r;
-				case MultiTree<R>(var _) -> throw new NotYetImplementedException();
-			};
+			assertTenantEstablished();
+			R snapshot = getRoot(rootSnapshot.get());
+			if (snapshot == null) {
+				throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
+			}
 			LOGGER.trace("Snapshot is {}", System.identityHashCode(snapshot));
 			try {
 				return (T) dereferencer().get(snapshot, this);
@@ -1522,16 +1528,35 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 	@Nullable
 	final R currentRoot() {
-		return switch (currentState) {
+		return getRoot(currentState);
+	}
+
+	private <RR extends StateTreeNode> @Nullable RR getRoot(InitialState<RR> state) {
+		return switch (state) {
 			case null -> null; // Bosk is still initializing
-			case SingleTree<R>(var r) -> r;
-			case MultiTree<R>(var _) -> throw new NotYetImplementedException();
+			case SingleTree<RR>(var r) -> r;
+			case MultiTree<RR>(var r) -> {
+				if (context().getTenant() instanceof SetTo s) {
+					RR result = r.get(s);
+					if (result == null) {
+						throw new IllegalStateException("Tenant " + s + " does not exist");
+					}
+					yield result;
+				} else {
+					throw new IllegalStateException("Tenant must be SetTo for multi-tenant bosk");
+				}
+			}
 		};
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static Class<EnumerableByIdentifier<?>> enumerableByIdentifierClass() {
 		return (Class) EnumerableByIdentifier.class;
+	}
+
+	private void assertTenantEstablished() {
+		assert context().getTenant() instanceof Established:
+			"Tenant must be established for driver operations";
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(Bosk.class);

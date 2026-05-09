@@ -1,16 +1,23 @@
 package works.bosk.testing.drivers;
 
+import org.junit.jupiter.api.Test;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
+import works.bosk.BoskConfig.TenancyModel.Persistent;
+import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskDriver.InitialState;
 import works.bosk.testing.BoskTestUtils;
 import works.bosk.testing.drivers.state.TestEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * Tests the ability of a driver to share state between two bosks.
  */
 public abstract class SharedDriverConformanceTest extends DriverConformanceTest {
+	final Tenant.SetTo tenant1 = Tenant.setTo(TENANT1);
+	final Tenant.SetTo tenant2 = Tenant.setTo(TENANT2);
 
 	@Override
 	protected void assertCorrectBoskContents() {
@@ -28,14 +35,73 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		} catch (Exception e) {
 			throw new AssertionError("Unexpected exception", e);
 		}
-		TestEntity expected, actual;
-		try (var _ = canonicalBosk.readSession()) {
-			expected = canonicalBosk.rootReference().value();
+		InitialState<TestEntity> expected, actual;
+		try (
+			var _ = canonicalBosk.readSession()
+		) {
+			expected = canonicalBosk.entireState();
 		}
-		try (var _ = latecomer.readSession()) {
-			actual = latecomer.rootReference().value();
+		try (
+			var _ = latecomer.readSession()
+		) {
+			actual = latecomer.entireState();
 		}
 		assertEquals(expected, actual);
 	}
 
+	@Test
+	void multiTenant_replicatesStateAcrossTenants() throws Exception {
+		setupBosksAndReferences(driverFactory);
+		Refs refs = bosk.buildReferences(Refs.class);
+
+		if (!(scenario.tenancyModel instanceof Persistent)) {
+			return;
+		}
+
+		tenantScope.close();
+		tenantScope = null;
+
+		InitialState.MultiTree<TestEntity> expectedState = (InitialState.MultiTree<TestEntity>) initialState(bosk);
+		assertNotEquals(
+			expectedState.tenantRoots().get(tenant1),
+			expectedState.tenantRoots().get(tenant2),
+			"Meta-assertion: the tests won't detect problems if the tenant states are indistinguishable");
+
+		try (var _ = bosk.readSession()) {
+			assertEquals(expectedState, bosk.entireState(), "Entire state should be correct");
+
+			// Check that each tenant has its own state
+			try (var _ = bosk.context().withTenant(tenant1)) {
+				var expected = expectedState.tenantRoots().get(tenant1);
+				assertEquals(expected, bosk.rootReference().value());
+			}
+
+			try (var _ = bosk.context().withTenant(tenant2)) {
+				var expected = expectedState.tenantRoots().get(tenant2);
+				assertEquals(expected, bosk.rootReference().value());
+			}
+		}
+
+		// Change them in different ways
+
+		try (var _ = bosk.context().withTenant(tenant1)) {
+			driver.submitReplacement(refs.string(), "new tenant1 string");
+		}
+		try (var _ = bosk.context().withTenant(tenant2)) {
+			driver.submitReplacement(refs.string(), "new tenant2 string");
+		}
+		driver.flush();
+
+		// Ensure each tenant sees its own change
+
+		try (var _ = bosk.readSession()) {
+			try (var _ = bosk.context().withTenant(tenant1)) {
+				assertEquals("new tenant1 string", refs.string().value());
+			}
+
+			try (var _ = bosk.context().withTenant(tenant2)) {
+				assertEquals("new tenant2 string", refs.string().value());
+			}
+		}
+	}
 }

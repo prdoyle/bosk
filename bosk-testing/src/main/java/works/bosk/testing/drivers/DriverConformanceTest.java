@@ -83,6 +83,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 
 	public interface Refs {
 		@ReferencePath("/id") Reference<Identifier> rootID();
+		@ReferencePath("/string") Reference<String> string();
 		@ReferencePath("/catalog/-id-") Reference<TestEntity> catalogEntry(Identifier id);
 		@ReferencePath("/nestedSideTable/outer") SideTableReference<TestEntity, TestEntity> outer();
 		@ReferencePath("/nestedSideTable/outer/-inner-/catalog") CatalogReference<TestEntity> innerCatalog(Identifier id);

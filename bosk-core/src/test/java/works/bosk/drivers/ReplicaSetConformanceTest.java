@@ -5,12 +5,15 @@ import org.junit.jupiter.api.BeforeEach;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
 import works.bosk.BoskDriver.InitialState;
+import works.bosk.junit.InjectFrom;
+import works.bosk.testing.drivers.AbstractDriverTest.SingleTreeScenarioInjector;
 import works.bosk.testing.drivers.SharedDriverConformanceTest;
 import works.bosk.testing.drivers.state.TestEntity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
+@InjectFrom(SingleTreeScenarioInjector.class)
 class ReplicaSetConformanceTest extends SharedDriverConformanceTest {
 	Bosk<TestEntity> replicaBosk;
 

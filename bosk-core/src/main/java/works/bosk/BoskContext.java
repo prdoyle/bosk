@@ -110,7 +110,16 @@ public final class BoskContext {
 		 * <p>
 		 * For a bosk configured without multi-tenancy, this value is not allowed.
 		 */
-		record SetTo(Identifier tenant) implements Established {}
+		record SetTo(Identifier tenant) implements Established, Comparable<SetTo> {
+			public SetTo {
+				requireNonNull(tenant);
+			}
+
+			@Override
+			public int compareTo(SetTo o) {
+				return tenant.toString().compareTo(o.tenant.toString());
+			}
+		}
 
 		/**
 		 * @see NotEstablished

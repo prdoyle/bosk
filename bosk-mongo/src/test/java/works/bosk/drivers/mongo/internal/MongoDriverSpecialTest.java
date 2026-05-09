@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
+import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.InitialState;
 import works.bosk.Catalog;
@@ -117,6 +118,19 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
+	void multitenant_notSupported() {
+		assertThrows(IllegalArgumentException.class, ()-> new Bosk<>(
+			boskName("multitenant"),
+			TestEntity.class,
+			AbstractMongoDriverTest::initialState,
+			BoskConfig.<TestEntity>builder()
+				.tenancyModel(TenancyModel.PERSISTENT)
+				.driverFactory(driverFactory)
+				.build()
+		));
+	}
+
+	@Test
 	void quiescent_noErrors() throws InterruptedException, IOException {
 		Bosk<TestEntity> bosk = new Bosk<>(
 			boskName("quiescent"),
@@ -133,6 +147,10 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		errorRecorder.assertAllClear("after flush");
 	}
 
+	/**
+	 * TODO: Doesn't {@link works.bosk.testing.drivers.SharedDriverConformanceTest} handle this now?
+	 * Should probably just delete this one.
+	 */
 	@Test
 	void warmStart_stateMatches() throws InvalidTypeException, InterruptedException, IOException {
 		Bosk<TestEntity> setupBosk = new Bosk<>(
