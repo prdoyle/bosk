@@ -67,7 +67,7 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	void initializeCollection(StateAndMetadata<R> priorContents);
 
 	@Override
-	default <RR extends StateTreeNode> InitialState<RR> initialState(Class<RR> rootType) {
+	default <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) {
 		throw new UnsupportedOperationException(
 			"FormatDriver doesn't need to implement initialState: MainDriver derives it from loadAllState");
 	}

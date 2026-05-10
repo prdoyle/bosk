@@ -33,7 +33,7 @@ import works.bosk.Bosk;
 import works.bosk.BoskConfig;
 import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskDriver;
-import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.EntireState;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
 import works.bosk.Entity;
@@ -612,7 +612,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		Bosk<OptionalEntity> setupBosk = new Bosk<>(
 			boskName("Setup"),
 			OptionalEntity.class,
-			b -> InitialState.of(OptionalEntity.withString(Optional.empty(), b)),
+			b -> EntireState.just(OptionalEntity.withString(Optional.empty(), b)),
 			BoskConfig.<OptionalEntity>builder().driverFactory(createDriverFactory(logController, testInfo)).build());
 
 		LOGGER.debug("Connect another bosk where the string field is mandatory");

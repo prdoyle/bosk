@@ -32,9 +32,9 @@ import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskContext.Tenant.SetTo;
-import works.bosk.BoskDriver.InitialState;
-import works.bosk.BoskDriver.InitialState.MultiTree;
-import works.bosk.BoskDriver.InitialState.SingleTree;
+import works.bosk.BoskDriver.EntireState;
+import works.bosk.BoskDriver.EntireState.MultiTree;
+import works.bosk.BoskDriver.EntireState.SingleTree;
 import works.bosk.ReferenceUtils.CatalogRef;
 import works.bosk.ReferenceUtils.ListingRef;
 import works.bosk.ReferenceUtils.SideTableRef;
@@ -100,7 +100,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	private final IngressDriver ingressDriver;
 	private final LocalDriver localDriver;
 	private final RootRef rootRef;
-	private final ThreadLocal<InitialState<R>> rootSnapshot = new ThreadLocal<>();
+	private final ThreadLocal<EntireState<R>> rootSnapshot = new ThreadLocal<>();
 	private final HookRegistrar hookRegistrar;
 	private final Queue<HookRegistration<?>> hooks = new ConcurrentLinkedQueue<>();
 	private final PathCompiler pathCompiler;
@@ -112,17 +112,11 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 	/**
 	 * Mutable state.
-	 * <p>
-	 * This is declared of type {@link InitialState} because that has all the data we need to manage the state.
-	 * The name looks weird in this context because it's not really the <em>initial</em> state,
-	 * but we want to use the name "InitialState" in the {@link BoskDriver} interface,
-	 * so that's what we're calling it.
-	 * <p>
 	 * This is null before the constructor finishes.
 	 * <p>
 	 * TODO: Whenever this is updated, check that it's consistent with the tenancy model
 	 */
-	@Nullable private volatile InitialState<R> currentState;
+	@Nullable private volatile EntireState<R> currentState;
 
 	/**
 	 * @param name                A distinctive identifier string. The bosk framework doesn't use this, so there are no requirements on this string: it can be anything that identifies the object.
@@ -205,18 +199,18 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * @param initialRoot The starting value of the bosk state tree, before any updates.
 	 */
 	public static <RR extends StateTreeNode> Bosk<RR> simple(String name, RR initialRoot) {
-		return new Bosk<>(requireNonNull(name), initialRoot.getClass(), _ -> InitialState.of(initialRoot), BoskConfig.simple());
+		return new Bosk<>(requireNonNull(name), initialRoot.getClass(), _ -> EntireState.just(initialRoot), BoskConfig.simple());
 	}
 
-	public InitialState<R> entireState() {
+	public EntireState<R> entireState() {
 		return switch (rootSnapshot.get()) {
 			case null -> throw new NoReadSessionException("Cannot get state outside of a read session");
-			case InitialState<R> s -> s;
+			case EntireState<R> s -> s;
 		};
 	}
 
 	public interface DefaultStateFunction<RR extends StateTreeNode> {
-		InitialState<RR> apply(Bosk<RR> bosk) throws InvalidTypeException, IOException, InterruptedException;
+		EntireState<RR> apply(Bosk<RR> bosk) throws InvalidTypeException, IOException, InterruptedException;
 	}
 
 	record Info<RR extends StateTreeNode>(
@@ -344,7 +338,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
-		public <RR extends StateTreeNode> InitialState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
+		public <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
 			try (var _ = setupMDC(name(), instanceID())) {
 				return downstream.initialState(rootType)
 					.cast(rootRef.targetClass())
@@ -415,7 +409,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
-		public <RR extends StateTreeNode> InitialState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
+		public <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
 			return requireNonNull(initialStateFunction.apply(Bosk.this))
 				.cast(rootType);
 		}
@@ -555,8 +549,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				@SuppressWarnings("unchecked")
 				R newRoot = (R) requireNonNull(dereferencer.with(oldRoot, target, requireNonNull(newValue)));
 				currentState = switch (currentState) {
-					case null -> InitialState.of(newRoot);
-					case SingleTree<R> _ -> InitialState.of(newRoot);
+					case null -> EntireState.just(newRoot);
+					case SingleTree<R> _ -> EntireState.just(newRoot);
 					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
@@ -587,7 +581,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				R newRoot = (R) requireNonNull(dereferencer.without(oldRoot, target));
 				currentState = switch (currentState) {
 					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
-					case SingleTree<R> _ -> InitialState.of(newRoot);
+					case SingleTree<R> _ -> EntireState.just(newRoot);
 					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
@@ -631,7 +625,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 					try (var _ = context.withOnly(attributes);
 						var _ = context.withTenant(tenant)
 					) {
-						try (ReadSession _ = new ReadSession(InitialState.of(rootForHook))) {
+						try (ReadSession _ = new ReadSession(EntireState.just(rootForHook))) {
 							LOGGER.debug("Hook: RUN {}({})", reg.name, changedRef);
 							reg.hook.onChanged(changedRef);
 						} catch (Exception e) {
@@ -972,7 +966,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			// TODO: This would be less cumbersome if we could apply a Reference to an arbitrary root object.
 			// For now, References only apply to the current ReadSession, so we need a new ReadSession every time
 			// we want to change roots.
-			try (var _ = new ReadSession(InitialState.of(root))) {
+			try (var _ = new ReadSession(EntireState.just(root))) {
 				return containerRef.valueIfExists();
 			}
 		}
@@ -986,8 +980,8 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * @author pdoyle
 	 */
 	public final class ReadSession implements AutoCloseable {
-		final InitialState<R> originalRoot;
-		final InitialState<R> snapshot; // Mostly for adopt()
+		final EntireState<R> originalRoot;
+		final EntireState<R> snapshot; // Mostly for adopt()
 
 		/**
 		 * Creates a {@link ReadSession} for the current thread. If one is already
@@ -1011,7 +1005,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		private ReadSession(ReadSession toAdopt) {
-			InitialState<R> snapshotToInherit = requireNonNull(toAdopt.snapshot);
+			EntireState<R> snapshotToInherit = requireNonNull(toAdopt.snapshot);
 			originalRoot = rootSnapshot.get();
 			if (originalRoot == null) {
 				rootSnapshot.set(this.snapshot = snapshotToInherit);
@@ -1032,7 +1026,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 * Unlike the other constructors, this can be used to substitute a new state temporarily,
 		 * even if there's already one active on the current thread.
 		 */
-		ReadSession(@NotNull InitialState<R> state) {
+		ReadSession(@NotNull EntireState<R> state) {
 			originalRoot = rootSnapshot.get();
 			snapshot = requireNonNull(state);
 			rootSnapshot.set(snapshot);
@@ -1138,7 +1132,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * @see #readSession()
 	 */
 	public final ReadSession supersedingReadSession() {
-		InitialState<R> snapshot = currentState;
+		EntireState<R> snapshot = currentState;
 		if (snapshot == null) {
 			throw new IllegalStateException("Bosk constructor has not yet finished; cannot create a ReadSession");
 		}
@@ -1533,7 +1527,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		return getRoot(currentState);
 	}
 
-	private <RR extends StateTreeNode> @Nullable RR getRoot(InitialState<RR> state) {
+	private <RR extends StateTreeNode> @Nullable RR getRoot(EntireState<RR> state) {
 		return switch (state) {
 			case null -> null; // Bosk is still initializing
 			case SingleTree<RR>(var r) -> r;

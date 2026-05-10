@@ -5,7 +5,7 @@ import works.bosk.Bosk;
 import works.bosk.BoskConfig;
 import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Tenant;
-import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.EntireState;
 import works.bosk.testing.BoskTestUtils;
 import works.bosk.testing.drivers.state.TestEntity;
 
@@ -36,7 +36,7 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		} catch (Exception e) {
 			throw new AssertionError("Unexpected exception", e);
 		}
-		InitialState<TestEntity> expected, actual;
+		EntireState<TestEntity> expected, actual;
 		try (
 			var _ = canonicalBosk.readSession()
 		) {
@@ -61,7 +61,7 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		tenantScope.close();
 		tenantScope = null;
 
-		InitialState.MultiTree<TestEntity> expectedState = (InitialState.MultiTree<TestEntity>) initialState(bosk);
+		EntireState.MultiTree<TestEntity> expectedState = (EntireState.MultiTree<TestEntity>) initialState(bosk);
 		assertNotEquals(
 			expectedState.tenantRoots().get(tenant1),
 			expectedState.tenantRoots().get(tenant2),

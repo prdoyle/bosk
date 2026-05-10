@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import works.bosk.BindingEnvironment;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
-import works.bosk.BoskDriver;
+import works.bosk.BoskDriver.EntireState;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
@@ -238,9 +238,9 @@ public abstract class HanoiTest {
 		));
 	}
 
-	private BoskDriver.InitialState<HanoiState> defaultState(Bosk<HanoiState> bosk) throws InvalidTypeException {
+	private EntireState<HanoiState> defaultState(Bosk<HanoiState> bosk) throws InvalidTypeException {
 		CatalogReference<Puzzle> puzzlesRef = bosk.rootReference().thenCatalog(Puzzle.class, "puzzles");
-		return BoskDriver.InitialState.of(new HanoiState(
+		return EntireState.just(new HanoiState(
 			Catalog.empty(),
 			Listing.empty(puzzlesRef)
 		));

@@ -140,7 +140,7 @@ public class ReplicaSet<R extends StateTreeNode> {
 		 * as obtained by {@link Bosk#supersedingReadSession()}.
 		 */
 		@Override
-		public <RR extends StateTreeNode> InitialState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
+		public <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
 			assert !replicas.isEmpty(): "Replicas must be added during by the driver factory before the drivers are used";
 			var seed = requireNonNull(ReplicaSet.this.seed.get());
 			if (isInitialized.getAndSet(true)) {

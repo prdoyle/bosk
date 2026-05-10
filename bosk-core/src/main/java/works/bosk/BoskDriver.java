@@ -41,7 +41,7 @@ public interface BoskDriver {
 	 *
 	 * @param rootType The class of the root state tree node.
 	 * Enables a lot of type inference.
-	 * @return an {@link InitialState}
+	 * @return an {@link EntireState}
 	 * @throws InvalidTypeException as a convenience to support initialization logic
 	 * that creates {@link Reference References} (which is very common) so that implementations
 	 * do not need to catch that exception and wrap it or otherwise deal with it:
@@ -51,14 +51,14 @@ public interface BoskDriver {
 	 * but it can be used downstream of a {@link ForwardingDriver} provided there is
 	 * another downstream driver that can provide the initial state instead.
 	 */
-	<R extends StateTreeNode> InitialState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException;
+	<R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException;
 
-	sealed interface InitialState<R extends StateTreeNode> {
-		<T extends StateTreeNode> InitialState<T> map(InitialStateFunction<R,T> function) throws InvalidTypeException, IOException, InterruptedException;
+	sealed interface EntireState<R extends StateTreeNode> {
+		<T extends StateTreeNode> EntireState<T> map(InitialStateFunction<R,T> function) throws InvalidTypeException, IOException, InterruptedException;
 
-		<T extends StateTreeNode> InitialState<T> cast(Class<T> newRootType);
+		<T extends StateTreeNode> EntireState<T> cast(Class<T> newRootType);
 
-		static <R extends StateTreeNode> SingleTree<R> of(R root) {
+		static <R extends StateTreeNode> SingleTree<R> just(R root) {
 			return new SingleTree<>(root);
 		}
 
@@ -66,7 +66,7 @@ public interface BoskDriver {
 		 * This bosk has zero or more tenants,
 		 * but they all share the same state tree whose node is {@code rootNode}.
 		 */
-		record SingleTree<R extends StateTreeNode>(R rootNode) implements InitialState<R> {
+		record SingleTree<R extends StateTreeNode>(R rootNode) implements EntireState<R> {
 			public SingleTree {
 				requireNonNull(rootNode);
 			}
@@ -82,7 +82,7 @@ public interface BoskDriver {
 			}
 		}
 
-		record MultiTree<R extends StateTreeNode>(SortedMap<SetTo, R> tenantRoots) implements InitialState<R> {
+		record MultiTree<R extends StateTreeNode>(SortedMap<SetTo, R> tenantRoots) implements EntireState<R> {
 			public MultiTree {
 				requireNonNull(tenantRoots);
 				if (!(tenantRoots instanceof TreePMap<SetTo,R>)) {

@@ -11,7 +11,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
-import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.EntireState;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
 import works.bosk.Entity;
@@ -52,7 +52,7 @@ public class JsonNodeSurgeonTest {
 		bosk = new Bosk<>(
 			boskName(),
 			JsonRoot.class,
-			b -> InitialState.of(JsonRoot.empty(b.buildReferences(Refs.class))),
+			b -> EntireState.just(JsonRoot.empty(b.buildReferences(Refs.class))),
 			BoskConfig.simple());
 		refs = bosk.buildReferences(Refs.class);
 		jacksonSerializer = new JacksonSerializer();

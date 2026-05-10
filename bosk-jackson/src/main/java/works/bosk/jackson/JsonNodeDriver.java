@@ -13,8 +13,8 @@ import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskContext.Tenant.None;
 import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver;
-import works.bosk.BoskDriver.InitialState.MultiTree;
-import works.bosk.BoskDriver.InitialState.SingleTree;
+import works.bosk.BoskDriver.EntireState.MultiTree;
+import works.bosk.BoskDriver.EntireState.SingleTree;
 import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
 import works.bosk.Identifier;
@@ -72,7 +72,7 @@ public class JsonNodeDriver implements BoskDriver {
 	}
 
 	@Override
-	public synchronized <R extends StateTreeNode> InitialState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public synchronized <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		var result = downstream.initialState(rootType);
 		contents = switch (result) {
 			case SingleTree(var r) -> new Contents.SingleTree(mapper.convertValue(r, JsonNode.class));

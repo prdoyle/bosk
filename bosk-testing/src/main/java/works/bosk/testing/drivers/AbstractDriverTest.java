@@ -21,8 +21,8 @@ import works.bosk.BoskContext.ContextScope;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver;
-import works.bosk.BoskDriver.InitialState;
-import works.bosk.BoskDriver.InitialState.MultiTree;
+import works.bosk.BoskDriver.EntireState;
+import works.bosk.BoskDriver.EntireState.MultiTree;
 import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
 import works.bosk.DriverStack;
@@ -187,13 +187,13 @@ public abstract class AbstractDriverTest {
 		tenantScope = bosk.context().withMaybeTenant(scenario.startingTenant);
 	}
 
-	public InitialState<TestEntity> initialState(Bosk<TestEntity> b) throws InvalidTypeException {
+	public EntireState<TestEntity> initialState(Bosk<TestEntity> b) throws InvalidTypeException {
 		TestEntity root = TestEntity.empty(Identifier.from("root"), b.rootReference().thenCatalog(TestEntity.class, Path.just(Fields.catalog)));
 		return switch (scenario.tenancyModel) {
 			case Persistent _ -> MultiTree.<TestEntity>empty()
 				.with((SetTo) scenario.startingTenant, root)
 				.with(Tenant.setTo(TENANT2), root.withId(Identifier.from(TENANT2 + " root")));
-			case None _, Fixed _ -> InitialState.of(root);
+			case None _, Fixed _ -> EntireState.just(root);
 		};
 	}
 

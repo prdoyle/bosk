@@ -4,8 +4,8 @@ import java.util.Map.Entry;
 import org.junit.jupiter.api.BeforeEach;
 import tools.jackson.databind.JsonNode;
 import works.bosk.BoskDriver;
-import works.bosk.BoskDriver.InitialState;
-import works.bosk.BoskDriver.InitialState.SingleTree;
+import works.bosk.BoskDriver.EntireState.MultiTree;
+import works.bosk.BoskDriver.EntireState.SingleTree;
 import works.bosk.jackson.JsonNodeDriver.Contents;
 import works.bosk.testing.drivers.DriverConformanceTest;
 import works.bosk.testing.drivers.state.TestEntity;
@@ -33,7 +33,7 @@ class JsonNodeDriverConformanceTest extends DriverConformanceTest {
 			var state = bosk.entireState();
 			expected = switch (state) {
 				case SingleTree(var root) -> new Contents.SingleTree(jsonNodeDriver.mapper.convertValue(root, JsonNode.class));
-				case InitialState.MultiTree(var roots) -> new Contents.MultiTree(roots.entrySet().stream().collect(toMap(
+				case MultiTree(var roots) -> new Contents.MultiTree(roots.entrySet().stream().collect(toMap(
 					Entry::getKey,
 					e -> jsonNodeDriver.mapper.convertValue(e.getValue(), JsonNode.class),
 					(_,b) -> b,
