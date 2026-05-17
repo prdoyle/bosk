@@ -17,9 +17,10 @@ import works.bosk.junit.InjectionSupport.Branch;
 import works.bosk.junit.InjectionSupport.InjectionKey;
 
 import static java.util.stream.Collectors.joining;
+import static works.bosk.junit.InjectionSupport.BRANCH_KEY;
+import static works.bosk.junit.InjectionSupport.NAMESPACE;
 import static works.bosk.junit.InjectionSupport.cartesianProduct;
-import static works.bosk.junit.InjectionSupport.expandBranchesForClassLevel;
-import static works.bosk.junit.InjectionSupport.getAllInjectorClasses;
+import static works.bosk.junit.InjectionSupport.computeBranchesForFields;
 import static works.bosk.junit.InjectionSupport.getInjectedFields;
 import static works.bosk.junit.InjectionSupport.setAccessible;
 
@@ -33,9 +34,6 @@ import static works.bosk.junit.InjectionSupport.setAccessible;
  * @see Injected
  */
 public class FieldInjectionContextProvider implements ClassTemplateInvocationContextProvider {
-	static final ExtensionContext.Namespace NAMESPACE =
-		ExtensionContext.Namespace.create(FieldInjectionContextProvider.class);
-
 	@Override
 	public boolean supportsClassTemplate(ExtensionContext context) {
 		// If there are no injected fields, there's nothing for this extension to do,
@@ -46,8 +44,8 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 	@Override
 	public Stream<ClassTemplateInvocationContext> provideClassTemplateInvocationContexts(ExtensionContext context) {
 		List<Field> injectedFields = getInjectedFields(context);
-		List<Branch> branches = computeBranchesForClass(context);
 
+		List<Branch> branches = computeBranchesForFields(context);
 		return branches.stream().flatMap(branch -> {
 			var valuesByKey = new LinkedHashMap<InjectionKey, List<?>>();
 			for (Field f : injectedFields) {
@@ -61,6 +59,7 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 				}
 			}
 
+			// These lists have matching indexes
 			List<InjectionKey> keys = List.copyOf(valuesByKey.keySet());
 			List<List<Object>> combinations = cartesianProduct(valuesByKey.values());
 
@@ -69,8 +68,8 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 				for (Field field : injectedFields) {
 					InjectionKey key = branch.keyForField(field);
 					if (key != null) {
-						int injectorIndex = keys.indexOf(key);
-						fieldValueMap.put(field, combo.get(injectorIndex));
+						// We've found a field to inject
+						fieldValueMap.put(field, combo.get(keys.indexOf(key)));
 					}
 				}
 
@@ -79,30 +78,26 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 				return new ClassTemplateInvocationContext() {
 					@Override
 					public String getDisplayName(int invocationIndex) {
-						return displayName(branch, fieldValueMap, injectedFields);
+						return displayName(fieldValueMap, injectedFields);
 					}
 
 					@Override
 					public List<Extension> getAdditionalExtensions() {
-						return List.of(new TestInstancePostProcessor() {
-							@Override
-							public void postProcessTestInstance(Object testInstance, ExtensionContext ec) {
-								setInjectedFields(testInstance, fieldValueMap, injectedFields);
-							}
-						});
+						return List.of((TestInstancePostProcessor) (testInstance, _) ->
+							setInjectedFields(testInstance, fieldValueMap, injectedFields));
 					}
 
 					@Override
 					public void prepareInvocation(ExtensionContext context) {
 						LOGGER.debug("Storing collapsed branch in invocation context: {}", collapsedBranch);
-						context.getStore(NAMESPACE).put("branch", collapsedBranch);
+						context.getStore(NAMESPACE).put(BRANCH_KEY, collapsedBranch);
 					}
 				};
 			});
 		});
 	}
 
-	private String displayName(Branch branch, Map<Field, Object> fieldValueMap, List<Field> injectedFields) {
+	private String displayName(Map<Field, Object> fieldValueMap, List<Field> injectedFields) {
 		return injectedFields.stream()
 			.map(f -> f.getName() + "=" + fieldValueMap.get(f))
 			.collect(joining(", "));
@@ -121,18 +116,6 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 				throw new ParameterResolutionException("Cannot set field " + field, e);
 			}
 		}
-	}
-
-	private List<Branch> computeBranchesForClass(ExtensionContext context) {
-		var injectedFields = getInjectedFields(context);
-
-		List<Branch> branches = List.of(Branch.empty());
-		for (var injectorClass : getAllInjectorClasses(context)) {
-			if (InjectionSupport.supportsAnyField(injectorClass, injectedFields)) {
-				branches = expandBranchesForClassLevel(branches, injectorClass);
-			}
-		}
-		return branches;
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(FieldInjectionContextProvider.class);

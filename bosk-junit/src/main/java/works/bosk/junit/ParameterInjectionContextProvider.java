@@ -17,12 +17,13 @@ import works.bosk.junit.InjectionSupport.Branch;
 import works.bosk.junit.InjectionSupport.InjectionKey;
 
 import static java.util.Arrays.asList;
-import static works.bosk.junit.FieldInjectionContextProvider.NAMESPACE;
+import static works.bosk.junit.InjectionSupport.BRANCH_KEY;
+import static works.bosk.junit.InjectionSupport.NAMESPACE;
 import static works.bosk.junit.InjectionSupport.cartesianProduct;
-import static works.bosk.junit.InjectionSupport.computeBranches;
+import static works.bosk.junit.InjectionSupport.computeBranchesForParameters;
 
 /**
- * Implements the {@link InjectFrom} annotation.
+ * Implements method-level parameter injection via  {@link InjectFrom}.
  */
 public class ParameterInjectionContextProvider implements TestTemplateInvocationContextProvider {
 	// TODO: I'm certain there are several accidentally quadratic algorithms in here.
@@ -36,9 +37,8 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 	public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(ExtensionContext context) {
 		List<Parameter> requiredParameters = asList(context.getRequiredTestMethod().getParameters());
 
-		List<Branch> neededBranches = computeBranches(context, requiredParameters, getClassLevelBranch(context));
-
-		return neededBranches.stream().flatMap(branch -> {
+		List<Branch> branches = computeBranchesForParameters(context, requiredParameters, getClassLevelBranch(context));
+		return branches.stream().flatMap(branch -> {
 			var valuesByKey = new LinkedHashMap<InjectionKey, List<?>>();
 			requiredParameters.forEach(p -> {
 				InjectionKey key = branch.keyForParameter(p);
@@ -53,6 +53,7 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 				}
 			});
 
+			// These lists have matching indexes
 			List<InjectionKey> keys = List.copyOf(valuesByKey.keySet());
 			List<List<Object>> combinations = cartesianProduct(valuesByKey.values());
 
@@ -73,6 +74,7 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 					public String getDisplayName(int invocationIndex) {
 						return context.getRequiredTestMethod().getName() + "[" + invocationIndex + "] " + combo;
 					}
+
 					@Override
 					public List<Extension> getAdditionalExtensions() {
 						return List.of(new ParameterResolver() {
@@ -80,6 +82,7 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 							public boolean supportsParameter(ParameterContext pc, ExtensionContext ec) {
 								return paramValueMap.containsKey(pc.getParameter());
 							}
+
 							@Override
 							public Object resolveParameter(ParameterContext pc, ExtensionContext ec) throws ParameterResolutionException {
 								Parameter param = pc.getParameter();
@@ -98,7 +101,7 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 	private Branch getClassLevelBranch(ExtensionContext context) {
 		// Store.get() automatically walks up the context hierarchy,
 		// so the branch stored in ClassTemplateInvocationContext will be found
-		var branch = context.getStore(NAMESPACE).get("branch", Branch.class);
+		var branch = context.getStore(NAMESPACE).get(BRANCH_KEY, Branch.class);
 		if (branch == null) {
 			LOGGER.debug("No field injection detected; starting with empty branch");
 			return Branch.empty();

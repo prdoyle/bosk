@@ -1,6 +1,7 @@
 package works.bosk.junit;
 
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -20,12 +21,17 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.joining;
 
 /**
  * Shared support for injection at method and class level.
  */
 class InjectionSupport {
+	static final ExtensionContext.Namespace NAMESPACE =
+		ExtensionContext.Namespace.create(InjectionSupport.class);
+	static final String BRANCH_KEY = "branch";
+
 	/**
 	 * Determine what branches are needed to provide all the injectors required
 	 * directly or indirectly by the {@code requiredParameters}.
@@ -38,14 +44,13 @@ class InjectionSupport {
 	 *
 	 * @see Branch
 	 */
-	static List<Branch> computeBranches(ExtensionContext context, List<Parameter> requiredParameters) {
-		return computeBranches(context, requiredParameters, Branch.empty());
-	}
-
-	/**
-	 * Compute branches starting from an existing branch (e.g., from class-level injection).
-	 */
-	static List<Branch> computeBranches(ExtensionContext context, List<Parameter> requiredParameters, Branch startingBranch) {
+	static List<Branch> computeBranchesForParameters(ExtensionContext context, List<Parameter> requiredParameters, Branch startingBranch) {
+		// We have a chicken-and-egg thing happening here:
+		// we can't know which injectors we need until we call Injector.supportsParameter,
+		// which we can't do until we've instantiated the injectors.
+		//
+		// So, begin by assuming we'll need them all:
+		//
 		List<Branch> allPossibleBranches = List.of(startingBranch);
 		var allInjectorClasses = getAllInjectorClasses(context);
 		for (var injectorClass : allInjectorClasses) {
@@ -53,12 +58,13 @@ class InjectionSupport {
 		}
 
 		if (allPossibleBranches.isEmpty()) {
+			// TODO: Is this right? Shouldn't it be List.of(startingBranch)?
 			return List.of();
 		}
 
 		// At this stage, we have a list of branches that have instantiated
 		// all the injectors we could possibly have needed for any parameter,
-		// but some injectors might be for parameters that aren't used
+		// but some injectors might be for parameters that aren't actually used
 		// by the test method or the class constructor.
 		//
 		// If we don't prune out the unneeded injectors,
@@ -68,18 +74,25 @@ class InjectionSupport {
 		//
 		// Let's determine which injector classes we actually needed.
 		// We can do this by picking any Branch (they all have the same types of injectors)
-		// and seeing which injectors are needed
+		// and seeing which injectors were needed
 		// to provide values for the requiredParameters.
 
 		var neededInjectorClasses = new HashSet<Class<? extends Injector>>();
 		Branch someBranch = allPossibleBranches.getFirst();
-		requiredParameters.forEach(p -> getNeededInjectorClasses(p, someBranch, neededInjectorClasses));
+		requiredParameters.forEach(p -> {
+			var key = someBranch.keyForParameter(p);
+			if (key != null && neededInjectorClasses.add(key.injector().getClass())) {
+				neededInjectorClasses.addAll(someBranch.toInject.get(key).provenance());
+			}
+		});
 
-		// And now we can recalculate the branch list, expanding only the required injector classes.
-		// Start from startingBranch and only add NEW injectors that aren't already in it.
+		// And now we can recalculate the branches a second time,
+		// expanding only the injector classes known to be needed.
 		List<Branch> neededBranches = List.of(startingBranch);
 
-		for (var injectorClass : allInjectorClasses) { // The order matters here
+		// The order matters here because later injector classes can have
+		// constructor parameters injected from earlier ones.
+		for (var injectorClass : allInjectorClasses) {
 			if (neededInjectorClasses.contains(injectorClass)) {
 				// Only expand if this injector class is NOT already in startingBranch
 				boolean alreadyInStarting = startingBranch.toInject().keySet()
@@ -91,6 +104,32 @@ class InjectionSupport {
 			}
 		}
 		return neededBranches;
+	}
+
+
+	/**
+	 * Simpler than {@link #computeBranchesForParameters(ExtensionContext, List, Branch) computeBrancesForParameters}
+	 * because there's no particular requirement for precision at the class level:
+	 * we can rely on {@code computeBranchesForParameters} to clean up
+	 * unnecessary branches for us.
+	 * <p>
+	 * TODO: Is this true? What about a class that has no parameter injection
+	 *  and also has an injector that might have been needed but actually is not.
+	 *  Don't we end up with the same problem as in {@code computeBranchesForParameters}?
+	 */
+	static List<Branch> computeBranchesForFields(ExtensionContext context) {
+		var injectedFields = getInjectedFields(context);
+
+		// Class-level branches start from scratch because, unlike for
+		// method-level (parameter) branches, there's no higher-level
+		// branch computation context to build from.
+		List<Branch> branches = List.of(Branch.empty());
+		for (var injectorClass : getAllInjectorClasses(context)) {
+			if (mightSupportField(injectorClass, injectedFields)) {
+				branches = expandedBranches(branches, injectorClass);
+			}
+		}
+		return branches;
 	}
 
 	/**
@@ -110,57 +149,33 @@ class InjectionSupport {
 		return allInjectors;
 	}
 
-	private static void getNeededInjectorClasses(
-		Parameter param,
-		Branch branch,
-		Set<Class<? extends Injector>> needed
-	) {
-		var key = branch.keyForParameter(param);
-		if (key != null && needed.add(key.injector().getClass())) {
-			needed.addAll(branch.toInject.get(key).provenance());
-		}
-	}
-
 	/**
-	 * Expand each branch by instantiating all injectors of the given type.
+	 * A version of {@link Branch#withInjectors(Class)} that operates on a list.
 	 */
 	private static List<Branch> expandedBranches(List<Branch> currentBranches, Class<? extends Injector> injectorType) {
 		List<Branch> expanded = new ArrayList<>();
 		for (Branch branch : currentBranches) {
 			expanded.addAll(branch.withInjectors(injectorType));
 		}
-		return expanded;
+		return unmodifiableList(expanded);
 	}
 
 	/**
-	 * @param values the subset of {@link Injector#values()} to be injected in this scenario
-	 * @param provenance the set of injector classes required, directly or indirectly,
-	 *                   to produce these values, with no guarantees on the order
-	 */
-	record Superposition(
-		List<?> values,
-		Set<Class<? extends Injector>> provenance
-	){
-		Superposition collapsed(Object singleValue) {
-			return new Superposition(List.of(singleValue), provenance);
-		}
-	}
-
-	/**
-	 * Identifies a particular collection of values to be injected by a particular injector.
-	 * Two fields/parameters that use the same {@code InjectionKey} will always receive the same value;
-	 * those with different {@code InjectionKey}s will receive combinations of values.
-	 *
-	 * @param injector the injector instance providing values for this key
-	 */
-	record InjectionKey(Injector injector) { }
-
-	/**
+	 * A possible future in which certain values are chosen for injection.
+	 * <p>
 	 * Because parameters can be injected into the injectors themselves,
 	 * the parameters are not fully independent of each other,
 	 * and so a straightforward cartesian product of all parameter values doesn't work.
 	 * A {@code Branch} represents one "scenario" for the injectors,
-	 * within which cartesian product expansion of parameter values is valid.
+	 * within which the full cartesian product expansion of parameter values is valid.
+	 * <p>
+	 * Uses a quantum "many worlds" metaphor to describe possible futures.
+	 * Specifically: when one injector injects into another,
+	 * we will need multiple instances of the latter injector,
+	 * and that is what leads to multiple branches.
+	 * On each branch, the providing injector injects a single value,
+	 * so "the wavefunction has collapsed" on that branch,
+	 * and the providing injector is treated as though it provided just a single value.
 	 * <p>
 	 * During the instantiation of injectors, the branch may be "incomplete" in the sense
 	 * that it contains entries for only the first N {@code InjectionKey}s.
@@ -237,21 +252,20 @@ class InjectionSupport {
 
 		@Nullable
 		InjectionKey keyForParameter(Parameter p) {
-			return List.copyOf(toInject.entrySet())
-				.reversed()
-				.stream()
-				.filter(e -> e.getKey().injector().supportsParameter(p))
-				.findFirst()
-				.map(Map.Entry::getKey)
-				.orElse(null);
+			return keyFor(p, p.getType());
 		}
 
 		@Nullable
 		InjectionKey keyForField(Field f) {
+			return keyFor(f, f.getType());
+		}
+
+		@Nullable
+		InjectionKey keyFor(AnnotatedElement element, Class<?> elementType) {
 			return List.copyOf(toInject.entrySet())
 				.reversed()
 				.stream()
-				.filter(e -> e.getKey().injector().supportsField(f))
+				.filter(e -> e.getKey().injector().supports(element, elementType))
 				.findFirst()
 				.map(Map.Entry::getKey)
 				.orElse(null);
@@ -272,6 +286,35 @@ class InjectionSupport {
 			return toInject.entrySet().stream()
 				.map(e -> e.getKey().injector().getClass().getSimpleName() + "=" + e.getValue().values())
 				.collect(joining(", ", "Branch{", "}"));
+		}
+	}
+
+	/**
+	 * Identifies a particular collection of values to be injected by a particular injector.
+	 * Two fields/parameters that use the same {@code InjectionKey} will always receive the same value;
+	 * those with different {@code InjectionKey}s will receive combinations of values.
+	 *
+	 * @param injector the injector instance providing values for this key
+	 */
+	record InjectionKey(Injector injector) { }
+
+	/**
+	 * Represents the possible values to be injected for a particular {@link InjectionKey}
+	 * on a particular {@link Branch}.
+	 * In other words: given how injection decisions already made earlier on the
+	 * branch affect constructor parameters of other injectors,
+	 * this represents the values to be injected for a particular {@link InjectionKey}.
+	 *
+	 * @param values the subset of {@link Injector#values()} to be injected in this scenario
+	 * @param provenance the set of injector classes required, directly or indirectly,
+	 *                   to produce these values, with no guarantees on the order
+	 */
+	record Superposition(
+		List<?> values,
+		Set<Class<? extends Injector>> provenance
+	){
+		Superposition collapsed(Object singleValue) {
+			return new Superposition(List.of(singleValue), provenance);
 		}
 	}
 
@@ -298,21 +341,6 @@ class InjectionSupport {
 	}
 
 	/**
-	 * Expand each branch for class-level injection.
-	 * <p>
-	 * This uses the same logic as method-level injection ({@link #computeBranches}).
-	 * The cartesian product expansion happens at invocation time rather than here,
-	 * allowing uniform handling of both fields and parameters.
-	 */
-	static List<Branch> expandBranchesForClassLevel(List<Branch> currentBranches, Class<? extends Injector> injectorType) {
-		List<Branch> expanded = new ArrayList<>();
-		for (Branch branch : currentBranches) {
-			expanded.addAll(branch.withInjectors(injectorType));
-		}
-		return expanded;
-	}
-
-	/**
 	 * @return true if the injector class supports at least one of the given fields.
 	 * <p>
 	 * Note: This method cannot determine field support for injectors with constructor dependencies,
@@ -320,7 +348,7 @@ class InjectionSupport {
 	 * In such cases, we conservatively return true if the fields list is non-empty,
 	 * allowing the injector to be instantiated and checked later.
 	 */
-	static boolean supportsAnyField(Class<? extends Injector> injectorClass, List<Field> fields) {
+	static boolean mightSupportField(Class<? extends Injector> injectorClass, List<Field> fields) {
 		try {
 			var injector = injectorClass.getDeclaredConstructors()[0];
 			setAccessible(injector);
