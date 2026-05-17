@@ -1,5 +1,6 @@
 package works.bosk.junit;
 
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -178,7 +179,7 @@ public class ParameterInjectionSupport {
 				throw new ParameterResolutionException("Injector class must have exactly one constructor: " + injectorType);
 			}
 			var ctor = ctors[0];
-			ctor.setAccessible(true);
+			setAccessible(ctor);
 			List<Injector> injectorsToUse = Arrays.stream(ctor.getParameters())
 				.map(this::injectorFor)
 				.filter(Objects::nonNull)
@@ -271,6 +272,11 @@ public class ParameterInjectionSupport {
 		}
 	}
 
+	@SuppressForbidden("Only for testing code; we have few other options here")
+	static void setAccessible(AccessibleObject accessibleObject) {
+		accessibleObject.setAccessible(true);
+	}
+
 	/**
 	 * Compute the cartesian product of a list of lists.
 	 */
@@ -305,17 +311,16 @@ public class ParameterInjectionSupport {
 
 	/**
 	 * @return true if the injector class supports at least one of the given fields.
-	 *
+	 * <p>
 	 * Note: This method cannot determine field support for injectors with constructor dependencies,
 	 * since we don't have the injector values available at this point.
 	 * In such cases, we conservatively return true if the fields list is non-empty,
 	 * allowing the injector to be instantiated and checked later.
 	 */
-	@SuppressWarnings("unchecked")
 	public static boolean supportsAnyField(Class<? extends Injector> injectorClass, List<Field> fields) {
 		try {
 			var injector = injectorClass.getDeclaredConstructors()[0];
-			injector.setAccessible(true);
+			setAccessible(injector);
 			var params = injector.getParameters();
 
 			if (params.length > 0) {
