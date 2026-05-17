@@ -11,6 +11,7 @@ import java.lang.reflect.TypeVariable;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 import lombok.experimental.Delegate;
@@ -181,7 +182,7 @@ C&lt;String> someField;
 			return resolveTypeVariables(returned, parameterizedType);
 		} catch (AssertionError e) {
 			// Help diagnose assertion errors from recursive calls
-			throw new AssertionError(format("parameterType(%s, %s, %s): %s", parameterizedType, genericClass, index, e.getMessage()), e);
+			throw new AssertionError(format(Locale.ROOT, "parameterType(%s, %s, %s): %s", parameterizedType, genericClass, index, e.getMessage()), e);
 		}
 	}
 

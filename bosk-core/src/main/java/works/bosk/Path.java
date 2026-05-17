@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.WeakHashMap;
@@ -85,7 +86,7 @@ public abstract class Path implements Iterable<String> {
 				.map(validityChecker)
 				.collect(toList()));
 		} else {
-			throw new MalformedPathException(format("Path must start with leading slash: \"%s\"", urlEncoded));
+			throw new MalformedPathException(format(Locale.ROOT, "Path must start with leading slash: \"%s\"", urlEncoded));
 		}
 	}
 

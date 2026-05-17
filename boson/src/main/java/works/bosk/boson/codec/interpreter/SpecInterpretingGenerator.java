@@ -3,6 +3,7 @@ package works.bosk.boson.codec.interpreter;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.lang.invoke.WrongMethodTypeException;
+import java.util.Locale;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -239,7 +240,7 @@ public class SpecInterpretingGenerator implements Generator {
 							sb.append((char) cp);
 						} else {
 							for (char c : Character.toChars(cp)) {
-								sb.append(String.format("\\u%04x", (int) c));
+								sb.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
 							}
 						}
 				}

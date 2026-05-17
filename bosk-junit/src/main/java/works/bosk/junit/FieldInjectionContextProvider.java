@@ -20,6 +20,7 @@ import static works.bosk.junit.ParameterInjectionSupport.cartesianProduct;
 import static works.bosk.junit.ParameterInjectionSupport.expandBranchesForClassLevel;
 import static works.bosk.junit.ParameterInjectionSupport.getAllInjectorClasses;
 import static works.bosk.junit.ParameterInjectionSupport.getInjectedFields;
+import static works.bosk.junit.ParameterInjectionSupport.setAccessible;
 
 /**
  * Implements class-level field injection via {@link InjectFrom}.
@@ -114,7 +115,7 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 		for (Field field : injectedFields) {
 			Object value = fieldValueMap.get(field);
 			try {
-				field.setAccessible(true);
+				setAccessible(field);
 				field.set(testInstance, value);
 			} catch (IllegalAccessException e) {
 				throw new ParameterResolutionException("Cannot set field " + field, e);

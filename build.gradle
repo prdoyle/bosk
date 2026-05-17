@@ -143,6 +143,7 @@ configure(subprojects.findAll {
 		signaturesFiles = files("${rootProject.projectDir}/forbidden-apis-signatures.txt")
 		ignoreFailures = false
 		failOnMissingClasses = false // Forbidden APIs struggles with the Classfile API
+		suppressAnnotations = ['works.bosk.junit.SuppressForbidden']
 	}
 
 	forbiddenApisTest {
