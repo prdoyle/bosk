@@ -117,11 +117,7 @@ class InjectionSupport {
 	) {
 		Injector pi = branch.injectorForParameter(param);
 		if (pi != null && needed.add(pi.getClass())) {
-			var provenance = branch.toInject.get(pi).provenance();
-			var list = provenance.stream()
-				.map(Injector::getClass)
-				.toList();
-			needed.addAll(list);
+			needed.addAll(branch.toInject.get(pi).provenance());
 		}
 	}
 
@@ -138,12 +134,12 @@ class InjectionSupport {
 
 	/**
 	 * @param values the subset of {@link Injector#values()} to be injected in this scenario
-	 * @param provenance the set of injectors required, directly or indirectly,
+	 * @param provenance the set of injector classes required, directly or indirectly,
 	 *                   to produce these values, with no guarantees on the order
 	 */
 	record Superposition(
 		List<?> values,
-		Set<Injector> provenance
+		Set<Class<? extends Injector>> provenance
 	){
 		Superposition collapsed(Object singleValue) {
 			return new Superposition(List.of(singleValue), provenance);
@@ -206,12 +202,12 @@ class InjectionSupport {
 
 					var injector = (Injector) ctor.newInstance(args.toArray());
 
-					var provenance = new HashSet<Injector>();
+					var provenance = new HashSet<Class<? extends Injector>>();
 					injectorsUsed.forEach(pi -> {
-						provenance.add(pi);
+						provenance.add(pi.getClass());
 						provenance.addAll(toInject.get(pi).provenance());
 					});
-					provenance.add(injector);
+					provenance.add(injector.getClass());
 
 					var map = new LinkedHashMap<>(this.toInject);
 					map.put(injector, new Superposition(injector.values(), provenance));
