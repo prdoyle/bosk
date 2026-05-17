@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.TestInstancePostProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.junit.InjectionSupport.Branch;
+import works.bosk.junit.InjectionSupport.InjectionKey;
 
 import static java.util.stream.Collectors.joining;
 import static works.bosk.junit.InjectionSupport.cartesianProduct;
@@ -26,8 +27,7 @@ import static works.bosk.junit.InjectionSupport.setAccessible;
  * Implements class-level field injection via {@link InjectFrom}.
  * <p>
  * This extension reads {@code @InjectFrom} annotations from the test class hierarchy
- * and creates multiple invocations of the test class, one per branch (combination of
- * injector values).
+ * and creates multiple invocations of the test class, one per combination of injected values.
  *
  * @see InjectFrom
  * @see Injected
@@ -49,27 +49,27 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 		List<Branch> branches = computeBranchesForClass(context);
 
 		return branches.stream().flatMap(branch -> {
-			var valuesByInjector = new LinkedHashMap<Injector, List<?>>();
+			var valuesByKey = new LinkedHashMap<InjectionKey, List<?>>();
 			for (Field f : injectedFields) {
-				Injector injector = branch.injectorForField(f);
-				if (injector == null) {
+				var key = branch.keyForField(f);
+				if (key == null) {
 					// There is no other mechanism for supplying values for fields annotated
 					// with @Injected, so we're doomed.
 					throw new ParameterResolutionException("No injector for field " + f);
 				} else {
-					valuesByInjector.computeIfAbsent(injector, key -> branch.toInject().get(key).values());
+					valuesByKey.computeIfAbsent(key, k -> branch.toInject().get(k).values());
 				}
 			}
 
-			List<Injector> injectors = List.copyOf(valuesByInjector.keySet());
-			List<List<Object>> combinations = cartesianProduct(valuesByInjector.values());
+			List<InjectionKey> keys = List.copyOf(valuesByKey.keySet());
+			List<List<Object>> combinations = cartesianProduct(valuesByKey.values());
 
 			return combinations.stream().map(combo -> {
 				var fieldValueMap = new LinkedHashMap<Field, Object>();
 				for (Field field : injectedFields) {
-					Injector pi = branch.injectorForField(field);
-					if (pi != null) {
-						int injectorIndex = injectors.indexOf(pi);
+					InjectionKey key = branch.keyForField(field);
+					if (key != null) {
+						int injectorIndex = keys.indexOf(key);
 						fieldValueMap.put(field, combo.get(injectorIndex));
 					}
 				}

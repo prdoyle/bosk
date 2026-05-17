@@ -83,7 +83,7 @@ class InjectionSupport {
 			if (neededInjectorClasses.contains(injectorClass)) {
 				// Only expand if this injector class is NOT already in startingBranch
 				boolean alreadyInStarting = startingBranch.toInject().keySet()
-					.stream().anyMatch(i -> i.getClass() == injectorClass);
+					.stream().anyMatch(key -> key.injector().getClass() == injectorClass);
 
 				if (!alreadyInStarting) {
 					neededBranches = expandedBranches(neededBranches, injectorClass);
@@ -115,9 +115,9 @@ class InjectionSupport {
 		Branch branch,
 		Set<Class<? extends Injector>> needed
 	) {
-		Injector pi = branch.injectorForParameter(param);
-		if (pi != null && needed.add(pi.getClass())) {
-			needed.addAll(branch.toInject.get(pi).provenance());
+		var key = branch.keyForParameter(param);
+		if (key != null && needed.add(key.injector().getClass())) {
+			needed.addAll(branch.toInject.get(key).provenance());
 		}
 	}
 
@@ -147,8 +147,15 @@ class InjectionSupport {
 	}
 
 	/**
-	 * A list of injectors that have been instantiated so far.
-	 * <p>
+	 * Identifies a particular collection of values to be injected by a particular injector.
+	 * Two fields/parameters that use the same {@code InjectionKey} will always receive the same value;
+	 * those with different {@code InjectionKey}s will receive combinations of values.
+	 *
+	 * @param injector the injector instance providing values for this key
+	 */
+	record InjectionKey(Injector injector) { }
+
+	/**
 	 * Because parameters can be injected into the injectors themselves,
 	 * the parameters are not fully independent of each other,
 	 * and so a straightforward cartesian product of all parameter values doesn't work.
@@ -156,14 +163,14 @@ class InjectionSupport {
 	 * within which cartesian product expansion of parameter values is valid.
 	 * <p>
 	 * During the instantiation of injectors, the branch may be "incomplete" in the sense
-	 * that it contains injectors for only the first N injector classes.
+	 * that it contains entries for only the first N {@code InjectionKey}s.
 	 *
-	 * @param toInject A map from each injector to the list of values it provided on this branch.
-	 *                 For injectors that have already provided values for constructor parameters of other injectors,
-	 *                 this map will contain just the one value used to construct that injector on this branch.
+	 * @param toInject A map from each {@link InjectionKey} to the list of values associated with that key on this branch.
+	 *                 For cases where an injector has already had its constructor parameters supplied by earlier injectors,
+	 *                 the map will contain just the single value used to construct that injector on this branch.
 	 */
 	record Branch(
-		Map<Injector, Superposition> toInject
+		Map<InjectionKey, Superposition> toInject
 	) {
 		static Branch empty() {
 			return new Branch(Map.of());
@@ -176,13 +183,13 @@ class InjectionSupport {
 			}
 			var ctor = ctors[0];
 			setAccessible(ctor);
-			List<Injector> injectorsToUse = Arrays.stream(ctor.getParameters())
-				.map(this::injectorForParameter)
+			List<InjectionKey> keysToUse = Arrays.stream(ctor.getParameters())
+				.map(this::keyForParameter)
 				.filter(Objects::nonNull)
 				.distinct()
 				.toList();
 
-			List<? extends List<?>> valueLists = injectorsToUse.stream()
+			List<? extends List<?>> valueLists = keysToUse.stream()
 				.map(toInject::get)
 				.map(Superposition::values)
 				.toList();
@@ -191,11 +198,11 @@ class InjectionSupport {
 			for (List<Object> combos : cartesianProduct(valueLists)) {
 				try {
 					List<Object> args = new ArrayList<>();
-					var injectorsUsed = new LinkedHashSet<Injector>();
+					var keysUsed = new LinkedHashSet<InjectionKey>();
 					for (var p: ctor.getParameters()) {
-						var pi = injectorForParameter(p);
-						injectorsUsed.add(pi);
-						var index = injectorsToUse.indexOf(pi);
+						var pi = keyForParameter(p);
+						keysUsed.add(pi);
+						var index = keysToUse.indexOf(pi);
 						assert index >= 0: "Internal error: injector not found for parameter " + p + " of constructor " + ctor;
 						args.add(combos.get(index));
 					}
@@ -203,17 +210,17 @@ class InjectionSupport {
 					var injector = (Injector) ctor.newInstance(args.toArray());
 
 					var provenance = new HashSet<Class<? extends Injector>>();
-					injectorsUsed.forEach(pi -> {
-						provenance.add(pi.getClass());
-						provenance.addAll(toInject.get(pi).provenance());
+					keysUsed.forEach(key -> {
+						provenance.add(key.injector().getClass());
+						provenance.addAll(toInject.get(key).provenance());
 					});
 					provenance.add(injector.getClass());
 
 					var map = new LinkedHashMap<>(this.toInject);
-					map.put(injector, new Superposition(injector.values(), provenance));
+					map.put(new InjectionKey(injector), new Superposition(injector.values(), provenance));
 
 					int i = 0;
-					for (var pi: injectorsToUse) {
+					for (var pi: keysToUse) {
 						var possibleValues = toInject.get(pi).values();
 						if (possibleValues.size() >= 2) {
 							map.put(pi, map.get(pi).collapsed(args.get(i)));
@@ -229,22 +236,22 @@ class InjectionSupport {
 		}
 
 		@Nullable
-		Injector injectorForParameter(Parameter p) {
+		InjectionKey keyForParameter(Parameter p) {
 			return List.copyOf(toInject.entrySet())
 				.reversed()
 				.stream()
-				.filter(e -> e.getKey().supportsParameter(p))
+				.filter(e -> e.getKey().injector().supportsParameter(p))
 				.findFirst()
 				.map(Map.Entry::getKey)
 				.orElse(null);
 		}
 
 		@Nullable
-		Injector injectorForField(Field f) {
+		InjectionKey keyForField(Field f) {
 			return List.copyOf(toInject.entrySet())
 				.reversed()
 				.stream()
-				.filter(e -> e.getKey().supportsField(f))
+				.filter(e -> e.getKey().injector().supportsField(f))
 				.findFirst()
 				.map(Map.Entry::getKey)
 				.orElse(null);
@@ -253,9 +260,9 @@ class InjectionSupport {
 		Branch withFieldValues(Map<Field, Object> fieldValues) {
 			var newMap = new LinkedHashMap<>(toInject);
 			for (var entry : fieldValues.entrySet()) {
-				Injector injector = injectorForField(entry.getKey());
-				Superposition existing = toInject.get(injector);
-				newMap.put(injector, existing.collapsed(entry.getValue()));
+				var key = keyForField(entry.getKey());
+				Superposition existing = toInject.get(key);
+				newMap.put(key, existing.collapsed(entry.getValue()));
 			}
 			return new Branch(newMap);
 		}
@@ -263,7 +270,7 @@ class InjectionSupport {
 		@Override
 		public String toString() {
 			return toInject.entrySet().stream()
-				.map(e -> e.getKey().getClass().getSimpleName() + "=" + e.getValue().values())
+				.map(e -> e.getKey().injector().getClass().getSimpleName() + "=" + e.getValue().values())
 				.collect(joining(", ", "Branch{", "}"));
 		}
 	}
@@ -309,7 +316,7 @@ class InjectionSupport {
 	 * @return true if the injector class supports at least one of the given fields.
 	 * <p>
 	 * Note: This method cannot determine field support for injectors with constructor dependencies,
-	 * since we don't have the injector values available at this point.
+	 * since we don't have the values for injector constructor parameters available at this point.
 	 * In such cases, we conservatively return true if the fields list is non-empty,
 	 * allowing the injector to be instantiated and checked later.
 	 */

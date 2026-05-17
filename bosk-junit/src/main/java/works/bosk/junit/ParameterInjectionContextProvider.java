@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.junit.InjectionSupport.Branch;
+import works.bosk.junit.InjectionSupport.InjectionKey;
 
 import static java.util.Arrays.asList;
 import static works.bosk.junit.FieldInjectionContextProvider.NAMESPACE;
@@ -38,31 +39,31 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 		List<Branch> neededBranches = computeBranches(context, requiredParameters, getClassLevelBranch(context));
 
 		return neededBranches.stream().flatMap(branch -> {
-			var valuesByInjector = new LinkedHashMap<Injector, List<?>>();
+			var valuesByKey = new LinkedHashMap<InjectionKey, List<?>>();
 			requiredParameters.forEach(p -> {
-				Injector injector = branch.injectorForParameter(p);
-				if (injector == null) {
+				InjectionKey key = branch.keyForParameter(p);
+				if (key == null) {
 					// You might think this should be an error, but we do want to coexist
 					// with other parameter resolvers, so we just back off and let them have a chance.
 					// If there is no suitable resolver, JUnit will report that as an error.
 					// TODO: If we let users annotate parameters with @Injected to indicate
 					//  their intent, then we could throw an informative exception here.
 				} else {
-					valuesByInjector.computeIfAbsent(injector, key -> branch.toInject().get(key).values());
+					valuesByKey.computeIfAbsent(key, k -> branch.toInject().get(k).values());
 				}
 			});
 
-			List<Injector> injectors = List.copyOf(valuesByInjector.keySet());
-			List<List<Object>> combinations = cartesianProduct(valuesByInjector.values());
+			List<InjectionKey> keys = List.copyOf(valuesByKey.keySet());
+			List<List<Object>> combinations = cartesianProduct(valuesByKey.values());
 
 			return combinations.stream().map(combo -> {
 				// Swizzle the combo into a useful map from parameter to value
 				var paramValueMap = new LinkedHashMap<Parameter, Object>();
 				requiredParameters.forEach(parameter -> {
 					// TODO: There's essentially a copy of this in Branch.withInjectors
-					Injector pi = branch.injectorForParameter(parameter);
-					if (pi != null) {
-						int index = injectors.indexOf(pi);
+					InjectionKey key = branch.keyForParameter(parameter);
+					if (key != null) {
+						int index = keys.indexOf(key);
 						paramValueMap.put(parameter, combo.get(index));
 					}
 				});
