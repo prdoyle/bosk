@@ -13,12 +13,12 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.junit.ParameterInjectionSupport.Branch;
+import works.bosk.junit.InjectionSupport.Branch;
 
 import static java.util.Arrays.asList;
 import static works.bosk.junit.FieldInjectionContextProvider.NAMESPACE;
-import static works.bosk.junit.ParameterInjectionSupport.cartesianProduct;
-import static works.bosk.junit.ParameterInjectionSupport.computeBranches;
+import static works.bosk.junit.InjectionSupport.cartesianProduct;
+import static works.bosk.junit.InjectionSupport.computeBranches;
 
 /**
  * Implements the {@link InjectFrom} annotation.
@@ -40,7 +40,7 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 		return neededBranches.stream().flatMap(branch -> {
 			var valuesByInjector = new LinkedHashMap<Injector, List<?>>();
 			requiredParameters.forEach(p -> {
-				Injector injector = branch.injectorFor(p);
+				Injector injector = branch.injectorForParameter(p);
 				if (injector == null) {
 					// You might think this should be an error, but we do want to coexist
 					// with other parameter resolvers, so we just back off and let them have a chance.
@@ -60,7 +60,7 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 				var paramValueMap = new LinkedHashMap<Parameter, Object>();
 				requiredParameters.forEach(parameter -> {
 					// TODO: There's essentially a copy of this in Branch.withInjectors
-					Injector pi = branch.injectorFor(parameter);
+					Injector pi = branch.injectorForParameter(parameter);
 					if (pi != null) {
 						int index = injectors.indexOf(pi);
 						paramValueMap.put(parameter, combo.get(index));

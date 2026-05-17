@@ -13,14 +13,14 @@ import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.TestInstancePostProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.junit.ParameterInjectionSupport.Branch;
+import works.bosk.junit.InjectionSupport.Branch;
 
 import static java.util.stream.Collectors.joining;
-import static works.bosk.junit.ParameterInjectionSupport.cartesianProduct;
-import static works.bosk.junit.ParameterInjectionSupport.expandBranchesForClassLevel;
-import static works.bosk.junit.ParameterInjectionSupport.getAllInjectorClasses;
-import static works.bosk.junit.ParameterInjectionSupport.getInjectedFields;
-import static works.bosk.junit.ParameterInjectionSupport.setAccessible;
+import static works.bosk.junit.InjectionSupport.cartesianProduct;
+import static works.bosk.junit.InjectionSupport.expandBranchesForClassLevel;
+import static works.bosk.junit.InjectionSupport.getAllInjectorClasses;
+import static works.bosk.junit.InjectionSupport.getInjectedFields;
+import static works.bosk.junit.InjectionSupport.setAccessible;
 
 /**
  * Implements class-level field injection via {@link InjectFrom}.
@@ -128,7 +128,7 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 
 		List<Branch> branches = List.of(Branch.empty());
 		for (var injectorClass : getAllInjectorClasses(context)) {
-			if (ParameterInjectionSupport.supportsAnyField(injectorClass, injectedFields)) {
+			if (InjectionSupport.supportsAnyField(injectorClass, injectedFields)) {
 				branches = expandBranchesForClassLevel(branches, injectorClass);
 			}
 		}
