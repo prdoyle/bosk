@@ -15,6 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -33,27 +34,56 @@ class InjectionSupport {
 	static final String BRANCH_KEY = "branch";
 
 	/**
+	 * Compute branches for class-level injected fields.
+	 */
+	static List<Branch> computeBranchesForFields(ExtensionContext context) {
+		Branch startingBranch = Branch.empty(); // Class-level injection starts from scratch
+		return computeBranches(context, getInjectedFields(context), startingBranch, (branch, element) ->
+			branch.keyForField((Field) element));
+	}
+
+	/**
+	 * Compute branches for method parameters.
+	 */
+	static List<Branch> computeBranchesForParameters(ExtensionContext context, List<Parameter> requiredParameters, Branch startingBranch) {
+		return computeBranches(context, requiredParameters, startingBranch, (branch, element)
+			-> branch.keyForParameter((Parameter) element));
+	}
+
+	/**
 	 * Determine what branches are needed to provide all the injectors required
-	 * directly or indirectly by the {@code requiredParameters}.
+	 * directly or indirectly by the {@code requiredElements}.
 	 * <p>
 	 * This is done in two phases.
 	 * First, we compute all possible branches by instantiating all injector classes.
 	 * Once we have the injectors, we can use {@link Injector#supportsParameter}
 	 * to determine which ones are needed,
 	 * and do a second pass to compute the branches for just those injectors.
+	 * <p>
+	 * The returned list contains the combinations of injector values necessary
+	 * to provide every element in {@code elements}, with all injectors in the correct order.
 	 *
-	 * @see Branch
+	 * @param context the JUnit extension context for the current test
+	 * @param requiredElements the annotated elements (parameters or fields) to be injected
+	 * @param startingBranch the branch to start from; for field-level use {@link Branch#empty()}
+	 * @param keyResolver a function that returns the {@link InjectionKey} for an element on a branch
+	 * @return the list of branches that need to be executed to satisfy the elements
+	 * @throws ParameterResolutionException if a required injector or dependency is not present
 	 */
-	static List<Branch> computeBranchesForParameters(ExtensionContext context, List<Parameter> requiredParameters, Branch startingBranch) {
-		List<String> allQualifiers = distinctQualifiersFor(requiredParameters);
-
+	private static List<Branch> computeBranches(
+		ExtensionContext context,
+		List<? extends AnnotatedElement> requiredElements,
+		Branch startingBranch,
+		BiFunction<Branch, AnnotatedElement, InjectionKey> keyResolver
+	) {
 		// We have a chicken-and-egg thing happening here:
 		// we can't know which injectors we need until we call Injector.supportsParameter,
 		// which we can't do until we've instantiated the injectors.
 		//
 		// So, we do an initial pass assuming we'll need them all,
 		// with all possible qualifiers:
-		//
+
+		List<String> allQualifiers = distinctQualifiersFor(requiredElements);
 		List<Branch> allPossibleBranches = List.of(startingBranch);
 		var allInjectorClasses = getAllInjectorClasses(context);
 		for (var injectorClass : allInjectorClasses) {
@@ -64,7 +94,7 @@ class InjectionSupport {
 
 		if (allPossibleBranches.isEmpty()) {
 			// allPossibleBranches started off with startingBranch and is now empty.
-			// This can only happen if some parameter injector decided to inject no values,
+			// This can only happen if some injector decided to inject no values,
 			// which means there are no combinations to test.
 			return List.of();
 		}
@@ -85,57 +115,43 @@ class InjectionSupport {
 		// to provide values for the requiredParameters.
 
 		Branch someBranch = allPossibleBranches.getFirst();
-		var dependencies = new LinkedHashSet<Dependency>();
-		requiredParameters.forEach(p -> {
-			var key = someBranch.keyForParameter(p);
-			assert key != null;
-			var dependency = key.dependency();
-			if (!dependencies.contains(dependency)) {
-				// First, add prerequisites. The order matters.
-				dependencies.addAll(someBranch.toInject.get(key).provenance());
-				// Then, add the dependency
-				dependencies.add(dependency);
+
+		// Collect direct dependencies required by the elements.
+		var requiredDeps = new LinkedHashSet<Dependency>();
+		for (var e : requiredElements) {
+			var key = keyResolver.apply(someBranch, e);
+			if (key == null) {
+				throw new ParameterResolutionException("No injector for " + e);
+			}
+			requiredDeps.add(key.dependency());
+		}
+
+		var unorderedDependencies = new HashSet<Dependency>();
+		someBranch.toInject.forEach((key, superposition) -> {
+			Dependency dep = key.dependency();
+			if (requiredDeps.contains(dep)) {
+				unorderedDependencies.add(dep);
+				unorderedDependencies.addAll(superposition.provenance());
 			}
 		});
 
-		// And now we can recalculate the branches a second time,
+		// Final dependency list in the correct order (which is defined by someBranch.toInject)
+		List<Dependency> dependencies = new ArrayList<>();
+		for (var key : someBranch.toInject.keySet()) {
+			var dep = key.dependency();
+			if (unorderedDependencies.contains(dep)) {
+				dependencies.add(dep);
+			}
+		}
+
+		// Finally, we can recalculate the branches a second time,
 		// expanding only the injector classes known to be needed.
 
-		// We leave the starting branch as-is, because our analysis above doesn't consider fields.
-		// By the time we're computing branches for parameters, the class template has already been
-		// expanded, so it's too late to try to optimize things for fields even if we wanted to.
 		List<Branch> neededBranches = List.of(startingBranch);
 		for (var dependency: dependencies) {
 			neededBranches = expandedBranches(neededBranches, dependency.injectorClass(), dependency.qualifier());
 		}
 		return neededBranches;
-	}
-
-	/**
-	 * Simpler than {@link #computeBranchesForParameters(ExtensionContext, List, Branch) computeBranchesForParameters}
-	 * because there's no particular requirement for precision at the class level:
-	 * we can rely on {@code computeBranchesForParameters} to clean up
-	 * unnecessary branches for us.
-	 */
-	static List<Branch> computeBranchesForFields(ExtensionContext context) {
-		var injectedFields = getInjectedFields(context);
-		
-		List<String> allQualifiers = distinctQualifiersFor(injectedFields);
-
-		// Class-level branches start from scratch because, unlike for
-		// method-level (parameter) branches, there's no higher-level
-		// branch computation context to build from.
-		List<Branch> allPossibleBranches = List.of(Branch.empty());
-
-		for (var injectorClass : getAllInjectorClasses(context)) {
-			for (String qualifier: allQualifiers) {
-				// Conservatively add in all possible qualifiers.
-				// They will get pruned by computeBranchesForParameters if they turn out not to be needed.
-				// TODO: I don't think this is actually true; and in any case, for efficiency, we should prune right away
-				allPossibleBranches = expandedBranches(allPossibleBranches, injectorClass, qualifier);
-			}
-		}
-		return allPossibleBranches;
 	}
 
 	/**
