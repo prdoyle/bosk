@@ -60,7 +60,6 @@ class QualifiedInjectionTests {
 
 		@Test
 		void test() {
-			// f0 uses default qualifier (independent), f1 and f2 share qualifier "x" -> expect patterns where f1==f2
 			observations.add(f0 + ":" + f1 + ":" + f2);
 		}
 
