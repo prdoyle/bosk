@@ -20,6 +20,10 @@ import works.bosk.junit.InjectFromHappyPathTests.MethodParametersTest.Independen
 
 import static java.util.stream.Collectors.joining;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static works.bosk.junit.InjectFromHappyPathTests.BaseValue.FIRST;
+import static works.bosk.junit.InjectFromHappyPathTests.BaseValue.SECOND;
+import static works.bosk.junit.InjectFromHappyPathTests.IndependentValue.X;
+import static works.bosk.junit.InjectFromHappyPathTests.IndependentValue.Y;
 
 /**
  * Tests for {@link InjectFrom} that actually use JUnit.
@@ -306,7 +310,7 @@ class InjectFromHappyPathTests {
 
 		@Override
 		public List<BaseValue> values() {
-			return List.of(BaseValue.FIRST, BaseValue.SECOND);
+			return List.of(FIRST, SECOND);
 		}
 	}
 
@@ -334,6 +338,19 @@ class InjectFromHappyPathTests {
 		}
 	}
 
+	record MultiDependentInjector(BaseValue base) implements Injector {
+
+		@Override
+		public boolean supports(AnnotatedElement element, Class<?> elementType) {
+			return elementType == String.class;
+		}
+
+		@Override
+		public List<?> values() {
+			return List.of("First-from-" + base, "Second-from-" + base);
+		}
+	}
+
 	record IndependentInjector() implements Injector {
 		@Override
 		public boolean supports(AnnotatedElement element, Class<?> elementType) {
@@ -342,7 +359,7 @@ class InjectFromHappyPathTests {
 
 		@Override
 		public List<IndependentValue> values() {
-			return List.of(IndependentValue.X, IndependentValue.Y);
+			return List.of(X, Y);
 		}
 	}
 
@@ -370,4 +387,29 @@ class InjectFromHappyPathTests {
 			), observations);
 		}
 	}
+
+	/**
+	 * Regression test: confuse the field injection logic by making it
+	 * expand branches for a dependent injector that is not actually needed.
+	 */
+	@Nested
+	@InjectFields
+	@InjectFrom({BaseInjector.class, MultiDependentInjector.class, IndependentInjector.class})
+	class UnusedFieldInjectorTest {
+		static final List<IndependentValue> observations = new ArrayList<>();
+
+		@Injected IndependentValue independentValue;
+
+		@Test
+		void fieldInjection_shouldNotBeMultipliedByUnusedInjector() {
+			observations.add(independentValue);
+		}
+
+		@AfterAll
+		static void checkObservations() {
+			assertEquals(List.of(X, Y), observations,
+				"There should be only one of each IndependentValue");
+		}
+	}
+
 }

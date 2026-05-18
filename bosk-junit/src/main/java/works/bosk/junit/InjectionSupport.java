@@ -14,7 +14,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -227,8 +226,14 @@ class InjectionSupport {
 			
 			// Determine how the parameters are to be injected
 			List<InjectionKey> ctorKeys = Arrays.stream(ctor.getParameters())
-				.map(this::keyForParameter)
-				.map(Objects::requireNonNull)
+				.map(p -> {
+					InjectionKey key = keyForParameter(p);
+					if (key == null) {
+						throw new IllegalStateException("Error calling constructor on injector class " + injectorType + ": no injector found for parameter " + p);
+					} else {
+						return key;
+					}
+				})
 				.distinct() // Two parameters can use the same key
 				.toList();
 
