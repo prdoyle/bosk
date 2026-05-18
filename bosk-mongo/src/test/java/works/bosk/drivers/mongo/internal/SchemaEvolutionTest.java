@@ -2,7 +2,6 @@ package works.bosk.drivers.mongo.internal;
 
 import ch.qos.logback.classic.Level;
 import java.io.IOException;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.util.List;
 import java.util.Locale;
@@ -23,6 +22,7 @@ import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.internal.MainDriver.ManifestInfo;
+import works.bosk.drivers.mongo.internal.SchemaEvolutionTest.ConfigInjector;
 import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
@@ -41,19 +41,14 @@ import static works.bosk.testing.BoskTestUtils.boskName;
 
 @Slow
 @InjectFields
-@InjectFrom({
-	SchemaEvolutionTest.FromConfigInjector.class,
-	SchemaEvolutionTest.ToConfigInjector.class,
-})
+@InjectFrom(ConfigInjector.class)
 @ReplayLogsOnFailure
 public class SchemaEvolutionTest {
 
-	@Injected
-	@From
+	@Injected("from")
 	Configuration fromConfig;
 
-	@Injected
-	@To
+	@Injected("to")
 	Configuration toConfig;
 
 	private Helper fromHelper;
@@ -259,34 +254,15 @@ public class SchemaEvolutionTest {
 		}
 	}
 
-	static abstract class ConfigInjector implements Injector {
-		private final Class<? extends Annotation> annotationType;
-
-		ConfigInjector(Class<? extends Annotation> annotationType) {
-			this.annotationType = annotationType;
-		}
-
+	record ConfigInjector() implements Injector {
 		@Override
 		public boolean supports(AnnotatedElement element, Class<?> elementType) {
-			return element.isAnnotationPresent(annotationType)
-				&& elementType == Configuration.class;
+			return elementType == Configuration.class;
 		}
 
 		@Override
 		public List<Configuration> values() {
 			return CONFIGURATIONS;
-		}
-	}
-
-	static class FromConfigInjector extends ConfigInjector {
-		FromConfigInjector() {
-			super(From.class);
-		}
-	}
-
-	static class ToConfigInjector extends ConfigInjector {
-		ToConfigInjector() {
-			super(To.class);
 		}
 	}
 
