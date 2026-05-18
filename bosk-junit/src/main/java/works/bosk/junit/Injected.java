@@ -18,11 +18,11 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Retention(RUNTIME)
 @Target({FIELD, PARAMETER})
 public @interface Injected {
-    /**
-     * Optional qualifier for this injection site. Empty string means no qualifier.
+	/**
+	 * Optional qualifier for this injection site. Empty string means no qualifier.
 	 * For parameters that use the same {@link Injector},
 	 * if they have the same qualifier, they receive the same value;
 	 * if they have different qualifiers, they receive the Cartesian product of value combinations.
-     */
-    String value() default "";
+	 */
+	String value() default "";
 }

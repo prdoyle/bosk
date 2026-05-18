@@ -217,7 +217,7 @@ class InjectionSupport {
 		 * Computes a list of branches on which {@code injectorType} has been instantiated;
 		 * if {@code injectorType} has constructor arguments, the resulting list will have
 		 * one branch per constructor instance; otherwise, it's a singleton list.
-		 * <p> 
+		 * <p>
 		 * The resulting branches all have {@link InjectionKey}s suitable to inject
 		 * values for the given {@code injectorType} and {@code qualifier}.
 		 */
@@ -239,7 +239,7 @@ class InjectionSupport {
 			}
 			var ctor = ctors[0];
 			setAccessible(ctor);
-			
+
 			// Determine how the parameters are to be injected
 			List<InjectionKey> ctorKeys = Arrays.stream(ctor.getParameters())
 				.map(p -> {
