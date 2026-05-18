@@ -36,16 +36,4 @@ public interface Injector {
 	 */
 	List<?> values();
 
-	static <T> Injector ofType(Class<T> type, List<? extends T> values) {
-		return new Injector() {
-			@Override
-			public boolean supports(AnnotatedElement element, Class<?> elementType) {
-				return elementType == type;
-			}
-
-			public List<? extends T> values() {
-				return values;
-			}
-		};
-	}
 }

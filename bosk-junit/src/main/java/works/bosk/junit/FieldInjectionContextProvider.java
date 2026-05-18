@@ -13,29 +13,27 @@ import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.TestInstancePostProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.junit.ParameterInjectionSupport.Branch;
+import works.bosk.junit.InjectionSupport.Branch;
+import works.bosk.junit.InjectionSupport.InjectionKey;
 
 import static java.util.stream.Collectors.joining;
-import static works.bosk.junit.ParameterInjectionSupport.cartesianProduct;
-import static works.bosk.junit.ParameterInjectionSupport.expandBranchesForClassLevel;
-import static works.bosk.junit.ParameterInjectionSupport.getAllInjectorClasses;
-import static works.bosk.junit.ParameterInjectionSupport.getInjectedFields;
-import static works.bosk.junit.ParameterInjectionSupport.setAccessible;
+import static works.bosk.junit.InjectionSupport.BRANCH_KEY;
+import static works.bosk.junit.InjectionSupport.NAMESPACE;
+import static works.bosk.junit.InjectionSupport.cartesianProduct;
+import static works.bosk.junit.InjectionSupport.computeBranchesForFields;
+import static works.bosk.junit.InjectionSupport.getInjectedFields;
+import static works.bosk.junit.InjectionSupport.setAccessible;
 
 /**
  * Implements class-level field injection via {@link InjectFrom}.
  * <p>
  * This extension reads {@code @InjectFrom} annotations from the test class hierarchy
- * and creates multiple invocations of the test class, one per branch (combination of
- * injector values).
+ * and creates multiple invocations of the test class, one per combination of injected values.
  *
  * @see InjectFrom
  * @see Injected
  */
 public class FieldInjectionContextProvider implements ClassTemplateInvocationContextProvider {
-	static final ExtensionContext.Namespace NAMESPACE =
-		ExtensionContext.Namespace.create(FieldInjectionContextProvider.class);
-
 	@Override
 	public boolean supportsClassTemplate(ExtensionContext context) {
 		// If there are no injected fields, there's nothing for this extension to do,
@@ -46,31 +44,32 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 	@Override
 	public Stream<ClassTemplateInvocationContext> provideClassTemplateInvocationContexts(ExtensionContext context) {
 		List<Field> injectedFields = getInjectedFields(context);
-		List<Branch> branches = computeBranchesForClass(context);
 
+		List<Branch> branches = computeBranchesForFields(context);
 		return branches.stream().flatMap(branch -> {
-			var valuesByInjector = new LinkedHashMap<Injector, List<?>>();
+			var valuesByKey = new LinkedHashMap<InjectionKey, List<?>>();
 			for (Field f : injectedFields) {
-				Injector injector = branch.injectorForField(f);
-				if (injector == null) {
+				var key = branch.keyForField(f);
+				if (key == null) {
 					// There is no other mechanism for supplying values for fields annotated
 					// with @Injected, so we're doomed.
 					throw new ParameterResolutionException("No injector for field " + f);
 				} else {
-					valuesByInjector.computeIfAbsent(injector, key -> branch.toInject().get(key).values());
+					valuesByKey.computeIfAbsent(key, branch::valuesFor);
 				}
 			}
 
-			List<Injector> injectors = List.copyOf(valuesByInjector.keySet());
-			List<List<Object>> combinations = cartesianProduct(valuesByInjector.values());
+			// These lists have matching indexes
+			List<InjectionKey> keys = List.copyOf(valuesByKey.keySet());
+			List<List<Object>> combinations = cartesianProduct(valuesByKey.values());
 
 			return combinations.stream().map(combo -> {
 				var fieldValueMap = new LinkedHashMap<Field, Object>();
 				for (Field field : injectedFields) {
-					Injector pi = branch.injectorForField(field);
-					if (pi != null) {
-						int injectorIndex = injectors.indexOf(pi);
-						fieldValueMap.put(field, combo.get(injectorIndex));
+					InjectionKey key = branch.keyForField(field);
+					if (key != null) {
+						// We've found a field to inject
+						fieldValueMap.put(field, combo.get(keys.indexOf(key)));
 					}
 				}
 
@@ -79,30 +78,26 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 				return new ClassTemplateInvocationContext() {
 					@Override
 					public String getDisplayName(int invocationIndex) {
-						return displayName(branch, fieldValueMap, injectedFields);
+						return displayName(fieldValueMap, injectedFields);
 					}
 
 					@Override
 					public List<Extension> getAdditionalExtensions() {
-						return List.of(new TestInstancePostProcessor() {
-							@Override
-							public void postProcessTestInstance(Object testInstance, ExtensionContext ec) {
-								setInjectedFields(testInstance, fieldValueMap, injectedFields);
-							}
-						});
+						return List.of((TestInstancePostProcessor) (testInstance, _) ->
+							setInjectedFields(testInstance, fieldValueMap, injectedFields));
 					}
 
 					@Override
 					public void prepareInvocation(ExtensionContext context) {
 						LOGGER.debug("Storing collapsed branch in invocation context: {}", collapsedBranch);
-						context.getStore(NAMESPACE).put("branch", collapsedBranch);
+						context.getStore(NAMESPACE).put(BRANCH_KEY, collapsedBranch);
 					}
 				};
 			});
 		});
 	}
 
-	private String displayName(Branch branch, Map<Field, Object> fieldValueMap, List<Field> injectedFields) {
+	private String displayName(Map<Field, Object> fieldValueMap, List<Field> injectedFields) {
 		return injectedFields.stream()
 			.map(f -> f.getName() + "=" + fieldValueMap.get(f))
 			.collect(joining(", "));
@@ -121,18 +116,6 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 				throw new ParameterResolutionException("Cannot set field " + field, e);
 			}
 		}
-	}
-
-	private List<Branch> computeBranchesForClass(ExtensionContext context) {
-		var injectedFields = getInjectedFields(context);
-
-		List<Branch> branches = List.of(Branch.empty());
-		for (var injectorClass : getAllInjectorClasses(context)) {
-			if (ParameterInjectionSupport.supportsAnyField(injectorClass, injectedFields)) {
-				branches = expandBranchesForClassLevel(branches, injectorClass);
-			}
-		}
-		return branches;
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(FieldInjectionContextProvider.class);
