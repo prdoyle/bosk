@@ -55,7 +55,7 @@ public class FieldInjectionContextProvider implements ClassTemplateInvocationCon
 					// with @Injected, so we're doomed.
 					throw new ParameterResolutionException("No injector for field " + f);
 				} else {
-					valuesByKey.computeIfAbsent(key, k -> branch.toInject().get(k).values());
+					valuesByKey.computeIfAbsent(key, branch::valuesFor);
 				}
 			}
 

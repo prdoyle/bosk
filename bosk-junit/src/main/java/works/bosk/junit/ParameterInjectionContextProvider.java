@@ -49,7 +49,7 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 					// TODO: If we let users annotate parameters with @Injected to indicate
 					//  their intent, then we could throw an informative exception here.
 				} else {
-					valuesByKey.computeIfAbsent(key, k -> branch.toInject().get(k).values());
+					valuesByKey.computeIfAbsent(key, k -> branch.valuesFor(k));
 				}
 			});
 
@@ -61,7 +61,7 @@ public class ParameterInjectionContextProvider implements TestTemplateInvocation
 				// Swizzle the combo into a useful map from parameter to value
 				var paramValueMap = new LinkedHashMap<Parameter, Object>();
 				requiredParameters.forEach(parameter -> {
-					// TODO: There's essentially a copy of this in Branch.withInjectors
+					// TODO: There's essentially a copy of this in Branch.expandedFor
 					InjectionKey key = branch.keyForParameter(parameter);
 					if (key != null) {
 						int index = keys.indexOf(key);
