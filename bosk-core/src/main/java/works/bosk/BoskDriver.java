@@ -6,7 +6,7 @@ import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import org.pcollections.TreePMap;
-import works.bosk.BoskContext.Tenant.SetTo;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.drivers.ForwardingDriver;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
@@ -82,10 +82,10 @@ public interface BoskDriver {
 			}
 		}
 
-		record MultiTree<R extends StateTreeNode>(SortedMap<SetTo, R> tenantRoots) implements EntireState<R> {
+		record MultiTree<R extends StateTreeNode>(SortedMap<TenantId, R> tenantRoots) implements EntireState<R> {
 			public MultiTree {
 				requireNonNull(tenantRoots);
-				if (!(tenantRoots instanceof TreePMap<SetTo,R>)) {
+				if (!(tenantRoots instanceof TreePMap<TenantId,R>)) {
 					tenantRoots = TreePMap.from(tenantRoots);
 				}
 			}
@@ -94,20 +94,20 @@ public interface BoskDriver {
 				return new MultiTree<>(TreePMap.empty());
 			}
 
-			public static <R extends StateTreeNode> MultiTree<R> singleton(SetTo tenant, R root) {
+			public static <R extends StateTreeNode> MultiTree<R> singleton(TenantId tenant, R root) {
 				return new MultiTree<>(TreePMap.singleton(tenant, root));
 			}
 
-			public MultiTree<R> with(SetTo tenant, R root) {
-				if (tenantRoots instanceof TreePMap<SetTo,R> t) {
+			public MultiTree<R> with(TenantId tenant, R root) {
+				if (tenantRoots instanceof TreePMap<TenantId,R> t) {
 					return new MultiTree<>(t.plus(tenant, root));
 				} else {
 					throw new AssertionError("tenantRoots is always a TreePMap");
 				}
 			}
 
-			public MultiTree<R> without(SetTo tenant) {
-				if (tenantRoots instanceof TreePMap<SetTo,R> t) {
+			public MultiTree<R> without(TenantId tenant) {
+				if (tenantRoots instanceof TreePMap<TenantId,R> t) {
 					return new MultiTree<>(t.minus(tenant));
 				} else {
 					throw new AssertionError("tenantRoots is always a TreePMap");

@@ -19,7 +19,7 @@ import works.bosk.BoskConfig.TenancyModel.None;
 import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.ContextScope;
 import works.bosk.BoskContext.Tenant;
-import works.bosk.BoskContext.Tenant.SetTo;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.BoskDriver.EntireState.MultiTree;
@@ -191,7 +191,7 @@ public abstract class AbstractDriverTest {
 		TestEntity root = TestEntity.empty(Identifier.from("root"), b.rootReference().thenCatalog(TestEntity.class, Path.just(Fields.catalog)));
 		return switch (scenario.tenancyModel) {
 			case Persistent _ -> MultiTree.<TestEntity>empty()
-				.with((SetTo) scenario.startingTenant, root)
+				.with((TenantId) scenario.startingTenant, root)
 				.with(Tenant.setTo(TENANT2), root.withId(Identifier.from(TENANT2 + " root")));
 			case None _, Fixed _ -> EntireState.just(root);
 		};

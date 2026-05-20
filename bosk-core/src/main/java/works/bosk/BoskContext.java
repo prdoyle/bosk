@@ -110,13 +110,13 @@ public final class BoskContext {
 		 * <p>
 		 * For a bosk configured without multi-tenancy, this value is not allowed.
 		 */
-		record SetTo(Identifier tenant) implements Established, Comparable<SetTo> {
-			public SetTo {
+		record TenantId(Identifier tenant) implements Established, Comparable<TenantId> {
+			public TenantId {
 				requireNonNull(tenant);
 			}
 
 			@Override
-			public int compareTo(SetTo o) {
+			public int compareTo(TenantId o) {
 				return tenant.toString().compareTo(o.tenant.toString());
 			}
 		}
@@ -131,8 +131,8 @@ public final class BoskContext {
 		 */
 		None NONE = new None();
 
-		static SetTo setTo(Identifier tenant) {
-			return new SetTo(tenant);
+		static TenantId setTo(Identifier tenant) {
+			return new TenantId(tenant);
 		}
 	}
 

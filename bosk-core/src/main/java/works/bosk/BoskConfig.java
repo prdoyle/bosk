@@ -1,6 +1,7 @@
 package works.bosk;
 
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.TenantId;
 
 import static java.util.Objects.requireNonNull;
 
@@ -111,7 +112,7 @@ public record BoskConfig<R extends StateTreeNode> (
 		record None() implements Implicit {}
 
 		/**
-		 * {@link Tenant.SetTo} is automatically established on all threads,
+		 * {@link TenantId} is automatically established on all threads,
 		 * and the tenant is fixed to the given identifier, including in hooks.
 		 * <p>
 		 * This can be a useful first step during a transition to multitenancy,

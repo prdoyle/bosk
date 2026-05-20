@@ -31,7 +31,7 @@ import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
-import works.bosk.BoskContext.Tenant.SetTo;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.BoskDriver.EntireState.MultiTree;
 import works.bosk.BoskDriver.EntireState.SingleTree;
@@ -143,7 +143,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		Supplier<Context> initialContextSupplier = switch (tenancyModel) {
 			case None _ -> Context::emptyWithNoTenant;
-			case Fixed(var id) -> () -> new Context(new Tenant.SetTo(id), MapValue.empty());
+			case Fixed(var id) -> () -> new Context(new TenantId(id), MapValue.empty());
 			case Explicit _ -> Context::empty;
 		};
 		context = new BoskContext(initialContextSupplier, name);
@@ -520,7 +520,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 					case SingleTree<R>(var root) -> {
 						var tenant = switch (tenancyModel) {
 							case None _ -> Tenant.NONE;
-							case Fixed(var id) -> new Tenant.SetTo(id);
+							case Fixed(var id) -> new TenantId(id);
 							case Persistent _ -> throw new IllegalStateException("Persistent tenancy model is not supported in single-tree bosk");
 						};
 						try (var _ = context.withTenant(tenant)) {
@@ -551,7 +551,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> EntireState.just(newRoot);
 					case SingleTree<R> _ -> EntireState.just(newRoot);
-					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
+					case MultiTree<R> m -> m.with((TenantId)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Replacement at {} changed root from {} to {}",
@@ -582,7 +582,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 				currentState = switch (currentState) {
 					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
 					case SingleTree<R> _ -> EntireState.just(newRoot);
-					case MultiTree<R> m -> m.with((SetTo)context().getTenant(), newRoot);
+					case MultiTree<R> m -> m.with((TenantId)context().getTenant(), newRoot);
 				};
 				if (LOGGER.isTraceEnabled()) {
 					LOGGER.trace("Deletion at {} changed root from {} to {}",
@@ -1532,14 +1532,14 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			case null -> null; // Bosk is still initializing
 			case SingleTree<RR>(var r) -> r;
 			case MultiTree<RR>(var r) -> {
-				if (context().getTenant() instanceof SetTo s) {
+				if (context().getTenant() instanceof TenantId s) {
 					RR result = r.get(s);
 					if (result == null) {
 						throw new IllegalStateException("Tenant " + s + " does not exist");
 					}
 					yield result;
 				} else {
-					throw new IllegalStateException("Tenant must be SetTo for multi-tenant bosk");
+					throw new IllegalStateException("Tenant must be TenantId for multi-tenant bosk");
 				}
 			}
 		};

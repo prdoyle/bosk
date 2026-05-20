@@ -5,6 +5,7 @@ import works.bosk.Bosk;
 import works.bosk.BoskConfig;
 import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.testing.BoskTestUtils;
 import works.bosk.testing.drivers.state.TestEntity;
@@ -17,8 +18,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Tests the ability of a driver to share state between two bosks.
  */
 public abstract class SharedDriverConformanceTest extends DriverConformanceTest {
-	final Tenant.SetTo tenant1 = Tenant.setTo(TENANT1);
-	final Tenant.SetTo tenant2 = Tenant.setTo(TENANT2);
+	final TenantId tenant1 = Tenant.setTo(TENANT1);
+	final TenantId tenant2 = Tenant.setTo(TENANT2);
 
 	@Override
 	protected void assertCorrectBoskContents() {

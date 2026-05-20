@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Implicit;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.testing.drivers.AbstractDriverTest;
 import works.bosk.testing.drivers.DriverConformanceTest;
@@ -27,8 +28,8 @@ import static works.bosk.testing.BoskTestUtils.boskName;
  * Note that context propagation for driver operations is tested by {@link DriverConformanceTest}.
  */
 class BoskContextTest extends AbstractDriverTest {
-	final Tenant.SetTo tenant1 = Tenant.setTo(Identifier.from("tenant1"));
-	final Tenant.SetTo tenant2 = Tenant.setTo(Identifier.from("tenant2"));
+	final TenantId tenant1 = Tenant.setTo(Identifier.from("tenant1"));
+	final TenantId tenant2 = Tenant.setTo(Identifier.from("tenant2"));
 
 	public interface Refs {
 		@ReferencePath("/string") Reference<String> string();

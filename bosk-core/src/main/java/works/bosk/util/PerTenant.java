@@ -9,7 +9,7 @@ import java.util.stream.Collector;
 import org.pcollections.TreePMap;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
-import works.bosk.BoskContext.Tenant.SetTo;
+import works.bosk.BoskContext.Tenant.TenantId;
 
 import static java.util.function.Function.identity;
 import static works.bosk.BoskContext.Tenant.NONE;
@@ -40,12 +40,12 @@ public sealed interface PerTenant<T> {
 	 * <p>
 	 * Tenants are ordered by their ID.
 	 */
-	record MultiTenant<T>(SortedMap<SetTo, T> values) implements PerTenant<T> {
+	record MultiTenant<T>(SortedMap<TenantId, T> values) implements PerTenant<T> {
 		public MultiTenant {
 			// The values should always be a TreePMap so that we can do efficient
 			// nondestructive updates, but we don't want to force all users of this
 			// library to depend explicitly on the pcollections library.
-			if (!(values instanceof TreePMap<SetTo,T>)) {
+			if (!(values instanceof TreePMap<TenantId,T>)) {
 				values = TreePMap.from(values);
 			}
 		}
@@ -55,22 +55,22 @@ public sealed interface PerTenant<T> {
 			values.forEach(consumer);
 		}
 
-		public MultiTenant<T> with(SetTo key, T value) {
+		public MultiTenant<T> with(TenantId key, T value) {
 			return new MultiTenant<>(treePMap().plus(key, value));
 		}
 
-		public MultiTenant<T> withAll(Map<SetTo, T> additionalValues) {
+		public MultiTenant<T> withAll(Map<TenantId, T> additionalValues) {
 			return new MultiTenant<>(treePMap().plusAll(additionalValues));
 		}
 
-		public MultiTenant<T> without(SetTo key) {
+		public MultiTenant<T> without(TenantId key) {
 			return new MultiTenant<>(treePMap().minus(key));
 		}
 
-		public static <IN, OUT> Collector<Entry<SetTo, IN>, ?, MultiTenant<OUT>> withValues(Function<IN, OUT> valueMapper) {
+		public static <IN, OUT> Collector<Entry<TenantId, IN>, ?, MultiTenant<OUT>> withValues(Function<IN, OUT> valueMapper) {
 			class Accumulator {
-				TreePMap<SetTo, OUT> map = org.pcollections.TreePMap.empty();
-				void accumulate(Entry<SetTo, IN> e) { map = map.plus(e.getKey(), valueMapper.apply(e.getValue())); }
+				TreePMap<TenantId, OUT> map = org.pcollections.TreePMap.empty();
+				void accumulate(Entry<TenantId, IN> e) { map = map.plus(e.getKey(), valueMapper.apply(e.getValue())); }
 				Accumulator combine(Accumulator other) { map = map.plusAll(other.map); return this; }
 				MultiTenant<OUT> finish() { return new MultiTenant<>(map); }
 			}
@@ -82,12 +82,12 @@ public sealed interface PerTenant<T> {
 			);
 		}
 
-		public static <TT> Collector<Entry<SetTo, TT>, ?, MultiTenant<TT>> collector() {
+		public static <TT> Collector<Entry<TenantId, TT>, ?, MultiTenant<TT>> collector() {
 			return withValues(identity());
 		}
 
-		private TreePMap<SetTo, T> treePMap() {
-			return (TreePMap<SetTo, T>) values;
+		private TreePMap<TenantId, T> treePMap() {
+			return (TreePMap<TenantId, T>) values;
 		}
 	}
 

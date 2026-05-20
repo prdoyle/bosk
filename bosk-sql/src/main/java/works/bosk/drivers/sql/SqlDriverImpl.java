@@ -23,6 +23,7 @@ import tools.jackson.databind.node.StringNode;
 import tools.jackson.databind.type.TypeFactory;
 import works.bosk.BoskContext;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
 import works.bosk.Identifier;
@@ -555,7 +556,7 @@ class SqlDriverImpl implements SqlDriver {
 		return switch (tenant) {
 			case Tenant.NotEstablished _ -> null;
 			case Tenant.None _ -> "none";
-			case Tenant.SetTo(var id) -> "t:" + id;
+			case TenantId(var id) -> "t:" + id;
 		};
 	}
 
