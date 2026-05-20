@@ -19,6 +19,7 @@ import static works.bosk.BoskContext.Tenant.NONE;
  */
 public sealed interface PerTenant<T> {
 	void forEach(BiConsumer<? super Established, ? super T> consumer);
+	<U> PerTenant<U> map(Function<T,U> mapping);
 
 	/**
 	 * Not a multitenant situation: the {@link Tenant} is {@link Tenant#NONE NONE}.
@@ -27,6 +28,11 @@ public sealed interface PerTenant<T> {
 		@Override
 		public void forEach(BiConsumer<? super Established, ? super T> consumer) {
 			consumer.accept(NONE, value);
+		}
+
+		@Override
+		public <U> PerTenant<U> map(Function<T, U> mapping) {
+			return new SoleTenant<>(mapping.apply(value));
 		}
 
 		public static <TT> SoleTenant<TT> just(TT value) {
@@ -53,6 +59,11 @@ public sealed interface PerTenant<T> {
 		@Override
 		public void forEach(BiConsumer<? super Established, ? super T> consumer) {
 			values.forEach(consumer);
+		}
+
+		@Override
+		public <U> PerTenant<U> map(Function<T, U> mapping) {
+			return values.entrySet().stream().collect(MultiTenant.withValues(mapping));
 		}
 
 		public MultiTenant<T> with(TenantId key, T value) {
