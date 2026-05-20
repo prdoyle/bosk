@@ -7,7 +7,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 import works.bosk.BoskContext;
-import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.EntireState.MultiTree;
 import works.bosk.BoskDriver.EntireState.SingleTree;
@@ -117,7 +116,7 @@ public class JsonNodeDriver implements BoskDriver {
 		if (nodeInfo.replacementLocation() instanceof Root) {
 			contents = switch (contents) {
 				case SoleTenant<JsonNode> _ -> SoleTenant.just(replacement);
-				case PerTenant.MultiTenant<JsonNode> m -> m.with((TenantId)context.getEstablishedTenant(), replacement);
+				case PerTenant.MultiTenant<JsonNode> m -> m.with(context.getTenantId(), replacement);
 			};
 		} else {
 			surgeon.replaceNode(nodeInfo, replacement);
@@ -133,7 +132,7 @@ public class JsonNodeDriver implements BoskDriver {
 	JsonNode currentRoot() {
 		return switch (contents) {
 			case SoleTenant<JsonNode>(var root) -> root;
-			case MultiTenant<JsonNode>(var roots) -> roots.get((TenantId) context.getEstablishedTenant());
+			case MultiTenant<JsonNode>(var roots) -> roots.get(context.getTenantId());
 		};
 	}
 

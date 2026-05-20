@@ -6,6 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskContext.Tenant.TenantId;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Predicate.not;
@@ -172,6 +173,15 @@ public final class BoskContext {
 			return established;
 		} else {
 			throw new IllegalStateException("Tenant is not established on thread " + Thread.currentThread());
+		}
+	}
+
+	public Tenant.TenantId getTenantId() {
+		Tenant tenant = getTenant();
+		if (tenant instanceof TenantId t) {
+			return t;
+		} else {
+			throw new IllegalStateException("No tenant ID on thread " + Thread.currentThread());
 		}
 	}
 
