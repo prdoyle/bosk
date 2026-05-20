@@ -80,7 +80,7 @@ public sealed interface PerTenant<T> {
 
 		public static <IN, OUT> Collector<Entry<TenantId, IN>, ?, MultiTenant<OUT>> withValues(Function<IN, OUT> valueMapper) {
 			class Accumulator {
-				TreePMap<TenantId, OUT> map = org.pcollections.TreePMap.empty();
+				TreePMap<TenantId, OUT> map = TreePMap.empty();
 				void accumulate(Entry<TenantId, IN> e) { map = map.plus(e.getKey(), valueMapper.apply(e.getValue())); }
 				Accumulator combine(Accumulator other) { map = map.plusAll(other.map); return this; }
 				MultiTenant<OUT> finish() { return new MultiTenant<>(map); }
