@@ -116,7 +116,7 @@ public class JsonNodeDriver implements BoskDriver {
 		JsonNode replacement = surgeon.replacementNode(nodeInfo, lastSegment, () -> mapper.convertValue(newValue, JsonNode.class));
 		if (nodeInfo.replacementLocation() instanceof Root) {
 			contents = switch (contents) {
-				case SoleTenant<JsonNode>(var _) -> SoleTenant.just(replacement);
+				case SoleTenant<JsonNode> _ -> SoleTenant.just(replacement);
 				case PerTenant.MultiTenant<JsonNode> m -> m.with((TenantId)context.getEstablishedTenant(), replacement);
 			};
 		} else {

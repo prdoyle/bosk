@@ -23,6 +23,9 @@
 		<Bug code="CT"/> <!-- Obsolete: Finalizers are deprecated for removal -->
 	</Match>
 	<Match>
+		<Bug code="UMAC"/> <!-- https://github.com/spotbugs/spotbugs/issues/4055 -->
+	</Match>
+	<Match>
 		<!-- I don't understand the objection here. We're returning a singleton. -->
 		<Class name="works.bosk.Path"/>
 		<Method name="empty"/>
