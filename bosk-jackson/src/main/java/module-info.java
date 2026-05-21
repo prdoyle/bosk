@@ -10,6 +10,7 @@ module works.bosk.jackson {
 	requires transitive works.bosk.core;
 
 	requires static lombok;
+	requires jakarta.annotation;
 
 	exports works.bosk.jackson;
 }

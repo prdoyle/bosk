@@ -1,5 +1,6 @@
 package works.bosk.jackson;
 
+import jakarta.annotation.Nonnull;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -129,10 +130,16 @@ public class JsonNodeDriver implements BoskDriver {
 		}
 	}
 
-	JsonNode currentRoot() {
+	@Nonnull JsonNode currentRoot() {
 		return switch (contents) {
 			case SoleTenant<JsonNode>(var root) -> root;
-			case MultiTenant<JsonNode>(var roots) -> roots.get(context.getTenantId());
+			case MultiTenant<JsonNode>(var roots) -> {
+				JsonNode root = roots.get(context.getTenantId());
+				if (root == null) {
+					throw new IllegalStateException("No state for tenant " + context.getTenantId());
+				}
+				yield root;
+			}
 		};
 	}
 
