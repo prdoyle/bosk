@@ -31,10 +31,6 @@
 		<Method name="empty"/>
 		<Bug code="MS"/>
 	</Match>
-	<Match>
-		<Class name="works.bosk.SideTable$1Accumulator"/>
-		<Bug code="UMAC"/> <!-- Incorrectly identified as uncallable -->
-	</Match>
 
 	<Match>
 		<Class name="works.bosk.drivers.sql.SqlDriverSettings"/>
