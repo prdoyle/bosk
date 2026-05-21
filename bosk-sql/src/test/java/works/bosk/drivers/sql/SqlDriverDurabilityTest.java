@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
-import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver;
 import works.bosk.DriverStack;
 import works.bosk.drivers.sql.SqlTestService.Database;
 import works.bosk.drivers.sql.schema.Schema;
@@ -106,7 +106,7 @@ public class SqlDriverDurabilityTest extends AbstractDriverTest {
 		assertEquals(expected, actual);
 	}
 
-	private @NotNull InitialState<TestEntity> differentInitialState(Bosk<TestEntity> b) throws InvalidTypeException, IOException, InterruptedException {
+	private @NotNull BoskDriver.EntireState<TestEntity> differentInitialState(Bosk<TestEntity> b) throws InvalidTypeException, IOException, InterruptedException {
 		return initialState(b)
 			.map(r -> r.withString("Different"));
 	}

@@ -26,6 +26,7 @@ import org.bson.io.BasicOutputBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskInfo;
 import works.bosk.Identifier;
 import works.bosk.MapValue;
@@ -153,7 +154,7 @@ final class Formatter extends BsonFormatter {
 	BsonValue encodeTenant(Tenant.Established tenant) {
 		return switch(tenant) {
 			case Tenant.None _ -> new BsonBoolean(false);
-			case Tenant.SetTo(var id) -> new BsonString(id.toString());
+			case TenantId(var id) -> new BsonString(id.toString());
 		};
 	}
 
@@ -167,7 +168,7 @@ final class Formatter extends BsonFormatter {
 					yield Tenant.NONE;
 				}
 			}
-			case BsonString s -> new Tenant.SetTo(Identifier.from(s.getValue()));
+			case BsonString s -> new TenantId(Identifier.from(s.getValue()));
 			default -> throw new IllegalArgumentException("Unexpected tenant value: " + tenant);
 		};
 	}

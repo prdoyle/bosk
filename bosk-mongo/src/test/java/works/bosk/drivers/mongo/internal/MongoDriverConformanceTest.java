@@ -39,7 +39,7 @@ import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOI
 
 @Slow
 @InjectFields
-@InjectFrom({ParameterSetInjector.class, SingleTreeScenarioInjector.class})
+@InjectFrom({SingleTreeScenarioInjector.class, ParameterSetInjector.class})
 class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
 	private static MongoService mongoService;

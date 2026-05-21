@@ -5,7 +5,8 @@ import works.bosk.Bosk;
 import works.bosk.BoskConfig;
 import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Tenant;
-import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskContext.Tenant.TenantId;
+import works.bosk.BoskDriver.EntireState;
 import works.bosk.testing.BoskTestUtils;
 import works.bosk.testing.drivers.state.TestEntity;
 
@@ -17,8 +18,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Tests the ability of a driver to share state between two bosks.
  */
 public abstract class SharedDriverConformanceTest extends DriverConformanceTest {
-	final Tenant.SetTo tenant1 = Tenant.setTo(TENANT1);
-	final Tenant.SetTo tenant2 = Tenant.setTo(TENANT2);
+	final TenantId tenant1 = Tenant.setTo(TENANT1);
+	final TenantId tenant2 = Tenant.setTo(TENANT2);
 
 	@Override
 	protected void assertCorrectBoskContents() {
@@ -36,7 +37,7 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		} catch (Exception e) {
 			throw new AssertionError("Unexpected exception", e);
 		}
-		InitialState<TestEntity> expected, actual;
+		EntireState<TestEntity> expected, actual;
 		try (
 			var _ = canonicalBosk.readSession()
 		) {
@@ -61,7 +62,7 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		tenantScope.close();
 		tenantScope = null;
 
-		InitialState.MultiTree<TestEntity> expectedState = (InitialState.MultiTree<TestEntity>) initialState(bosk);
+		EntireState.MultiTree<TestEntity> expectedState = (EntireState.MultiTree<TestEntity>) initialState(bosk);
 		assertNotEquals(
 			expectedState.tenantRoots().get(tenant1),
 			expectedState.tenantRoots().get(tenant2),

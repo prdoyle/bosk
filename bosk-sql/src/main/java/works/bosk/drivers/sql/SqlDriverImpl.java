@@ -23,6 +23,7 @@ import tools.jackson.databind.node.StringNode;
 import tools.jackson.databind.type.TypeFactory;
 import works.bosk.BoskContext;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
 import works.bosk.Identifier;
@@ -247,7 +248,7 @@ class SqlDriverImpl implements SqlDriver {
 	}
 
 	@Override
-	public <R extends StateTreeNode> InitialState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		// TODO: Consider a disconnected mode where we delegate downstream if something goes wrong
 		LOGGER.debug("initialState({})", rootType);
 		try (
@@ -255,15 +256,15 @@ class SqlDriverImpl implements SqlDriver {
 		){
 			// TODO: It seems wrong to schedule the listener loop here. It should be in the constructor.
 			ensureTablesExist(connection);
-			InitialState<R> result;
+			EntireState<R> result;
 			var stateAndEpoch = loadStateAndEpoch(connection);
 			if (stateAndEpoch == null) {
 				LOGGER.debug("No current state; initializing {} table from downstream", BOSK);
 				this.epoch = UUID.randomUUID().toString();
 				result = downstream.initialState(rootType);
 				var root = switch (result) {
-					case InitialState.SingleTree(var r) -> r;
-					case InitialState.MultiTree<R> _ -> throw new NotYetImplementedException();
+					case EntireState.SingleTree(var r) -> r;
+					case EntireState.MultiTree<R> _ -> throw new NotYetImplementedException();
 				};
 				String stateJson = mapper.writeValueAsString(root);
 
@@ -296,7 +297,7 @@ class SqlDriverImpl implements SqlDriver {
 			.fetchOneInto(StateAndEpoch.class);
 	}
 
-	private synchronized <R extends StateTreeNode> InitialState<R> resetBoskState(Type rootType, StateAndEpoch stateAndEpoch, Connection connection) throws SQLException {
+	private synchronized <R extends StateTreeNode> EntireState<R> resetBoskState(Type rootType, StateAndEpoch stateAndEpoch, Connection connection) throws SQLException {
 		R root;
 		this.epoch = stateAndEpoch.epoch;
 		long currentChangeID;
@@ -310,7 +311,7 @@ class SqlDriverImpl implements SqlDriver {
 		this.lastChangeSubmittedDownstream.set(-1);
 		connection.commit();
 		submitDownstream(rootRef, root, currentChangeID);
-		return InitialState.of(root);
+		return EntireState.just(root);
 	}
 
 	private void ensureTablesExist(Connection connection) throws SQLException {
@@ -555,7 +556,7 @@ class SqlDriverImpl implements SqlDriver {
 		return switch (tenant) {
 			case Tenant.NotEstablished _ -> null;
 			case Tenant.None _ -> "none";
-			case Tenant.SetTo(var id) -> "t:" + id;
+			case TenantId(var id) -> "t:" + id;
 		};
 	}
 

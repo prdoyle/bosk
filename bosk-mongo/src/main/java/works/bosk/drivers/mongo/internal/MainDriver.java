@@ -37,8 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel.Implicit;
 import works.bosk.BoskDriver;
-import works.bosk.BoskDriver.InitialState.MultiTree;
-import works.bosk.BoskDriver.InitialState.SingleTree;
+import works.bosk.BoskDriver.EntireState.MultiTree;
+import works.bosk.BoskDriver.EntireState.SingleTree;
 import works.bosk.BoskInfo;
 import works.bosk.Identifier;
 import works.bosk.Reference;
@@ -249,7 +249,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	}
 
 	@Override
-	public <RR extends StateTreeNode> InitialState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, InterruptedException, IOException {
+	public <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, InterruptedException, IOException {
 		try (var _ = beginDriverOperation("initialState({})", rootType)) {
 			// The actual loading of the initial state happens on the ChangeReceiver thread.
 			// Here, we just wait for that to finish and deal with the consequences.
@@ -297,7 +297,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 * @throws InitialStateFailureException if unable to load the initial state from the database,
 	 * and {@link InitialDatabaseUnavailableMode#FAIL_FAST} is active.
 	 */
-	private InitialState<R> doInitialState(Class<R> rootType) {
+	private EntireState<R> doInitialState(Class<R> rootType) {
 		// This establishes a safe fallback in case things go wrong. It also causes any
 		// calls to driver update methods to wait until we're finished here. (There shouldn't
 		// be any such calls while initialState is still running, but this ensures that if any
@@ -308,23 +308,23 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		// of this method. Our only concurrency concerns now involve database operations performed
 		// by other processes.
 
-		InitialState<R> initialState;
+		EntireState<R> entireState;
 		try (var _ = queryCollection.newReadOnlySession()){
 			FormatDriver<R> detectedDriver = detectFormat();
 			StateAndMetadata<R> loadedState = detectedDriver.loadAllState();
-			initialState = InitialState.of(loadedState.state());
+			entireState = EntireState.just(loadedState.state());
 			publishFormatDriver(detectedDriver);
 			detectedDriver.onRevisionToSkip(loadedState.revision());
 		} catch (UninitializedCollectionException e) {
 			// We log this at warn because, in production, this is a big deal.
 			// Annoying in tests, so we log it with UNINITIALIZED_COLLECTION_LOGGER so we can selectively disable it.
 			UNINITIALIZED_COLLECTION_LOGGER.warn("Database collection is uninitialized; initializing now. ({})", e.getMessage());
-			initialState = callDownstreamInitialState(rootType);
+			entireState = callDownstreamInitialState(rootType);
 			try (
 				var session = queryCollection.newSession()
 			) {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
-				var root = switch (initialState) {
+				var root = switch (entireState) {
 					case SingleTree(var r) -> r;
 					case MultiTree<R> _ -> throw new NotYetImplementedException();
 				};
@@ -345,19 +345,19 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				case DISCONNECT:
 					LOGGER.info("Unable to load initial state from database; will proceed with downstream.initialState", e);
 					setDisconnectedDriver(e);
-					initialState = callDownstreamInitialState(rootType);
+					entireState = callDownstreamInitialState(rootType);
 					break;
 				default:
 					throw new AssertionError("Unknown " + InitialDatabaseUnavailableMode.class.getSimpleName() + ": " + driverSettings.initialDatabaseUnavailableMode());
 			}
 		}
-		return initialState;
+		return entireState;
 	}
 
 	/**
 	 * @throws DownstreamInitialStateException only
 	 */
-	private InitialState<R> callDownstreamInitialState(Class<R> rootType) {
+	private EntireState<R> callDownstreamInitialState(Class<R> rootType) {
 		try {
 			return downstream.initialState(rootType);
 		} catch (RuntimeException | Error | InvalidTypeException | IOException | InterruptedException e) {
@@ -501,9 +501,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 * to update {@link MainDriver}'s state in response to various occurrences.
 	 */
 	private class Listener implements ChangeListener {
-		final AtomicReference<FutureTask<InitialState<R>>> taskRef;
+		final AtomicReference<FutureTask<EntireState<R>>> taskRef;
 
-		private Listener(FutureTask<InitialState<R>> initialStateAction) {
+		private Listener(FutureTask<EntireState<R>> initialStateAction) {
 			this.taskRef = new AtomicReference<>(initialStateAction);
 		}
 
@@ -518,7 +518,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			TimeoutException
 		{
 			LOGGER.debug("onConnectionSucceeded");
-			FutureTask<InitialState<R>> initialStateAction = this.taskRef.get();
+			FutureTask<EntireState<R>> initialStateAction = this.taskRef.get();
 			if (initialStateAction == null) {
 				FormatDriver<R> newDriver;
 				StateAndMetadata<R> loadedState;
@@ -562,7 +562,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			}
 		}
 
-		private void runInitialStateAction(FutureTask<InitialState<R>> initialStateAction) throws InterruptedException, InitialStateActionException {
+		private void runInitialStateAction(FutureTask<EntireState<R>> initialStateAction) throws InterruptedException, InitialStateActionException {
 			initialStateAction.run();
 			try {
 				// You might think this ought to have a timeout,
@@ -602,7 +602,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			LOGGER.debug("onConnectionFailed");
 			// If there's an initialStateAction, the main thread is waiting for us.
 			// Execute the initialStateAction just to communicate the failure.
-			FutureTask<InitialState<R>> initialStateAction = this.taskRef.get();
+			FutureTask<EntireState<R>> initialStateAction = this.taskRef.get();
 			if (initialStateAction == null) {
 				LOGGER.debug("Nothing to do");
 			} else {

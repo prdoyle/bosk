@@ -1,18 +1,19 @@
 package works.bosk;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collector;
 import org.pcollections.TreePMap;
-import works.bosk.BoskContext.Tenant.SetTo;
+import works.bosk.Bosk.ReadSession;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.drivers.ForwardingDriver;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
 
 /**
  * Receives update requests for some {@link Bosk}.
@@ -21,7 +22,7 @@ import static java.util.stream.Collectors.toMap;
  */
 public interface BoskDriver {
 	/**
-	 * Returns the root state tree node the {@link Bosk} should use upon
+	 * Returns the state tree (or trees) that the {@link Bosk} should use upon
 	 * returning from its constructor.
 	 *
 	 * <p>
@@ -41,7 +42,7 @@ public interface BoskDriver {
 	 *
 	 * @param rootType The class of the root state tree node.
 	 * Enables a lot of type inference.
-	 * @return an {@link InitialState}
+	 * @return an {@link EntireState}
 	 * @throws InvalidTypeException as a convenience to support initialization logic
 	 * that creates {@link Reference References} (which is very common) so that implementations
 	 * do not need to catch that exception and wrap it or otherwise deal with it:
@@ -51,14 +52,18 @@ public interface BoskDriver {
 	 * but it can be used downstream of a {@link ForwardingDriver} provided there is
 	 * another downstream driver that can provide the initial state instead.
 	 */
-	<R extends StateTreeNode> InitialState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException;
+	<R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException;
 
-	sealed interface InitialState<R extends StateTreeNode> {
-		<T extends StateTreeNode> InitialState<T> map(InitialStateFunction<R,T> function) throws InvalidTypeException, IOException, InterruptedException;
+	/**
+	 * Describes the state tree (or trees) at a moment in time.
+	 * @param <R> the root node of the state tree
+	 */
+	sealed interface EntireState<R extends StateTreeNode> {
+		<T extends StateTreeNode> EntireState<T> map(InitialStateFunction<R,T> function) throws InvalidTypeException, IOException, InterruptedException;
 
-		<T extends StateTreeNode> InitialState<T> cast(Class<T> newRootType);
+		<T extends StateTreeNode> EntireState<T> cast(Class<T> newRootType);
 
-		static <R extends StateTreeNode> SingleTree<R> of(R root) {
+		static <R extends StateTreeNode> SingleTree<R> just(R root) {
 			return new SingleTree<>(root);
 		}
 
@@ -66,7 +71,7 @@ public interface BoskDriver {
 		 * This bosk has zero or more tenants,
 		 * but they all share the same state tree whose node is {@code rootNode}.
 		 */
-		record SingleTree<R extends StateTreeNode>(R rootNode) implements InitialState<R> {
+		record SingleTree<R extends StateTreeNode>(R rootNode) implements EntireState<R> {
 			public SingleTree {
 				requireNonNull(rootNode);
 			}
@@ -82,10 +87,10 @@ public interface BoskDriver {
 			}
 		}
 
-		record MultiTree<R extends StateTreeNode>(SortedMap<SetTo, R> tenantRoots) implements InitialState<R> {
+		record MultiTree<R extends StateTreeNode>(SortedMap<TenantId, R> tenantRoots) implements EntireState<R> {
 			public MultiTree {
 				requireNonNull(tenantRoots);
-				if (!(tenantRoots instanceof TreePMap<SetTo,R>)) {
+				if (!(tenantRoots instanceof TreePMap<TenantId,R>)) {
 					tenantRoots = TreePMap.from(tenantRoots);
 				}
 			}
@@ -94,20 +99,20 @@ public interface BoskDriver {
 				return new MultiTree<>(TreePMap.empty());
 			}
 
-			public static <R extends StateTreeNode> MultiTree<R> singleton(SetTo tenant, R root) {
+			public static <R extends StateTreeNode> MultiTree<R> singleton(TenantId tenant, R root) {
 				return new MultiTree<>(TreePMap.singleton(tenant, root));
 			}
 
-			public MultiTree<R> with(SetTo tenant, R root) {
-				if (tenantRoots instanceof TreePMap<SetTo,R> t) {
+			public MultiTree<R> with(TenantId tenant, R root) {
+				if (tenantRoots instanceof TreePMap<TenantId,R> t) {
 					return new MultiTree<>(t.plus(tenant, root));
 				} else {
 					throw new AssertionError("tenantRoots is always a TreePMap");
 				}
 			}
 
-			public MultiTree<R> without(SetTo tenant) {
-				if (tenantRoots instanceof TreePMap<SetTo,R> t) {
+			public MultiTree<R> without(TenantId tenant) {
+				if (tenantRoots instanceof TreePMap<TenantId,R> t) {
 					return new MultiTree<>(t.minus(tenant));
 				} else {
 					throw new AssertionError("tenantRoots is always a TreePMap");
@@ -116,37 +121,19 @@ public interface BoskDriver {
 
 			@Override
 			public <T extends StateTreeNode> MultiTree<T> cast(Class<T> newRootType) {
-				return new MultiTree<>(tenantRoots.entrySet().stream().collect(
-					toMap(
-						Entry::getKey,
-						entry -> newRootType.cast(entry.getValue()),
-						(_, _) -> {
-							throw new AssertionError("No duplicate keys");
-						},
-						TreeMap::new
-					)
-				));
+				return tenantRoots.entrySet().stream().collect(withValues(newRootType::cast));
 			}
 
 			@Override
 			public <T extends StateTreeNode> MultiTree<T> map(InitialStateFunction<R, T> function) throws InvalidTypeException, IOException, InterruptedException {
 				try {
-					return new MultiTree<>(tenantRoots.entrySet().stream().collect(
-						toMap(
-							Map.Entry::getKey,
-							entry -> {
-								try {
-									return function.apply(entry.getValue());
-								} catch (InvalidTypeException | IOException | InterruptedException e) {
-									throw new TunneledCheckedException(e);
-								}
-							},
-							(_, _) -> {
-								throw new AssertionError("No duplicate keys");
-							},
-							TreeMap::new
-						)
-					));
+					return tenantRoots.entrySet().stream().collect(withValues(v -> {
+						try {
+							return function.apply(v);
+						} catch (InvalidTypeException | IOException | InterruptedException e) {
+							throw new TunneledCheckedException(e);
+						}
+					}));
 				} catch (TunneledCheckedException e) {
 					try {
 						throw e.getCause();
@@ -157,10 +144,31 @@ public interface BoskDriver {
 					}
 				}
 			}
+
+			public static <IN, OUT extends StateTreeNode> Collector<Entry<TenantId, IN>, ?, MultiTree<OUT>> withValues(Function<IN, OUT> valueMapper) {
+				// TODO: Common with PerTenant?
+				class Accumulator {
+					TreePMap<TenantId, OUT> map = org.pcollections.TreePMap.empty();
+					void accumulate(Entry<TenantId, IN> e) { map = map.plus(e.getKey(), valueMapper.apply(e.getValue())); }
+					Accumulator combine(Accumulator other) { map = map.plusAll(other.map); return this; }
+					MultiTree<OUT> finish() { return new MultiTree<>(map); }
+				}
+				return Collector.of(
+					Accumulator::new,
+					Accumulator::accumulate,
+					Accumulator::combine,
+					Accumulator::finish
+				);
+			}
+
+			public static <R extends StateTreeNode> Collector<Entry<TenantId, R>, ?, MultiTree<R>> collector() {
+				return withValues(Function.identity());
+			}
+
 		}
 
 		/**
-		 * A version of {@link java.util.function.Function} that, for convenience,
+		 * A version of {@link Function} that, for convenience,
 		 * is allowed to throw exceptions permitted by {@link BoskDriver#initialState(Class) initialState}.
 		 */
 		interface InitialStateFunction<FROM extends StateTreeNode, TO extends StateTreeNode> {
@@ -172,7 +180,7 @@ public interface BoskDriver {
 	 * Requests that the object referenced by <code>target</code> be changed to <code>newValue</code>.
 	 *
 	 * <p>
-	 * Changes will not be visible in the {@link Bosk.ReadSession} in which this method
+	 * Changes will not be visible in the {@link ReadSession} in which this method
 	 * was called. If <code>target</code> is inside an enclosing object that does not exist at the
 	 * time the update is applied, it is silently ignored.
 	 */
@@ -197,11 +205,11 @@ public interface BoskDriver {
 	/**
 	 * Requests that the object referenced by <code>target</code> be deleted.
 	 * The object must be deletable; it must be an entry in a {@link Catalog}, {@link Listing},
-	 * or {@link SideTable}; or else it must be an {@link java.util.Optional} in which case
-	 * it will be changed to {@link java.util.Optional#empty()}.
+	 * or {@link SideTable}; or else it must be an {@link Optional} in which case
+	 * it will be changed to {@link Optional#empty()}.
 	 *
 	 * <p>
-	 * Changes will not be visible in the {@link Bosk.ReadSession} in which this method
+	 * Changes will not be visible in the {@link ReadSession} in which this method
 	 * was called. If <code>target.exists()</code> is false at the time this update
 	 * is to be applied, it is silently ignored.
 	 *
@@ -246,7 +254,7 @@ public interface BoskDriver {
 	 * </li></ul>
 	 *
 	 * All of these events "happen before" this method returns.
-	 * If a {@link Bosk.ReadSession} is acquired after this method returns,
+	 * If a {@link ReadSession} is acquired after this method returns,
 	 * all of the effects of the above operations (and possibly some additional subsequent operations)
 	 * will be reflected in the bosk state.
 	 * Hooks triggered by the above operations may or may not have run before this method returns.

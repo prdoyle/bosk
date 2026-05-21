@@ -4,7 +4,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import works.bosk.BoskDriver.InitialState;
+import works.bosk.BoskDriver.EntireState;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -19,7 +19,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 
 	@Test
 	void testReferenceOptionalNotAllowed() {
-		Bosk<OptionalString> bosk = new Bosk<>(boskName(), OptionalString.class, _ -> InitialState.of(new OptionalString(ID, Optional.empty())), BoskConfig.simple());
+		Bosk<OptionalString> bosk = new Bosk<>(boskName(), OptionalString.class, _ -> EntireState.just(new OptionalString(ID, Optional.empty())), BoskConfig.simple());
 		InvalidTypeException e = assertThrows(InvalidTypeException.class, () -> bosk.rootReference().then(Optional.class, Path.just("field")));
 		assertThat(e.getMessage(), containsString("not supported"));
 	}
@@ -104,7 +104,7 @@ class OptionalRefsTest extends AbstractRoundTripTest {
 		Bosk<E> bosk = new Bosk<>(
 			boskName(),
 			initialRoot.getClass(),
-			_ -> InitialState.of(initialRoot),
+			_ -> EntireState.just(initialRoot),
 			BoskConfig.<E>builder()
 				.driverFactory(driverFactory)
 				.build()

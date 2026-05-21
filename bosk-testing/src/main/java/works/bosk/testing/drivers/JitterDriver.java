@@ -44,7 +44,7 @@ public final class JitterDriver implements BoskDriver {
 	}
 
 	@Override
-	public <R extends StateTreeNode> InitialState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		sleep();
 		return downstream.initialState(rootType);
 	}

@@ -1,20 +1,16 @@
 package works.bosk.jackson;
 
+import jakarta.annotation.Nonnull;
 import java.io.IOException;
-import java.util.Map.Entry;
-import java.util.SortedMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 import works.bosk.BoskContext;
-import works.bosk.BoskContext.Tenant.Established;
-import works.bosk.BoskContext.Tenant.None;
-import works.bosk.BoskContext.Tenant.SetTo;
 import works.bosk.BoskDriver;
-import works.bosk.BoskDriver.InitialState.MultiTree;
-import works.bosk.BoskDriver.InitialState.SingleTree;
+import works.bosk.BoskDriver.EntireState.MultiTree;
+import works.bosk.BoskDriver.EntireState.SingleTree;
 import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
 import works.bosk.Identifier;
@@ -23,9 +19,9 @@ import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
-
-import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
+import works.bosk.util.PerTenant;
+import works.bosk.util.PerTenant.MultiTenant;
+import works.bosk.util.PerTenant.SoleTenant;
 
 /**
  * Maintains an in-memory representation of the bosk state
@@ -36,27 +32,8 @@ public class JsonNodeDriver implements BoskDriver {
 	final BoskContext context;
 	final ObjectMapper mapper;
 	final JsonNodeSurgeon surgeon;
-	Contents contents; // Note: for multi-tree, Contents is actually mutable
+	PerTenant<JsonNode> contents;
 	int updateNumber = 0;
-
-	sealed interface Contents {
-		record SingleTree(JsonNode root) implements Contents { }
-		record MultiTree(SortedMap<Established, JsonNode> roots) implements Contents {
-			public JsonNode get(Established tenant) {
-				return switch (tenant) {
-					case SetTo s -> requireNonNull(roots.get(s));
-					case None _ -> throw new IllegalStateException("Cannot get None");
-				};
-			}
-
-			public void put(Established tenant, JsonNode root) {
-				switch (tenant) {
-					case SetTo s -> roots.put(s, root);
-					case None _ -> throw new IllegalStateException("Cannot put None");
-				}
-			}
-		}
-	}
 
 	public static <R extends StateTreeNode> DriverFactory<R> factory(JacksonSerializer jacksonSerializer) {
 		return (b,d) -> new JsonNodeDriver(b, d, jacksonSerializer);
@@ -72,16 +49,12 @@ public class JsonNodeDriver implements BoskDriver {
 	}
 
 	@Override
-	public synchronized <R extends StateTreeNode> InitialState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public synchronized <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		var result = downstream.initialState(rootType);
 		contents = switch (result) {
-			case SingleTree(var r) -> new Contents.SingleTree(mapper.convertValue(r, JsonNode.class));
-			case MultiTree(var tenantRoots) -> new Contents.MultiTree(tenantRoots.entrySet().stream()
-				.collect(toMap(
-					Entry::getKey,
-					e -> mapper.convertValue(e.getValue(), JsonNode.class),
-					(_,b) -> b,
-					java.util.TreeMap::new)));
+			case SingleTree(var r) -> SoleTenant.just(mapper.convertValue(r, JsonNode.class));
+			case MultiTree(var tenantRoots) -> tenantRoots.entrySet().stream()
+				.collect(MultiTenant.withValues(v -> mapper.convertValue(v, JsonNode.class)));
 		};
 		traceCurrentState("After initialState");
 		return result;
@@ -142,10 +115,10 @@ public class JsonNodeDriver implements BoskDriver {
 	private <T> void doReplacement(NodeInfo nodeInfo, String lastSegment, T newValue) {
 		JsonNode replacement = surgeon.replacementNode(nodeInfo, lastSegment, () -> mapper.convertValue(newValue, JsonNode.class));
 		if (nodeInfo.replacementLocation() instanceof Root) {
-			switch (contents) {
-				case Contents.SingleTree _ -> contents = new Contents.SingleTree(replacement);
-				case Contents.MultiTree m -> m.put(context.getEstablishedTenant(), replacement);
-			}
+			contents = switch (contents) {
+				case SoleTenant<JsonNode> _ -> SoleTenant.just(replacement);
+				case PerTenant.MultiTenant<JsonNode> m -> m.with(context.getTenantId(), replacement);
+			};
 		} else {
 			surgeon.replaceNode(nodeInfo, replacement);
 		}
@@ -157,10 +130,16 @@ public class JsonNodeDriver implements BoskDriver {
 		}
 	}
 
-	JsonNode currentRoot() {
+	@Nonnull JsonNode currentRoot() {
 		return switch (contents) {
-			case Contents.SingleTree(var root) -> root;
-			case Contents.MultiTree m -> m.get(context.getEstablishedTenant());
+			case SoleTenant<JsonNode>(var root) -> root;
+			case MultiTenant<JsonNode>(var roots) -> {
+				JsonNode root = roots.get(context.getTenantId());
+				if (root == null) {
+					throw new IllegalStateException("No state for tenant " + context.getTenantId());
+				}
+				yield root;
+			}
 		};
 	}
 
