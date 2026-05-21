@@ -11,6 +11,7 @@ import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskContext.Tenant.TenantId;
 
+import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
 import static works.bosk.BoskContext.Tenant.NONE;
 
@@ -48,6 +49,7 @@ public sealed interface PerTenant<T> {
 	 */
 	record MultiTenant<T>(SortedMap<TenantId, T> values) implements PerTenant<T> {
 		public MultiTenant {
+			requireNonNull(values);
 			// The values should always be a TreePMap so that we can do efficient
 			// nondestructive updates, but we don't want to force all users of this
 			// library to depend explicitly on the pcollections library.
@@ -78,10 +80,10 @@ public sealed interface PerTenant<T> {
 			return new MultiTenant<>(treePMap().minus(key));
 		}
 
-		public static <IN, OUT> Collector<Entry<TenantId, IN>, ?, MultiTenant<OUT>> withValues(Function<IN, OUT> valueMapper) {
+		public static <IN, OUT> Collector<IN, ?, MultiTenant<OUT>> multiTenant(Function<IN, TenantId> tenantMapper, Function<IN, OUT> valueMapper) {
 			class Accumulator {
 				TreePMap<TenantId, OUT> map = TreePMap.empty();
-				void accumulate(Entry<TenantId, IN> e) { map = map.plus(e.getKey(), valueMapper.apply(e.getValue())); }
+				void accumulate(IN e) { map = map.plus(tenantMapper.apply(e), valueMapper.apply(e));  }
 				Accumulator combine(Accumulator other) { map = map.plusAll(other.map); return this; }
 				MultiTenant<OUT> finish() { return new MultiTenant<>(map); }
 			}
@@ -91,6 +93,10 @@ public sealed interface PerTenant<T> {
 				Accumulator::combine,
 				Accumulator::finish
 			);
+		}
+
+		public static <IN, OUT> Collector<Entry<TenantId, IN>, ?, MultiTenant<OUT>> withValues(Function<IN, OUT> valueMapper) {
+			return multiTenant(Entry::getKey, e -> valueMapper.apply(e.getValue()));
 		}
 
 		public static <TT> Collector<Entry<TenantId, TT>, ?, MultiTenant<TT>> collector() {
