@@ -3,7 +3,6 @@ package works.bosk.testing.drivers;
 import java.io.IOException;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
-import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +35,7 @@ import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
 import works.bosk.junit.Injector;
-import works.bosk.testing.drivers.AbstractDriverTest.ScenarioInjector;
+import works.bosk.testing.drivers.AbstractDriverTest.Scenario;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.testing.drivers.state.TestEntity.Fields;
 import works.bosk.util.Classes;
@@ -46,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
 @InjectFields
-@InjectFrom(ScenarioInjector.class)
+@InjectFrom(Scenario.class)
 public abstract class AbstractDriverTest {
 	public static final Identifier TENANT1 = Identifier.from("tenant1");
 	public static final Identifier TENANT2 = Identifier.from("tenant2");
@@ -94,18 +93,6 @@ public abstract class AbstractDriverTest {
 			this.startingTenant = startingTenant;
 		}
 
-	}
-
-	record ScenarioInjector() implements Injector {
-		@Override
-		public boolean supports(AnnotatedElement element, Class<?> elementType) {
-			return elementType.equals(Scenario.class);
-		}
-
-		@Override
-		public List<?> values() {
-			return Arrays.asList(Scenario.values());
-		}
 	}
 
 	/**

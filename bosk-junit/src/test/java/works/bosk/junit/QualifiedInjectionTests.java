@@ -7,6 +7,7 @@ import java.util.Set;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import works.bosk.junit.InjectFromHappyPathTests.BaseValue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -45,6 +46,29 @@ class QualifiedInjectionTests {
 		static void check() {
 			assertEquals(Set.of("A:A", "B:B"), sameQualifierObservations);
 			assertEquals(Set.of("A:A", "A:B", "B:A", "B:B"), differentQualifierObservations);
+		}
+	}
+
+	@Nested
+	@InjectFrom({BaseValue.class})
+	class EnumQualifierParameterTest {
+		static Set<String> differentQualifierObservations = new HashSet<>();
+		static Set<String> sameQualifierObservations = new HashSet<>();
+
+		@InjectedTest
+		void sameQualifier(@Injected("x") BaseValue a, @Injected("x") BaseValue b) {
+			sameQualifierObservations.add(a + ":" + b);
+		}
+
+		@InjectedTest
+		void differentQualifier(@Injected("x") BaseValue a, @Injected("y") BaseValue b) {
+			differentQualifierObservations.add(a + ":" + b);
+		}
+
+		@AfterAll
+		static void check() {
+			assertEquals(Set.of("FIRST:FIRST", "SECOND:SECOND"), sameQualifierObservations);
+			assertEquals(Set.of("FIRST:FIRST", "FIRST:SECOND", "SECOND:FIRST", "SECOND:SECOND"), differentQualifierObservations);
 		}
 	}
 

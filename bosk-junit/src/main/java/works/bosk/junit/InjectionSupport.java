@@ -56,7 +56,7 @@ class InjectionSupport {
 	 * <p>
 	 * This is done in two phases.
 	 * First, we compute all possible branches by instantiating all injector classes.
-	 * Once we have the injectors, we can use {@link Injector#supportsParameter}
+	 * Once we have the injectors, we can use {@link Injector#supports}
 	 * to determine which ones are needed,
 	 * and do a second pass to compute the branches for just those injectors.
 	 * <p>
@@ -155,14 +155,17 @@ class InjectionSupport {
 	}
 
 	/**
+	 * Note that "injector classes" in this context doesn't necessarily
+	 * mean {@link Injector}, but rather any class supported by {@link InjectFrom}.
+	 *
 	 * @return the injector classes in the order they should be instantiated
 	 */
-	static List<Class<? extends Injector>> getAllInjectorClasses(ExtensionContext context) {
+	static List<Class<?>> getAllInjectorClasses(ExtensionContext context) {
 		List<Class<?>> bottomUp = new ArrayList<>();
 		for (var c = context.getRequiredTestClass(); c != Object.class; c = c.getSuperclass()) {
 			bottomUp.add(c);
 		}
-		List<Class<? extends Injector>> allInjectors = new ArrayList<>();
+		List<Class<?>> allInjectors = new ArrayList<>();
 		for (var c : bottomUp.reversed()) {
 			for (var a: c.getAnnotationsByType(InjectFrom.class)) {
 				allInjectors.addAll(asList(a.value()));
@@ -174,7 +177,7 @@ class InjectionSupport {
 	/**
 	 * A version of {@link Branch#expandedFor(Class, String)} that operates on a list.
 	 */
-	private static List<Branch> expandedBranches(List<Branch> currentBranches, Class<? extends Injector> injectorType, String qualifier) {
+	private static List<Branch> expandedBranches(List<Branch> currentBranches, Class<?> injectorType, String qualifier) {
 		List<Branch> expanded = new ArrayList<>();
 		for (Branch branch : currentBranches) {
 			expanded.addAll(branch.expandedFor(injectorType, qualifier));
@@ -221,7 +224,7 @@ class InjectionSupport {
 		 * The resulting branches all have {@link InjectionKey}s suitable to inject
 		 * values for the given {@code injectorType} and {@code qualifier}.
 		 */
-		List<Branch> expandedFor(Class<? extends Injector> injectorType, String qualifier) {
+		List<Branch> expandedFor(Class<?> injectorType, String qualifier) {
 			Dependency dependency = new Dependency(injectorType, qualifier);
 
 			boolean alreadyExists = toInject.values().stream() // TODO: A more efficient data structure
@@ -230,6 +233,15 @@ class InjectionSupport {
 				// The branch has already been expanded for this dependency.
 				// If we expand it again, we risk introducing combinations that aren't supposed to be there.
 				return List.of(this);
+			}
+
+			if (injectorType.isEnum()) {
+				return expandedForEnum(injectorType, qualifier);
+			} else if (!Injector.class.isAssignableFrom(injectorType)) {
+				throw new ParameterResolutionException(
+					"Unsupported injector class: "
+						+ injectorType
+						+ "; accepted injector types are enum or Injector");
 			}
 
 			// Determine the injection requirements of injectorType's constructor
@@ -290,6 +302,46 @@ class InjectionSupport {
 				}
 			}
 			return result;
+		}
+
+		/**
+		 * Enum injectors are much simpler than general {@link Injector}s.
+		 * They have no constructor arguments, support only their own class,
+		 * and return all the enum values.
+		 * They're orthogonal to other injectors, so they combine as a
+		 * cartesian product, so "expansion" actually just returns one {@link Branch}.
+		 */
+		private @NonNull List<Branch> expandedForEnum(Class<?> enumClass, String qualifier) {
+			List<?> enumValues = List.of((Object[]) enumClass.getEnumConstants());
+			var enumInjector = new Injector() {
+				@Override
+				public Class<?> injectorClass() {
+					// An enum injector is represented by the enum class
+					return enumClass;
+				}
+
+				@Override
+				public boolean supports(AnnotatedElement element, Class<?> elementType) {
+					return elementType == enumClass;
+				}
+
+				@Override
+				public List<?> values() {
+					return enumValues;
+				}
+
+				@Override
+				public String toString() {
+					return enumClass.getSimpleName();
+				}
+			};
+
+			var toInject = new LinkedHashMap<>(this.toInject);
+			toInject.put(
+				new InjectionKey(enumInjector, qualifier),
+				new Superposition(enumValues, Set.of(new Dependency(enumClass, qualifier)))
+			);
+			return List.of(new Branch(unmodifiableMap(toInject)));
 		}
 
 		/**
@@ -385,7 +437,7 @@ class InjectionSupport {
 	 */
 	record InjectionKey(Injector injector, String qualifier) {
 		Dependency dependency() {
-			return new Dependency(injector.getClass(), qualifier);
+			return new Dependency(injector.injectorClass(), qualifier);
 		}
 
 		@Override
@@ -430,7 +482,7 @@ class InjectionSupport {
 	 * and then rename this guy to {@link InjectionKey}.
 	 * That does move us a step away from injecting enums though.
 	 */
-	record Dependency(Class<? extends Injector> injectorClass, String qualifier) {}
+	record Dependency(Class<?> injectorClass, String qualifier) {}
 
 	@SuppressForbidden("Only for testing code; we have few other options here")
 	static void setAccessible(AccessibleObject accessibleObject) {

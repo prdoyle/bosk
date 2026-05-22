@@ -1,8 +1,6 @@
 package works.bosk.junit;
 
 import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Field;
-import java.lang.reflect.Parameter;
 import java.util.HashSet;
 import java.util.List;
 
@@ -21,8 +19,13 @@ import java.util.List;
  * @see InjectFrom
  */
 public interface Injector {
-	default boolean supportsParameter(Parameter parameter) { return supports(parameter, parameter.getType()); }
-	default boolean supportsField(Field field) { return supports(field, field.getType()); }
+	/**
+	 * @return the class as reported to {@link InjectFrom}.
+	 * For most injectors, that's just the object's class,
+	 * but for other kinds of supported injectors,
+	 * like enums, it can be something else.
+	 */
+	default Class<?> injectorClass() { return getClass(); }
 
 	/**
 	 * Note: if this method returns different results for the same element
