@@ -156,7 +156,7 @@ class InjectionSupport {
 
 	/**
 	 * Note that "injector classes" in this context doesn't necessarily
-	 * mean {@link Injector}, but rather any class supported by {@link Injected#value()}.
+	 * mean {@link Injector}, but rather any class supported by {@link InjectFrom}.
 	 *
 	 * @return the injector classes in the order they should be instantiated
 	 */
@@ -235,8 +235,13 @@ class InjectionSupport {
 				return List.of(this);
 			}
 
-			if (Enum.class.isAssignableFrom(injectorType)) {
+			if (injectorType.isEnum()) {
 				return expandedForEnum(injectorType, qualifier);
+			} else if (!Injector.class.isAssignableFrom(injectorType)) {
+				throw new ParameterResolutionException(
+					"Unsupported injector class: "
+						+ injectorType
+						+ "; accepted injector types are enum or Injector");
 			}
 
 			// Determine the injection requirements of injectorType's constructor
@@ -300,7 +305,7 @@ class InjectionSupport {
 		}
 
 		/**
-		 * Enum injectors much simpler than general {@link Injector}s.
+		 * Enum injectors are much simpler than general {@link Injector}s.
 		 * They have no constructor arguments, support only their own class,
 		 * and return all the enum values.
 		 * They're orthogonal to other injectors, so they combine as a
