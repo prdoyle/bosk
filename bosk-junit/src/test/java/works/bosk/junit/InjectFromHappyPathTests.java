@@ -40,7 +40,6 @@ import static works.bosk.junit.InjectFromHappyPathTests.IndependentValue.Y;
  * so we need to take some care to make those thread-safe;
  */
 class InjectFromHappyPathTests {
-
 	enum BaseValue { FIRST, SECOND }
 	record DependentValue(BaseValue base) { @Override public String toString() { return "based-on-" + base; } }
 	record Dependent2Value(DependentValue base) { @Override public String toString() { return "based-on-" + base; } }
@@ -385,6 +384,41 @@ class InjectFromHappyPathTests {
 				"SECOND:X:X",
 				"SECOND:Y:Y"
 			), observations);
+		}
+	}
+
+	@Nested
+	@InjectFields
+	@InjectFrom({BaseValue.class})
+	class EnumFieldTest {
+		static List<BaseValue> observations = new ArrayList<>();
+
+		@Injected BaseValue value;
+
+		@Test
+		void enumFieldInjection_works() {
+			observations.add(value);
+		}
+
+		@AfterAll
+		static void checkObservations() {
+			assertEquals(List.of(FIRST, SECOND), observations);
+		}
+	}
+
+	@Nested
+	@InjectFrom({BaseValue.class})
+	class EnumParameterTest {
+		static List<BaseValue> observations = new ArrayList<>();
+
+		@InjectedTest
+		void enumParameterInjection_works(BaseValue value) {
+			observations.add(value);
+		}
+
+		@AfterAll
+		static void checkObservations() {
+			assertEquals(List.of(FIRST, SECOND), observations);
 		}
 	}
 

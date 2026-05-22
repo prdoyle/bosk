@@ -35,5 +35,16 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Retention(RUNTIME)
 @Target(TYPE)
 public @interface InjectFrom {
-	Class<? extends Injector>[] value();
+	/**
+	 * The injectors to use. They can be:
+	 * <ul>
+	 * <li>
+	 *     An {@code enum}, to inject each of the enum's values, or
+	 * </li>
+	 * <li>
+	 *     An {@link Injector}, to customize exactly what gets injected.
+	 * </li>
+	 * </ul>
+	 */
+	Class<?>[] value();
 }
