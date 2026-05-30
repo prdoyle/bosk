@@ -5,6 +5,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.classic.turbo.TurboFilter;
+import ch.qos.logback.core.filter.Filter;
 import ch.qos.logback.core.spi.FilterReply;
 import java.util.Collection;
 import java.util.List;
@@ -81,6 +82,24 @@ import static works.bosk.logback.RecordingTurboFilter.Overrides.NONE;
  *       {@code routingKey} - MDC key used to route events to correct test buffer; details below.
  *       Defaults to {@code bosk.junit.testId}
  *   </li>
+ *   <li>
+ *       {@code filter} - Allows events to be omitted from the replay:
+ *       if the nested filter returns {@code DENY}
+ *       for an event, that event is not buffered for replay.
+ * <p>
+ *       Example:
+ *       <pre>
+ *         &lt;turboFilter class="works.bosk.logback.RecordingTurboFilter"&gt;
+ *             &lt;enabled&gt;true&lt;/enabled&gt;
+ *             &lt;filter class="works.bosk.logback.LoggerLevelFilter"&gt;
+ *                 &lt;logger&gt;
+ *                     &lt;name&gt;com.example.chatty&lt;/name&gt;
+ *                     &lt;level&gt;INFO&lt;/level&gt;
+ *                 &lt;/logger&gt;
+ *             &lt;/filter&gt;
+ *         &lt;/turboFilter&gt;
+ *       </pre>
+ *   </li>
  * </ul>
  * <p>
  * The default configuration is equivalent to:
@@ -129,6 +148,9 @@ public class RecordingTurboFilter extends TurboFilter {
 	private Level level = Level.DEBUG;
 	private String routingKey = DEFAULT_ROUTING_KEY;
 
+	// Optional nested capture-time filter configured via <filter> under the turboFilter
+	private Filter<ILoggingEvent> filter;
+
 	// These things are static so the test lifecycle methods don't need to
 	// get their hands on the filter instance.
 
@@ -161,6 +183,13 @@ public class RecordingTurboFilter extends TurboFilter {
 	}
 
 	public void setLevel(Level level) { this.level = level; }
+
+	/**
+	 * Nested capture-time filter. Configure this with the same XML syntax you would
+	 * use for an appender-level <filter>. If this filter returns DENY for an event,
+	 * the event will not be buffered for replay.
+	 */
+	public void setFilter(Filter<ILoggingEvent> filter) { this.filter = filter; }
 
 	static void putOverrides(String testId, Overrides overrides) {
 		if (overrides == null || NONE.equals(overrides)) {
@@ -252,6 +281,16 @@ public class RecordingTurboFilter extends TurboFilter {
 		);
 		event.setLoggerContext(logger.getLoggerContext());
 		event.addMarker(marker);
+
+		// If a nested capture filter is configured, consult it before copying the MDC.
+		// If it DENYs, skip buffering. Many filters don't access MDC; those that do
+		// will cause the MDC to be copied when they call event.getMDCPropertyMap().
+		if (filter != null) {
+			var reply = filter.decide(event);
+			if (reply == FilterReply.DENY) {
+				return NEUTRAL;
+			}
+		}
 
 		// We need to capture the current MDC. Can't wait until replay.
 		event.setMDCPropertyMap(requireNonNull(MDC.getCopyOfContextMap(), // ew, this is O(n)

@@ -1,7 +1,11 @@
 <configuration>
-	<turboFilter class="works.bosk.logback.RecordingTurboFilter">
-		<routingKey>bosk.instanceID</routingKey>
-	</turboFilter>
+ 	<turboFilter class="works.bosk.logback.RecordingTurboFilter">
+ 		<routingKey>bosk.instanceID</routingKey>
+ 		<filter class="works.bosk.logback.LoggerLevelFilter">
+			<logger> <name>com.mongodb</name> <level>INFO</level> </logger>
+			<logger> <name>org.mongodb</name> <level>INFO</level> </logger>
+ 		</filter>
+ 	</turboFilter>
 	<turboFilter class="works.bosk.logback.BoskLogFilter"/>
 	<appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>

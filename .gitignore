@@ -12,6 +12,9 @@ build/
 .recommenders/
 bin
 
+# Other LLM nonsense
+.junie
+
 # Ignore Gradle GUI config
 gradle-app.setting
 
