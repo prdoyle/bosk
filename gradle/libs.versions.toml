@@ -1,11 +1,11 @@
 [versions]
 asm = "9.10.1"
 hamcrest = "3.0"
-jackson = "3.1.3"
+jackson = "3.1.4"
 jetbrains-annotations = "26.1.0"
 jmh = "1.37"
 junit = "6.1.0"
-logback = "1.5.32"
+logback = "1.5.33"
 lombok = "1.18.46"
 pcollections = "5.0.0"
 slf4j = "2.0.18"
@@ -32,7 +32,7 @@ junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 junit-params = { module = "org.junit.jupiter:junit-jupiter-params" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
-mongodb = { module = "org.mongodb:mongodb-driver-sync", version="5.7.0" }
+mongodb = { module = "org.mongodb:mongodb-driver-sync", version="5.8.0" }
 mysql = { module = "com.mysql:mysql-connector-j", version = "9.7.0" }
 opentelemetry = { module="io.opentelemetry:opentelemetry-sdk", version="1.62.0" }
 pcollections = { module = "org.pcollections:pcollections", version.ref="pcollections" }
