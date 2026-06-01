@@ -3,12 +3,14 @@ package works.bosk.drivers.mongo.internal;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import lombok.With;
 import org.bson.BsonArray;
@@ -53,6 +55,7 @@ import works.bosk.drivers.mongo.exceptions.DisconnectedException;
 import works.bosk.drivers.mongo.internal.TestParameters.ParameterSet;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.logback.ReplayLogsOnFailure;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.testing.drivers.state.TestValues;
 import works.bosk.testing.drivers.state.UpgradeableEntity;
@@ -68,6 +71,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.drivers.mongo.internal.TestParameters.SHORT_TIMESCALE;
@@ -78,6 +82,7 @@ import static works.bosk.testing.BoskTestUtils.boskName;
  */
 @ParameterizedClass
 @MethodSource("parameterSets")
+@ReplayLogsOnFailure
 class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	/**
 	 * We deliberately don't reference {@link MainDriver#MANIFEST_ID} here
@@ -832,6 +837,117 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			assertEquals(1L, doc.getLong(Formatter.DocumentFields.revision.name()));
 		}
 
+	}
+
+	@Test
+	void reconnect_lostPublishSignal_doesNotWait() {
+		// Regression test for a lost-signal race condition in waitAndRetry.
+		//
+		// We use three latches to force this ordering:
+		//
+		//   Application thread         ChangeReceiver thread
+		//   ------------------         ---------------------
+		//                              onDisconnect
+		//                                super.onDisconnect()  <-- setDisconnectedDriver
+		//                                countDown(disconnected)
+		//   await(disconnected)
+		//   submitReplacement
+		//     -> DisconnectedException
+		//     -> DRIVER_PUBLICATION_PRE_WAIT_ACTION
+		//          countDown(appAtPreWait)
+		//          await(published)     onConnectionSucceeded
+		//                                 await(appAtPreWait)
+		//                                 publishFormatDriver  <-- signal fires here,
+		//                                                          but nobody waiting yet
+		//                                 countDown(published)
+		//          (await returns)
+		//     -> waitAndRetry
+		//          acquire lock
+		//          double-check: not DisconnectedDriver -> skip await
+		//          retry operation
+
+		setLogging(ERROR, ChangeReceiver.class);
+
+		AtomicBoolean initializationDone = new AtomicBoolean(false);
+		CountDownLatch disconnected = new CountDownLatch(1);
+		CountDownLatch appAtPreWait = new CountDownLatch(1);
+		CountDownLatch published = new CountDownLatch(1);
+
+		MainDriver.LISTENER_FACTORY.set(downstream -> new ErrorRecordingChangeListener(errorRecorder, downstream) {
+			@Override
+			public void onDisconnect(Throwable e) {
+				super.onDisconnect(e); // calls setDisconnectedDriver
+				if (initializationDone.get()) {
+					LOGGER.debug("onDisconnect complete; counting down disconnected");
+					disconnected.countDown();
+				}
+			}
+
+			@Override
+			public void onConnectionSucceeded() throws UnrecognizedFormatException, UninitializedCollectionException,
+				FailedMongoClientSessionException, InterruptedException, IOException,
+				InitialStateActionException, TimeoutException {
+				if (initializationDone.get()) {
+					LOGGER.debug("onConnectionSucceeded waiting for appAtPreWait");
+					appAtPreWait.await();
+					LOGGER.debug("onConnectionSucceeded proceeding");
+					super.onConnectionSucceeded();
+					LOGGER.debug("onConnectionSucceeded complete; counting down published");
+					published.countDown();
+				} else {
+					LOGGER.debug("onConnectionSucceeded during initialization; passing through");
+					super.onConnectionSucceeded();
+				}
+			}
+		});
+
+		MainDriver.DRIVER_PUBLICATION_PRE_WAIT_ACTION.set(() -> {
+			LOGGER.debug("pre-wait action: counting down appAtPreWait");
+			appAtPreWait.countDown();
+			try {
+				LOGGER.debug("pre-wait action: waiting for published");
+				published.await();
+				LOGGER.debug("pre-wait action: published; proceeding to waitAndRetry");
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+		});
+
+		try {
+			LOGGER.debug("Create bosk");
+			Bosk<TestEntity> bosk = new Bosk<>(
+				boskName("lostSignal"),
+				TestEntity.class,
+				AbstractMongoDriverTest::initialState,
+				BoskConfig.<TestEntity>builder().driverFactory(driverFactory).build());
+			initializationDone.set(true);
+
+			LOGGER.debug("Cause disconnection by deleting and re-creating the manifest document");
+			MongoCollection<BsonDocument> collection = mongoService.client()
+				.getDatabase(driverSettings.database())
+				.getCollection(MainDriver.COLLECTION_NAME, BsonDocument.class);
+			BsonDocument originalManifest = assertUniqueManifest(collection, MANIFEST_ID);
+			collection.deleteOne(new BsonDocument("_id", new BsonString(MANIFEST_ID)));
+			collection.insertOne(originalManifest);
+
+			LOGGER.debug("Waiting for disconnect to complete before submitting replacement");
+			disconnected.await();
+
+			assertTimeoutPreemptively(
+				Duration.ofMillis(3 * SHORT_TIMESCALE),
+				() -> bosk.driver().submitReplacement(bosk.rootReference(), initialRoot(bosk)),
+				"submitReplacement should finish promptly"
+			);
+
+			assertEquals(1, errorRecorder.disconnections.size(),
+				"Exactly one disconnection to test reconnection");
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new AssertionError("Interrupted", e);
+		} finally {
+			MainDriver.LISTENER_FACTORY.remove();
+			MainDriver.DRIVER_PUBLICATION_PRE_WAIT_ACTION.remove();
+		}
 	}
 
 	/**
