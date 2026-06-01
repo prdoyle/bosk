@@ -628,7 +628,9 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 						try (ReadSession _ = new ReadSession(EntireState.just(rootForHook))) {
 							LOGGER.debug("Hook: RUN {}({})", reg.name, changedRef);
 							reg.hook.onChanged(changedRef);
-						} catch (Exception e) {
+						} catch (InterruptedException e) {
+							LOGGER.warn("Bosk hook \"{}\" was interrupted; proceeding", reg.name(), e);
+						} catch (RuntimeException e) {
 							LOGGER.error("Bosk hook \"{}\" terminated with an exception, which usually indicates a bug. State updates may have been lost", reg.name(), e);
 
 							// Note that we don't catch Error. The practical reason is to allow users to write
