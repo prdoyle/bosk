@@ -265,6 +265,8 @@ class ChangeReceiver implements Closeable {
 					break;
 				} catch (MongoInterruptedException e) {
 					LOGGER.debug("Interrupted while waiting for change event: {}", e.toString());
+					// The interruption has completed; clear the thread interrupt flag
+					Thread.interrupted();
 					break;
 				}
 				if (!isClosed) {
