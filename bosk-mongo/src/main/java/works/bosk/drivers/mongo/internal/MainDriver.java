@@ -126,6 +126,15 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 */
 	static final ThreadLocal<MongoClientFactory> MONGO_CLIENT_FACTORY = ThreadLocal.withInitial(()-> MongoClientFactory.ALWAYS_CREATE);
 
+	/**
+	 * Allows tests to take an action before acquiring the lock to wait
+	 * for publication of a new {@link #formatDriver}.
+	 * <p>
+	 * Allows a race condition to be induced where the driver is published
+	 * and the waiting thread misses it.
+	 */
+	static final ThreadLocal<Runnable> DRIVER_PUBLICATION_PRE_WAIT_ACTION = ThreadLocal.withInitial(()-> () -> {});
+
 	record MongoClientFactory(
 		Function<MongoClientSettings, MongoClient> function,
 		boolean shouldClose
@@ -796,7 +805,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.debug("Driver is disconnected; will wait and retry operation ({})", e.getMessage());
 				waitAndRetry(operationInSession, description, args);
 			} catch (Exception e) {
-				LOGGER.debug("Unexpected exception; will wait and retry operation", e);
+				LOGGER.debug("Unexpected exception; will retry operation", e);
 				waitAndRetry(operationInSession, description, args);
 			} finally {
 				LOGGER.debug("Finished operation " + description, args);
@@ -806,11 +815,21 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 	private <X extends Exception, Y extends Exception> void waitAndRetry(RetryableOperation<X, Y> operation, String description, Object... args) throws X, Y {
 		try {
+			DRIVER_PUBLICATION_PRE_WAIT_ACTION.get().run();
 			formatDriverLock.lock();
-			LOGGER.debug("Waiting for new FormatDriver for {} ms", reinitializationTimeout);
-			boolean success = formatDriverChanged.await(reinitializationTimeout, MILLISECONDS);
-			if (!success) {
-				LOGGER.warn("Timed out waiting for MongoDB to recover; will retry anyway, but the operation may fail");
+
+			// There's a race here: the formatDriver could have recovered after we tried to use it
+			// but before we acquired the lock. Let's double-check now to avoid an unnecessary wait
+			// for an event that may already have happened.
+
+			if (formatDriver instanceof DisconnectedDriver<R>) {
+				LOGGER.debug("Waiting for new FormatDriver for {} ms", reinitializationTimeout);
+				boolean success = formatDriverChanged.await(reinitializationTimeout, MILLISECONDS);
+				if (!success) {
+					LOGGER.warn("Timed out waiting for MongoDB to recover; will retry anyway, but the operation may fail");
+				}
+			} else {
+				LOGGER.debug("FormatDriver is already {}; no need to wait", formatDriver.getClass().getSimpleName());
 			}
 		} catch (InterruptedException e) {
 			// In a library, it's hard to know what a user expects when interrupting a thread.

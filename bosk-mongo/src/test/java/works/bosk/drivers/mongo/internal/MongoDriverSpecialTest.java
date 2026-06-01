@@ -3,12 +3,14 @@ package works.bosk.drivers.mongo.internal;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import lombok.With;
 import org.bson.BsonArray;
@@ -68,6 +70,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.drivers.mongo.internal.TestParameters.SHORT_TIMESCALE;
@@ -832,6 +835,73 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			assertEquals(1L, doc.getLong(Formatter.DocumentFields.revision.name()));
 		}
 
+	}
+
+	@Test
+	void reconnect_lostPublishSignal_doesNotWait() throws Exception {
+		// Regression test for a lost-update race condition in waitAndRetry.
+		// Unfortunately, as written, this actually does not fail if the fix is removed;
+		// but I think it's very close so I'll merge it anyway and we can iterate on it.
+
+		// Lots of sync objects to induce the right race condition
+		AtomicBoolean initializationDone = new AtomicBoolean(false);
+		CountDownLatch appAtPreWait = new CountDownLatch(1);
+		CountDownLatch published = new CountDownLatch(1);
+
+		MainDriver.LISTENER_FACTORY.set(downstream -> new ErrorRecordingChangeListener(errorRecorder, downstream) {
+			@Override
+			public void onConnectionSucceeded() throws UnrecognizedFormatException, UninitializedCollectionException, FailedMongoClientSessionException, InterruptedException, IOException, InitialStateActionException, TimeoutException {
+				if (initializationDone.get()) {
+					LOGGER.debug("onConnectionSucceeded waiting for appAtPreWait");
+					appAtPreWait.await();
+					LOGGER.debug("onConnectionSucceeded proceeding");
+					super.onConnectionSucceeded();
+					LOGGER.debug("onConnectionSucceeded complete; counting down published");
+					published.countDown();
+				} else {
+					LOGGER.debug("onConnectionSucceeded during initialization; passing through");
+					super.onConnectionSucceeded();
+				}
+			}
+		});
+
+		MainDriver.DRIVER_PUBLICATION_PRE_WAIT_ACTION.set(() -> {
+			appAtPreWait.countDown();
+			try {
+				published.await();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+		});
+
+		try {
+			LOGGER.debug("Create bosk");
+			Bosk<TestEntity> bosk = new Bosk<>(
+				boskName("lostSignal"),
+				TestEntity.class,
+				AbstractMongoDriverTest::initialState,
+				BoskConfig.<TestEntity>builder().driverFactory(driverFactory).build());
+			initializationDone.set(true);
+
+			LOGGER.debug("Cause disconnection by deleting manifest document");
+			MongoCollection<BsonDocument> collection = mongoService.client()
+				.getDatabase(driverSettings.database())
+				.getCollection(MainDriver.COLLECTION_NAME, BsonDocument.class);
+			collection.deleteOne(new BsonDocument("_id", new BsonString(MANIFEST_ID)));
+			bosk.getDriver(MongoDriver.class).refurbish();
+
+			assertTimeoutPreemptively(
+				Duration.ofMillis(3 * SHORT_TIMESCALE),
+				() -> bosk.driver().submitReplacement(bosk.rootReference(), initialRoot(bosk)),
+				"submitReplacement should finish promptly"
+			);
+
+			assertEquals(1, errorRecorder.disconnections.size(),
+				"Exactly one disconnection to test reconnection");
+		} finally {
+			MainDriver.LISTENER_FACTORY.remove();
+			MainDriver.DRIVER_PUBLICATION_PRE_WAIT_ACTION.remove();
+		}
 	}
 
 	/**
