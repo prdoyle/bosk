@@ -5,10 +5,12 @@
 
 ![Three inquisitive cartoon trees with eyes](/art/bosk-3trees-wide-small.png)
 
-Bosk is a Java library for state management in distributed systems.
-It eases the journey from a simple standalone application to a high-availability clustered replica set
-by supporting reactive, idempotent, deterministic control logic design patterns,
-using an immutable in-memory state tree for ultra-fast reads (~50ns).
+Bosk is a Java library for state management in distributed systems
+that eases the journey from a simple standalone application to a high-availability clustered replica set.
+It achieves this through deliberate, opinionated design choices
+that eliminate entire classes of bugs that would otherwise appear only under load or in production.
+State is kept as an immutable in-memory tree for ultra-fast reads (~50ns);
+updates are idempotent and delivered in a consistent, predictable order.
 
 First, you start with just the `bosk-core` library, writing your application's control plane logic using Bosk.
 Then the built-in integrations with things like Jackson and Spring Boot help you get your application up and running.
