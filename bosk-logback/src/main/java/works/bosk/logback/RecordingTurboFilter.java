@@ -9,6 +9,7 @@ import ch.qos.logback.core.filter.Filter;
 import ch.qos.logback.core.spi.FilterReply;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -17,7 +18,7 @@ import org.slf4j.MDC;
 import org.slf4j.Marker;
 
 import static ch.qos.logback.core.spi.FilterReply.NEUTRAL;
-import static java.util.Objects.requireNonNull;
+import static java.util.Collections.emptyMap;
 import static works.bosk.logback.RecordingTurboFilter.Overrides.NONE;
 
 /**
@@ -293,8 +294,15 @@ public class RecordingTurboFilter extends TurboFilter {
 		}
 
 		// We need to capture the current MDC. Can't wait until replay.
-		event.setMDCPropertyMap(requireNonNull(MDC.getCopyOfContextMap(), // ew, this is O(n)
-			"MDC can't be absent here!"));
+		// getCopyOfContextMap can return null sometimes; I can't say I fully
+		// understand why, but if that's null, there's no useful context
+		// and we might as well use an empty map.
+		//
+		// Possibly relevant:
+		// - https://jira.qos.ch/browse/LOGBACK-944
+		//
+		Map<String, String> mdcCopy = MDC.getCopyOfContextMap();
+		event.setMDCPropertyMap(mdcCopy != null ? mdcCopy : emptyMap());
 
 		LogEventBuffer buffer = buffersByTestId
 			.computeIfAbsent(testIdValue, _ -> new LogEventBuffer(effectiveCapacity));
