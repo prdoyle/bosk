@@ -371,6 +371,20 @@ class ListingTest {
 		assertEquals(expected, listing.domain());
 	}
 
+	@Test
+	void collector_works() throws InvalidTypeException {
+		TestEntity root = new TestEntity(Identifier.unique("parent"), Catalog.empty());
+		Bosk<TestEntity> bosk = new Bosk<>(boskName(), TestEntity.class, _ -> EntireState.just(root), BoskConfig.simple());
+		CatalogReference<TestEntity> childrenRef = bosk.rootReference().thenCatalog(TestEntity.class, Path.just(TestEntity.Fields.children));
+
+		var items = List.of("a", "b", "c", "d", "e");
+		var ids = items.stream().map(Identifier::from).toList();
+		Listing<TestEntity> expected = Listing.of(childrenRef, ids);
+		Listing<TestEntity> actual = items.stream()
+			.collect(Listing.toListing(childrenRef, Identifier::from));
+		assertEquals(expected, actual);
+	}
+
 	private List<TestEntity> distinctEntities(List<TestEntity> children) {
 		List<TestEntity> result = new ArrayList<>(children.size());
 		HashSet<Identifier> added = new HashSet<>(children.size());
