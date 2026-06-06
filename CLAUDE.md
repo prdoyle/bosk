@@ -47,7 +47,7 @@ The usual Gradle commands, plus:
 
 ### General
 - We take warnings seriously. If a build issues a warning, it should be fixed at the earliest convenience.
-- Code in each file is ordered use-before-definition so it can be read and understood by a human from start to end, to the extent possible.
+- Code in each file is ordered use-before-definition so it can be read and understood by a human from start to end.
 - To the extent possible, we separate complex logic from side effects to facilitate unit testing.
 - When something can't always work, we prefer it _never_ to work rather than _sometimes_ to work.
   - The overarching goal of Bosk is to reduce the behaviour gap between local development and production. If your code works, you probably did things right.
@@ -71,12 +71,21 @@ Also, some methods (like `BoskDriver.initialState`) throw checked exceptions
 because those methods are typically called in initialization code that is invoked by a dependency injection framework,
 where `throws` clauses have no real downside.
 
+We put exceptions for a module into a sub-package that ends with `.exceptions`
+so they don't clutter up other packages.
+
 ### Javadocs
 
 We use javadocs extensively, including in `module-info.java` and `package-info.java` files.
 Avoid documenting words using themselves, like `@param settings  the settings`;
 instead, consider someone who has seen the name but still has a question,
 and try to answer that question in the javadocs.
+
+Javadocs contain most of the info.
+They focus on conveying design principles, navigating concepts in a hierarchical manner (module, package, class, method),
+and giving practical usage advice and best practices.
+They are concise but complete; do not assume the reader has access to the README.md file.
+Put less formal things, like references to the `example-hello` project, in the README.md file instead.
 
 ### Lombok
 
@@ -116,7 +125,20 @@ We use Lombok sparingly. Most of its features are disabled in lombok.config.
 - Subclasses of `DriverConformanceTest` in `bosk-testing` verify driver implementations; all drivers ought to pass these tests
   - Use `SharedDriverConformanceTest` for drivers that do replication between bosks
 - Aim for readability in test code.
-  - A good test does not merely fail if something goes wrong: it also serves to document examples of intended usage
+  - A good test does not merely fail if something goes wrong: it also serves to document examples of intended usage.
+    Write tests that *demonstrate* the intended usage, not just exercise code paths.
+    - Names given to test artifacts (classes, fields, methods etc.) should guide the reader to the correct generalization, rather than suggesting real-world meaning.
+      - Good: `String field1`, `int field2`: convey that this test is expected to work on any field
+      - Good: Country/City: concept that is clearly from another domain, clearly conveys a whole/part relationship, if that's what the test is demonstrating
+      - Bad: `String name`, `int version`: might be framework concepts or meaningful domain properties; generalization is unclear.
+      - Good: bosk jargon used in the right context, like "reference", "driver", "path".
+      - Bad: Bosk jargon used outside its Bosk meaning.
+      - Good: names that convey the relationship between the artifacts (`Catalog<T> parts`, `TaggedUnion<X> variant`).
+    - Things that are the same should look the same; things that are different should look different.
+      - Example: `field1`, `field2` suggests the test treats these fields the same way
+      - Example: `date`, `name` suggests the test might treat dates and names differently
+    - Test values should be transparently arbitrary. `Identifier.from("w1")` is better than `Identifier.from("alice")`
+      because `w1` makes no claim about what it is beyond "widget ID 1".
   - With few exceptions, tests should use `assertEquals` rather than complex Hamcrest matchers; the latter is taken as an indication that the API being tested is too complicated
   - Mocks are avoided not because they're inherently bad, but because our components should be designed in a way that doesn't need them, since we favour immutable components and data structures
 - Tests should be parallelizable, and they should be self-contained in that a failing test can be re-run on its own
@@ -126,11 +148,24 @@ We use Lombok sparingly. Most of its features are disabled in lombok.config.
 - Tests should be deterministic, and they should not rely on timing except in rare cases where there is no alternative, or where timeout behaviour is specifically being tested
   - Where components have timeout settings, tests should adjust those settings to be very short or very long as appropriate to make spurious failures vanishingly rare
 
+## Hints
+
+### General
+
+- Keep entries in `gradle/libs.versions.toml` alphabetized within each section.
+- Consider `RuntimeException` to be abstract and throw the appropriate subtype: often `IllegalStateException` but consider whether others are more appropriate
+
+### Testing
+
+- Prefer building the entire expected data structure and using `assertEquals` over checking individual fields one-by-one. Tests with per-field assertions get stale when the object acquires new fields.
+- Assertion message strings should state what was expected (e.g. `"Should have no errors"`), not describe the error.
+- Use `./gradlew <task> --rerun` (not `--rerun-tasks`) to force Gradle to re-execute a task when cached results exist.
+
 ## Notes
 
 - We use spotbugs for shipped code
 - Published to Maven Central via GitHub actions, by creating a new release in GitHub
-- We use GitHub Dependabot to keep dependencies very up-to-date
+- We use GitHub Dependabot to keep dependencies up to date
 - We separate setup from execution. Prefer designs where work is described once (at construction/configuration time) and executed many times efficiently.
   - `Reference` is an example: path parsing and validation happen once when the `Reference` is built, and then reads are fast.
     Apply this pattern when designing new abstractions — avoid doing expensive setup work inside hot paths.
