@@ -58,6 +58,7 @@ import works.bosk.boson.mapping.spec.SpecNode;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
 import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.PrimitiveType;
 
@@ -567,9 +568,34 @@ public class SpecCompiler {
 
 				codeBuilder.labelBinding(member);
 				_parseAny(node.keyNode());
+				TypeKind keyKind = nodeReturnTypeKind(node.keyNode());
+				LocalVariable keyLocal = locals.allocate(keyKind);
+				keyLocal.store(codeBuilder);
+
+				LocalVariable handlerResultLocal = null;
+				var keyHandler = acc.keyHandler();
+				boolean hasHandlerResult = keyHandler.returnType() != DataType.VOID;
+				var keyHandlerMt = curryAndLoad(keyHandler.handle(), "keyHandler");
+				accumulator.load(codeBuilder);
+				keyLocal.load(codeBuilder);
+				_invokeExact(keyHandlerMt);
+				if (hasHandlerResult) {
+					handlerResultLocal = locals.allocate(REFERENCE);
+					handlerResultLocal.store(codeBuilder);
+				}
+
 				_parseAny(node.valueNode());
+				TypeKind valueKind = nodeReturnTypeKind(node.valueNode());
+				LocalVariable valueLocal = locals.allocate(valueKind);
+				valueLocal.store(codeBuilder);
+
 				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
 				accumulator.load(codeBuilder);
+				keyLocal.load(codeBuilder);
+				valueLocal.load(codeBuilder);
+				if (hasHandlerResult) {
+					handlerResultLocal.load(codeBuilder);
+				}
 				_invokeExact(integratorType);
 				if (integratorType.returnType() != void.class) {
 					accumulator.store(codeBuilder);

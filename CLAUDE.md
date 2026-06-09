@@ -91,6 +91,10 @@ Put less formal things, like references to the `example-hello` project, in the R
 
 We use Lombok sparingly. Most of its features are disabled in lombok.config.
 
+### Wrangler interfaces
+
+Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) must have **more than one abstract method**. Single-method (SAM) wranglers would allow lambda usage, but lambdas don't preserve generic type parameters at runtime, breaking the reflection-based `DataType.of(wrangler.getClass())` type extraction used in factory methods. Always make wranglers multi-method to force anonymous-class instantiation.
+
 ### Commits
 
 - Commits in a PR should ideally be rebased and massaged to follow these guidelines prior to committing, to give a clean history:

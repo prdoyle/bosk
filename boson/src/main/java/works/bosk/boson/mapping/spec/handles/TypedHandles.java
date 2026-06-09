@@ -183,6 +183,21 @@ public final class TypedHandles {
 		);
 	}
 
+	public static <T1,T2,T3> TypedHandle triConsumer(DataType argType1, DataType argType2, DataType argType3, TriConsumer<T1,T2,T3> triConsumer) {
+		return new TypedHandle(
+			TRI_CONSUMER_ACCEPT
+				.bindTo(triConsumer)
+				.asType(methodType(void.class, argType1.leastUpperBoundClass(), argType2.leastUpperBoundClass(), argType3.leastUpperBoundClass())),
+			VOID,
+			List.of(argType1, argType2, argType3)
+		);
+	}
+
+	@FunctionalInterface
+	public interface TriConsumer<T1,T2,T3> {
+		void accept(T1 t1, T2 t2, T3 t3);
+	}
+
 	private static final MethodHandle FUNCTION_APPLY;
 	private static final MethodHandle BI_FUNCTION_APPLY;
 	private static final MethodHandle PREDICATE_TEST;
@@ -190,6 +205,7 @@ public final class TypedHandles {
 	private static final MethodHandle CONSUMER_ACCEPT;
 	private static final MethodHandle BICONSUMER_ACCEPT;
 	private static final MethodHandle CALLABLE_CALL;
+	private static final MethodHandle TRI_CONSUMER_ACCEPT;
 
 	static {
 		try {
@@ -200,6 +216,7 @@ public final class TypedHandles {
 			CONSUMER_ACCEPT = MethodHandles.lookup().findVirtual(java.util.function.Consumer.class, "accept", methodType(void.class, Object.class));
 			BICONSUMER_ACCEPT = MethodHandles.lookup().findVirtual(java.util.function.BiConsumer.class, "accept", methodType(void.class, Object.class, Object.class));
 			CALLABLE_CALL = MethodHandles.lookup().findVirtual(Callable.class, "call", methodType(Object.class));
+			TRI_CONSUMER_ACCEPT = MethodHandles.lookup().findVirtual(TriConsumer.class, "accept", methodType(void.class, Object.class, Object.class, Object.class));
 		} catch (NoSuchMethodException | IllegalAccessException e) {
 			throw new ExceptionInInitializerError(e);
 		}

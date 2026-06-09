@@ -186,6 +186,7 @@ public final class RoundTripTest {
 
 		ObjectAccumulator accumulator = new ObjectAccumulator(
 			constant(INT, 0),
+			TypedHandles.biConsumer(INT, STRING, (a, k) -> {}),
 			new TypedHandle(
 				MethodHandles.lookup().findStatic(RoundTripTest.class, "accumulateMax", MethodType.methodType(int.class, int.class, String.class, int.class)),
 				INT, List.of(INT, STRING, INT)
