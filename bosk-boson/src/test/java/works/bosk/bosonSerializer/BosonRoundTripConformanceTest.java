@@ -55,6 +55,7 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 	}
 
 	public static class BosonRoundTripDriver extends AbstractRoundTripTest.PreprocessingDriver {
+		private final BosonSerializer bosonSerializer;
 		private final TypeMap typeMap;
 		private final Codec codec;
 		private final Variant variant;
@@ -64,7 +65,8 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 			super(d);
 			this.variant = variant;
 			var rootType = DataType.of(b.rootReference().targetType());
-			TypeScanner.Bundle bundle = new BosonSerializer().bundleFor(b);
+			this.bosonSerializer = new BosonSerializer();
+			TypeScanner.Bundle bundle = bosonSerializer.bundleFor(b);
 			LOGGER.debug("Creating the real TypeScanner now for root type {}", rootType);
 			this.typeMap = new TypeScanner(TypeMap.Settings.DEFAULT.withCompiled(false))
 				.addBundle(bundle)
@@ -112,11 +114,13 @@ class BosonRoundTripConformanceTest extends DriverConformanceTest {
 				if (variant == Variant.VALIDATING) {
 					json = json.withValidation();
 				}
-				try {
-					Object parsed = parser.parse(json);
-					return reference.targetClass().cast(parsed);
-				} catch (IOException e) {
-					throw new AssertionError("Unexpected exception", e);
+				try (var _ = bosonSerializer.newDeserializationScope(reference)) {
+					try {
+						Object parsed = parser.parse(json);
+						return reference.targetClass().cast(parsed);
+					} catch (IOException e) {
+						throw new AssertionError("Unexpected exception", e);
+					}
 				}
 			}
 		}

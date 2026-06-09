@@ -1,6 +1,7 @@
 package works.bosk;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.IdentityHashMap;
@@ -29,6 +30,15 @@ import tools.jackson.databind.JavaType;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.type.TypeFactory;
+import works.bosk.boson.codec.CodecBuilder;
+import works.bosk.boson.codec.Generator;
+import works.bosk.boson.codec.JsonReader;
+import works.bosk.boson.codec.Parser;
+import works.bosk.boson.mapping.TypeMap;
+import works.bosk.boson.mapping.TypeScanner;
+import works.bosk.boson.mapping.spec.JsonValueSpec;
+import works.bosk.boson.types.DataType;
+import works.bosk.bosonSerializer.BosonSerializer;
 import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JacksonSerializer;
@@ -47,7 +57,9 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 
 				jacksonRoundTripFactory(JacksonSerializerConfiguration.defaultConfiguration()),
 
-				bsonRoundTripFactory()
+				bsonRoundTripFactory(),
+
+				bosonRoundTripFactory()
 		);
 	}
 
@@ -107,6 +119,51 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 
 	public static <R extends Entity> DriverFactory<R> bsonRoundTripFactory() {
 		return new BsonRoundTripDriverFactory<>();
+	}
+
+	public static <R extends Entity> DriverFactory<R> bosonRoundTripFactory() {
+		return new BosonRoundTripDriverFactory<>();
+	}
+
+	private static class BosonRoundTripDriverFactory<R extends Entity> implements DriverFactory<R> {
+		@Override
+		public BoskDriver build(BoskInfo<R> boskInfo, BoskDriver driver) {
+			var bosonSerializer = new BosonSerializer();
+			var rootType = DataType.of(boskInfo.rootReference().targetType());
+			var bundle = bosonSerializer.bundleFor(boskInfo);
+			var typeMap = new TypeScanner(TypeMap.Settings.DEFAULT.withCompiled(false))
+				.addBundle(bundle)
+				.scan(rootType)
+				.build();
+			var codec = CodecBuilder.using(typeMap).build();
+
+			return new PreprocessingDriver(driver) {
+				@Override
+				protected <T> T preprocess(Reference<T> reference, T newValue) {
+					try {
+						JsonValueSpec targetSpec = typeMap.get(DataType.of(reference.targetType()));
+						Generator generator = codec.generatorFor(targetSpec);
+						Parser parser = codec.parserFor(targetSpec);
+
+						var writer = new StringWriter();
+						generator.generate(writer, newValue);
+						String json = writer.toString();
+
+						try (var _ = bosonSerializer.newDeserializationScope(reference)) {
+							Object parsed = parser.parse(JsonReader.create(json));
+							return reference.targetClass().cast(parsed);
+						}
+					} catch (IOException e) {
+						throw new AssertionError(e);
+					}
+				}
+			};
+		}
+
+		@Override
+		public String toString() {
+			return getClass().getSimpleName() + identityHashCode(this);
+		}
 	}
 
 	@RequiredArgsConstructor
