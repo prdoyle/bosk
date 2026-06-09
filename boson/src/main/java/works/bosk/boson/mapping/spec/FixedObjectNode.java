@@ -91,37 +91,37 @@ public record FixedObjectNode(
 		);
 	}
 
-	public abstract static class Wrangler1<V, T1> {
+	public abstract static class OneMemberWrangler<V, M1> {
 		final String member1Name;
 
-		protected Wrangler1(String member1Name) {
+		protected OneMemberWrangler(String member1Name) {
 			this.member1Name = member1Name;
 		}
 
-		public abstract T1 accessor1(V value);
-		public abstract V finish(T1 member1);
+		public abstract M1 accessor(V value);
+		public abstract V finish(M1 member1);
 	}
 
-	public abstract static class Wrangler2<V, T1, T2> {
+	public abstract static class TwoMemberWrangler<V, M1, M2> {
 		final String member1Name;
 		final String member2Name;
 
-		protected Wrangler2(String member1Name, String member2Name) {
+		protected TwoMemberWrangler(String member1Name, String member2Name) {
 			this.member1Name = member1Name;
 			this.member2Name = member2Name;
 		}
 
-		public abstract T1 accessor1(V value);
-		public abstract T2 accessor2(V value);
-		public abstract V finish(T1 member1, T2 member2);
+		public abstract M1 accessor1(V value);
+		public abstract M2 accessor2(V value);
+		public abstract V finish(M1 member1, M2 member2);
 	}
 
-	public static FixedObjectNode of(Wrangler1<?, ?> wrangler) {
+	public static FixedObjectNode of(OneMemberWrangler<?, ?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
-		DataType valueType = wranglerType.parameterType(Wrangler1.class, 0);
+		DataType valueType = wranglerType.parameterType(OneMemberWrangler.class, 0);
 
 		var memberSpecs = new LinkedHashMap<String, RecognizedMember>();
-		DataType arg1Type = wranglerType.parameterType(Wrangler1.class, 1);
+		DataType arg1Type = wranglerType.parameterType(OneMemberWrangler.class, 1);
 		memberSpecs.put(wrangler.member1Name, new RecognizedMember(
 			new TypeRefNode(arg1Type),
 			new TypedHandle(
@@ -143,13 +143,13 @@ public record FixedObjectNode(
 		return new FixedObjectNode(memberSpecs, finisher);
 	}
 
-	public static FixedObjectNode of(Wrangler2<?, ?,?> wrangler) {
+	public static FixedObjectNode of(TwoMemberWrangler<?, ?,?> wrangler) {
 		BoundType wranglerType = (BoundType) DataType.known(wrangler.getClass());
-		DataType valueType = wranglerType.parameterType(Wrangler2.class, 0);
+		DataType valueType = wranglerType.parameterType(TwoMemberWrangler.class, 0);
 
 		var memberSpecs = new LinkedHashMap<String, RecognizedMember>();
-		DataType arg1Type = wranglerType.parameterType(Wrangler2.class, 1);
-		DataType arg2Type = wranglerType.parameterType(Wrangler2.class, 2);
+		DataType arg1Type = wranglerType.parameterType(TwoMemberWrangler.class, 1);
+		DataType arg2Type = wranglerType.parameterType(TwoMemberWrangler.class, 2);
 		memberSpecs.put(wrangler.member1Name, new RecognizedMember(
 			new TypeRefNode(arg1Type),
 			new TypedHandle(
@@ -190,15 +190,15 @@ public record FixedObjectNode(
 	static {
 		var lookup = MethodHandles.lookup();
 		try {
-			WRANGLER1_ACCESSOR1 = lookup.findVirtual(Wrangler1.class, "accessor1",
+			WRANGLER1_ACCESSOR1 = lookup.findVirtual(OneMemberWrangler.class, "accessor",
 				methodType(Object.class, Object.class));
-			WRANGLER1_FINISH = lookup.findVirtual(Wrangler1.class, "finish",
+			WRANGLER1_FINISH = lookup.findVirtual(OneMemberWrangler.class, "finish",
 				methodType(Object.class, Object.class));
-			WRANGLER2_ACCESSOR1 = lookup.findVirtual(Wrangler2.class, "accessor1",
+			WRANGLER2_ACCESSOR1 = lookup.findVirtual(TwoMemberWrangler.class, "accessor1",
 				methodType(Object.class, Object.class));
-			WRANGLER2_ACCESSOR2 = lookup.findVirtual(Wrangler2.class, "accessor2",
+			WRANGLER2_ACCESSOR2 = lookup.findVirtual(TwoMemberWrangler.class, "accessor2",
 				methodType(Object.class, Object.class));
-			WRANGLER2_FINISH = lookup.findVirtual(Wrangler2.class, "finish",
+			WRANGLER2_FINISH = lookup.findVirtual(TwoMemberWrangler.class, "finish",
 				methodType(Object.class, Object.class, Object.class));
 		} catch (NoSuchMethodException | IllegalAccessException e) {
 			throw new ExceptionInInitializerError(e);

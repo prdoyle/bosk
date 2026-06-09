@@ -67,7 +67,7 @@ public record UniformMapNode(
 		);
 	}
 
-	public interface SingletonWrangler<T,K,V> {
+	public interface OneMemberWrangler<T,K,V> {
 		K getKey(T value);
 		V getValue(T value);
 		T finish(K key, V value);
@@ -82,11 +82,11 @@ public record UniformMapNode(
 	 * @param <K> the type of the map key (which corresponds to the JSON member name)
 	 * @param <V> the type of the map value (which corresponds to the JSON member value)
 	 */
-	public static <T,K,V> UniformMapNode singleton(SingletonWrangler<T,K,V> wrangler) {
+	public static <T,K,V> UniformMapNode singleton(OneMemberWrangler<T,K,V> wrangler) {
 		var wranglerType = (BoundType)DataType.of(wrangler.getClass());
-		var resultType = wranglerType.parameterType(SingletonWrangler.class, 0);
-		var keyType = wranglerType.parameterType(SingletonWrangler.class, 1);
-		var valueType = wranglerType.parameterType(SingletonWrangler.class, 2);
+		var resultType = wranglerType.parameterType(OneMemberWrangler.class, 0);
+		var keyType = wranglerType.parameterType(OneMemberWrangler.class, 1);
+		var valueType = wranglerType.parameterType(OneMemberWrangler.class, 2);
 		Map<String, DataType> actualArguments = Map.of(
 			"T", resultType,
 			"K", keyType,

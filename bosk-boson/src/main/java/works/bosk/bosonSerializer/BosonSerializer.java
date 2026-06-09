@@ -35,12 +35,14 @@ import works.bosk.boson.mapping.TypeScanner.Directive;
 import works.bosk.boson.mapping.spec.BooleanNode;
 import works.bosk.boson.mapping.spec.ComputedSpec;
 import works.bosk.boson.mapping.spec.FixedObjectNode;
+import works.bosk.boson.mapping.spec.FixedObjectNode.TwoMemberWrangler;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
 import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
 import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UniformMapNode.OneMemberWrangler;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
@@ -50,6 +52,7 @@ import works.bosk.boson.types.TypeReference;
 import works.bosk.boson.types.TypeVariable;
 import works.bosk.exceptions.InvalidTypeException;
 
+import static java.lang.invoke.MethodHandles.lookup;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memberValue;
 import static works.bosk.boson.mapping.spec.handles.TypedHandles.canonicalConstructor;
@@ -64,7 +67,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		E extends Entity,
 		V extends VariantCase
 	> TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
-		MethodHandles.Lookup lookup = MethodHandles.lookup();
+		MethodHandles.Lookup lookup = lookup();
 
 		var directives = new ArrayList<Directive>();
 
@@ -107,7 +110,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(Directive.fixed(
-			FixedObjectNode.of(new FixedObjectNode.Wrangler2<Listing<E>, CatalogReference<E>, List<Identifier>>(
+			FixedObjectNode.of(new TwoMemberWrangler<Listing<E>, CatalogReference<E>, List<Identifier>>(
 				"domain",
 				"ids"
 			) {
@@ -155,7 +158,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(Directive.fixed(
-			UniformMapNode.singleton(new UniformMapNode.SingletonWrangler<MapEntry<T>, Identifier, T>(){
+			UniformMapNode.singleton(new OneMemberWrangler<MapEntry<T>, Identifier, T>(){
 				@Override
 				public Identifier getKey(MapEntry<T> value) {
 					return value.id();
