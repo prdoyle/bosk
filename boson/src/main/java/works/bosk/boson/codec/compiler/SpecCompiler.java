@@ -566,10 +566,10 @@ public class SpecCompiler {
 				);
 
 				codeBuilder.labelBinding(member);
-				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
-				accumulator.load(codeBuilder);
 				_parseAny(node.keyNode());
 				_parseAny(node.valueNode());
+				var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
+				accumulator.load(codeBuilder);
 				_invokeExact(integratorType);
 				if (integratorType.returnType() != void.class) {
 					accumulator.store(codeBuilder);

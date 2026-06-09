@@ -91,6 +91,10 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
+		/*
+		 * Both {@link Catalog} and {@link SideTable} serialize as a list of key-value pairs
+		 * to maintain the order of the entries. This type represents that structure.
+		 */
 		record MapEntry<V>(Identifier id, V value) {}
 
 		// This probably should be a SequencedCollection, but pcollections doesn't have that
@@ -266,7 +270,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			})));
 
 		directives.add(new Directive(
-			new TypeVariable("X", StateTreeNode.class),
+			new TypeVariable("X", StateTreeNode.class), // Any subtype of StateTreeNode
 			stateTreeNodeType -> switch (stateTreeNodeType) {
 				case BoundType bt -> {
 					// StateTreeNode offers some features that only work in the context of a StateTreeNode,
