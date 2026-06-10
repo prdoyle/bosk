@@ -179,3 +179,4 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
   - Some other projects perceive a symmetry between these two operations
   - The bosk philosophy is that they have nothing in common and are handled by entirely separate mechanisms. (This is almost a corollary of representing data with immutable structures.)
 - Even when the bosk state is persisted (say, in MongoDB), the in-memory state tree is a _replica_, not a cache, and is always available.
+- Prefer `if (x) { ... } else { ... }` over `if (!x) { ... } else { ... }` (avoid double-negative conditions).

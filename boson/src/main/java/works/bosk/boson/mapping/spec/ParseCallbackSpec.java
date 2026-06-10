@@ -25,11 +25,11 @@ public record ParseCallbackSpec(
 ) implements JsonValueSpec {
 	public ParseCallbackSpec {
 		assert before.parameterTypes().isEmpty();
-		assert after.returnType() == VOID;
+		assert VOID.equals(after.returnType());
 
 		DataType parsedValueType = child.dataType();
 		List<DataType> expected;
-		if (before.returnType() == VOID) {
+		if (VOID.equals(before.returnType())) {
 			expected = List.of(parsedValueType);
 		} else {
 			expected = List.of(before.returnType(), parsedValueType);

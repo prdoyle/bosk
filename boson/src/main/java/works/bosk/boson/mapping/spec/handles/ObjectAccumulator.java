@@ -52,17 +52,17 @@ public record ObjectAccumulator(
 		// TODO: injection
 		assert creator.parameterTypes().isEmpty();
 
-		if (keyHandler.returnType() != VOID) {
+		if (VOID.equals(keyHandler.returnType())) {
+			assert integrator.parameterTypes().size() == 3;
+		} else {
 			assert integrator.parameterTypes().size() == 4;
 			DataType handlerResultType = integrator.parameterTypes().get(3);
 			assert keyHandler.returnType().isAssignableFrom(handlerResultType):
 				"keyHandler return type " + keyHandler.returnType()
 					+ " must be assignable to integrator handler result param " + handlerResultType;
-		} else {
-			assert integrator.parameterTypes().size() == 3;
 		}
 		assert integrator.parameterTypes().getFirst().isAssignableFrom(creator.returnType());
-		assert integrator.returnType() == VOID || integrator.returnType().equals(creator.returnType());
+		assert VOID.equals(integrator.returnType()) || integrator.returnType().equals(creator.returnType());
 
 		assert finisher.parameterTypes().size() == 1;
 		assert finisher.parameterTypes().getFirst().isAssignableFrom(creator.returnType());

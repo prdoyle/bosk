@@ -113,7 +113,7 @@ public class SpecInterpretingParser implements Parser {
 
 		private Object parseCallback(ParseCallbackSpec node) throws IOException {
 			Object result;
-			if (node.before().returnType() == VOID) {
+			if (VOID.equals(node.before().returnType())) {
 				node.before().invoke();
 				result = parseAny_recursive(node.child());
 				node.after().invoke(result);
@@ -233,7 +233,7 @@ public class SpecInterpretingParser implements Parser {
 						continue;
 					}
 					case ParseCallbackSpec n -> {
-						if (n.before().returnType() == VOID) {
+						if (VOID.equals(n.before().returnType())) {
 							n.before().invoke();
 							stack.push(new CallbackAccumulator(n.child(), null, n.after()));
 						} else {
@@ -341,7 +341,7 @@ public class SpecInterpretingParser implements Parser {
 			}
 
 			private Object invokeKeyHandler(Object key) {
-				if (keyHandler.returnType() == VOID) {
+				if (VOID.equals(keyHandler.returnType())) {
 					keyHandler.invoke(accumulator, key);
 					return null;
 				} else {
@@ -357,10 +357,10 @@ public class SpecInterpretingParser implements Parser {
 			@Override
 			public Object accumulate(Object value) throws IOException {
 				var integrator = n.accumulator().integrator();
-				if (keyHandler.returnType() != VOID) {
-					integrator.invoke(accumulator, key, value, keyHandlerResult);
-				} else {
+				if (VOID.equals(keyHandler.returnType())) {
 					integrator.invoke(accumulator, key, value);
+				} else {
+					integrator.invoke(accumulator, key, value, keyHandlerResult);
 				}
 				if (nextTokenIs(END_OBJECT)) {
 					return n.accumulator().finisher().invoke(accumulator);
@@ -517,7 +517,7 @@ public class SpecInterpretingParser implements Parser {
 			while (input.peekValueToken() != END_ARRAY) {
 				Object element = parseAny(node.elementNode());
 				var returned = acc.integrator().invoke(accumulator, element);
-				if (acc.integrator().returnType() != VOID) {
+				if (!VOID.equals(acc.integrator().returnType())) {
 					accumulator = returned;
 				}
 			}
@@ -534,20 +534,20 @@ public class SpecInterpretingParser implements Parser {
 			while (input.peekValueToken() != END_OBJECT) {
 				Object key = parseAny(node.keyNode());
 				Object handlerResult = null;
-				if (keyHandler.returnType() != VOID) {
-					handlerResult = keyHandler.invoke(accumulator, key);
-				} else {
+				if (VOID.equals(keyHandler.returnType())) {
 					keyHandler.invoke(accumulator, key);
+				} else {
+					handlerResult = keyHandler.invoke(accumulator, key);
 				}
 				Object value = parseAny(node.valueNode());
 				LOGGER.debug("| member [{}:{}]: |{}|", key, value, previewString());
 				Object returned;
-				if (keyHandler.returnType() != VOID) {
-					returned = acc.integrator().invoke(accumulator, key, value, handlerResult);
-				} else {
+				if (VOID.equals(keyHandler.returnType())) {
 					returned = acc.integrator().invoke(accumulator, key, value);
+				} else {
+					returned = acc.integrator().invoke(accumulator, key, value, handlerResult);
 				}
-				if (acc.integrator().returnType() != VOID) {
+				if (!VOID.equals(acc.integrator().returnType())) {
 					accumulator = returned;
 				}
 			}

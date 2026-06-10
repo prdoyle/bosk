@@ -574,13 +574,15 @@ public class SpecCompiler {
 
 				LocalVariable handlerResultLocal = null;
 				var keyHandler = acc.keyHandler();
-				boolean hasHandlerResult = keyHandler.returnType() != DataType.VOID;
+				boolean hasHandlerResult = !DataType.VOID.equals(keyHandler.returnType());
 				var keyHandlerMt = curryAndLoad(keyHandler.handle(), "keyHandler");
 				accumulator.load(codeBuilder);
 				keyLocal.load(codeBuilder);
 				_invokeExact(keyHandlerMt);
 				if (hasHandlerResult) {
-					handlerResultLocal = locals.allocate(REFERENCE);
+					TypeKind handlerKind = TypeKind.fromDescriptor(
+						keyHandler.returnType().leastUpperBoundClass().descriptorString());
+					handlerResultLocal = locals.allocate(handlerKind);
 					handlerResultLocal.store(codeBuilder);
 				}
 
