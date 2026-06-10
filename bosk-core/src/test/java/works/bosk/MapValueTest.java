@@ -335,6 +335,15 @@ class MapValueTest extends AbstractBoskTest {
 	}
 
 	@Test
+	void collector_duplicateKey_laterValueWins() {
+		var items = List.of("first", "second");
+		MapValue<String> expected = MapValue.singleton("dup", "second");
+		MapValue<String> actual = items.stream()
+			.collect(MapValue.toMapValue(s -> "dup", Function.identity()));
+		assertEquals(expected, actual);
+	}
+
+	@Test
 	void testBad_duplicateKeysFromFunction() {
 		assertThrows(IllegalArgumentException.class, () -> MapValue.fromFunction(asList("dup", "dup"), Identifier::unique));
 	}
