@@ -207,6 +207,50 @@ public class CodecHappyParseTest {
 			codec.parserFor(spec).parse(JsonReader.create(json)));
 	}
 
+	@Test
+	void arrayIntegratorReturnValueApplied() throws IOException {
+		var typeMap = scanner.scan(STRING).build();
+		var spec = new ArrayNode(
+			new StringNode(),
+			ArrayAccumulator.from(new ArrayAccumulator.Wrangler<Integer, String, String>() {
+				@Override public Integer create() { return 0; }
+				@Override public Integer integrate(Integer acc, String elem) { return acc + 1; }
+				@Override public String finish(Integer acc) { return "count=" + acc; }
+			}),
+			ArrayEmitter.from(new ArrayEmitter.Wrangler<String, Integer, String>() {
+				@Override public Integer start(String representation) { return 0; }
+				@Override public boolean hasNext(Integer iterator) { return false; }
+				@Override public String next(Integer iterator) { return ""; }
+			})
+		);
+		var codec = CodecBuilder.using(typeMap).build(spec);
+		var result = codec.parserFor(spec).parse(JsonReader.create("[\"a\", \"b\"]"));
+		assertEquals("count=2", result);
+	}
+
+	@Test
+	void mapIntegratorReturnValueApplied() throws IOException {
+		var typeMap = scanner.scan(STRING).build();
+		var acc = ObjectAccumulator.from(new ObjectAccumulator.Wrangler<Integer, Integer, String, String>() {
+			@Override public Integer create() { return 0; }
+			@Override public Integer integrate(Integer acc, String key, String value) { return acc + 1; }
+			@Override public Integer finish(Integer acc) { return acc; }
+		});
+		var emitter = ObjectEmitter.forLoop(new ObjectEmitter.ForLoopWrangler<Integer, String, String>() {
+			@Override public long start(Integer obj) { return 0; }
+			@Override public boolean hasNext(long iter, Integer obj) { return false; }
+			@Override public long next(long iter, Integer obj) { return 0; }
+			@Override public String getKey(long iter, Integer obj) { return ""; }
+			@Override public String getValue(long iter, Integer obj) { return null; }
+		});
+		var spec = new UniformMapNode(new StringNode(), new StringNode(), acc, emitter);
+		var codec = CodecBuilder.using(typeMap).build(spec);
+		var result = codec.parserFor(spec).parse(JsonReader.create("""
+			{"a": "x", "b": "y"}
+			"""));
+		assertEquals(2, result);
+	}
+
 	/**
 	 * As a demonstration of flexibility, we represent the map as a colon-separated string,
 	 * rather than the more obvious record or map.

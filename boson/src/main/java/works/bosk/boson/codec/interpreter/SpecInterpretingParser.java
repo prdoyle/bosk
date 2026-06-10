@@ -302,7 +302,7 @@ public class SpecInterpretingParser implements Parser {
 
 		private class ArrayAccumulator implements Accumulator {
 			private final ArrayNode n;
-			private final Object accumulator;
+			private Object accumulator;
 
 			public ArrayAccumulator(ArrayNode n) {
 				this.n = n;
@@ -316,7 +316,11 @@ public class SpecInterpretingParser implements Parser {
 
 			@Override
 			public Object accumulate(Object value) throws IOException {
-				n.accumulator().integrator().invoke(accumulator, value);
+				var integrator = n.accumulator().integrator();
+				var returned = integrator.invoke(accumulator, value);
+				if (!VOID.equals(integrator.returnType())) {
+					accumulator = returned;
+				}
 				if (InterpretedParseSession.this.nextTokenIs(END_ARRAY)) {
 					return n.accumulator().finisher().invoke(accumulator);
 				} else {
@@ -327,7 +331,7 @@ public class SpecInterpretingParser implements Parser {
 
 		private class MapAccumulator implements Accumulator {
 			private final UniformMapNode n;
-			private final Object accumulator;
+			private Object accumulator;
 			private final TypedHandle keyHandler;
 			Object key;
 			private Object keyHandlerResult;
@@ -357,10 +361,14 @@ public class SpecInterpretingParser implements Parser {
 			@Override
 			public Object accumulate(Object value) throws IOException {
 				var integrator = n.accumulator().integrator();
+				Object returned;
 				if (VOID.equals(keyHandler.returnType())) {
-					integrator.invoke(accumulator, key, value);
+					returned = integrator.invoke(accumulator, key, value);
 				} else {
-					integrator.invoke(accumulator, key, value, keyHandlerResult);
+					returned = integrator.invoke(accumulator, key, value, keyHandlerResult);
+				}
+				if (!VOID.equals(integrator.returnType())) {
+					accumulator = returned;
 				}
 				if (nextTokenIs(END_OBJECT)) {
 					return n.accumulator().finisher().invoke(accumulator);
