@@ -57,7 +57,7 @@ public record ObjectAccumulator(
 		} else {
 			assert integrator.parameterTypes().size() == 4;
 			DataType handlerResultType = integrator.parameterTypes().get(3);
-			assert keyHandler.returnType().isAssignableFrom(handlerResultType):
+			assert handlerResultType.isAssignableFrom(keyHandler.returnType()):
 				"keyHandler return type " + keyHandler.returnType()
 					+ " must be assignable to integrator handler result param " + handlerResultType;
 		}

@@ -49,8 +49,10 @@ import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
 import works.bosk.junit.InjectedTest;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static works.bosk.boson.types.DataType.BOOLEAN;
 import static works.bosk.boson.types.DataType.INT;
 import static works.bosk.boson.types.DataType.STRING;
@@ -541,6 +543,35 @@ public class CodecHappyParseTest {
 
 	static int sumIntegrator(int accumulator, String key, int value) {
 		return accumulator + value;
+	}
+
+	@Test
+	void objectAccumulator_typeChecks() {
+		// keyHandler return type must be assignable TO integrator handler result param
+		assertDoesNotThrow(() -> buildAccumulator(String.class, Object.class),
+			"narrow keyHandler return should be assignable to wide integrator param");
+		assertDoesNotThrow(() -> buildAccumulator(String.class, String.class),
+			"equal types should be assignable");
+		assertThrows(AssertionError.class, () -> buildAccumulator(Object.class, String.class),
+			"wide keyHandler return should not be assignable to narrow integrator param");
+	}
+
+	private static ObjectAccumulator buildAccumulator(Class<?> keyHandlerReturn, Class<?> integratorHandlerParam) {
+		DataType accType = DataType.known(Object.class);
+		DataType keyType = DataType.known(String.class);
+		DataType valueType = DataType.known(Integer.class);
+		DataType khReturn = DataType.known(keyHandlerReturn);
+		DataType integParam = DataType.known(integratorHandlerParam);
+
+		return new ObjectAccumulator(
+			TypedHandles.constant(accType, new Object()),
+			new TypedHandle(
+				MethodHandles.empty(MethodType.methodType(keyHandlerReturn, Object.class, String.class)),
+				khReturn, List.of(accType, keyType)),
+			new TypedHandle(
+				MethodHandles.empty(MethodType.methodType(Object.class, Object.class, String.class, Integer.class, integratorHandlerParam)),
+				accType, List.of(accType, keyType, valueType, integParam)),
+			TypedHandles.identity(accType));
 	}
 
 	/**

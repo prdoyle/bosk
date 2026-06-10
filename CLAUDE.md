@@ -164,6 +164,7 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
 - Prefer building the entire expected data structure and using `assertEquals` over checking individual fields one-by-one. Tests with per-field assertions get stale when the object acquires new fields.
 - Assertion message strings should state what was expected (e.g. `"Should have no errors"`), not describe the error.
 - Use `./gradlew <task> --rerun` (not `--rerun-tasks`) to force Gradle to re-execute a task when cached results exist.
+- Java assertions (-ea) are enabled for tests
 
 ## Notes
 
