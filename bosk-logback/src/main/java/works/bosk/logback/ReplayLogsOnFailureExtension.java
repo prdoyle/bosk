@@ -60,6 +60,7 @@ public class ReplayLogsOnFailureExtension implements BeforeEachCallback, AfterEa
 		String testId = context.getUniqueId();
 
 		if (context.getExecutionException().isPresent() && filter != null) {
+			// This is what it's all about
 			replay(filter.queueContents(testId));
 		}
 
@@ -101,8 +102,8 @@ public class ReplayLogsOnFailureExtension implements BeforeEachCallback, AfterEa
 	@Nullable
 	private static RecordingTurboFilter findFilter(LoggerContext loggerContext) {
 		for (var f : loggerContext.getTurboFilterList()) {
-			if (f instanceof RecordingTurboFilter) {
-				return (RecordingTurboFilter) f;
+			if (f instanceof RecordingTurboFilter r) {
+				return r;
 			}
 		}
 		return null;

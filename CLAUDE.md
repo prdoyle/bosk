@@ -162,7 +162,7 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
 ### Testing
 
 - Prefer building the entire expected data structure and using `assertEquals` over checking individual fields one-by-one. Tests with per-field assertions get stale when the object acquires new fields.
-- Assertion message strings should state what was expected (e.g. `"Should have no errors"`), not describe the error.
+- Assertion message strings should state what was expected (e.g. `"Set must have the new item"`), not describe the error (e.g. `"Set does not contain the new item"`).
 - Use `./gradlew <task> --rerun` (not `--rerun-tasks`) to force Gradle to re-execute a task when cached results exist.
 - Java assertions (-ea) are enabled for tests
 
@@ -180,4 +180,4 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
   - Some other projects perceive a symmetry between these two operations
   - The bosk philosophy is that they have nothing in common and are handled by entirely separate mechanisms. (This is almost a corollary of representing data with immutable structures.)
 - Even when the bosk state is persisted (say, in MongoDB), the in-memory state tree is a _replica_, not a cache, and is always available.
-- Prefer `if (x) { ... } else { ... }` over `if (!x) { ... } else { ... }` (avoid double-negative conditions).
+- Prefer `if (x) { ... } else { ... }` over `if (!x) { ... } else { ... }` to avoid the double-negative `else` branch.

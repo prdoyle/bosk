@@ -52,6 +52,7 @@ public class BosonSerializerTest {
 	public interface Refs {
 		@ReferencePath("/keys") CatalogReference<Key> keys();
 		@ReferencePath("/items") CatalogReference<Item> items();
+		@ReferencePath("/items/-item-") Reference<Item> item(Identifier item);
 		@ReferencePath("/sideTable") SideTableReference<Key, String> sideTable();
 	}
 
@@ -90,7 +91,7 @@ public class BosonSerializerTest {
 	}
 
 	@Test
-	void sideTable() throws InvalidTypeException, IOException {
+	void sideTable() throws IOException {
 		var object = SideTable.of(refs.keys(), Identifier.from("key"), "value");
 
 
@@ -114,13 +115,14 @@ public class BosonSerializerTest {
 	}
 
 	@Test
-	void selfReference() throws IOException, InvalidTypeException {
+	void selfReferences() throws IOException {
 		var parser = codec.parserFor(typeMap.get(DataType.of(Root.class)));
 		Root parsed = (Root)parser.parse(new CharArrayJsonReader(
+			// Note: no explicit self-references here
 			"""
 			{
 				"keys": [],
-				"items": [],
+				"items": [{"item1": {"id": "item1"}}],
 				"sideTable": {
 					"domain": "/keys",
 					"valuesById": []
@@ -128,28 +130,10 @@ public class BosonSerializerTest {
 			}
 			""".toCharArray()
 		));
-		assertEquals(emptyRoot(bosk), parsed);
+
+		assertEquals(bosk.rootReference(), parsed.self());
+		Identifier item1 = Identifier.from("item1");
+		assertEquals(refs.item(item1), parsed.items().get(item1).self());
 	}
 
-	@Test
-	void catalogEntrySelfReference() throws IOException, InvalidTypeException {
-		var itemId = Identifier.from("e1");
-		var expectedItem = new Item(itemId, refs.items().then(itemId));
-		var originalRoot = new Root(
-			Catalog.empty(),
-			Catalog.of(expectedItem),
-			SideTable.empty(refs.keys()),
-			bosk.rootReference()
-		);
-
-		var gen = codec.generatorFor(typeMap.get(DataType.of(Root.class)));
-		StringWriter sw = new StringWriter();
-		gen.generate(sw, originalRoot);
-		String json = sw.toString();
-
-		var parser = codec.parserFor(typeMap.get(DataType.of(Root.class)));
-		Root parsedRoot = (Root)parser.parse(new CharArrayJsonReader(json.toCharArray()));
-
-		assertEquals(originalRoot, parsedRoot);
-	}
 }

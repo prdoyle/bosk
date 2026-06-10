@@ -167,12 +167,12 @@ public record ObjectAccumulator(
 
 		return new ObjectAccumulator(
 			new TypedHandle(
-				SEQ_WRANGLER_CREATE.bindTo(wrangler)
+				KEY_HANDLING_WRANGLER_CREATE.bindTo(wrangler)
 					.asType(MethodType.methodType(accumulatorType.leastUpperBoundClass())),
 				accumulatorType, List.of()
 			),
 			new TypedHandle(
-				SEQ_WRANGLER_KEY_HANDLER.bindTo(wrangler)
+				KEY_HANDLING_WRANGLER_KEY_HANDLER.bindTo(wrangler)
 					.asType(MethodType.methodType(
 						handlerResultType.leastUpperBoundClass(),
 						accumulatorType.leastUpperBoundClass(),
@@ -181,7 +181,7 @@ public record ObjectAccumulator(
 				handlerResultType, List.of(accumulatorType, keyType)
 			),
 			new TypedHandle(
-				SEQ_WRANGLER_INTEGRATE.bindTo(wrangler)
+				KEY_HANDLING_WRANGLER_INTEGRATE.bindTo(wrangler)
 					.asType(MethodType.methodType(
 						accumulatorType.leastUpperBoundClass(),
 						accumulatorType.leastUpperBoundClass(),
@@ -192,7 +192,7 @@ public record ObjectAccumulator(
 				accumulatorType, List.of(accumulatorType, keyType, valueType, handlerResultType)
 			),
 			new TypedHandle(
-				SEQ_WRANGLER_FINISH.bindTo(wrangler)
+				KEY_HANDLING_WRANGLER_FINISH.bindTo(wrangler)
 					.asType(MethodType.methodType(
 						resultType.leastUpperBoundClass(),
 						accumulatorType.leastUpperBoundClass()
@@ -206,10 +206,10 @@ public record ObjectAccumulator(
 	private static final MethodHandle WRANGLER_INTEGRATE;
 	private static final MethodHandle WRANGLER_FINISH;
 
-	private static final MethodHandle SEQ_WRANGLER_CREATE;
-	private static final MethodHandle SEQ_WRANGLER_KEY_HANDLER;
-	private static final MethodHandle SEQ_WRANGLER_INTEGRATE;
-	private static final MethodHandle SEQ_WRANGLER_FINISH;
+	private static final MethodHandle KEY_HANDLING_WRANGLER_CREATE;
+	private static final MethodHandle KEY_HANDLING_WRANGLER_KEY_HANDLER;
+	private static final MethodHandle KEY_HANDLING_WRANGLER_INTEGRATE;
+	private static final MethodHandle KEY_HANDLING_WRANGLER_FINISH;
 
 	static {
 		try {
@@ -229,22 +229,22 @@ public record ObjectAccumulator(
 				"finish",
 				MethodType.methodType(Object.class, Object.class)
 			);
-			SEQ_WRANGLER_CREATE = lookup.findVirtual(
+			KEY_HANDLING_WRANGLER_CREATE = lookup.findVirtual(
 				KeyHandlingWrangler.class,
 				"create",
 				MethodType.methodType(Object.class)
 			);
-			SEQ_WRANGLER_KEY_HANDLER = lookup.findVirtual(
+			KEY_HANDLING_WRANGLER_KEY_HANDLER = lookup.findVirtual(
 				KeyHandlingWrangler.class,
 				"keyHandler",
 				MethodType.methodType(Object.class, Object.class, Object.class)
 			);
-			SEQ_WRANGLER_INTEGRATE = lookup.findVirtual(
+			KEY_HANDLING_WRANGLER_INTEGRATE = lookup.findVirtual(
 				KeyHandlingWrangler.class,
 				"integrate",
 				MethodType.methodType(Object.class, Object.class, Object.class, Object.class, Object.class)
 			);
-			SEQ_WRANGLER_FINISH = lookup.findVirtual(
+			KEY_HANDLING_WRANGLER_FINISH = lookup.findVirtual(
 				KeyHandlingWrangler.class,
 				"finish",
 				MethodType.methodType(Object.class, Object.class)
