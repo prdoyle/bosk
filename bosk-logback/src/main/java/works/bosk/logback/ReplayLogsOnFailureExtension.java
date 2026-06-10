@@ -45,24 +45,27 @@ public class ReplayLogsOnFailureExtension implements BeforeEachCallback, AfterEa
 	public void beforeEach(ExtensionContext context) {
 		String testId = context.getUniqueId();
 		MDC.put(TEST_ID_KEY, testId);
-		RecordingTurboFilter.putOverrides(testId, resolveOverrides(context));
+		var loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+		RecordingTurboFilter filter = findFilter(loggerContext);
+		if (filter != null) {
+			filter.putOverrides(testId, resolveOverrides(context));
+		}
 	}
 
 	@Override
 	public void afterEach(ExtensionContext context) {
 		var loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
+		RecordingTurboFilter filter = findFilter(loggerContext);
 
 		String testId = context.getUniqueId();
 
-		if (context.getExecutionException().isPresent()) {
-			RecordingTurboFilter filter = findFilter(loggerContext);
-			if (filter != null) {
-				// This is what it's all about
-				replay(filter.queueContents(testId));
-			}
+		if (context.getExecutionException().isPresent() && filter != null) {
+			replay(filter.queueContents(testId));
 		}
 
-		RecordingTurboFilter.removeOverrides(testId);
+		if (filter != null) {
+			filter.removeOverrides(testId);
+		}
 		MDC.remove(TEST_ID_KEY);
 	}
 

@@ -152,12 +152,9 @@ public class RecordingTurboFilter extends TurboFilter {
 	// Optional nested capture-time filter configured via <filter> under the turboFilter
 	private Filter<ILoggingEvent> filter;
 
-	// These things are static so the test lifecycle methods don't need to
-	// get their hands on the filter instance.
-
-	private static final ConcurrentHashMap<String, Overrides> overridesByTestId = new ConcurrentHashMap<>();
-	private static final ConcurrentHashMap<String, LogEventBuffer> buffersByTestId = new ConcurrentHashMap<>();
-	private static final ConcurrentHashMap<String, String> testIdsByRoutingKey = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, Overrides> overridesByTestId = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, LogEventBuffer> buffersByTestId = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, String> testIdsByRoutingKey = new ConcurrentHashMap<>();
 
 	// Setters for logback configuration properties
 
@@ -192,7 +189,7 @@ public class RecordingTurboFilter extends TurboFilter {
 	 */
 	public void setFilter(Filter<ILoggingEvent> filter) { this.filter = filter; }
 
-	static void putOverrides(String testId, Overrides overrides) {
+	void putOverrides(String testId, Overrides overrides) {
 		if (overrides == null || NONE.equals(overrides)) {
 			// We want to keep this map tidy so we can tell when it's empty
 			overridesByTestId.remove(testId);
@@ -201,7 +198,7 @@ public class RecordingTurboFilter extends TurboFilter {
 		}
 	}
 
-	static void removeOverrides(String testId) {
+	void removeOverrides(String testId) {
 		overridesByTestId.remove(testId);
 		cleanupForTest(testId);
 	}
@@ -321,7 +318,7 @@ public class RecordingTurboFilter extends TurboFilter {
 		return new QueueContents(buffer.queue, buffer.count.get() - buffer.queue.size());
 	}
 
-	static void cleanupForTest(String testId) {
+	void cleanupForTest(String testId) {
 		testIdsByRoutingKey.forEach((routingKeyValue, associatedTestId) -> {
 			if (testId.equals(associatedTestId)) {
 				testIdsByRoutingKey.remove(routingKeyValue);
