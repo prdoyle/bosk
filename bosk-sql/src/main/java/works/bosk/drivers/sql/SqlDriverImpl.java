@@ -38,6 +38,7 @@ import works.bosk.drivers.sql.schema.Schema;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
+import works.bosk.jackson.JacksonSerializer;
 import works.bosk.jackson.JsonNodeSurgeon;
 import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.NonexistentParent;
@@ -64,6 +65,7 @@ class SqlDriverImpl implements SqlDriver {
 	private final BoskContext context;
 	private final ConnectionSource connectionSource;
 	private final ObjectMapper mapper;
+	private final JacksonSerializer jacksonSerializer;
 	private final JsonNodeSurgeon surgeon = new JsonNodeSurgeon();
 
 	private final AtomicBoolean isOpen = new AtomicBoolean(true);
@@ -90,6 +92,7 @@ class SqlDriverImpl implements SqlDriver {
 		ConnectionSource cs,
 		BoskInfo<?> bosk,
 		ObjectMapper mapper,
+		JacksonSerializer jacksonSerializer,
 		BoskDriver downstream
 	) {
 		this.settings = settings;
@@ -99,6 +102,7 @@ class SqlDriverImpl implements SqlDriver {
 		this.boskID	= bosk.instanceID();
 		this.context = requireNonNull(bosk.context());
 		this.mapper = requireNonNull(mapper);
+		this.jacksonSerializer = requireNonNull(jacksonSerializer);
 		this.connectionSource = () -> {
 			Connection result = cs.get();
 			// autoCommit is an idiotic default
@@ -183,8 +187,10 @@ class SqlDriverImpl implements SqlDriver {
 							if (newState == null) {
 								newValue = null;
 							} else {
-								newValue = mapper.readerFor(typeFactory.constructType(target.targetType()))
-									.readValue(newState);
+								try (var _ = jacksonSerializer.newDeserializationScope(target)) {
+									newValue = mapper.readerFor(typeFactory.constructType(target.targetType()))
+										.readValue(newState);
+								}
 							}
 							submitDownstream(target, newValue, changeID);
 						} catch (JacksonException e) {
@@ -307,7 +313,9 @@ class SqlDriverImpl implements SqlDriver {
 			throw new AssertionError("Epoch was just set, so it shouldn't mismatch in the same transaction", e);
 		}
 		JavaType valueType = typeFactory.constructType(rootType);
-		root = mapper.readValue(stateAndEpoch.state, valueType);
+		try (var _ = jacksonSerializer.newDeserializationScope(rootRef)) {
+			root = mapper.readValue(stateAndEpoch.state, valueType);
+		}
 		this.lastChangeSubmittedDownstream.set(-1);
 		connection.commit();
 		submitDownstream(rootRef, root, currentChangeID);

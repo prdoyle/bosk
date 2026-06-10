@@ -24,7 +24,7 @@ public interface SqlDriver extends BoskDriver {
 			JacksonSerializer jacksonSerializer = new JacksonSerializer();
 			ObjectMapper mapper = objectMapperCustomizer.apply(b, JsonMapper.builder().addModule(jacksonSerializer.moduleFor(b))).build();
 			return new SqlDriverFacade(jacksonSerializer, new SqlDriverImpl(
-				settings, connectionSource, b, mapper, d
+				settings, connectionSource, b, mapper, jacksonSerializer, d
 			));
 		};
 	}
