@@ -40,6 +40,7 @@ import works.bosk.junit.InjectedTest;
 import works.bosk.junit.Injector;
 import works.bosk.junit.RunAnteTestsFirst;
 import works.bosk.testing.drivers.state.Primitives;
+import works.bosk.testing.drivers.state.SelfValue;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.testing.drivers.state.TestEntity.IdentifierCase;
 import works.bosk.testing.drivers.state.TestEntity.StringCase;
@@ -394,6 +395,16 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 		driver.submitDeletion(ref);
 		assertCorrectBoskContents();
 		driver.submitDeletion(ref);
+		assertCorrectBoskContents();
+	}
+
+	@Test
+	void optional_selfReference() throws InvalidTypeException {
+		setupBosksAndReferences(driverFactory);
+		CatalogReference<TestEntity> catalogRef = bosk.rootReference().thenCatalog(TestEntity.class, Path.just(TestEntity.Fields.catalog));
+		autoInitialize(catalogRef.then(child1ID));
+		Reference<SelfValue> selfValueRef = catalogRef.then(child1ID).then(SelfValue.class, "selfValue");
+		driver.submitReplacement(selfValueRef, new SelfValue(selfValueRef, "test"));
 		assertCorrectBoskContents();
 	}
 

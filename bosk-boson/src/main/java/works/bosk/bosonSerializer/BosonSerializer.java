@@ -296,8 +296,24 @@ public class BosonSerializer extends StateTreeSerializer {
 							// This is remarkably cumbersome
 							var valueType = ReferenceUtils.parameterType(rc.getGenericType(), Optional.class, 0);
 							var elementType = new TypeRefNode(DataType.known(valueType));
-							var ifPresent = RepresentAsSpec.<Optional<?>, Object>as(
+							// The element needs an appropriate scope for @Self to resolve inside it
+							TypedHandle closeScope;
+							try {
+								MethodHandle close = lookup.findVirtual(DeserializationScope.class, "close",
+									methodType(void.class));
+								MethodHandle closeMh = dropArguments(close, 1, ReferenceUtils.rawClass(valueType));
+								closeScope = new TypedHandle(closeMh,
+									DataType.VOID,
+									List.of(DataType.known(DeserializationScope.class), DataType.known(valueType)));
+							} catch (NoSuchMethodException | IllegalAccessException e) {
+								throw new IllegalArgumentException("Failed to create scope callback for " + rc.getName(), e);
+							}
+							var scopedElement = new ParseCallbackSpec(
+								openRecordComponentDeserializationScope(rc, recordClass, lookup),
 								elementType,
+								closeScope);
+							var ifPresent = RepresentAsSpec.<Optional<?>, Object>as(
+								scopedElement,
 								DataType.known(rc.getGenericType()),
 								Optional::get,
 								Optional::of

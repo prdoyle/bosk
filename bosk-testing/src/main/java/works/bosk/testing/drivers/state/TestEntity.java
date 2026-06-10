@@ -26,7 +26,8 @@ public record TestEntity(
 	SideTable<TestEntity, TestEntity> sideTable,
 	SideTable<TestEntity, SideTable<TestEntity, TestEntity>> nestedSideTable,
 	TaggedUnion<Variant> variant,
-	Optional<TestValues> values
+	Optional<TestValues> values,
+	Optional<SelfValue> selfValue
 ) implements Entity {
 
 	public interface Variant extends VariantCase {
@@ -56,6 +57,7 @@ public record TestEntity(
 			SideTable.empty(catalogRef),
 			SideTable.empty(catalogRef),
 			TaggedUnion.of(new StringCase("")),
+			Optional.empty(),
 			Optional.empty());
 	}
 

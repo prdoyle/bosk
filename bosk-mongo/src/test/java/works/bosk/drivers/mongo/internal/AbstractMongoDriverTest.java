@@ -137,6 +137,7 @@ abstract class AbstractMongoDriverTest {
 			SideTable.empty(refs.catalog()),
 			SideTable.empty(refs.catalog()),
 			TaggedUnion.of(new TestEntity.StringCase(rootID.toString())),
+			Optional.empty(),
 			Optional.empty()
 		);
 	}
