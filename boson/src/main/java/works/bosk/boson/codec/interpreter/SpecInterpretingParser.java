@@ -113,7 +113,7 @@ public class SpecInterpretingParser implements Parser {
 
 		private Object parseCallback(ParseCallbackSpec node) throws IOException {
 			Object result;
-			if (node.before().returnType() == VOID) {
+			if (VOID.equals(node.before().returnType())) {
 				node.before().invoke();
 				result = parseAny_recursive(node.child());
 				node.after().invoke(result);
@@ -233,7 +233,7 @@ public class SpecInterpretingParser implements Parser {
 						continue;
 					}
 					case ParseCallbackSpec n -> {
-						if (n.before().returnType() == VOID) {
+						if (VOID.equals(n.before().returnType())) {
 							n.before().invoke();
 							stack.push(new CallbackAccumulator(n.child(), null, n.after()));
 						} else {
@@ -302,7 +302,7 @@ public class SpecInterpretingParser implements Parser {
 
 		private class ArrayAccumulator implements Accumulator {
 			private final ArrayNode n;
-			private final Object accumulator;
+			private Object accumulator;
 
 			public ArrayAccumulator(ArrayNode n) {
 				this.n = n;
@@ -316,7 +316,11 @@ public class SpecInterpretingParser implements Parser {
 
 			@Override
 			public Object accumulate(Object value) throws IOException {
-				n.accumulator().integrator().invoke(accumulator, value);
+				var integrator = n.accumulator().integrator();
+				var returned = integrator.invoke(accumulator, value);
+				if (!VOID.equals(integrator.returnType())) {
+					accumulator = returned;
+				}
 				if (InterpretedParseSession.this.nextTokenIs(END_ARRAY)) {
 					return n.accumulator().finisher().invoke(accumulator);
 				} else {
@@ -327,13 +331,26 @@ public class SpecInterpretingParser implements Parser {
 
 		private class MapAccumulator implements Accumulator {
 			private final UniformMapNode n;
-			private final Object accumulator;
+			private Object accumulator;
+			private final TypedHandle keyHandler;
 			Object key;
+			private Object keyHandlerResult;
 
 			public MapAccumulator(UniformMapNode n, Object firstKey) {
 				this.n = n;
 				this.key = firstKey;
 				this.accumulator = n.accumulator().creator().invoke();
+				this.keyHandler = n.accumulator().keyHandler();
+				this.keyHandlerResult = invokeKeyHandler(firstKey);
+			}
+
+			private Object invokeKeyHandler(Object key) {
+				if (VOID.equals(keyHandler.returnType())) {
+					keyHandler.invoke(accumulator, key);
+					return null;
+				} else {
+					return keyHandler.invoke(accumulator, key);
+				}
 			}
 
 			@Override
@@ -343,11 +360,21 @@ public class SpecInterpretingParser implements Parser {
 
 			@Override
 			public Object accumulate(Object value) throws IOException {
-				n.accumulator().integrator().invoke(accumulator, key, value);
+				var integrator = n.accumulator().integrator();
+				Object returned;
+				if (VOID.equals(keyHandler.returnType())) {
+					returned = integrator.invoke(accumulator, key, value);
+				} else {
+					returned = integrator.invoke(accumulator, key, value, keyHandlerResult);
+				}
+				if (!VOID.equals(integrator.returnType())) {
+					accumulator = returned;
+				}
 				if (nextTokenIs(END_OBJECT)) {
 					return n.accumulator().finisher().invoke(accumulator);
 				} else {
 					key = parseAny(n.keyNode());
+					keyHandlerResult = invokeKeyHandler(key);
 					return NO_RESULT;
 				}
 			}
@@ -498,7 +525,7 @@ public class SpecInterpretingParser implements Parser {
 			while (input.peekValueToken() != END_ARRAY) {
 				Object element = parseAny(node.elementNode());
 				var returned = acc.integrator().invoke(accumulator, element);
-				if (acc.integrator().returnType() != VOID) {
+				if (!VOID.equals(acc.integrator().returnType())) {
 					accumulator = returned;
 				}
 			}
@@ -511,12 +538,24 @@ public class SpecInterpretingParser implements Parser {
 			input.expectSyntax(START_OBJECT);
 			ObjectAccumulator acc = node.accumulator();
 			Object accumulator = acc.creator().invoke();
+			TypedHandle keyHandler = acc.keyHandler();
 			while (input.peekValueToken() != END_OBJECT) {
 				Object key = parseAny(node.keyNode());
+				Object handlerResult = null;
+				if (VOID.equals(keyHandler.returnType())) {
+					keyHandler.invoke(accumulator, key);
+				} else {
+					handlerResult = keyHandler.invoke(accumulator, key);
+				}
 				Object value = parseAny(node.valueNode());
 				LOGGER.debug("| member [{}:{}]: |{}|", key, value, previewString());
-				Object returned = acc.integrator().invoke(accumulator, key, value);
-				if (acc.integrator().returnType() != VOID) {
+				Object returned;
+				if (VOID.equals(keyHandler.returnType())) {
+					returned = acc.integrator().invoke(accumulator, key, value);
+				} else {
+					returned = acc.integrator().invoke(accumulator, key, value, handlerResult);
+				}
+				if (!VOID.equals(acc.integrator().returnType())) {
 					accumulator = returned;
 				}
 			}

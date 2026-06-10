@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collector;
 import org.pcollections.OrderedPMap;
 
 import static java.util.Collections.emptyMap;
@@ -77,6 +78,30 @@ public final class MapValue<V> implements Map<String, V> {
 			requireNonNull(v);
 		});
 		return new MapValue<>(map);
+	}
+
+	/**
+	 * @return a {@link Collector} that accumulates items into a {@link MapValue}
+	 * by extracting a {@link String} key from each item via <code>keyMapper</code>
+	 * and a value via <code>valueMapper</code>.
+	 * If the same key appears twice, the later value silently overwrites the earlier one.
+	 */
+	public static <T, VV> Collector<T, ?, MapValue<VV>> toMapValue(
+		Function<? super T, String> keyMapper,
+		Function<? super T, ? extends VV> valueMapper
+	) {
+		class Accumulator {
+			OrderedPMap<String, VV> map = OrderedPMap.empty();
+			void accumulate(T item) { map = map.plus(keyMapper.apply(item), valueMapper.apply(item)); }
+			Accumulator combine(Accumulator other) { map = map.plusAll(other.map); return this; }
+			MapValue<VV> finish() { return MapValue.copyOf(map); }
+		}
+		return Collector.of(
+			Accumulator::new,
+			Accumulator::accumulate,
+			Accumulator::combine,
+			Accumulator::finish
+		);
 	}
 
 	private static <VV> void addToMap(LinkedHashMap<String, VV> map, String key, VV newValue) {

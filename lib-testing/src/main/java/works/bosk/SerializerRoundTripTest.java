@@ -27,6 +27,8 @@ public class SerializerRoundTripTest extends AbstractRoundTripTest {
 			Reference<TestEntity> parentRef = bosk.rootReference().then(TestEntity.class, "entities", "parent");
 			assertEquals(parentRef.then(ImplicitRefs.class, "implicitRefs"), parentRef.value().implicitRefs().reference());
 			assertEquals(parentRef, parentRef.value().implicitRefs().enclosingRef());
+			assertEquals(parentRef.then(ImplicitRefs.class, "implicitRefs"), parentRef.value().implicitRefs().reference2());
+			assertEquals(parentRef, parentRef.value().implicitRefs().enclosingRef2());
 		}
 	}
 

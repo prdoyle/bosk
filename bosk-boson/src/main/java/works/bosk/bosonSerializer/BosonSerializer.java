@@ -1,7 +1,10 @@
 package works.bosk.bosonSerializer;
 
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.reflect.Array;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -10,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
+import org.jetbrains.annotations.NotNull;
 import works.bosk.BoskInfo;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -35,13 +39,18 @@ import works.bosk.boson.mapping.TypeScanner.Directive;
 import works.bosk.boson.mapping.spec.BooleanNode;
 import works.bosk.boson.mapping.spec.ComputedSpec;
 import works.bosk.boson.mapping.spec.FixedObjectNode;
+import works.bosk.boson.mapping.spec.FixedObjectNode.TwoMemberWrangler;
 import works.bosk.boson.mapping.spec.MaybeAbsentSpec;
+import works.bosk.boson.mapping.spec.ParseCallbackSpec;
 import works.bosk.boson.mapping.spec.RecognizedMember;
 import works.bosk.boson.mapping.spec.RepresentAsSpec;
 import works.bosk.boson.mapping.spec.StringNode;
 import works.bosk.boson.mapping.spec.TypeRefNode;
 import works.bosk.boson.mapping.spec.UniformMapNode;
+import works.bosk.boson.mapping.spec.UniformMapNode.MemberValueWrangler;
+import works.bosk.boson.mapping.spec.UniformMapNode.OneMemberWrangler;
 import works.bosk.boson.mapping.spec.handles.MemberPresenceCondition;
+import works.bosk.boson.mapping.spec.handles.TypedHandle;
 import works.bosk.boson.mapping.spec.handles.TypedHandles;
 import works.bosk.boson.types.BoundType;
 import works.bosk.boson.types.DataType;
@@ -50,6 +59,10 @@ import works.bosk.boson.types.TypeReference;
 import works.bosk.boson.types.TypeVariable;
 import works.bosk.exceptions.InvalidTypeException;
 
+import static java.lang.invoke.MethodHandles.dropArguments;
+import static java.lang.invoke.MethodHandles.insertArguments;
+import static java.lang.invoke.MethodHandles.lookup;
+import static java.lang.invoke.MethodType.methodType;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.boson.mapping.spec.handles.MemberPresenceCondition.memberValue;
 import static works.bosk.boson.mapping.spec.handles.TypedHandles.canonicalConstructor;
@@ -64,7 +77,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		E extends Entity,
 		V extends VariantCase
 	> TypeScanner.Bundle bundleFor(BoskInfo<?> bosk) {
-		MethodHandles.Lookup lookup = MethodHandles.lookup();
+		MethodHandles.Lookup lookup = lookup();
 
 		var directives = new ArrayList<Directive>();
 
@@ -88,6 +101,10 @@ public class BosonSerializer extends StateTreeSerializer {
 			)
 		));
 
+		/*
+		 * Both {@link Catalog} and {@link SideTable} serialize as a list of key-value pairs
+		 * to maintain the order of the entries. This type represents that structure.
+		 */
 		record MapEntry<V>(Identifier id, V value) {}
 
 		// This probably should be a SequencedCollection, but pcollections doesn't have that
@@ -107,7 +124,7 @@ public class BosonSerializer extends StateTreeSerializer {
 		));
 
 		directives.add(Directive.fixed(
-			FixedObjectNode.of(new FixedObjectNode.Wrangler2<Listing<E>, CatalogReference<E>, List<Identifier>>(
+			FixedObjectNode.of(new TwoMemberWrangler<Listing<E>, CatalogReference<E>, List<Identifier>>(
 				"domain",
 				"ids"
 			) {
@@ -154,24 +171,25 @@ public class BosonSerializer extends StateTreeSerializer {
 			})
 		));
 
-		directives.add(Directive.fixed(
-			UniformMapNode.singleton(new UniformMapNode.SingletonWrangler<MapEntry<T>, Identifier, T>(){
-				@Override
-				public Identifier getKey(MapEntry<T> value) {
-					return value.id();
+		// For MapEntry, we need a MemberValueWrangler to open and close a DeserializationScope
+		directives.add(Directive.fixed(UniformMapNode.oneMember(
+			new OneMemberWrangler<MapEntry<T>, Identifier, T>() {
+				@Override public Identifier getKey(MapEntry<T> v) { return v.id(); }
+				@Override public T getValue(MapEntry<T> v) { return v.value(); }
+				@Override public MapEntry<T> finish(Identifier key, T value) { return new MapEntry<>(key, value); }
+			},
+			new MemberValueWrangler<Identifier, T, DeserializationScope>() {
+				@Override public DeserializationScope beforeValue(Identifier key) {
+					return BosonSerializer.this.entryDeserializationScope(key);
 				}
-
-				@Override
-				public T getValue(MapEntry<T> value) {
-					return value.value();
+				@Override public void afterValue(Identifier key, T value, DeserializationScope scope) {
+					// This won't get called if there's an exception after the scope is opened,
+					// but there's a top-level try-finally around the parsing process that
+					// will reset things properly in that case anyway.
+					scope.close();
 				}
-
-				@Override
-				public MapEntry<T> finish(Identifier id, T value) {
-					return new MapEntry<>(id, value);
-				}
-			})
-		));
+			}
+		)));
 
 		// It's remarkable how cumbersome this one is
 		directives.add(new Directive(
@@ -263,7 +281,7 @@ public class BosonSerializer extends StateTreeSerializer {
 			})));
 
 		directives.add(new Directive(
-			new TypeVariable("X", StateTreeNode.class),
+			new TypeVariable("X", StateTreeNode.class), // Any subtype of StateTreeNode
 			stateTreeNodeType -> switch (stateTreeNodeType) {
 				case BoundType bt -> {
 					// StateTreeNode offers some features that only work in the context of a StateTreeNode,
@@ -278,8 +296,24 @@ public class BosonSerializer extends StateTreeSerializer {
 							// This is remarkably cumbersome
 							var valueType = ReferenceUtils.parameterType(rc.getGenericType(), Optional.class, 0);
 							var elementType = new TypeRefNode(DataType.known(valueType));
-							var ifPresent = RepresentAsSpec.<Optional<?>, Object>as(
+							// The element needs an appropriate scope for @Self to resolve inside it
+							TypedHandle closeScope;
+							try {
+								MethodHandle close = lookup.findVirtual(DeserializationScope.class, "close",
+									methodType(void.class));
+								MethodHandle closeMh = dropArguments(close, 1, ReferenceUtils.rawClass(valueType));
+								closeScope = new TypedHandle(closeMh,
+									DataType.VOID,
+									List.of(DataType.known(DeserializationScope.class), DataType.known(valueType)));
+							} catch (NoSuchMethodException | IllegalAccessException e) {
+								throw new IllegalArgumentException("Failed to create scope callback for " + rc.getName(), e);
+							}
+							var scopedElement = new ParseCallbackSpec(
+								openRecordComponentDeserializationScope(rc, recordClass, lookup),
 								elementType,
+								closeScope);
+							var ifPresent = RepresentAsSpec.<Optional<?>, Object>as(
+								scopedElement,
 								DataType.known(rc.getGenericType()),
 								Optional::get,
 								Optional::of
@@ -298,10 +332,23 @@ public class BosonSerializer extends StateTreeSerializer {
 									Phantom::empty)),
 								componentAccessor(rc, lookup)
 							));
-						} else {
-							// A simple TypeRefNode will do
+						} else if (isImplicitParameter(recordClass, rc)) {
 							componentsByName.put(rc.getName(), new RecognizedMember(
-								new TypeRefNode(DataType.known(rc.getGenericType())),
+								new ComputedSpec(supplier(DataType.known(rc.getGenericType()),
+									() -> implicitReference(recordClass, rc, bosk))),
+								componentAccessor(rc, lookup)
+							));
+						} else {
+							// This would be just a TypeRefNode, except we also need a DeserializationScope.
+							// The close won't get called if there's an exception while parsing the record component,
+							// but there's a top-level try-finally around the parsing process that
+							// will reset things properly in that case anyway.
+							componentsByName.put(rc.getName(), new RecognizedMember(
+								new ParseCallbackSpec(
+									openRecordComponentDeserializationScope(rc, recordClass, lookup),
+									new TypeRefNode(DataType.known(rc.getGenericType())),
+									closeRecordComponentDeserializationScope(rc, lookup)
+								),
 								componentAccessor(rc, lookup)
 							));
 						}
@@ -409,6 +456,47 @@ public class BosonSerializer extends StateTreeSerializer {
 			List.of(lookup),
 			List.copyOf(directives)
 		);
+	}
+
+	/**
+	 * @return nullary callback that opens a {@link DeserializationScope} for a given record component.
+	 */
+	private @NotNull TypedHandle openRecordComponentDeserializationScope(RecordComponent rc, Class<? extends Record> recordClass, Lookup lookup) {
+		try {
+			MethodHandle nodeFieldDeserializationScope = lookup.findVirtual(StateTreeSerializer.class,
+				"nodeFieldDeserializationScope",
+				methodType(DeserializationScope.class, Class.class, String.class));
+			return new TypedHandle(
+				insertArguments(nodeFieldDeserializationScope, 0,
+					this, recordClass, rc.getName()
+				),
+				DataType.known(DeserializationScope.class), List.of());
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new IllegalArgumentException("Failed to create scope callback for " + rc.getName(), e);
+		}
+	}
+
+	/**
+	 * @return callback that closes a {@link DeserializationScope}
+	 * opened by {@link #openRecordComponentDeserializationScope(RecordComponent, Class, Lookup)}.
+	 */
+	private static @NotNull TypedHandle closeRecordComponentDeserializationScope(RecordComponent rc, Lookup lookup) {
+		try {
+			MethodHandle close = lookup.findVirtual(DeserializationScope.class, "close",
+				methodType(void.class));
+
+			// The callback receives the parsed record component value, but we don't use it
+			MethodHandle mh = dropArguments(close, 1, rc.getType());
+
+			return new TypedHandle(mh,
+				DataType.VOID,
+				List.of(
+					DataType.known(DeserializationScope.class),
+					DataType.known(rc.getGenericType())
+				));
+		} catch (NoSuchMethodException | IllegalAccessException e) {
+			throw new IllegalArgumentException("Failed to create scope callback for " + rc.getName(), e);
+		}
 	}
 
 }

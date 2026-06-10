@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Spliterator;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collector;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.pcollections.OrderedPSet;
@@ -240,6 +242,33 @@ public final class Listing<E extends Entity> extends AbstractCollection<Referenc
 
 	public static <TT extends Entity> Listing<TT> of(Reference<Catalog<TT>> domain, Stream<Identifier> ids) {
 		return of(domain, ids.collect(toList()));
+	}
+
+	//
+	// Collectors
+	//
+
+	/**
+	 * @return a {@link Collector} that accumulates items into a {@link Listing}
+	 * by extracting an {@link Identifier} from each item via <code>idMapper</code>.
+	 * Duplicate IDs are silently deduplicated.
+	 */
+	public static <T, EE extends Entity> Collector<T, ?, Listing<EE>> toListing(
+		Reference<Catalog<EE>> domain,
+		Function<? super T, Identifier> idMapper
+	) {
+		class Accumulator {
+			OrderedPSet<Identifier> ids = OrderedPSet.empty();
+			void accumulate(T item) { ids = ids.plus(idMapper.apply(item)); }
+			Accumulator combine(Accumulator other) { ids = ids.plusAll(other.ids); return this; }
+			Listing<EE> finish() { return Listing.of(domain, ids); }
+		}
+		return Collector.of(
+			Accumulator::new,
+			Accumulator::accumulate,
+			Accumulator::combine,
+			Accumulator::finish
+		);
 	}
 
 	//

@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.slf4j.Logger.ROOT_LOGGER_NAME;
 import static works.bosk.logback.RecordingTurboFilter.Overrides;
 import static works.bosk.logback.RecordingTurboFilter.TEST_ID_KEY;
-import static works.bosk.logback.RecordingTurboFilter.removeOverrides;
 
 @InjectFrom({
 	RecordingTurboFilterTest.BooleanInjector.class,
@@ -87,15 +86,15 @@ class RecordingTurboFilterTest {
 	@AfterEach
 	void teardown() {
 		MDC.clear();
-		removeOverrides(TEST_A);
-		removeOverrides(TEST_B);
-		removeOverrides(TEST);
+		filter.removeOverrides(TEST_A);
+		filter.removeOverrides(TEST_B);
+		filter.removeOverrides(TEST);
 	}
 
 	@InjectedTest
 	void enabled(boolean globalEnabled, Boolean perTestEnabled) {
 		filter.setEnabled(globalEnabled);
-		RecordingTurboFilter.putOverrides(TEST, new Overrides(perTestEnabled, null));
+		filter.putOverrides(TEST, new Overrides(perTestEnabled, null));
 
 		MDC.put(TEST_ID_KEY, TEST);
 		testLogger.debug("event");
@@ -110,7 +109,7 @@ class RecordingTurboFilterTest {
 	void capacity(Integer perTestCapacity) {
 		filter.setEnabled(true);
 		filter.setCapacity(2);
-		RecordingTurboFilter.putOverrides(TEST, new Overrides(true, perTestCapacity));
+		filter.putOverrides(TEST, new Overrides(true, perTestCapacity));
 
 		MDC.put(TEST_ID_KEY, TEST);
 		testLogger.debug("event 1");
@@ -242,7 +241,7 @@ class RecordingTurboFilterTest {
 		MDC.put(TEST_ID_KEY, TEST_B);
 		testLogger.debug("B");
 
-		RecordingTurboFilter.cleanupForTest(TEST_A);
+		filter.cleanupForTest(TEST_A);
 
 		var testAEvents = EventSnapshot.from(filter.queueContents(TEST_A).events());
 		var testBEvents = EventSnapshot.from(filter.queueContents(TEST_B).events());

@@ -411,6 +411,15 @@ public abstract class StateTreeSerializer {
 		}
 	}
 
+	protected final Reference<?> implicitReference(Class<?> nodeClass, RecordComponent parameter, BoskInfo<?> boskInfo) {
+		Reference<?> result = findImplicitReferenceIfAny(nodeClass, parameter, boskInfo);
+		if (result == null) {
+			throw new DeserializationException("No implicit reference for parameter \"" + parameter.getName()
+				+ "\" of " + nodeClass.getSimpleName());
+		}
+		return result;
+	}
+
 	private <T> Reference<T> selfReference(Class<T> targetClass, BoskInfo<?> boskInfo) throws AssertionError {
 		Path currentPath = currentScope.get().path();
 		try {

@@ -49,7 +49,7 @@ public record ArrayAccumulator(
 
 		assert integrator.parameterTypes().size() == 2;
 		assert integrator.parameterTypes().getFirst().isAssignableFrom(creator.returnType());
-		assert integrator.returnType() == VOID || integrator.returnType().equals(creator.returnType());
+		assert VOID.equals(integrator.returnType()) || integrator.returnType().equals(creator.returnType());
 
 		assert finisher.parameterTypes().size() == 1;
 		assert finisher.parameterTypes().getFirst().isAssignableFrom(creator.returnType());

@@ -13,6 +13,7 @@ dependencies {
 	// These are for AbstractRoundTripTest. That logic ought to be moved to their respective sub-projects
 	implementation project(":bosk-jackson")
 	implementation project(":bosk-mongo")
+	implementation project(":bosk-boson")
 
 	// The main build.gradle brings these in as test dependencies,
 	// but we need them as main dependencies.

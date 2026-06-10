@@ -9,6 +9,7 @@ import ch.qos.logback.core.filter.Filter;
 import ch.qos.logback.core.spi.FilterReply;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -17,7 +18,7 @@ import org.slf4j.MDC;
 import org.slf4j.Marker;
 
 import static ch.qos.logback.core.spi.FilterReply.NEUTRAL;
-import static java.util.Objects.requireNonNull;
+import static java.util.Collections.emptyMap;
 import static works.bosk.logback.RecordingTurboFilter.Overrides.NONE;
 
 /**
@@ -151,12 +152,9 @@ public class RecordingTurboFilter extends TurboFilter {
 	// Optional nested capture-time filter configured via <filter> under the turboFilter
 	private Filter<ILoggingEvent> filter;
 
-	// These things are static so the test lifecycle methods don't need to
-	// get their hands on the filter instance.
-
-	private static final ConcurrentHashMap<String, Overrides> overridesByTestId = new ConcurrentHashMap<>();
-	private static final ConcurrentHashMap<String, LogEventBuffer> buffersByTestId = new ConcurrentHashMap<>();
-	private static final ConcurrentHashMap<String, String> testIdsByRoutingKey = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, Overrides> overridesByTestId = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, LogEventBuffer> buffersByTestId = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<String, String> testIdsByRoutingKey = new ConcurrentHashMap<>();
 
 	// Setters for logback configuration properties
 
@@ -191,7 +189,7 @@ public class RecordingTurboFilter extends TurboFilter {
 	 */
 	public void setFilter(Filter<ILoggingEvent> filter) { this.filter = filter; }
 
-	static void putOverrides(String testId, Overrides overrides) {
+	void putOverrides(String testId, Overrides overrides) {
 		if (overrides == null || NONE.equals(overrides)) {
 			// We want to keep this map tidy so we can tell when it's empty
 			overridesByTestId.remove(testId);
@@ -200,7 +198,7 @@ public class RecordingTurboFilter extends TurboFilter {
 		}
 	}
 
-	static void removeOverrides(String testId) {
+	void removeOverrides(String testId) {
 		overridesByTestId.remove(testId);
 		cleanupForTest(testId);
 	}
@@ -293,8 +291,15 @@ public class RecordingTurboFilter extends TurboFilter {
 		}
 
 		// We need to capture the current MDC. Can't wait until replay.
-		event.setMDCPropertyMap(requireNonNull(MDC.getCopyOfContextMap(), // ew, this is O(n)
-			"MDC can't be absent here!"));
+		// getCopyOfContextMap can return null sometimes; I can't say I fully
+		// understand why, but if that's null, there's no useful context
+		// and we might as well use an empty map.
+		//
+		// Possibly relevant:
+		// - https://jira.qos.ch/browse/LOGBACK-944
+		//
+		Map<String, String> mdcCopy = MDC.getCopyOfContextMap();
+		event.setMDCPropertyMap(mdcCopy != null ? mdcCopy : emptyMap());
 
 		LogEventBuffer buffer = buffersByTestId
 			.computeIfAbsent(testIdValue, _ -> new LogEventBuffer(effectiveCapacity));
@@ -313,7 +318,7 @@ public class RecordingTurboFilter extends TurboFilter {
 		return new QueueContents(buffer.queue, buffer.count.get() - buffer.queue.size());
 	}
 
-	static void cleanupForTest(String testId) {
+	void cleanupForTest(String testId) {
 		testIdsByRoutingKey.forEach((routingKeyValue, associatedTestId) -> {
 			if (testId.equals(associatedTestId)) {
 				testIdsByRoutingKey.remove(routingKeyValue);
