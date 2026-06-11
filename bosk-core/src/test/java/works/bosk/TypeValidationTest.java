@@ -70,6 +70,7 @@ class TypeValidationTest {
 		ListValueSubclassWithMutableField.class,
 		ListValueSubclassWithTwoConstructors.class,
 		ListValueSubclassWithWrongConstructor.class,
+		ParameterizedFieldRoot.class,
 		ReferenceToReference.class,
 		SelfNonReference.class,
 		SelfWrongType.class,
@@ -600,4 +601,16 @@ class TypeValidationTest {
 	public record VariantCaseWithNoTaggedUnion(
 		Variant1 variant
 	) implements StateTreeNode {}
+
+	/**
+	 * Right now, we don't yet support parameterized StateTreeNode types.
+	 * If we ever do, be sure to add support (and a test) to BoskGraphQL.
+	 */
+	public record ParameterizedFieldRoot(
+		ParameterizedField<SimpleTypes> field
+	) implements StateTreeNode {}
+
+	public record ParameterizedField<T extends StateTreeNode>(
+		T field
+	) {}
 }
