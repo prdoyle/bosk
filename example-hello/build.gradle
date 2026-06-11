@@ -49,6 +49,7 @@ dependencies {
 	implementation project(':bosk-spring-boot')
 	implementation project(':bosk-logback')
 	implementation project(':bosk-opentelemetry')
+	implementation project(':bosk-graphql')
 }
 
 tasks.register('run', JavaExec) {
