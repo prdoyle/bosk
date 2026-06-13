@@ -13,7 +13,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -261,9 +260,8 @@ public abstract class StateTreeSerializer {
 	 */
 	public final List<Object> parameterValueList(Class<?> nodeClass, Map<String, Object> parameterValuesByName, LinkedHashMap<String, RecordComponent> componentsByName, BoskInfo<?> boskInfo) {
 		List<Object> parameterValues = new ArrayList<>();
-		for (Entry<String, RecordComponent> entry: componentsByName.entrySet()) {
-			String name = entry.getKey();
-			RecordComponent component = entry.getValue();
+		for (var component: componentsByName.values()) {
+			String name = component.getName();
 			Class<?> type = component.getType();
 			Reference<?> implicitReference = findImplicitReferenceIfAny(nodeClass, component, boskInfo);
 
@@ -359,7 +357,7 @@ public abstract class StateTreeSerializer {
 		}
 	}
 
-	public <R extends StateTreeNode> void initializeAllEnclosingPolyfills(Reference<?> target, BoskDriver driver) {
+	public void initializeAllEnclosingPolyfills(Reference<?> target, BoskDriver driver) {
 		if (!ANY_POLYFILLS.get()) {
 			return;
 		}
@@ -378,7 +376,7 @@ public abstract class StateTreeSerializer {
 		}
 	}
 
-	private <R extends StateTreeNode, T> void initializePolyfills(Reference<T> ref, BoskDriver driver) {
+	private <T> void initializePolyfills(Reference<T> ref, BoskDriver driver) {
 		initializeAllEnclosingPolyfills(ref, driver);
 		if (!ref.path().isEmpty()) {
 			Class<?> enclosing = ref.enclosingReference(Object.class).targetClass();

@@ -1,0 +1,5 @@
+dependencies {
+	api libs.graphql.java
+	api project(":bosk-core")
+	testImplementation project(":bosk-testing")
+}
