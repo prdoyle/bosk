@@ -47,16 +47,21 @@ The usual Gradle commands, plus:
 
 ### General
 - We take warnings seriously. If a build issues a warning, it should be fixed at the earliest convenience.
-- Code in each file is ordered use-before-definition so it can be read and understood by a human from start to end.
 - To the extent possible, we separate complex logic from side effects to facilitate unit testing.
 - When something can't always work, we prefer it _never_ to work rather than _sometimes_ to work.
   - The overarching goal of Bosk is to reduce the behaviour gap between local development and production. If your code works, you probably did things right.
 
+### Code ordering
+- Generally, in a class, instance fields come first, followed by constructors, then methods in use-before-declaration order
+- Static final constants go at the bottom, including any logger
+
 ### Formatting
 
-Automatically enforced by Spotless.
-Tabs for indentation, except in formats like Markdown and YAML where tabs and spaces are not equivalent.
-No wildcard imports.
+- Tabs for indentation, except in formats like Markdown and YAML where tabs and spaces are not equivalent.
+- No wildcard imports.
+- Always use curly braces for conditionals and loops.
+- Prefer if-then-else over early returns (to make subsequent refactoring easier) except in specific situations:
+  - If there's an especially simple case, like errors or "already computed" one-liner cases, those can return early to avoid mixing with complex logic
 
 ### Modules
 
@@ -110,17 +115,6 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
 - Avoid merging a bug and its fix in the same PR. Prefer squashing the fix into the commit with the bug so it looks like the bug was never there.
 - Each commit should have correct spotless formatting.
 - Each commit should pass all tests unless it's marked as WIP or is explicitly doing test-driven development.
-
-### What to avoid
-
-- Do not use Mockito or other mocking libraries for tests.
-  Mockito is a phenomenal solution to the wrong problem.
-  Our components are designed to be stateless and to use immutable structures
-  so that mocks are almost never necessary. If you think you need a mock, reconsider the design first.
-- Don't merge wildcard imports. You can use them temporarily but they must be expanded before merging.
-  Spotless will enforce this.
-- Tests should not emit logs unless something unexpected occurs.
-  - Use `bosk-logback/src/main/java/works/bosk/logback/BoskLogFilter.java` to suppress expected production logs in tests.
 
 ## Testing Patterns
 
