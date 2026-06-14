@@ -1,6 +1,7 @@
 package works.bosk;
 
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -30,11 +31,11 @@ public final class Identifier {
 	/**
 	 * I'm going to regret adding this.
 	 */
-	public static synchronized Identifier unique(String prefix) {
-		return new Identifier(prefix + (++uniqueIdCounter));
+	public static Identifier unique(String prefix) {
+		return new Identifier(prefix + (uniqueIdCounter.incrementAndGet()));
 	}
 
-	private static long uniqueIdCounter = 1000;
+	private static final AtomicLong uniqueIdCounter = new AtomicLong(1000);
 
 	@Override
 	public String toString() {
