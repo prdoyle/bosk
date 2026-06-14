@@ -8,6 +8,7 @@ import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.exceptions.DisconnectedException;
 import works.bosk.drivers.mongo.status.MongoStatus;
+import works.bosk.util.PerTenant;
 
 @RequiredArgsConstructor
 final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<R> {
@@ -68,6 +69,11 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 
 	@Override
 	public void initializeCollection(StateAndMetadata<R> priorContents) {
+		throw disconnected();
+	}
+
+	@Override
+	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
 		throw disconnected();
 	}
 

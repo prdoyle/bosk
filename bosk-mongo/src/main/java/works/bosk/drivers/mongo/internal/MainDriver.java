@@ -55,6 +55,7 @@ import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
+import works.bosk.util.PerTenant.SoleTenant;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -326,6 +327,10 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		try (var _ = queryCollection.newReadOnlySession()){
 			FormatDriver<R> detectedDriver = detectFormat();
 			StateAndMetadata<R> loadedState = detectedDriver.loadAllState();
+
+			// Hasn't technically been applied, but we're still initializing the Bosk, and its constructor won't return until the state has been applied
+			detectedDriver.hasBeenApplied(SoleTenant.just(loadedState));
+
 			entireState = EntireState.just(loadedState.state());
 			publishFormatDriver(detectedDriver);
 		} catch (UninitializedCollectionException e) {
@@ -411,6 +416,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			queryCollection.commitTransaction();
 
 			publishFormatDriver(newFormatDriver);
+
+			// Refurbish doesn't actually change what state has been applied to the bosk.
+			// No need to do any downstream submit/flush, nor call hasBeenApplied.
 		} catch (UninitializedCollectionException e) {
 			throw new IOException("Unable to refurbish uninitialized database collection", e);
 		}
@@ -562,6 +570,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 					downstream.submitReplacement(boskInfo.rootReference(), loadedState.state());
 					LOGGER.debug("Done submitting downstream");
 				}
+
+				downstream.flush();
+				newDriver.hasBeenApplied(SoleTenant.just(loadedState));
 			} else {
 				LOGGER.debug("Running initialState action");
 				runInitialStateAction(initialStateAction);

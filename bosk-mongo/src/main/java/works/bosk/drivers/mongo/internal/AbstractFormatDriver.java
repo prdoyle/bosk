@@ -27,6 +27,10 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.drivers.mongo.status.StateStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
+import works.bosk.util.PerTenant;
+import works.bosk.util.PerTenant.MultiTenant;
+import works.bosk.util.PerTenant.SoleTenant;
 
 import static com.mongodb.client.model.changestream.OperationType.INSERT;
 import static com.mongodb.client.model.changestream.OperationType.REPLACE;
@@ -104,15 +108,25 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		}
 
 		R root = formatter.document2object(bsonStateAndMetadata.state(), rootRef);
-		BsonInt64 revision = bsonStateAndMetadata.revision() == null ? REVISION_ZERO : bsonStateAndMetadata.revision();
 		MapValue<String> diagnosticAttributes = bsonStateAndMetadata.diagnosticAttributes() == null
 			? MapValue.empty() // It's not clear what missing attributes mean, but using null here would have the effect of leaving the old attributes in place, which seems flaky
 			: formatter.decodeDiagnosticAttributes(bsonStateAndMetadata.diagnosticAttributes());
 
-		// Update the state that we "know about"
-		flushLock.finishedRevision(revision);
+		return new StateAndMetadata<>(
+			root,
+			bsonStateAndMetadata.revision() == null
+				? REVISION_ZERO
+				: bsonStateAndMetadata.revision(),
+			diagnosticAttributes
+		);
+	}
 
-		return new StateAndMetadata<>(root, revision, diagnosticAttributes);
+	@Override
+	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
+		switch (contents) {
+			case SoleTenant(var s) -> flushLock.finishedRevision(s.revision());
+			case MultiTenant<StateAndMetadata<R>> _ -> throw new NotYetImplementedException();
+		}
 	}
 
 	/**

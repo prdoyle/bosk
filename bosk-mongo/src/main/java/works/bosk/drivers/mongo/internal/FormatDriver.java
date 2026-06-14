@@ -8,6 +8,7 @@ import org.bson.BsonDocument;
 import works.bosk.BoskContext;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriver;
+import works.bosk.util.PerTenant;
 
 /**
  * Additional {@link MongoDriver} functionality that the format-specific drivers must implement.
@@ -38,12 +39,7 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException;
 
 	/**
-	 * Loads the entire collection contents for the purpose of establishing the bosk state tree.
-	 * This involves more than merely reading the state:
-	 * this also has the side effect of establishing the state that the
-	 * driver "knows about".
-	 * Specifically, it ensures that change stream events before this point are ignored,
-	 * and that {@link #flush()} operations won't wait if the state hasn't changed after this point.
+	 * Loads the entire collection contents.
 	 *
 	 * @throws UninitializedCollectionException if it looks like the database has not yet
 	 * been created (as opposed to being in a damaged or unrecognizable state).
@@ -67,6 +63,12 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 * so that a {@link #flush} after a {@link #refurbish} succeeds in waiting for the new state.
 	 */
 	void initializeCollection(StateAndMetadata<R> priorContents);
+
+	/**
+	 * Indicates that the given contents have been {@link #flush() flushed} to the downstream driver already,
+	 * or are otherwise known to have been applied to the bosk state.
+	 */
+	void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents);
 
 	@Override
 	default <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) {
