@@ -4,12 +4,17 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import org.pcollections.TreePMap;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskContext.Tenant.TenantId;
+import works.bosk.BoskDriver.EntireState;
+import works.bosk.BoskDriver.EntireState.MultiTree;
+import works.bosk.BoskDriver.EntireState.SingleTree;
+import works.bosk.StateTreeNode;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Function.identity;
@@ -19,21 +24,43 @@ import static works.bosk.BoskContext.Tenant.NONE;
  * A data structure that needs separate versions in multitenant situations.
  */
 public sealed interface PerTenant<T> {
+	T get(Tenant.Established tenant);
 	void forEach(BiConsumer<? super Established, ? super T> consumer);
-	<U> PerTenant<U> map(Function<T,U> mapping);
+	<U> PerTenant<U> map(BiFunction<Tenant.Established, T,U> mapping);
+
+	default <U> PerTenant<U> map(Function<T,U> mapping) {
+		return map((_, x) -> mapping.apply(x));
+	}
+
+	static <R extends StateTreeNode, V> PerTenant<V> from(EntireState<R> state, Function<R, V> valueMapper) {
+		return switch (state) {
+			case SingleTree<R>(var root) -> new SoleTenant<>(valueMapper.apply(root));
+			case MultiTree<R>(var roots)-> roots.entrySet().stream()
+				.collect(MultiTenant.withValues(valueMapper));
+		};
+	}
 
 	/**
 	 * Not a multitenant situation: the {@link Tenant} is {@link Tenant#NONE NONE}.
 	 */
 	record SoleTenant<T>(T value) implements PerTenant<T> {
 		@Override
+		public T get(Established tenant) {
+			if (tenant == NONE) {
+				return value;
+			} else {
+				throw new IllegalStateException("No such tenant: " + tenant);
+			}
+		}
+
+		@Override
 		public void forEach(BiConsumer<? super Established, ? super T> consumer) {
 			consumer.accept(NONE, value);
 		}
 
 		@Override
-		public <U> PerTenant<U> map(Function<T, U> mapping) {
-			return new SoleTenant<>(mapping.apply(value));
+		public <U> PerTenant<U> map(BiFunction<Established, T, U> mapping) {
+			return new SoleTenant<>(mapping.apply(NONE, value));
 		}
 
 		public static <TT> SoleTenant<TT> just(TT value) {
@@ -59,13 +86,28 @@ public sealed interface PerTenant<T> {
 		}
 
 		@Override
+		public T get(Established tenant) {
+			if (tenant instanceof TenantId tenantId) {
+				T value = values.get(tenantId);
+				if (value == null) {
+					throw new IllegalStateException("No such tenant: " + tenant);
+				} else {
+					return value;
+				}
+			}
+			throw new IllegalStateException("Invalid tenant: " + tenant);
+		}
+
+		@Override
 		public void forEach(BiConsumer<? super Established, ? super T> consumer) {
 			values.forEach(consumer);
 		}
 
 		@Override
-		public <U> PerTenant<U> map(Function<T, U> mapping) {
-			return values.entrySet().stream().collect(MultiTenant.withValues(mapping));
+		public <U> PerTenant<U> map(BiFunction<Established, T, U> mapping) {
+			return values.entrySet().stream().collect(MultiTenant.multiTenant(
+				Entry::getKey,
+				e -> mapping.apply(e.getKey(), e.getValue())));
 		}
 
 		public MultiTenant<T> with(TenantId key, T value) {
