@@ -5,12 +5,10 @@
 name: "Build and test"
 
 on:
+  pull_request:
   push:
     branches:
-      - '**'
-    tags-ignore: # already run when a commit is pushed; no need to also run when it's tagged
-      - '**'
-  pull_request:
+      - main
 
 jobs:
   build_and_test:
