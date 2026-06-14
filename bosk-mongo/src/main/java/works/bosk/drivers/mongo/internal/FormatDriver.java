@@ -5,10 +5,10 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import java.io.IOException;
 import org.bson.BsonDocument;
-import org.bson.BsonInt64;
 import works.bosk.BoskContext;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriver;
+import works.bosk.util.PerTenant;
 
 /**
  * Additional {@link MongoDriver} functionality that the format-specific drivers must implement.
@@ -39,15 +39,8 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException;
 
 	/**
-	 * Implementations should ignore subsequent calls to {@link #onEvent}
-	 * associated with revisions less than or equal to <code>revision</code>.
-	 * <p>
-	 * TODO: This feels pretty lame. Need a better way to get FormatDriver to cope with its own revision numbers
-	 * @param revision the last revision to skip
-	 */
-	void onRevisionToSkip(BsonInt64 revision);
-
-	/**
+	 * Loads the entire collection contents.
+	 *
 	 * @throws UninitializedCollectionException if it looks like the database has not yet
 	 * been created (as opposed to being in a damaged or unrecognizable state).
 	 * This signals to {@link MainDriver} that it may, if appropriate,
@@ -56,6 +49,11 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException;
 
 	/**
+	 * Initializes the collection to the given state.
+	 * <p>
+	 * Like {@link #loadAllState}, this also has the side effect of establishing
+	 * the state that the driver "knows about".
+	 * <p>
 	 * Can assume that the collection is empty or nonexistent,
 	 * in the sense that there is no mess to clean up,
 	 * but should tolerate documents already existing,
@@ -65,6 +63,12 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 * so that a {@link #flush} after a {@link #refurbish} succeeds in waiting for the new state.
 	 */
 	void initializeCollection(StateAndMetadata<R> priorContents);
+
+	/**
+	 * Indicates that the given contents have been {@link #flush() flushed} to the downstream driver already,
+	 * or are otherwise known to have been applied to the bosk state.
+	 */
+	void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents);
 
 	@Override
 	default <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) {

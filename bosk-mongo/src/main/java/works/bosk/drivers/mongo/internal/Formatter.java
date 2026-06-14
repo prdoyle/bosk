@@ -72,16 +72,24 @@ final class Formatter extends BsonFormatter {
 	 *     Legacy: The database collection pre-dates revision numbers and doesn't have one
 	 * </li></ol>
 	 *
-	 * The revision field in the database is never less than this value: it is initialized to
-	 * {@link #REVISION_ONE} and incremented thereafter. Therefore, waiting for a revision
-	 * greater than or equal to this is equivalent to waiting for any update at all.
+	 * The revision field in the database is never less than this value;
+	 * in fact, it is initialized to 1 and incremented thereafter,
+	 * so any initialized database has a revision strictly greater than zero.
+	 * The revision value is conceptually zero only briefly during edge cases
+	 * like initialization and refurbishing.
+	 * Waiting for a revision greater than or equal to this is
+	 * equivalent to waiting for any update at all.
 	 */
 	static final BsonInt64 REVISION_ZERO = new BsonInt64(0);
 
 	/**
-	 * The revision number used when the bosk document is first created.
+	 * A revision number guaranteed strictly less than any revision number we could possibly encounter.
+	 * <p>
+	 * A revision of zero is impossible in most circumstances, but there are some edge cases
+	 * where the revision could be briefly considered to be zero, like immediately before initialization.
+	 * This value is always, always less than any valid revision number.
 	 */
-	static final BsonInt64 REVISION_ONE = new BsonInt64(1);
+	static final BsonInt64 REVISION_BEFORE_ANY = new BsonInt64(-1);
 
 	private static final Set<BsonInt32> SUPPORTED_MANIFEST_VERSIONS = Set.of(new BsonInt32(1));
 

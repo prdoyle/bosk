@@ -279,6 +279,7 @@ public class RecordingTurboFilter extends TurboFilter {
 		);
 		event.setLoggerContext(logger.getLoggerContext());
 		event.addMarker(marker);
+		event.getThreadName(); // Triggers lazy evaluation to capture the thread name
 
 		// If a nested capture filter is configured, consult it before copying the MDC.
 		// If it DENYs, skip buffering. Many filters don't access MDC; those that do

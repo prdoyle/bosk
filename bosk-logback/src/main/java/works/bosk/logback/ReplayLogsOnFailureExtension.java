@@ -8,6 +8,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.opentest4j.TestAbortedException;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
@@ -57,14 +58,15 @@ public class ReplayLogsOnFailureExtension implements BeforeEachCallback, AfterEa
 		var loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
 		RecordingTurboFilter filter = findFilter(loggerContext);
 
-		String testId = context.getUniqueId();
-
-		if (context.getExecutionException().isPresent() && filter != null) {
-			// This is what it's all about
-			replay(filter.queueContents(testId));
-		}
-
 		if (filter != null) {
+			String testId = context.getUniqueId();
+			if (context.getExecutionException()
+				.filter(t -> !(t instanceof TestAbortedException))
+				.isPresent()
+			) {
+				// This is what it's all about
+				replay(filter.queueContents(testId), context.getDisplayName());
+			}
 			filter.removeOverrides(testId);
 		}
 		MDC.remove(TEST_ID_KEY);
@@ -109,7 +111,7 @@ public class ReplayLogsOnFailureExtension implements BeforeEachCallback, AfterEa
 		return null;
 	}
 
-	private void replay(QueueContents queueContents) {
+	private void replay(QueueContents queueContents, String displayName) {
 		if (queueContents.events().isEmpty()) {
 			// This happens in two cases:
 			// - The test emitted no logs
@@ -129,6 +131,7 @@ public class ReplayLogsOnFailureExtension implements BeforeEachCallback, AfterEa
 				.append(" events dropped due to capacity limit)");
 		}
 		System.out.println(header);
+		System.out.println("Test: " + displayName);
 
 		var loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
 //		var rootLogger = loggerContext.getLogger(ROOT_LOGGER_NAME);

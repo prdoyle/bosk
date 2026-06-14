@@ -30,7 +30,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.bson.BsonArray;
 import org.bson.BsonDocument;
-import org.bson.BsonInt64;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
@@ -51,17 +50,16 @@ import works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMo
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.exceptions.DisconnectedException;
 import works.bosk.drivers.mongo.exceptions.InitialStateFailureException;
-import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
+import works.bosk.util.PerTenant.SoleTenant;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
-import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ONE;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.logging.MappedDiagnosticContext.setupMDC;
 
@@ -329,9 +327,12 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		try (var _ = queryCollection.newReadOnlySession()){
 			FormatDriver<R> detectedDriver = detectFormat();
 			StateAndMetadata<R> loadedState = detectedDriver.loadAllState();
+
+			// Hasn't technically been applied, but we're still initializing the Bosk, and its constructor won't return until the state has been applied
+			detectedDriver.hasBeenApplied(SoleTenant.just(loadedState));
+
 			entireState = EntireState.just(loadedState.state());
 			publishFormatDriver(detectedDriver);
-			detectedDriver.onRevisionToSkip(loadedState.revision());
 		} catch (UninitializedCollectionException e) {
 			// We log this at warn because, in production, this is a big deal.
 			// Annoying in tests, so we log it with UNINITIALIZED_COLLECTION_LOGGER so we can selectively disable it.
@@ -349,7 +350,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				session.commitTransactionIfAny();
 				// We can now publish the driver knowing that the transaction, if there is one, has committed
 				publishFormatDriver(preferredDriver);
-				preferredDriver.onRevisionToSkip(REVISION_ONE); // initialState handles REVISION_ONE; downstream only needs to know about changes after that
 			} catch (RuntimeException | FailedMongoClientSessionException e2) {
 				LOGGER.warn("Failed to initialize database; disconnecting", e2);
 				setDisconnectedDriver(e2);
@@ -416,6 +416,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			queryCollection.commitTransaction();
 
 			publishFormatDriver(newFormatDriver);
+
+			// Refurbish doesn't actually change what state has been applied to the bosk.
+			// No need to do any downstream submit/flush, nor call hasBeenApplied.
 		} catch (UninitializedCollectionException e) {
 			throw new IOException("Unable to refurbish uninitialized database collection", e);
 		}
@@ -568,14 +571,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 					LOGGER.debug("Done submitting downstream");
 				}
 
-				// Now that the state is submitted downstream, we can establish that there's no need to wait
-				// for a change event with that revision number; a downstream flush is now sufficient.
-				newDriver.onRevisionToSkip(loadedState.revision());
+				downstream.flush();
+				newDriver.hasBeenApplied(SoleTenant.just(loadedState));
 			} else {
 				LOGGER.debug("Running initialState action");
 				runInitialStateAction(initialStateAction);
-				//TODO: Both branches of this "if" end with calls to onRevisionToSkip and publishFormatDriver.
-				// Is there a way to rearrange the code so those calls can be in one place?
 			}
 		}
 
@@ -646,7 +646,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		DatabaseFormat preferred = driverSettings.preferredDatabaseFormat();
 		if (preferred.equals(SEQUOIA) || preferred instanceof PandoFormat) {
 			return newFormatDriver(
-				REVISION_ZERO.longValue(),
 				preferred,
 				driverSettings.manifestDocumentIdMode().manifestDocumentId()
 			);
@@ -665,26 +664,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		FindIterable<BsonDocument> result = queryCollection.find(new BsonDocument("_id", documentId));
 		try (MongoCursor<BsonDocument> cursor = result.cursor()) {
 			if (cursor.hasNext()) {
-				BsonInt64 revision = cursor
-					.next()
-					.getInt64(DocumentFields.revision.name(), REVISION_ZERO);
-
-				// We're in the midst of loading the existing state, so at this point,
-				// the downstream driver has not yet "already seen" the current database
-				// contents. So we temporarily "back-date" the revision number; that way,
-				// any flush operations that occur before we send this state downstream will wait.
-				// After sending the state downstream, the caller will call onRevisionToSkip,
-				// thereby establishing the correct revision number.
-				// TODO: We really need a better way to deal with revision numbers
-				long revisionAlreadySeen = revision.longValue()-1;
-
-				return newFormatDriver(revisionAlreadySeen, format, manifestInfo.manifestId());
+				return newFormatDriver(format, manifestInfo.manifestId());
 			} else {
-				// Note that this message is confusing if the user specified
-				// a preference for Pando but no manifest file exists, because
-				// the message will say it couldn't find the Sequoia document.
-				// One day when we drop support for collections with no
-				// manifest, we can eliminate this confusion.
 				throw new UninitializedCollectionException("Document doesn't exist: "
 					+ "collection=" + driverSettings.database()
 					+ "." + COLLECTION_NAME
@@ -728,14 +709,14 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		}
 	}
 
-	private FormatDriver<R> newFormatDriver(long revisionAlreadySeen, DatabaseFormat format, @Nullable BsonString manifestId) {
+	private FormatDriver<R> newFormatDriver(DatabaseFormat format, @Nullable BsonString manifestId) {
 		if (format.equals(SEQUOIA)) {
 			return new SequoiaFormatDriver<>(
 				boskInfo,
 				queryCollection,
 				driverSettings,
 				bsonSerializer,
-				new FlushLock(revisionAlreadySeen, flushTimeout),
+				flushTimeout,
 				manifestId,
 				downstream);
 		} else if (format instanceof PandoFormat pandoFormat) {
@@ -745,7 +726,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				driverSettings,
 				pandoFormat,
 				bsonSerializer,
-				new FlushLock(revisionAlreadySeen, flushTimeout),
+				flushTimeout,
 				manifestId,
 				downstream);
 		}

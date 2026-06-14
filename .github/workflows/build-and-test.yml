@@ -50,4 +50,4 @@ jobs:
         if: success() || failure()
         with:
           name: reports
-          path: build/reports/
+          path: "**/build/reports/"

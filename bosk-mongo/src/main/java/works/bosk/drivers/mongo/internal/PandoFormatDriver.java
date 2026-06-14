@@ -2,7 +2,6 @@ package works.bosk.drivers.mongo.internal;
 
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.CountOptions;
-import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.OperationType;
@@ -42,13 +41,11 @@ import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.exceptions.FormatMisconfigurationException;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
-import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Filters.regex;
-import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.changestream.OperationType.INSERT;
 import static java.util.Collections.singletonList;
 import static java.util.Comparator.comparing;
@@ -57,6 +54,7 @@ import static java.util.stream.Collectors.toList;
 import static org.bson.BsonBoolean.TRUE;
 import static works.bosk.Path.parseParameterized;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.docBsonPath;
+import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.util.Classes.enumerableByIdentifier;
 
 /**
@@ -77,11 +75,19 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		TransactionalCollection collection,
 		MongoDriverSettings driverSettings,
 		PandoFormat format, BsonSerializer bsonSerializer,
-		FlushLock flushLock,
+		long flushTimeoutMS,
 		BsonString manifestId,
 		BoskDriver downstream
 	) {
-		super(boskInfo.rootReference(), boskInfo.context(), new Formatter(boskInfo, bsonSerializer), collection, downstream, flushLock, manifestId);
+		super(
+			boskInfo.rootReference(),
+			boskInfo.context(),
+			new Formatter(boskInfo, bsonSerializer),
+			collection,
+			downstream,
+			flushTimeoutMS,
+			manifestId
+		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;
 		this.format = format;
@@ -192,6 +198,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		UpdateResult result = collection.updateOne(filter, update, options);
 		LOGGER.debug("| Result: {}", result);
 		writeManifest(Manifest.forPando(format));
+
+		// Update the state that we "know about"
+		flushLock.finishedRevision(newRevision);
 	}
 
 	/**
@@ -307,8 +316,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			case DELETE: {
 				// No other events in the transaction matter if the root document is gone
 				LOGGER.debug("Document containing revision field has been deleted; assuming revision=0");
-				flushLock.finishedRevision(Formatter.REVISION_ZERO);
-				revisionToSkip = null;
+				flushLock.finishedRevision(REVISION_ZERO);
 			} break;
 			default: {
 				throw new UnprocessableEventException("Cannot process event", finalEvent.getOperationType());
@@ -613,44 +621,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return rootRef;
 	}
 
-	/**
-	 * @return Non-null revision number as per the database.
-	 * If the database contains no revision number, returns {@link Formatter#REVISION_ZERO}.
-	 */
-	protected BsonInt64 readRevisionNumber() throws FlushFailureException {
-		LOGGER.debug("readRevisionNumber");
-		try {
-			try (MongoCursor<BsonDocument> cursor = collection
-				.withReadConcern(LOCAL) // The revision field needs to be the latest
-				.find(ROOT_DOCUMENT_FILTER)
-				.limit(1)
-				.projection(fields(Projections.include(DocumentFields.revision.name())))
-				.cursor()
-			) {
-				BsonDocument doc = cursor.next();
-				BsonInt64 result = doc.getInt64(DocumentFields.revision.name(), null);
-				if (result == null) {
-					// Document exists but has no revision field.
-					// In that case, newer servers (including this one) will create the
-					// the field upon initialization, and we're ok to wait for any old
-					// revision number at all.
-					LOGGER.debug("No revision field; assuming {}", Formatter.REVISION_ZERO.longValue());
-					return Formatter.REVISION_ZERO;
-				} else {
-					LOGGER.debug("Read revision {}", result);
-					return result;
-				}
-			}
-		} catch (NoSuchElementException e) {
-			LOGGER.debug("Document is missing", e);
-			throw new RevisionFieldDisruptedException(e);
-		} catch (RuntimeException e) {
-			LOGGER.debug("readRevisionNumber failed", e);
-			throw new FlushFailureException(e);
-		}
-	}
-
-	private BsonDocument rootDocumentFilter() {
+	protected BsonDocument rootDocumentFilter() {
 		return new BsonDocument("_id", ROOT_DOCUMENT_ID);
 	}
 
@@ -830,7 +801,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return description;
 	}
 
-	private static final BsonDocument ROOT_DOCUMENT_FILTER = new BsonDocument("_id", ROOT_DOCUMENT_ID);
 	private static final EnumSet<OperationType> OPERATIONS_TO_INCLUDE_IN_GATHER = EnumSet.of(INSERT);
 	private static final Logger LOGGER = LoggerFactory.getLogger(PandoFormatDriver.class);
 }

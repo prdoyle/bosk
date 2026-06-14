@@ -77,6 +77,10 @@ class FlushLock implements Closeable {
 		}
 	}
 
+	boolean alreadySeen(BsonInt64 revision) {
+		return revision.longValue() <= alreadySeen;
+	}
+
 	void awaitRevision(BsonInt64 revision) throws InterruptedException, FlushFailureException {
 		long revisionValue = revision.longValue();
 		Semaphore semaphore = new Semaphore(0);

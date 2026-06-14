@@ -1,14 +1,16 @@
 package works.bosk.drivers.mongo.internal;
 
+import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.result.UpdateResult;
+import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import lombok.RequiredArgsConstructor;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonNull;
@@ -28,16 +30,23 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.drivers.mongo.status.StateStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
+import works.bosk.util.PerTenant;
+import works.bosk.util.PerTenant.MultiTenant;
+import works.bosk.util.PerTenant.SoleTenant;
 
+import static com.mongodb.ReadConcern.LOCAL;
+import static com.mongodb.client.model.Projections.fields;
+import static com.mongodb.client.model.Projections.include;
 import static com.mongodb.client.model.changestream.OperationType.INSERT;
 import static com.mongodb.client.model.changestream.OperationType.REPLACE;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
+import static works.bosk.drivers.mongo.internal.Formatter.REVISION_BEFORE_ANY;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_IDS;
 
-@RequiredArgsConstructor
 abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implements FormatDriver<R> {
 	final RootReference<R> rootRef;
 	final BoskContext context;
@@ -46,6 +55,31 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	final BoskDriver downstream;
 	final FlushLock flushLock;
 	@Nullable final BsonString manifestId;
+
+	public AbstractFormatDriver(
+		RootReference<R> rootRef,
+		BoskContext context,
+		Formatter formatter,
+		TransactionalCollection collection,
+		BoskDriver downstream,
+		long flushTimeoutMS,
+		@Nullable BsonString manifestId
+	) {
+		this.rootRef = rootRef;
+		this.context = context;
+		this.formatter = formatter;
+		this.collection = collection;
+		this.downstream = downstream;
+		this.manifestId = manifestId;
+
+		// The proper revision number will be established by loadAllState or initializeCollection.
+		// The value we use here doesn't matter a lot, provided that either loadAllState or
+		// initializeCollection is called before the first flush (a condition that is trivially
+		// satisfied if this driver is discarded before the first flush).
+		// In the meantime, let's use a value guaranteed to be less than any real revision number
+		// on the basis that blocking is safer than accidentally proceeding without waiting on a flush.
+		this.flushLock = new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS);
+	}
 
 	@Override
 	public MongoStatus readStatus() {
@@ -80,12 +114,25 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		}
 
 		R root = formatter.document2object(bsonStateAndMetadata.state(), rootRef);
-		BsonInt64 revision = bsonStateAndMetadata.revision() == null ? REVISION_ZERO : bsonStateAndMetadata.revision();
 		MapValue<String> diagnosticAttributes = bsonStateAndMetadata.diagnosticAttributes() == null
 			? MapValue.empty() // It's not clear what missing attributes mean, but using null here would have the effect of leaving the old attributes in place, which seems flaky
 			: formatter.decodeDiagnosticAttributes(bsonStateAndMetadata.diagnosticAttributes());
 
-		return new StateAndMetadata<>(root, revision, diagnosticAttributes);
+		return new StateAndMetadata<>(
+			root,
+			bsonStateAndMetadata.revision() == null
+				? REVISION_ZERO
+				: bsonStateAndMetadata.revision(),
+			diagnosticAttributes
+		);
+	}
+
+	@Override
+	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
+		switch (contents) {
+			case SoleTenant(var s) -> flushLock.finishedRevision(s.revision());
+			case MultiTenant<StateAndMetadata<R>> _ -> throw new NotYetImplementedException();
+		}
 	}
 
 	/**
@@ -139,18 +186,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		return blankUpdateDoc().append("$unset", new BsonDocument(key, BsonNull.VALUE));
 	}
 
-	protected volatile BsonInt64 revisionToSkip = null;
-
 	protected boolean shouldSkip(BsonInt64 revision) {
-		return revision != null && revisionToSkip != null
-			&& revision.longValue() <= revisionToSkip.longValue();
-	}
-
-	@Override
-	public void onRevisionToSkip(BsonInt64 revision) {
-		LOGGER.debug("+ onRevisionToSkip({})", revision.longValue());
-		revisionToSkip = revision;
-		flushLock.finishedRevision(revision);
+		return revision != null && flushLock.alreadySeen(revision);
 	}
 
 	/**
@@ -188,7 +225,41 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		LOGGER.debug("Ignoring benign manifest change event");
 	}
 
-	protected abstract BsonInt64 readRevisionNumber() throws FlushFailureException;
+	protected abstract BsonDocument rootDocumentFilter();
+
+	/**
+	 * @return Revision number as per the database.
+	 * If the database contains no revision number, returns {@link Formatter#REVISION_ZERO}.
+	 */
+	protected @Nonnull BsonInt64 readRevisionNumber() throws FlushFailureException {
+		LOGGER.debug("readRevisionNumber");
+		try {
+			try (MongoCursor<BsonDocument> cursor = collection
+				.withReadConcern(LOCAL)
+				.find(rootDocumentFilter())
+				.limit(1)
+				.projection(fields(include(DocumentFields.revision.name())))
+				.cursor()
+			) {
+				BsonDocument doc = cursor.next();
+				BsonInt64 result = doc.getInt64(DocumentFields.revision.name(), null);
+				if (result == null) {
+					// TODO: Is this still relevant? Seems like legacy
+					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
+					return REVISION_ZERO;
+				} else {
+					LOGGER.debug("Read revision {}", result.longValue());
+					return result;
+				}
+			}
+		} catch (NoSuchElementException e) {
+			LOGGER.debug("Document is missing", e);
+			throw new RevisionFieldDisruptedException("State document is missing", e);
+		} catch (RuntimeException e) {
+			LOGGER.debug("readRevisionNumber failed", e);
+			throw new FlushFailureException(e);
+		}
+	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {

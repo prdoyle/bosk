@@ -3,12 +3,12 @@ package works.bosk.drivers.mongo.internal;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import lombok.RequiredArgsConstructor;
 import org.bson.BsonDocument;
-import org.bson.BsonInt64;
 import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.exceptions.DisconnectedException;
 import works.bosk.drivers.mongo.status.MongoStatus;
+import works.bosk.util.PerTenant;
 
 @RequiredArgsConstructor
 final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<R> {
@@ -63,17 +63,17 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 	}
 
 	@Override
-	public void onRevisionToSkip(BsonInt64 revision) {
-		throw new AssertionError("Resynchronization should not tell DisconnectedDriver to skip a revision");
-	}
-
-	@Override
 	public StateAndMetadata<R> loadAllState() {
 		throw disconnected();
 	}
 
 	@Override
 	public void initializeCollection(StateAndMetadata<R> priorContents) {
+		throw disconnected();
+	}
+
+	@Override
+	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
 		throw disconnected();
 	}
 

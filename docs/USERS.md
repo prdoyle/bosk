@@ -1079,7 +1079,7 @@ In addition, if you discover you need to handle hard links, where the same file 
 
 ### Glossary
 
-_Apply_: When an update has been _applied_ to the bosk, it will be reflected in a subsequent read session
+_Apply_: When an update has been _applied_ to the bosk, it (or a later update) will be reflected in a subsequent read session
 
 _Driver_: An object that accepts and processes bosk updates
 
@@ -1092,7 +1092,7 @@ _Path_: The sequence of fields that reaches a particular state tree node startin
 
 _Parameter_: A path segment that can be substituted for an `Identifier`.
 
-_Polyfill_: A default value for a missing field. Simplifies backward compatibility with older databases or serialized data, allowing application code to assume a field is present even if it's not.
+_Polyfill_: A default value to use if a field is missing. Simplifies backward compatibility with older databases or serialized data, allowing application code to assume a field is present even if it's not.
 
 _Reference_: A type-safe representation of a `Path` that can be used to access a node in a particular `Bosk` object.
 

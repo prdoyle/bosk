@@ -28,6 +28,8 @@ The usual Gradle commands, plus:
 ./gradlew spotlessApply  # Apply code formatting
 ```
 
+Agents have trouble using PowerShell; use cmd instead.
+
 ## Architecture concepts
 
 - **State Tree**: Immutable user-supplied in-memory tree structure composed mostly of records

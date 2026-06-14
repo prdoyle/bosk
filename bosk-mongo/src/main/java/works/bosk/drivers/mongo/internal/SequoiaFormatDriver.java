@@ -26,12 +26,9 @@ import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
-import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static com.mongodb.ReadConcern.LOCAL;
-import static com.mongodb.client.model.Projections.fields;
-import static com.mongodb.client.model.Projections.include;
 import static org.bson.BsonBoolean.FALSE;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.referenceTo;
@@ -50,11 +47,19 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		TransactionalCollection collection,
 		MongoDriverSettings driverSettings,
 		BsonSerializer bsonSerializer,
-		FlushLock flushLock,
+		long flushTimeoutMS,
 		@Nullable BsonString manifestId,
 		BoskDriver downstream
 	) {
-		super(boskInfo.rootReference(), boskInfo.context(), new Formatter(boskInfo, bsonSerializer), collection, downstream, flushLock, manifestId);
+		super(
+			boskInfo.rootReference(),
+			boskInfo.context(),
+			new Formatter(boskInfo, bsonSerializer),
+			collection,
+			downstream,
+			flushTimeoutMS,
+			manifestId
+		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 	}
 
@@ -134,6 +139,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		// and it's not even a strong reason, because this still works correctly
 		// if interpreted as two separate events.
 		writeManifest(Manifest.forSequoia());
+
+		// Update the state that we "know about"
+		flushLock.finishedRevision(newRevision);
 	}
 
 	/**
@@ -220,45 +228,13 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	// MongoDB helpers
 	//
 
-	/**
-	 * @return Non-null revision number as per the database.
-	 * If the database contains no revision number, returns {@link Formatter#REVISION_ZERO}.
-	 */
-	protected BsonInt64 readRevisionNumber() throws FlushFailureException {
-		LOGGER.debug("readRevisionNumber");
-		try {
-			try (MongoCursor<BsonDocument> cursor = collection
-				.withReadConcern(LOCAL) // The revision field needs to be the latest
-				.find(DOCUMENT_FILTER)
-				.limit(1)
-				.projection(fields(include(DocumentFields.revision.name())))
-				.cursor()
-			) {
-				BsonDocument doc = cursor.next();
-				BsonInt64 result = doc.getInt64(DocumentFields.revision.name(), null);
-				if (result == null) {
-					// Document exists but has no revision field.
-					// In that case, newer servers (including this one) will create
-					// the field upon initialization, and we're ok to wait for any old
-					// revision number at all.
-					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
-					return REVISION_ZERO;
-				} else {
-					LOGGER.debug("Read revision {}", result.longValue());
-					return result;
-				}
-			}
-		} catch (NoSuchElementException e) {
-			LOGGER.debug("Document is missing", e);
-			throw new RevisionFieldDisruptedException("State document is missing", e);
-		} catch (RuntimeException e) {
-			LOGGER.debug("readRevisionNumber failed", e);
-			throw new FlushFailureException(e);
-		}
-	}
-
 	private BsonDocument documentFilter() {
 		return new BsonDocument("_id", DOCUMENT_ID);
+	}
+
+	@Override
+	protected BsonDocument rootDocumentFilter() {
+		return DOCUMENT_FILTER;
 	}
 
 	private <T> BsonDocument standardPreconditions(Reference<T> target) {
