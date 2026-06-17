@@ -2,6 +2,7 @@ package works.bosk.util;
 
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -28,22 +29,29 @@ public sealed interface PerTenant<T> {
 	void forEach(BiConsumer<? super Established, ? super T> consumer);
 	<U> PerTenant<U> map(BiFunction<Tenant.Established, T,U> mapping);
 
+	/**
+	 * @throws IllegalArgumentException if this can't be represented as a {@link NoTenant}
+	 * because there's not exactly one {@link NoTenant#value() value}.
+	 */
+	NoTenant<T> asNoTenant(TenantId expectedTenant);
+
 	default <U> PerTenant<U> map(Function<T,U> mapping) {
 		return map((_, x) -> mapping.apply(x));
 	}
 
 	static <R extends StateTreeNode, V> PerTenant<V> from(EntireState<R> state, Function<R, V> valueMapper) {
 		return switch (state) {
-			case SingleTree<R>(var root) -> new SoleTenant<>(valueMapper.apply(root));
+			case SingleTree<R>(var root) -> new NoTenant<>(valueMapper.apply(root));
 			case MultiTree<R>(var roots)-> roots.entrySet().stream()
 				.collect(MultiTenant.withValues(valueMapper));
 		};
 	}
 
 	/**
-	 * Not a multitenant situation: the {@link Tenant} is {@link Tenant#NONE NONE}.
+	 * Not a multitenant situation: the {@link Tenant} is {@link Tenant#NONE NONE}
+	 * and there's exactly one {@code value}.
 	 */
-	record SoleTenant<T>(T value) implements PerTenant<T> {
+	record NoTenant<T>(T value) implements PerTenant<T> {
 		@Override
 		public T get(Established tenant) {
 			if (tenant == NONE) {
@@ -60,11 +68,16 @@ public sealed interface PerTenant<T> {
 
 		@Override
 		public <U> PerTenant<U> map(BiFunction<Established, T, U> mapping) {
-			return new SoleTenant<>(mapping.apply(NONE, value));
+			return new NoTenant<>(mapping.apply(NONE, value));
 		}
 
-		public static <TT> SoleTenant<TT> just(TT value) {
-			return new SoleTenant<>(value);
+		@Override
+		public NoTenant<T> asNoTenant(TenantId expectedTenant) {
+			return this;
+		}
+
+		public static <TT> NoTenant<TT> just(TT value) {
+			return new NoTenant<>(value);
 		}
 	}
 
@@ -82,6 +95,16 @@ public sealed interface PerTenant<T> {
 			// library to depend explicitly on the pcollections library.
 			if (!(values instanceof TreePMap<TenantId,T>)) {
 				values = TreePMap.from(values);
+			}
+		}
+
+		@Override
+		public NoTenant<T> asNoTenant(TenantId expectedTenant) {
+			if (values.keySet().equals(Set.of(expectedTenant))) {
+				return NoTenant.just(values.get(expectedTenant));
+			} else {
+				throw new IllegalArgumentException(
+					"Expected exactly one tenant: " + expectedTenant + ", but got: " + values.keySet());
 			}
 		}
 
@@ -108,6 +131,14 @@ public sealed interface PerTenant<T> {
 			return values.entrySet().stream().collect(MultiTenant.multiTenant(
 				Entry::getKey,
 				e -> mapping.apply(e.getKey(), e.getValue())));
+		}
+
+		public static <TT> MultiTenant<TT> empty() {
+			return new MultiTenant<>(TreePMap.empty());
+		}
+
+		public static <TT> MultiTenant<TT> singleton(TenantId key, TT value) {
+			return new MultiTenant<>(TreePMap.singleton(key, value));
 		}
 
 		public MultiTenant<T> with(TenantId key, T value) {

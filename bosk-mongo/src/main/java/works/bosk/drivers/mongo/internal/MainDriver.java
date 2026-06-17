@@ -55,7 +55,7 @@ import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
-import works.bosk.util.PerTenant.SoleTenant;
+import works.bosk.util.PerTenant.NoTenant;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -329,7 +329,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			StateAndMetadata<R> loadedState = detectedDriver.loadAllState();
 
 			// Hasn't technically been applied, but we're still initializing the Bosk, and its constructor won't return until the state has been applied
-			detectedDriver.hasBeenApplied(SoleTenant.just(loadedState));
+			detectedDriver.hasBeenApplied(NoTenant.just(loadedState));
 
 			entireState = EntireState.just(loadedState.state());
 			publishFormatDriver(detectedDriver);
@@ -572,7 +572,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				}
 
 				downstream.flush();
-				newDriver.hasBeenApplied(SoleTenant.just(loadedState));
+				newDriver.hasBeenApplied(NoTenant.just(loadedState));
 			} else {
 				LOGGER.debug("Running initialState action");
 				runInitialStateAction(initialStateAction);

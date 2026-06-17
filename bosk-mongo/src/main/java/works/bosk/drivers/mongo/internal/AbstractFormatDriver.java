@@ -33,7 +33,7 @@ import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.SoleTenant;
+import works.bosk.util.PerTenant.NoTenant;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Projections.fields;
@@ -130,7 +130,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	@Override
 	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
 		switch (contents) {
-			case SoleTenant(var s) -> flushLock.finishedRevision(s.revision());
+			case NoTenant(var s) -> flushLock.finishedRevision(s.revision());
 			case MultiTenant<StateAndMetadata<R>> _ -> throw new NotYetImplementedException();
 		}
 	}
