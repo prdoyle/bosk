@@ -13,8 +13,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
@@ -60,6 +62,11 @@ class RecordingTurboFilterTest {
 					e.getThrowableProxy() != null ? e.getThrowableProxy().getClassName() : null))
 				.toList();
 		}
+	}
+
+	@BeforeAll
+	static void initializeLogging() {
+		LoggerFactory.getLogger(RecordingTurboFilterTest.class);
 	}
 
 	@BeforeEach

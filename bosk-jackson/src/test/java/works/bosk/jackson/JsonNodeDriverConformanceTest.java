@@ -9,7 +9,7 @@ import works.bosk.testing.drivers.DriverConformanceTest;
 import works.bosk.testing.drivers.state.TestEntity;
 import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.SoleTenant;
+import works.bosk.util.PerTenant.NoTenant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -32,7 +32,7 @@ class JsonNodeDriverConformanceTest extends DriverConformanceTest {
 		try (var _ = bosk.readSession()) {
 			var state = bosk.entireState();
 			expected = switch (state) {
-				case SingleTree(var root) -> SoleTenant.just(jsonNodeDriver.mapper.convertValue(root, JsonNode.class));
+				case SingleTree(var root) -> NoTenant.just(jsonNodeDriver.mapper.convertValue(root, JsonNode.class));
 				case MultiTree(var roots) -> roots.entrySet().stream()
 					.collect(MultiTenant.withValues(v -> jsonNodeDriver.mapper.convertValue(v, JsonNode.class)));
 			};

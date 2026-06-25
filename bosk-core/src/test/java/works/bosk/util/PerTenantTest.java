@@ -12,10 +12,12 @@ import works.bosk.BoskContext.Tenant;
 import works.bosk.Identifier;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.InjectedTest;
-import works.bosk.util.PerTenant.SoleTenant;
+import works.bosk.util.PerTenant.MultiTenant;
+import works.bosk.util.PerTenant.NoTenant;
 
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static works.bosk.BoskContext.Tenant.NONE;
 import static works.bosk.BoskContext.Tenant.TenantId;
 import static works.bosk.util.PerTenant.MultiTenant.multiTenant;
@@ -27,22 +29,22 @@ class PerTenantTest {
 	static final TenantId t3 = new TenantId(Identifier.from("t3"));
 
 	enum Scenario {
-		SOLE,
-		MULTI,
+		NO_TENANT,
+		MULTI_TENANT,
 		;
 
 		PerTenant<String> perTenant() {
 			return switch (this) {
-				case SOLE -> SoleTenant.just("sole");
-				case MULTI -> Stream.of(t1,t2,t3)
+				case NO_TENANT -> NoTenant.just("sole");
+				case MULTI_TENANT -> Stream.of(t1,t2,t3)
 					.collect(multiTenant(t->t, t->t.tenant().toString()));
 			};
 		}
 
 		Map<Tenant, String> map() {
 			return switch (this) {
-				case SOLE -> Map.of(NONE, "sole");
-				case MULTI -> new TreeMap<>(Stream.of(t1,t2,t3).collect(toMap(
+				case NO_TENANT -> Map.of(NONE, "sole");
+				case MULTI_TENANT -> new TreeMap<>(Stream.of(t1,t2,t3).collect(toMap(
 					t->t,
 					t->t.tenant().toString()
 				)));
@@ -117,4 +119,19 @@ class PerTenantTest {
 		mt_1.forEach((tenant, value) -> seen_1.add(new Seen(tenant, value)));
 		assertEquals(List.of(new Seen(t1, "t1")), seen_1);
 	}
+
+	@InjectedTest
+	void asNoTenant(Scenario scenario) {
+		var original = switch (scenario) {
+			case NO_TENANT -> NoTenant.just("value");
+			case MULTI_TENANT -> MultiTenant.singleton(t1, "value");
+		};
+		assertEquals(NoTenant.just("value"), original.asNoTenant(t1));
+	}
+
+	@Test
+	void wrongTenant() {
+		assertThrows(IllegalArgumentException.class, () -> MultiTenant.singleton(t1, "value").asNoTenant(t2));
+	}
+
 }

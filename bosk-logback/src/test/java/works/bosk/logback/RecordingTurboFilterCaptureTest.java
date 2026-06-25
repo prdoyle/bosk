@@ -6,15 +6,21 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.filter.Filter;
 import ch.qos.logback.core.spi.FilterReply;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class RecordingTurboFilterCaptureTest {
-
 	private RecordingTurboFilter filter;
+
+	@BeforeAll
+	static void initializeLogging() {
+		LoggerFactory.getLogger(RecordingTurboFilterCaptureTest.class);
+	}
 
 	@BeforeEach
 	void setup() {

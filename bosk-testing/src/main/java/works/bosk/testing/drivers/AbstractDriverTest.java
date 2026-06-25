@@ -110,6 +110,21 @@ public abstract class AbstractDriverTest {
 		}
 	}
 
+	/**
+	 * For specifically testing multi-tree behaviour
+	 */
+	public record MultiTreeScenarioInjector() implements Injector {
+		@Override
+		public boolean supports(AnnotatedElement element, Class<?> elementType) {
+			return elementType.equals(Scenario.class);
+		}
+
+		@Override
+		public List<?> values() {
+			return List.of(Scenario.PERSISTENT_TENANT);
+		}
+	}
+
 	@BeforeEach
 	void clearTenantScope() {
 		tenantScope = null;

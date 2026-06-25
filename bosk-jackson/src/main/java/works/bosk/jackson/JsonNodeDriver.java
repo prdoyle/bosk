@@ -21,7 +21,7 @@ import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
 import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.SoleTenant;
+import works.bosk.util.PerTenant.NoTenant;
 
 /**
  * Maintains an in-memory representation of the bosk state
@@ -52,7 +52,7 @@ public class JsonNodeDriver implements BoskDriver {
 	public synchronized <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		var result = downstream.initialState(rootType);
 		contents = switch (result) {
-			case SingleTree(var r) -> SoleTenant.just(mapper.convertValue(r, JsonNode.class));
+			case SingleTree(var r) -> NoTenant.just(mapper.convertValue(r, JsonNode.class));
 			case MultiTree(var tenantRoots) -> tenantRoots.entrySet().stream()
 				.collect(MultiTenant.withValues(v -> mapper.convertValue(v, JsonNode.class)));
 		};
@@ -116,7 +116,7 @@ public class JsonNodeDriver implements BoskDriver {
 		JsonNode replacement = surgeon.replacementNode(nodeInfo, lastSegment, () -> mapper.convertValue(newValue, JsonNode.class));
 		if (nodeInfo.replacementLocation() instanceof Root) {
 			contents = switch (contents) {
-				case SoleTenant<JsonNode> _ -> SoleTenant.just(replacement);
+				case PerTenant.NoTenant<JsonNode> _ -> NoTenant.just(replacement);
 				case PerTenant.MultiTenant<JsonNode> m -> m.with(context.getTenantId(), replacement);
 			};
 		} else {
@@ -132,7 +132,7 @@ public class JsonNodeDriver implements BoskDriver {
 
 	@Nonnull JsonNode currentRoot() {
 		return switch (contents) {
-			case SoleTenant<JsonNode>(var root) -> root;
+			case NoTenant<JsonNode>(var root) -> root;
 			case MultiTenant<JsonNode>(var roots) -> {
 				JsonNode root = roots.get(context.getTenantId());
 				if (root == null) {
