@@ -83,6 +83,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		super(
 			boskInfo.rootReference(),
 			boskInfo.context(),
+			boskInfo.tenancyModel(),
 			new Formatter(boskInfo, bsonSerializer),
 			collection,
 			downstream,
@@ -171,7 +172,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			throw new IllegalStateException("Cannot locate root document");
 		}
 
-		formatter.eventTenantFromFullDocument(mainPart); // Saves the tenant info for subsequent events
 		return new BsonStateAndMetadata(
 			bsonSurgeon.gather(allParts),
 			mainPart.getInt64(DocumentFields.revision.name(), null),
@@ -258,9 +258,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					throw new UnprocessableEventException("Missing fullDocument on final event", finalEvent.getOperationType());
 				}
 
-				// Grab the tenant and diagnostics early. If we're supposed to skip this event,
-				// we still need to stash the tenant for later events.
-				Tenant.Established tenant = formatter.eventTenantFromFullDocument(fullDocument);
+			// Grab the tenant and diagnostics early. If we're supposed to skip this event,
+			// we still need to stash the tenant for later events.
+			Tenant.Established tenant = tenantFor(finalEvent.getDocumentKey().getString("_id"));
 				MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromFullDocument(fullDocument);
 
 				BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
@@ -294,7 +294,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					LOGGER.debug("Skipping revision {}", revision.longValue());
 					return;
 				}
-				Tenant.Established tenant = formatter.eventTenantFromUpdate(finalEvent);
+				Tenant.Established tenant = tenantFor(finalEvent.getDocumentKey().getString("_id"));
 				MapValue<String> attributes = formatter.eventDiagnosticAttributesFromUpdate(finalEvent);
 				try (
 					var _ = context.withTenant(tenant);

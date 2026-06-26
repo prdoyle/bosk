@@ -18,7 +18,10 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskContext;
+import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
 import works.bosk.MapValue;
 import works.bosk.Reference;
@@ -50,6 +53,7 @@ import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_IDS;
 abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implements FormatDriver<R> {
 	final RootReference<R> rootRef;
 	final BoskContext context;
+	final TenancyModel tenancyModel;
 	final Formatter formatter;
 	final TransactionalCollection collection;
 	final BoskDriver downstream;
@@ -59,6 +63,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	public AbstractFormatDriver(
 		RootReference<R> rootRef,
 		BoskContext context,
+		TenancyModel tenancyModel,
 		Formatter formatter,
 		TransactionalCollection collection,
 		BoskDriver downstream,
@@ -67,6 +72,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	) {
 		this.rootRef = rootRef;
 		this.context = context;
+		this.tenancyModel = tenancyModel;
 		this.formatter = formatter;
 		this.collection = collection;
 		this.downstream = downstream;
@@ -223,6 +229,18 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			throw new UnprocessableEventException("Unexpected change to manifest document", event.getOperationType());
 		}
 		LOGGER.debug("Ignoring benign manifest change event");
+	}
+
+	/**
+	 * @return the {@link Tenant} that should be established before processing
+	 * a document with the given {@code id}.
+	 */
+	protected Tenant.Established tenantFor(BsonString id) {
+		return switch (tenancyModel) {
+			case TenancyModel.None _ -> Tenant.NONE;
+			case TenancyModel.Fixed(var fixedId) -> new TenantId(fixedId);
+			case TenancyModel.Explicit _ -> throw new NotYetImplementedException();
+		};
 	}
 
 	protected abstract BsonDocument rootDocumentFilter();
