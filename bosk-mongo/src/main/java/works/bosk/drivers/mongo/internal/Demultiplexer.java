@@ -23,6 +23,13 @@ class Demultiplexer {
 			.add(event);
 	}
 
+	/**
+	 * Returns a list of the change stream documents from the same transaction as {@code finalEvent}.
+	 * Clears those events from the internal state so the same event is never returned twice.
+	 * Can be called multiple times for the same transaction.
+	 *
+	 * @return the events in the order they were added.
+	 */
 	public List<ChangeStreamDocument<BsonDocument>> pop(ChangeStreamDocument<BsonDocument> finalEvent) {
 		return transactionsInProgress.remove(TransactionID.from(finalEvent));
 	}
