@@ -233,7 +233,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	protected BsonDocument rootDocumentFilter() {
+	public BsonDocument rootDocumentsFilter() {
 		return DOCUMENT_FILTER;
 	}
 

@@ -243,7 +243,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		};
 	}
 
-	protected abstract BsonDocument rootDocumentFilter();
+	@Override
+	public abstract BsonDocument rootDocumentsFilter();
 
 	/**
 	 * @return Revision number as per the database.
@@ -254,7 +255,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		try {
 			try (MongoCursor<BsonDocument> cursor = collection
 				.withReadConcern(LOCAL)
-				.find(rootDocumentFilter())
+				.find(rootDocumentsFilter())
 				.limit(1)
 				.projection(fields(include(DocumentFields.revision.name())))
 				.cursor()

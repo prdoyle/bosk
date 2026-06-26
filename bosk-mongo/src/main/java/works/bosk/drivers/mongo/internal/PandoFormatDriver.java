@@ -191,7 +191,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			upsertAndRemoveSubParts(rootRef, initialState.asDocument()); // Mutates initialState!
 		}
 		BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, ROOT_DOCUMENT_ID));
-		BsonDocument filter = rootDocumentFilter();
+		BsonDocument filter = documentFilter(rootRef);
 		UpdateOptions options = new UpdateOptions().upsert(true);
 		LOGGER.trace("| Filter: {}", filter);
 		LOGGER.trace("| Update: {}", update);
@@ -543,7 +543,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			doUpdate(mainUpdate, standardPreconditions(target, mainRef, filter));
 
 			LOGGER.debug("| Bump revision on root document");
-			doUpdate(blankUpdateDoc(), rootDocumentFilter());
+			doUpdate(blankUpdateDoc(), documentFilter(rootRef));
 		}
 	}
 
@@ -567,7 +567,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		if (doUpdate(deletionDoc(target, mainRef), standardPreconditions(target, mainRef, documentFilter(mainRef)))) {
 			if (!rootRef.equals(mainRef)) {
 				LOGGER.debug("Deletion succeeded; bumping revision number in root document");
-				doUpdate(blankUpdateDoc(), rootDocumentFilter());
+				doUpdate(blankUpdateDoc(), documentFilter(rootRef));
 			}
 		} else {
 			LOGGER.debug("Deletion had no effect; aborting transaction");
@@ -622,7 +622,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return rootRef;
 	}
 
-	protected BsonDocument rootDocumentFilter() {
+	@Override
+	public BsonDocument rootDocumentsFilter() {
 		return new BsonDocument("_id", ROOT_DOCUMENT_ID);
 	}
 
@@ -631,7 +632,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	private <T> BsonDocument standardRootPreconditions(Reference<T> target) {
-		return standardPreconditions(target, rootRef, rootDocumentFilter());
+		return standardPreconditions(target, rootRef, documentFilter(rootRef));
 	}
 
 	private <T> BsonDocument standardPreconditions(Reference<T> target, Reference<?> startingRef, BsonDocument filter) {

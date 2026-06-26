@@ -73,6 +73,11 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 	}
 
 	@Override
+	public BsonDocument rootDocumentsFilter() {
+		throw disconnected();
+	}
+
+	@Override
 	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
 		throw disconnected();
 	}
