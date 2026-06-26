@@ -12,6 +12,7 @@ import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.drivers.ForwardingDriver;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.util.TunneledCheckedException;
 
 import static java.util.Objects.requireNonNull;
 

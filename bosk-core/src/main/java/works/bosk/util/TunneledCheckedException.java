@@ -1,6 +1,6 @@
-package works.bosk;
+package works.bosk.util;
 
-class TunneledCheckedException extends RuntimeException {
+public class TunneledCheckedException extends RuntimeException {
 	public TunneledCheckedException(Throwable cause) {
 		super(cause);
 	}
