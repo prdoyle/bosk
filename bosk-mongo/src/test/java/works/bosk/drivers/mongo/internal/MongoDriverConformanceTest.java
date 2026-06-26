@@ -31,6 +31,7 @@ import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
 import works.bosk.junit.Injector;
+import works.bosk.logback.ReplayLogsOnFailure;
 import works.bosk.testing.drivers.AbstractDriverTest.SingleTreeScenarioInjector;
 import works.bosk.testing.drivers.PolyfillDriverConformanceTest;
 import works.bosk.testing.junit.Slow;
@@ -39,6 +40,7 @@ import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOI
 
 @Slow
 @InjectFields
+@ReplayLogsOnFailure
 @InjectFrom({SingleTreeScenarioInjector.class, ParameterSetInjector.class})
 class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
