@@ -3,3 +3,11 @@
 # Format: method signature @ optional message
 # Example:
 # java.lang.String#substring(int) @ Use substring(int, int) for clarity
+
+# We can't do these because they forbid making subclasses!
+#@defaultMessage Use a specific subclass (e.g. IllegalStateException, IllegalArgumentException)
+#java.lang.RuntimeException#<init>()
+#java.lang.RuntimeException#<init>(java.lang.String)
+#java.lang.RuntimeException#<init>(java.lang.String, java.lang.Throwable)
+#java.lang.RuntimeException#<init>(java.lang.Throwable)
+#java.lang.RuntimeException#<init>(java.lang.String, java.lang.Throwable, boolean, boolean)
