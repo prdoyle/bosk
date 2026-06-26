@@ -37,6 +37,7 @@ import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.MultiTenant;
 import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.TunneledCheckedException;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Projections.fields;
@@ -247,16 +248,17 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	public abstract BsonDocument rootDocumentsFilter();
 
 	/**
-	 * @return Revision number as per the database.
+	 * @return all potentially relevant revision numbers found in the database,
+	 * one per tenant (or just the one in non-multitenant situations).
 	 * If the database contains no revision number, returns {@link Formatter#REVISION_ZERO}.
+	 * @throws RevisionFieldDisruptedException if unexpected database contents make it impossible
 	 */
-	protected @Nonnull BsonInt64 readRevisionNumber() throws FlushFailureException {
-		LOGGER.debug("readRevisionNumber");
+	protected @Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws FlushFailureException {
+		LOGGER.debug("readRevisionNumbers");
 		try {
 			try (MongoCursor<BsonDocument> cursor = collection
 				.withReadConcern(LOCAL)
 				.find(rootDocumentsFilter())
-				.limit(1)
 				.projection(fields(include(DocumentFields.revision.name())))
 				.cursor()
 			) {
@@ -265,24 +267,41 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 				if (result == null) {
 					// TODO: Is this still relevant? Seems like legacy
 					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
-					return REVISION_ZERO;
+					return NoTenant.just(REVISION_ZERO);
 				} else {
 					LOGGER.debug("Read revision {}", result.longValue());
-					return result;
+					return NoTenant.just(result);
 				}
 			}
 		} catch (NoSuchElementException e) {
 			LOGGER.debug("Document is missing", e);
 			throw new RevisionFieldDisruptedException("State document is missing", e);
 		} catch (RuntimeException e) {
-			LOGGER.debug("readRevisionNumber failed", e);
+			LOGGER.debug("readRevisionNumbers failed", e);
 			throw new FlushFailureException(e);
 		}
 	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-		flushLock.awaitRevision(readRevisionNumber());
+		PerTenant<BsonInt64> revisions = readRevisionNumbers();
+		try {
+			revisions.forEach((_, revision) -> {
+				try {
+					flushLock.awaitRevision(revision);
+				} catch (InterruptedException | IOException e) {
+					throw new TunneledCheckedException(e);
+				}
+			});
+		} catch (TunneledCheckedException e) {
+			try {
+				throw e.getCause();
+			} catch (IOException | InterruptedException cause) {
+				throw cause;
+			} catch (Throwable ex) {
+				throw new AssertionError("Unexpected exception type", ex);
+			}
+		}
 		LOGGER.debug("| Flush downstream");
 		downstream.flush();
 	}
