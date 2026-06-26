@@ -98,11 +98,11 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			return new MongoStatus(
 				null,
 				null, // MainDriver should fill this in
-				new StateStatus(
+				NoTenant.just(new StateStatus(
 					dbContents.revision.longValue(),
 					formatter.bsonValueBinarySize(loadedBsonState),
 					comp.difference(inMemoryState, loadedBsonState)
-				)
+				))
 			);
 		} catch (UninitializedCollectionException e) {
 			return new MongoStatus(
