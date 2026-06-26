@@ -14,7 +14,7 @@ import jakarta.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.regex.Pattern;
 import org.bson.BsonDocument;
@@ -38,6 +38,7 @@ import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriverSettings;
+import works.bosk.drivers.mongo.MongoDriverSettings.OrphanDocumentMode;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.exceptions.FormatMisconfigurationException;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
@@ -552,8 +553,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		Reference<?> mainRef = mainRef(target);
 		if (mainRef.equals(target)) {
 			// Delete the whole document
-			if (settings.experimental().orphanDocumentMode() == MongoDriverSettings.OrphanDocumentMode.HASTY) {
-				LOGGER.debug("Skipping deleting document({}) in {} mode", target, MongoDriverSettings.OrphanDocumentMode.HASTY);
+			if (settings.experimental().orphanDocumentMode() == OrphanDocumentMode.HASTY) {
+				LOGGER.debug("Skipping deleting document({}) in {} mode", target, OrphanDocumentMode.HASTY);
 			} else {
 				throw new NotYetImplementedException("Earnest mode not yet implemented");
 			}
@@ -676,7 +677,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	private void replaceUpdatedFields(Reference<?> mainRef, @Nullable BsonDocument updatedFields, List<BsonDocument> subParts, OperationType operationType) throws UnprocessableEventException {
 		if (updatedFields != null) {
 			boolean alreadyUsedSubparts = false;
-			for (Map.Entry<String, BsonValue> entry : updatedFields.entrySet()) {
+			for (Entry<String, BsonValue> entry : updatedFields.entrySet()) {
 				String dottedName = entry.getKey();
 				if (dottedName.startsWith(DocumentFields.state.name())) {
 					Reference<Object> ref;
@@ -752,8 +753,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		// This whole method is pretty "best-effort" right now. More work to do if we really want to be EARNEST
 		Reference<?> mainRef = mainRef(target);
 		if (mainRef.equals(target)) {
-			if (settings.experimental().orphanDocumentMode() == MongoDriverSettings.OrphanDocumentMode.HASTY) {
-				LOGGER.debug("Skipping deletePartsUnder({}) in {} mode", target, MongoDriverSettings.OrphanDocumentMode.HASTY);
+			if (settings.experimental().orphanDocumentMode() == OrphanDocumentMode.HASTY) {
+				LOGGER.debug("Skipping deletePartsUnder({}) in {} mode", target, OrphanDocumentMode.HASTY);
 			} else {
 				String prefix;
 				if (mainRef.path().isEmpty()) {
@@ -770,7 +771,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			}
 		} else {
 			// TODO!
-			assert settings.experimental().orphanDocumentMode() == MongoDriverSettings.OrphanDocumentMode.HASTY;
+			assert settings.experimental().orphanDocumentMode() == OrphanDocumentMode.HASTY;
 			LOGGER.debug("Skipping deletePartsUnder({}) because mainRef is different: {}", target, mainRef);
 		}
 	}
