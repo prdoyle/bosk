@@ -227,17 +227,14 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 			.getDatabase(driverSettings.database())
 			.getCollection(COLLECTION_NAME);
 		AtomicReference<Document> originalDocument = new AtomicReference<>();
-		BsonString rootDocumentID = (driverSettings.preferredDatabaseFormat() == MongoDriverSettings.DatabaseFormat.SEQUOIA)?
-			SequoiaFormatDriver.DOCUMENT_ID :
-			PandoFormatDriver.ROOT_DOCUMENT_ID;
-		BsonDocument rootDocumentFilter = new BsonDocument("_id", rootDocumentID);
+		BsonDocument rootDocumentsFilter = new BsonDocument("path", new BsonString("/"));
 		testRecovery(() -> {
 			LOGGER.debug("Save original document");
-			try (var cursor = collection.find(rootDocumentFilter).cursor()) {
+			try (var cursor = collection.find(rootDocumentsFilter).cursor()) {
 				originalDocument.set(cursor.next());
 			}
 			LOGGER.debug("Delete document");
-			collection.deleteMany(rootDocumentFilter);
+			collection.deleteMany(rootDocumentsFilter);
 		}, (b) -> {
 			LOGGER.debug("Restore original document");
 			// NOTE: This doesn't actually work cleanly with Pando, because restoring the root document by itself

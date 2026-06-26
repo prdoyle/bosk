@@ -5,7 +5,6 @@ import com.mongodb.MongoClientSettings.Builder;
 import com.mongodb.MongoException;
 import com.mongodb.ReadConcern;
 import com.mongodb.WriteConcern;
-import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
@@ -31,10 +30,8 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.BoskConfig.TenancyModel.Implicit;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.EntireState.MultiTree;
-import works.bosk.BoskDriver.EntireState.SingleTree;
 import works.bosk.BoskInfo;
 import works.bosk.Identifier;
 import works.bosk.Reference;
@@ -51,8 +48,8 @@ import works.bosk.drivers.mongo.exceptions.InitialStateFailureException;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
+import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.NoTenant;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
@@ -159,11 +156,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.driverSettings = driverSettings;
 			this.bsonSerializer = bsonSerializer;
 			this.downstream = downstream;
-
-			switch (boskInfo.tenancyModel()) {
-				case Implicit _ -> {}
-				default -> throw new IllegalArgumentException("Tenancy model not yet supported: " + boskInfo.tenancyModel());
-			}
 
 			// Flushes work by waiting for the latest version to arrive on the change stream.
 			// If we wait for two heartbeats and don't see the update, something has gone wrong.
@@ -325,12 +317,15 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		EntireState<R> entireState;
 		try (var _ = queryCollection.newReadOnlySession()){
 			FormatDriver<R> detectedDriver = detectFormat();
-			StateAndMetadata<R> loadedState = detectedDriver.loadAllState();
+			PerTenant<StateAndMetadata<R>> loadedState = detectedDriver.loadAllState();
+			entireState = switch (loadedState.map(StateAndMetadata::state)) {
+				case NoTenant<R>(R root) -> EntireState.just(root);
+				case PerTenant.MultiTenant<R> v -> v.values().entrySet().stream().collect(MultiTree.collector());
+			};
 
 			// Hasn't technically been applied, but we're still initializing the Bosk, and its constructor won't return until the state has been applied
-			detectedDriver.hasBeenApplied(NoTenant.just(loadedState));
+			detectedDriver.hasBeenApplied(loadedState);
 
-			entireState = EntireState.just(loadedState.state());
 			publishFormatDriver(detectedDriver);
 		} catch (UninitializedCollectionException e) {
 			// We log this at warn because, in production, this is a big deal.
@@ -341,11 +336,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				var session = queryCollection.newSession()
 			) {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
-				var root = switch (entireState) {
-					case SingleTree(var r) -> r;
-					case MultiTree<R> _ -> throw new NotYetImplementedException();
-				};
-				preferredDriver.initializeCollection(new StateAndMetadata<>(root, REVISION_ZERO, boskInfo.context().getAttributes()));
+				PerTenant<StateAndMetadata<R>> priorContents = PerTenant.from(entireState, root ->
+					new StateAndMetadata<>(root, REVISION_ZERO, boskInfo.context().getAttributes()));
+				preferredDriver.initializeCollection(priorContents);
 				session.commitTransactionIfAny();
 				// We can now publish the driver knowing that the transaction, if there is one, has committed
 				publishFormatDriver(preferredDriver);
@@ -394,7 +387,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// Design note: this operation shouldn't do any special coordination with
 			// the receiver/listener system, because other replicas won't.
 			// That system needs to cope with refurbish operations without any help.
-			StateAndMetadata<R> result = formatDriver.loadAllState();
+			PerTenant<StateAndMetadata<R>> result = formatDriver.loadAllState();
 			FormatDriver<R> newFormatDriver = newPreferredFormatDriver();
 
 			// initializeCollection is required to replace the manifest anyway,
@@ -538,12 +531,12 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			FutureTask<EntireState<R>> initialStateAction = this.taskRef.get();
 			if (initialStateAction == null) {
 				FormatDriver<R> newDriver;
-				StateAndMetadata<R> loadedState;
+				PerTenant<StateAndMetadata<R>> contents;
 				try (var _ = queryCollection.newReadOnlySession()) {
 					LOGGER.debug("Loading database state to submit to downstream driver");
 					newDriver = detectFormat();
-					loadedState = newDriver.loadAllState();
-					LOGGER.trace("Loaded state: {}", loadedState);
+					contents = newDriver.loadAllState();
+					LOGGER.trace("Loaded state: {}", contents);
 				}
 				// Note: can't call downstream methods with a session open,
 				// because that could run hooks, which could themselves submit
@@ -557,19 +550,27 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 				publishFormatDriver(newDriver);
 
-				// TODO: It's not clear we actually want loadedState.diagnosticAttributes here.
-				// This causes downstream.submitReplacement to be associated with the last update to the state,
-				// which is of dubious relevance. We might just want to use the context from the current thread,
-				// which is probably empty because this runs on the ChangeReceiver thread.
-				try (
-					var _ = boskInfo.context().withOnly(loadedState.diagnosticAttributes());
-				) {
-					downstream.submitReplacement(boskInfo.rootReference(), loadedState.state());
+				if (contents instanceof PerTenant.NoTenant<StateAndMetadata<R>>(var soleContents)) {
+					downstream.submitReplacement(boskInfo.rootReference(), soleContents.state());
 					LOGGER.debug("Done submitting downstream");
+				} else {
+					// TODO: It's not clear we actually want loadedState.diagnosticAttributes here.
+					// This causes downstream.submitReplacement to be associated with the last update to the state,
+					// which is of dubious relevance. We might just want to use the context from the current thread,
+					// which is probably empty because this runs on the ChangeReceiver thread.
+					contents.forEach((tenant, s) -> {
+						try (
+							var _ = boskInfo.context().withOnly(s.diagnosticAttributes());
+							var _ = boskInfo.context().withTenant(tenant)
+						) {
+							downstream.submitReplacement(boskInfo.rootReference(), s.state());
+							LOGGER.debug("Done submitting downstream");
+						}
+					});
 				}
 
 				downstream.flush();
-				newDriver.hasBeenApplied(NoTenant.just(loadedState));
+				newDriver.hasBeenApplied(contents);
 			} else {
 				LOGGER.debug("Running initialState action");
 				runInitialStateAction(initialStateAction);
@@ -643,25 +644,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		return newFormatDriver(driverSettings.preferredDatabaseFormat());
 	}
 
-	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException, InvalidCollectionContentsException {
+	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException {
 		LOGGER.debug("Detecting format");
-		var manifestInfo = loadManifest();
-		Manifest manifest = manifestInfo.manifest();
+		Manifest manifest = loadManifest().manifest();
 		DatabaseFormat format = manifest.pando().isPresent()? manifest.pando().get() : SEQUOIA;
-		BsonString documentId = (format == SEQUOIA)
-			? SequoiaFormatDriver.DOCUMENT_ID
-			: PandoFormatDriver.ROOT_DOCUMENT_ID;
-		FindIterable<BsonDocument> result = queryCollection.find(new BsonDocument("_id", documentId));
-		try (MongoCursor<BsonDocument> cursor = result.cursor()) {
-			if (cursor.hasNext()) {
-				return newFormatDriver(format);
-			} else {
-				throw new InvalidCollectionContentsException(format, "Document doesn't exist: "
-					+ "collection=" + driverSettings.database()
-					+ "." + COLLECTION_NAME
-					+ " id=" + documentId.getValue());
-			}
-		}
+		return newFormatDriver(format);
 	}
 
 	record ManifestInfo(Manifest manifest, @Nullable BsonString manifestId) {}
@@ -673,7 +660,10 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		// 2) A manifest document exists: the collection is initialized and we can proceed.
 		// 3) No manifest document, but another document exists: the collection contents are invalid.
 		try (MongoCursor<BsonDocument> cursor = queryCollection
-			.find(new BsonDocument()).sort(ascending("_id")).limit(1).cursor()
+			.find(new BsonDocument())
+			.sort(ascending("_id"))
+			.limit(1)
+			.cursor()
 		) {
 			if (cursor.hasNext()) {
 				BsonDocument doc = cursor.next();
@@ -683,7 +673,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 					throw new UnrecognizedFormatException("Manifest document not found: "
 						+ "collection=" + driverSettings.database()
 						+ "." + COLLECTION_NAME
-						+ " id=" + MANIFEST_ID);
+						+ " _id=" + MANIFEST_ID
+						+ "; found \"" + doc.getString("_id") + "\"");
 				}
 			} else {
 				throw new UninitializedCollectionException(

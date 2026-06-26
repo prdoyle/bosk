@@ -20,6 +20,7 @@ import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
-import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.Catalog;
@@ -116,19 +116,6 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		).map(b -> b.applyDriverSettings(s -> s
 			.timescaleMS(SHORT_TIMESCALE) // Note that some tests can take as long as 25x this
 		)).toList();
-	}
-
-	@Test
-	void multitenant_notSupported() {
-		assertThrows(IllegalArgumentException.class, ()-> new Bosk<>(
-			boskName("multitenant"),
-			TestEntity.class,
-			AbstractMongoDriverTest::initialState,
-			BoskConfig.<TestEntity>builder()
-				.tenancyModel(TenancyModel.PERSISTENT)
-				.driverFactory(driverFactory)
-				.build()
-		));
 	}
 
 	@Test
@@ -661,12 +648,12 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	@Test
 	void unrelatedDatabase_ignored() throws InvalidTypeException, IOException, InterruptedException {
 		tearDownActions.addFirst(mongoService.client().getDatabase("unrelated")::drop);
-		doUnrelatedChangeTest("unrelated", MainDriver.COLLECTION_NAME, rootDocumentID().getValue());
+		doUnrelatedChangeTest("unrelated", MainDriver.COLLECTION_NAME, plausibleRootDocumentID().getValue());
 	}
 
 	@Test
 	void unrelatedCollection_ignored() throws InvalidTypeException, IOException, InterruptedException {
-		doUnrelatedChangeTest(driverSettings.database(), "unrelated", rootDocumentID().getValue());
+		doUnrelatedChangeTest(driverSettings.database(), "unrelated", plausibleRootDocumentID().getValue());
 	}
 
 	@Test
@@ -771,7 +758,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		);
 		// Must also bump the revision number or else flush rightly does nothing
 		collection.updateOne(
-			new BsonDocument("_id", rootDocumentID()),
+			rootDocumentsFilter(),
 			new BsonDocument("$inc", new BsonDocument("revision", new BsonInt64(1)))
 		);
 
@@ -797,7 +784,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		MongoCollection<Document> collection = mongoService.client()
 			.getDatabase(driverSettings.database())
 			.getCollection(MainDriver.COLLECTION_NAME);
-		deleteFields(collection, Formatter.DocumentFields.path, Formatter.DocumentFields.revision);
+		deleteFields(collection, Formatter.DocumentFields.revision);
 
 		// Make the bosk whose refurbish operation we want to test
 		Bosk<TestEntity> bosk = new Bosk<>(
@@ -816,20 +803,18 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		deleteFields(collection, Formatter.DocumentFields.revision);
 
 		// Verify that the fields are indeed gone
-		BsonDocument filterDoc = new BsonDocument("_id", rootDocumentID());
+		BsonDocument filterDoc = rootDocumentsFilter();
 		try (MongoCursor<Document> cursor = collection.find(filterDoc).cursor()) {
 			Document doc = cursor.next();
-			assertNull(doc.get(Formatter.DocumentFields.path.name()));
 			assertNull(doc.get(Formatter.DocumentFields.revision.name()));
 		}
 
 		// Refurbish
 		bosk.getDriver(MongoDriver.class).refurbish();
 
-		// Verify the fields are all now there
+		// Verify the fields are now there
 		try (MongoCursor<Document> cursor = collection.find(filterDoc).cursor()) {
 			Document doc = cursor.next();
-			assertEquals("/", doc.get(Formatter.DocumentFields.path.name()));
 			assertEquals(1L, doc.getLong(Formatter.DocumentFields.revision.name()));
 		}
 
@@ -952,7 +937,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		for (Formatter.DocumentFields field: fields) {
 			fieldsToUnset.append(field.name(), BsonNull.VALUE); // Value is ignored
 		}
-		BsonDocument filterDoc = new BsonDocument("_id", rootDocumentID());
+		BsonDocument filterDoc = rootDocumentsFilter();
 		collection.updateOne(
 			filterDoc,
 			new BsonDocument("$unset", fieldsToUnset));
@@ -968,11 +953,15 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		errorRecorder.assertAllClear("after test");
 	}
 
+	private @NonNull BsonDocument rootDocumentsFilter() {
+		return new BsonDocument("path", new BsonString("/"));
+	}
+
 	@NotNull
-	private BsonString rootDocumentID() {
+	private BsonString plausibleRootDocumentID() {
 		return (MongoDriverSettings.DatabaseFormat.SEQUOIA == driverSettings.preferredDatabaseFormat())
 			? SequoiaFormatDriver.DOCUMENT_ID
-			: PandoFormatDriver.ROOT_DOCUMENT_ID;
+			: new BsonString("|"); // Not every PANDO mode uses this, but hey, it's plausible
 	}
 
 	/**

@@ -5,6 +5,7 @@ import works.bosk.Catalog;
 import works.bosk.ListValue;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
+import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
 
 import static java.util.Arrays.asList;
 
@@ -27,9 +28,8 @@ import static java.util.Arrays.asList;
  *                   are to be stored in their own documents.
  */
 public record PandoFormat(
-	// TODO: Since this is used for updates and not reads, it should probably be called prunePoints or something
 	ListValue<String> graftPoints
-) implements StateTreeNode, MongoDriverSettings.DatabaseFormat {
+) implements StateTreeNode, DatabaseFormat {
 	@Override public String name() { return "Pando"; }
 
 	/**

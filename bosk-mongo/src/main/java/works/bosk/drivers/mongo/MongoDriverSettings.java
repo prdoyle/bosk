@@ -98,6 +98,7 @@ public class MongoDriverSettings {
 		 * Simple format that stores the entire bosk state in a single document,
 		 * and (except for {@link MongoDriver#refurbish() refirbish})
 		 * doesn't require any multi-document transactions.
+		 * Does not support multitenancy.
 		 *
 		 * <p>
 		 * This limits the entire bosk state to 16MB when converted to BSON.

@@ -22,7 +22,9 @@ import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
+import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
 import works.bosk.drivers.mongo.PandoFormat;
+import works.bosk.drivers.mongo.internal.ErrorRecordingChangeListener.ErrorRecorder;
 import works.bosk.drivers.mongo.internal.MainDriver.MongoClientFactory;
 import works.bosk.drivers.mongo.internal.MongoDriverConformanceTest.ParameterSetInjector;
 import works.bosk.drivers.mongo.internal.TestParameters.EventTiming;
@@ -48,11 +50,11 @@ class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 	@Injected ParameterSet parameters;
 	private MongoDriverSettings driverSettings;
 	private final AtomicInteger numOpenDrivers = new AtomicInteger(0);
-	private ErrorRecordingChangeListener.ErrorRecorder errorRecorder;
+	private ErrorRecorder errorRecorder;
 
 	@BeforeEach
 	void setupErrorRecording() {
-		errorRecorder = new ErrorRecordingChangeListener.ErrorRecorder();
+		errorRecorder = new ErrorRecorder();
 		MainDriver.LISTENER_FACTORY.set(downstream -> new ErrorRecordingChangeListener(errorRecorder, downstream));
 
 		// This guy uses a literal bazillion TCP ports if we don't share clients
@@ -75,22 +77,7 @@ class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 		SHARED_CLIENTS.values().forEach(MongoClient::close);
 	}
 
-	static List<ParameterSet> parameterSets() {
-		return TestParameters.driverSettings(
-				Stream.of(
-					PandoFormat.oneBigDocument(),
-					PandoFormat.withGraftPoints("/catalog", "/sideTable"), // Exercises pre-deletion
-//					PandoFormat.withGraftPoints("/nestedSideTable"), // Documents are themselves side tables
-					PandoFormat.withGraftPoints("/nestedSideTable/-x-"), // Graft points are side table entries
-//					PandoFormat.withGraftPoints("/catalog/-x-/sideTable", "/sideTable/-x-/catalog", "/sideTable/-x-/sideTable/-y-/catalog"), // Nesting, parameters
-//					PandoFormat.withGraftPoints("/sideTable/-x-/sideTable/-y-/catalog"), // Multiple parameters in the not-separated part
-					SEQUOIA
-				),
-				Stream.of(EventTiming.NORMAL)) // EARLY is slow; LATE is really slow
-			.toList();
-	}
-
-	record ParameterSetInjector() implements Injector {
+	record ParameterSetInjector(Scenario scenario) implements Injector {
 		@Override
 		public boolean supports(AnnotatedElement element, Class<?> elementType) {
 			return elementType == ParameterSet.class;
@@ -98,8 +85,33 @@ class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 
 		@Override
 		public List<?> values() {
-			return parameterSets();
+			Stream<DatabaseFormat> formats = switch (scenario) {
+				case NO_TENANTS, FIXED_TENANT ->
+					Stream.concat(sequoiaFormats(), pandoFormats());
+				case PERSISTENT_TENANT ->
+					pandoFormats();
+			};
+			return TestParameters.driverSettings(
+					formats,
+					Stream.of(EventTiming.NORMAL)) // EARLY is slow; LATE is really slow
+				.toList();
 		}
+
+		private Stream<DatabaseFormat> sequoiaFormats() {
+			return Stream.of(SEQUOIA);
+		}
+
+		private Stream<DatabaseFormat> pandoFormats() {
+			return Stream.of(
+				PandoFormat.oneBigDocument(),
+				PandoFormat.withGraftPoints("/catalog", "/sideTable"), // Exercises pre-deletion
+				PandoFormat.withGraftPoints("/nestedSideTable/-x-") // Graft points are side table entries
+//				PandoFormat.withGraftPoints("/nestedSideTable"), // Documents are themselves side tables
+//				PandoFormat.withGraftPoints("/catalog/-x-/sideTable", "/sideTable/-x-/catalog", "/sideTable/-x-/sideTable/-y-/catalog"), // Nesting, parameters
+//				PandoFormat.withGraftPoints("/sideTable/-x-/sideTable/-y-/catalog"), // Multiple parameters in the not-separated part
+			);
+		}
+
 	}
 
 	@BeforeAll

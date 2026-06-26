@@ -67,9 +67,9 @@ class BsonSurgeon {
 		}
 	}
 
-	private static final String BSON_PATH_FIELD = DocumentFields._id.name();
+	static final String BSON_PATH_FIELD = DocumentFields._id.name();
 
-	private static final String STATE_FIELD = DocumentFields.state.name();
+	static final String STATE_FIELD = DocumentFields.state.name();
 
 	public BsonSurgeon(List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints) {
 		this.graftPoints = new ArrayList<>(graftPoints.size());

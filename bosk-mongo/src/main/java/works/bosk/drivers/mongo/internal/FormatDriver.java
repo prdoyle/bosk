@@ -47,7 +47,7 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 *
 	 * @throws InvalidCollectionContentsException if the collection contents don't match the declared format
 	 */
-	StateAndMetadata<R> loadAllState() throws IOException, InvalidCollectionContentsException;
+	PerTenant<StateAndMetadata<R>> loadAllState() throws IOException, InvalidCollectionContentsException;
 
 	/**
 	 * Initializes the collection to the given state.
@@ -63,7 +63,7 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 * "prior" state of the database; in particular, the revision number should be incremented
 	 * so that a {@link #flush} after a {@link #refurbish} succeeds in waiting for the new state.
 	 */
-	void initializeCollection(StateAndMetadata<R> priorContents);
+	void initializeCollection(PerTenant<StateAndMetadata<R>> priorContents);
 
 	/**
 	 * @return a query filter that returns documents corresponding to the roots of the state tree,
