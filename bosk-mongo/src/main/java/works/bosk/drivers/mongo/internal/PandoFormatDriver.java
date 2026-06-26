@@ -219,7 +219,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			validateManifestEvent(event, Manifest.forPando(format));
 			return;
 		}
-		if (!(bsonDocumentID instanceof BsonString s) || !(s.getValue().startsWith("|"))) {
+		if (!(bsonDocumentID instanceof BsonString s) || !(s.getValue().contains("|"))) {
 			LOGGER.debug("Ignoring event for unrecognized document key: {} type {}", event.getDocumentKey(), bsonDocumentID.getClass());
 			return;
 		}
@@ -228,28 +228,30 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 		if (event.getTxnNumber() == null) {
 			LOGGER.debug("Processing standalone event {} on {}", event.getOperationType(), event.getDocumentKey());
-			processTransaction(singletonList(event));
+			processTree(singletonList(event));
 		} else {
 			demultiplexer.add(event);
-			if (isFinalEventOfTransaction(event)) {
+			if (isFinalEventOfTree(event)) {
 				LOGGER.debug("Processing final event {} on {}", event.getOperationType(), event.getDocumentKey());
-				processTransaction(demultiplexer.pop(event));
+				processTree(demultiplexer.pop(event));
 			} else {
-				LOGGER.debug("Queueing transaction event {} on {}", event.getOperationType(), event.getDocumentKey());
+				LOGGER.debug("Queueing event {} on {}", event.getOperationType(), event.getDocumentKey());
 			}
 		}
 	}
 
 	/**
 	 * The final event updates the revision field of the root document.
+	 * Only the root document has a bson path ending with "|" because every other document
+	 * has a bson path ending with the last path segment.
 	 */
-	private boolean isFinalEventOfTransaction(ChangeStreamDocument<BsonDocument> event) {
+	private boolean isFinalEventOfTree(ChangeStreamDocument<BsonDocument> event) {
 		return
-			ROOT_DOCUMENT_ID.equals(event.getDocumentKey().get("_id"))
+			event.getDocumentKey().get("_id").asString().getValue().endsWith("|")
 				&& updateEventHasField(event, DocumentFields.revision);
 	}
 
-	private void processTransaction(List<ChangeStreamDocument<BsonDocument>> events) throws UnprocessableEventException {
+	private void processTree(List<ChangeStreamDocument<BsonDocument>> events) throws UnprocessableEventException {
 		ChangeStreamDocument<BsonDocument> finalEvent = events.getLast();
 		switch (finalEvent.getOperationType()) {
 			case INSERT: case REPLACE: {
