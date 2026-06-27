@@ -54,6 +54,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		super(
 			boskInfo.rootReference(),
 			boskInfo.context(),
+			boskInfo.tenancyModel(),
 			new Formatter(boskInfo, bsonSerializer),
 			collection,
 			downstream,
@@ -107,7 +108,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			.cursor()
 		) {
 			BsonDocument document = cursor.next();
-			formatter.eventTenantFromFullDocument(document); // Saves the tenant info for subsequent events
 			return new BsonStateAndMetadata(
 				document.getDocument(DocumentFields.state.name(), null),
 				document.getInt64(DocumentFields.revision.name(), null),
@@ -176,7 +176,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 					// also REPLACE. That would imply that this case is impossible.
 					throw new UnprocessableEventException("Missing fullDocument", event.getOperationType());
 				}
-				Tenant.Established tenant = formatter.eventTenantFromFullDocument(fullDocument);
+				Tenant.Established tenant = tenantFor(event.getDocumentKey().getString("_id"));
 				MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromFullDocument(fullDocument);
 				try (
 					var _ = context.withTenant(tenant);
@@ -201,7 +201,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				if (updateDescription != null) {
 					BsonInt64 revision = formatter.getRevisionFromUpdateEvent(event);
 					if (!shouldSkip(revision)) {
-						Tenant.Established tenant = formatter.eventTenantFromUpdate(event);
+						Tenant.Established tenant = tenantFor(event.getDocumentKey().getString("_id"));
 						MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromUpdate(event);
 						try (
 							var _ = context.withTenant(tenant);
@@ -233,7 +233,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	protected BsonDocument rootDocumentFilter() {
+	public BsonDocument rootDocumentsFilter() {
 		return DOCUMENT_FILTER;
 	}
 

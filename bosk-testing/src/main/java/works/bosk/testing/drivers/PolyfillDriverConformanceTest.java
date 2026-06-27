@@ -46,35 +46,36 @@ public abstract class PolyfillDriverConformanceTest extends SharedDriverConforma
 				.driverFactory(upgradeableDriverFactory)
 				.build());
 
-		LOGGER.debug("Ensure polyfill returns the right value on read");
-		TestValues polyfill;
-		try (var _ = upgradeableBosk.readSession()) {
-			polyfill = upgradeableBosk.rootReference().value().values();
-		}
-		assertEquals(TestValues.blank(), polyfill);
-
-		LOGGER.debug("Check state before");
-		Optional<TestValues> before;
-		try (var _ = originalBosk.readSession()) {
-			before = originalBosk.rootReference().value().values();
-		}
-		assertEquals(Optional.empty(), before); // Not there yet
-
-		LOGGER.debug("Perform update inside polyfill");
-		Refs refs = upgradeableBosk.buildReferences(Refs.class);
 		try (
+			var _ = originalBosk.context().withMaybeTenant(scenario.startingTenant);
 			var _ = upgradeableBosk.context().withMaybeTenant(scenario.startingTenant)
 		) {
-			upgradeableBosk.driver().submitReplacement(refs.valuesString(), "new value");
-		}
-		originalBosk.driver().flush(); // Not the bosk that did the update!
+			LOGGER.debug("Ensure polyfill returns the right value on read");
+			TestValues polyfill;
+			try (var _ = upgradeableBosk.readSession()) {
+				polyfill = upgradeableBosk.rootReference().value().values();
+			}
+			assertEquals(TestValues.blank(), polyfill);
 
-		LOGGER.debug("Check state after");
-		String after;
-		try (var _ = originalBosk.readSession()) {
-			after = originalBosk.rootReference().value().values().get().string();
+			LOGGER.debug("Check state before");
+			Optional<TestValues> before;
+			try (var _ = originalBosk.readSession()) {
+				before = originalBosk.rootReference().value().values();
+			}
+			assertEquals(Optional.empty(), before); // Not there yet
+
+			LOGGER.debug("Perform update inside polyfill");
+			Refs refs = upgradeableBosk.buildReferences(Refs.class);
+			upgradeableBosk.driver().submitReplacement(refs.valuesString(), "new value");
+			originalBosk.driver().flush(); // Not the bosk that did the update!
+
+			LOGGER.debug("Check state after");
+			String after;
+			try (var _ = originalBosk.readSession()) {
+				after = originalBosk.rootReference().value().values().get().string();
+			}
+			assertEquals("new value", after); // Now it's there
 		}
-		assertEquals("new value", after); // Now it's there
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(PolyfillDriverConformanceTest.class);

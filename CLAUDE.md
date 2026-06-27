@@ -28,7 +28,8 @@ The usual Gradle commands, plus:
 ./gradlew spotlessApply  # Apply code formatting
 ```
 
-Agents have trouble using PowerShell; use cmd instead.
+- **Testcontainers tests**: Requires Docker Desktop to be running (used by bosk-mongo, bosk-sql, etc.). Do not configure a remote Docker host. If Docker isn't running, the agent should ask the user to start it.
+- Agents have trouble using PowerShell; use cmd instead.
 
 ## Architecture concepts
 
@@ -71,6 +72,8 @@ We use the Java Platform Module System (JPMS) with `module-info.java` in publish
 The module names follow the same conventions as package names.
 
 ### Exceptions
+
+Consider `RuntimeException` to be abstract and throw the appropriate subtype: often `IllegalStateException` but consider whether others are more appropriate.
 
 We use checked exceptions to help avoid bugs, except where they'd place undue burden on the user.
 Our internal exceptions are usually checked so the compiler can ensure we handle them.
@@ -153,17 +156,16 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
 
 ## Hints
 
-### General
-
-- Keep entries in `gradle/libs.versions.toml` alphabetized within each section.
-- Consider `RuntimeException` to be abstract and throw the appropriate subtype: often `IllegalStateException` but consider whether others are more appropriate
-
 ### Testing
 
 - Prefer building the entire expected data structure and using `assertEquals` over checking individual fields one-by-one. Tests with per-field assertions get stale when the object acquires new fields.
 - Assertion message strings should state what was expected (e.g. `"Set must have the new item"`), not describe the error (e.g. `"Set does not contain the new item"`).
 - Use `./gradlew <task> --rerun` (not `--rerun-tasks`) to force Gradle to re-execute a task when cached results exist.
 - Java assertions (-ea) are enabled for tests
+
+### Miscellaneous
+
+- Keep entries in `gradle/libs.versions.toml` alphabetized within each section.
 
 ## Notes
 

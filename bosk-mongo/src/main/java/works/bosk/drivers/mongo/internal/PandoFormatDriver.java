@@ -14,7 +14,7 @@ import jakarta.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.regex.Pattern;
 import org.bson.BsonDocument;
@@ -38,6 +38,7 @@ import works.bosk.RootReference;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriverSettings;
+import works.bosk.drivers.mongo.MongoDriverSettings.OrphanDocumentMode;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.exceptions.FormatMisconfigurationException;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
@@ -82,6 +83,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		super(
 			boskInfo.rootReference(),
 			boskInfo.context(),
+			boskInfo.tenancyModel(),
 			new Formatter(boskInfo, bsonSerializer),
 			collection,
 			downstream,
@@ -170,7 +172,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			throw new IllegalStateException("Cannot locate root document");
 		}
 
-		formatter.eventTenantFromFullDocument(mainPart); // Saves the tenant info for subsequent events
 		return new BsonStateAndMetadata(
 			bsonSurgeon.gather(allParts),
 			mainPart.getInt64(DocumentFields.revision.name(), null),
@@ -190,7 +191,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			upsertAndRemoveSubParts(rootRef, initialState.asDocument()); // Mutates initialState!
 		}
 		BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, ROOT_DOCUMENT_ID));
-		BsonDocument filter = rootDocumentFilter();
+		BsonDocument filter = documentFilter(rootRef);
 		UpdateOptions options = new UpdateOptions().upsert(true);
 		LOGGER.trace("| Filter: {}", filter);
 		LOGGER.trace("| Update: {}", update);
@@ -218,7 +219,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			validateManifestEvent(event, Manifest.forPando(format));
 			return;
 		}
-		if (!(bsonDocumentID instanceof BsonString s) || !(s.getValue().startsWith("|"))) {
+		if (!(bsonDocumentID instanceof BsonString s) || !(s.getValue().contains("|"))) {
 			LOGGER.debug("Ignoring event for unrecognized document key: {} type {}", event.getDocumentKey(), bsonDocumentID.getClass());
 			return;
 		}
@@ -227,28 +228,30 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 		if (event.getTxnNumber() == null) {
 			LOGGER.debug("Processing standalone event {} on {}", event.getOperationType(), event.getDocumentKey());
-			processTransaction(singletonList(event));
+			processTree(singletonList(event));
 		} else {
 			demultiplexer.add(event);
-			if (isFinalEventOfTransaction(event)) {
+			if (isFinalEventOfTree(event)) {
 				LOGGER.debug("Processing final event {} on {}", event.getOperationType(), event.getDocumentKey());
-				processTransaction(demultiplexer.pop(event));
+				processTree(demultiplexer.pop(event));
 			} else {
-				LOGGER.debug("Queueing transaction event {} on {}", event.getOperationType(), event.getDocumentKey());
+				LOGGER.debug("Queueing event {} on {}", event.getOperationType(), event.getDocumentKey());
 			}
 		}
 	}
 
 	/**
 	 * The final event updates the revision field of the root document.
+	 * Only the root document has a bson path ending with "|" because every other document
+	 * has a bson path ending with the last path segment.
 	 */
-	private boolean isFinalEventOfTransaction(ChangeStreamDocument<BsonDocument> event) {
+	private boolean isFinalEventOfTree(ChangeStreamDocument<BsonDocument> event) {
 		return
-			ROOT_DOCUMENT_ID.equals(event.getDocumentKey().get("_id"))
+			event.getDocumentKey().get("_id").asString().getValue().endsWith("|")
 				&& updateEventHasField(event, DocumentFields.revision);
 	}
 
-	private void processTransaction(List<ChangeStreamDocument<BsonDocument>> events) throws UnprocessableEventException {
+	private void processTree(List<ChangeStreamDocument<BsonDocument>> events) throws UnprocessableEventException {
 		ChangeStreamDocument<BsonDocument> finalEvent = events.getLast();
 		switch (finalEvent.getOperationType()) {
 			case INSERT: case REPLACE: {
@@ -257,9 +260,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					throw new UnprocessableEventException("Missing fullDocument on final event", finalEvent.getOperationType());
 				}
 
-				// Grab the tenant and diagnostics early. If we're supposed to skip this event,
-				// we still need to stash the tenant for later events.
-				Tenant.Established tenant = formatter.eventTenantFromFullDocument(fullDocument);
+			// Grab the tenant and diagnostics early. If we're supposed to skip this event,
+			// we still need to stash the tenant for later events.
+			Tenant.Established tenant = tenantFor(finalEvent.getDocumentKey().getString("_id"));
 				MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromFullDocument(fullDocument);
 
 				BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
@@ -293,7 +296,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					LOGGER.debug("Skipping revision {}", revision.longValue());
 					return;
 				}
-				Tenant.Established tenant = formatter.eventTenantFromUpdate(finalEvent);
+				Tenant.Established tenant = tenantFor(finalEvent.getDocumentKey().getString("_id"));
 				MapValue<String> attributes = formatter.eventDiagnosticAttributesFromUpdate(finalEvent);
 				try (
 					var _ = context.withTenant(tenant);
@@ -542,7 +545,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			doUpdate(mainUpdate, standardPreconditions(target, mainRef, filter));
 
 			LOGGER.debug("| Bump revision on root document");
-			doUpdate(blankUpdateDoc(), rootDocumentFilter());
+			doUpdate(blankUpdateDoc(), documentFilter(rootRef));
 		}
 	}
 
@@ -552,8 +555,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		Reference<?> mainRef = mainRef(target);
 		if (mainRef.equals(target)) {
 			// Delete the whole document
-			if (settings.experimental().orphanDocumentMode() == MongoDriverSettings.OrphanDocumentMode.HASTY) {
-				LOGGER.debug("Skipping deleting document({}) in {} mode", target, MongoDriverSettings.OrphanDocumentMode.HASTY);
+			if (settings.experimental().orphanDocumentMode() == OrphanDocumentMode.HASTY) {
+				LOGGER.debug("Skipping deleting document({}) in {} mode", target, OrphanDocumentMode.HASTY);
 			} else {
 				throw new NotYetImplementedException("Earnest mode not yet implemented");
 			}
@@ -566,7 +569,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		if (doUpdate(deletionDoc(target, mainRef), standardPreconditions(target, mainRef, documentFilter(mainRef)))) {
 			if (!rootRef.equals(mainRef)) {
 				LOGGER.debug("Deletion succeeded; bumping revision number in root document");
-				doUpdate(blankUpdateDoc(), rootDocumentFilter());
+				doUpdate(blankUpdateDoc(), documentFilter(rootRef));
 			}
 		} else {
 			LOGGER.debug("Deletion had no effect; aborting transaction");
@@ -621,7 +624,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return rootRef;
 	}
 
-	protected BsonDocument rootDocumentFilter() {
+	@Override
+	public BsonDocument rootDocumentsFilter() {
 		return new BsonDocument("_id", ROOT_DOCUMENT_ID);
 	}
 
@@ -630,7 +634,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	private <T> BsonDocument standardRootPreconditions(Reference<T> target) {
-		return standardPreconditions(target, rootRef, rootDocumentFilter());
+		return standardPreconditions(target, rootRef, documentFilter(rootRef));
 	}
 
 	private <T> BsonDocument standardPreconditions(Reference<T> target, Reference<?> startingRef, BsonDocument filter) {
@@ -676,7 +680,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	private void replaceUpdatedFields(Reference<?> mainRef, @Nullable BsonDocument updatedFields, List<BsonDocument> subParts, OperationType operationType) throws UnprocessableEventException {
 		if (updatedFields != null) {
 			boolean alreadyUsedSubparts = false;
-			for (Map.Entry<String, BsonValue> entry : updatedFields.entrySet()) {
+			for (Entry<String, BsonValue> entry : updatedFields.entrySet()) {
 				String dottedName = entry.getKey();
 				if (dottedName.startsWith(DocumentFields.state.name())) {
 					Reference<Object> ref;
@@ -752,8 +756,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		// This whole method is pretty "best-effort" right now. More work to do if we really want to be EARNEST
 		Reference<?> mainRef = mainRef(target);
 		if (mainRef.equals(target)) {
-			if (settings.experimental().orphanDocumentMode() == MongoDriverSettings.OrphanDocumentMode.HASTY) {
-				LOGGER.debug("Skipping deletePartsUnder({}) in {} mode", target, MongoDriverSettings.OrphanDocumentMode.HASTY);
+			if (settings.experimental().orphanDocumentMode() == OrphanDocumentMode.HASTY) {
+				LOGGER.debug("Skipping deletePartsUnder({}) in {} mode", target, OrphanDocumentMode.HASTY);
 			} else {
 				String prefix;
 				if (mainRef.path().isEmpty()) {
@@ -770,7 +774,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			}
 		} else {
 			// TODO!
-			assert settings.experimental().orphanDocumentMode() == MongoDriverSettings.OrphanDocumentMode.HASTY;
+			assert settings.experimental().orphanDocumentMode() == OrphanDocumentMode.HASTY;
 			LOGGER.debug("Skipping deletePartsUnder({}) because mainRef is different: {}", target, mainRef);
 		}
 	}

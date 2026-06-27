@@ -18,7 +18,10 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskContext;
+import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
 import works.bosk.MapValue;
 import works.bosk.Reference;
@@ -34,6 +37,7 @@ import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.MultiTenant;
 import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.TunneledCheckedException;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Projections.fields;
@@ -50,6 +54,7 @@ import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_IDS;
 abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implements FormatDriver<R> {
 	final RootReference<R> rootRef;
 	final BoskContext context;
+	final TenancyModel tenancyModel;
 	final Formatter formatter;
 	final TransactionalCollection collection;
 	final BoskDriver downstream;
@@ -59,6 +64,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	public AbstractFormatDriver(
 		RootReference<R> rootRef,
 		BoskContext context,
+		TenancyModel tenancyModel,
 		Formatter formatter,
 		TransactionalCollection collection,
 		BoskDriver downstream,
@@ -67,6 +73,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	) {
 		this.rootRef = rootRef;
 		this.context = context;
+		this.tenancyModel = tenancyModel;
 		this.formatter = formatter;
 		this.collection = collection;
 		this.downstream = downstream;
@@ -91,11 +98,11 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			return new MongoStatus(
 				null,
 				null, // MainDriver should fill this in
-				new StateStatus(
+				NoTenant.just(new StateStatus(
 					dbContents.revision.longValue(),
 					formatter.bsonValueBinarySize(loadedBsonState),
 					comp.difference(inMemoryState, loadedBsonState)
-				)
+				))
 			);
 		} catch (UninitializedCollectionException e) {
 			return new MongoStatus(
@@ -225,19 +232,33 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		LOGGER.debug("Ignoring benign manifest change event");
 	}
 
-	protected abstract BsonDocument rootDocumentFilter();
+	/**
+	 * @return the {@link Tenant} that should be established before processing
+	 * a document with the given {@code id}.
+	 */
+	protected Tenant.Established tenantFor(BsonString id) {
+		return switch (tenancyModel) {
+			case TenancyModel.None _ -> Tenant.NONE;
+			case TenancyModel.Fixed(var fixedId) -> new TenantId(fixedId);
+			case TenancyModel.Explicit _ -> throw new NotYetImplementedException();
+		};
+	}
+
+	@Override
+	public abstract BsonDocument rootDocumentsFilter();
 
 	/**
-	 * @return Revision number as per the database.
+	 * @return all potentially relevant revision numbers found in the database,
+	 * one per tenant (or just the one in non-multitenant situations).
 	 * If the database contains no revision number, returns {@link Formatter#REVISION_ZERO}.
+	 * @throws RevisionFieldDisruptedException if unexpected database contents make it impossible
 	 */
-	protected @Nonnull BsonInt64 readRevisionNumber() throws FlushFailureException {
-		LOGGER.debug("readRevisionNumber");
+	protected @Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws FlushFailureException {
+		LOGGER.debug("readRevisionNumbers");
 		try {
 			try (MongoCursor<BsonDocument> cursor = collection
 				.withReadConcern(LOCAL)
-				.find(rootDocumentFilter())
-				.limit(1)
+				.find(rootDocumentsFilter())
 				.projection(fields(include(DocumentFields.revision.name())))
 				.cursor()
 			) {
@@ -246,24 +267,41 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 				if (result == null) {
 					// TODO: Is this still relevant? Seems like legacy
 					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
-					return REVISION_ZERO;
+					return NoTenant.just(REVISION_ZERO);
 				} else {
 					LOGGER.debug("Read revision {}", result.longValue());
-					return result;
+					return NoTenant.just(result);
 				}
 			}
 		} catch (NoSuchElementException e) {
 			LOGGER.debug("Document is missing", e);
 			throw new RevisionFieldDisruptedException("State document is missing", e);
 		} catch (RuntimeException e) {
-			LOGGER.debug("readRevisionNumber failed", e);
+			LOGGER.debug("readRevisionNumbers failed", e);
 			throw new FlushFailureException(e);
 		}
 	}
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-		flushLock.awaitRevision(readRevisionNumber());
+		PerTenant<BsonInt64> revisions = readRevisionNumbers();
+		try {
+			revisions.forEach((_, revision) -> {
+				try {
+					flushLock.awaitRevision(revision);
+				} catch (InterruptedException | IOException e) {
+					throw new TunneledCheckedException(e);
+				}
+			});
+		} catch (TunneledCheckedException e) {
+			try {
+				throw e.getCause();
+			} catch (IOException | InterruptedException cause) {
+				throw cause;
+			} catch (Throwable ex) {
+				throw new AssertionError("Unexpected exception type", ex);
+			}
+		}
 		LOGGER.debug("| Flush downstream");
 		downstream.flush();
 	}

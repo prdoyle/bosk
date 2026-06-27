@@ -65,6 +65,12 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	void initializeCollection(StateAndMetadata<R> priorContents);
 
 	/**
+	 * @return a query filter that returns documents corresponding to the roots of the state tree,
+	 * one per tenant. In a non-multitenant situation, this returns the single root document.
+	 */
+	BsonDocument rootDocumentsFilter();
+
+	/**
 	 * Indicates that the given contents have been {@link #flush() flushed} to the downstream driver already,
 	 * or are otherwise known to have been applied to the bosk state.
 	 */

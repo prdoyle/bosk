@@ -7,8 +7,6 @@ import java.util.stream.Stream;
 import lombok.Value;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 
-import static java.util.stream.Collectors.toList;
-
 public class TestParameters {
 	private static final AtomicInteger dbCounter = new AtomicInteger(0);
 
@@ -67,7 +65,7 @@ public class TestParameters {
 		Stream<MongoDriverSettings.DatabaseFormat> formats,
 		Stream<EventTiming> timings
 	) {
-		List<EventTiming> timingsList = timings.collect(toList());
+		List<EventTiming> timingsList = timings.toList();
 		return formats
 			.flatMap(f -> timingsList.stream()
 				.map(e -> ParameterSet.from(f,e)));

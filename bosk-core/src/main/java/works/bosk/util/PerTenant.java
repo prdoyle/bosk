@@ -7,6 +7,7 @@ import java.util.SortedMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collector;
 import org.pcollections.TreePMap;
 import works.bosk.BoskContext.Tenant;
@@ -27,6 +28,7 @@ import static works.bosk.BoskContext.Tenant.NONE;
 public sealed interface PerTenant<T> {
 	T get(Tenant.Established tenant);
 	void forEach(BiConsumer<? super Established, ? super T> consumer);
+	boolean allMatch(Predicate<? super T> predicate);
 	<U> PerTenant<U> map(BiFunction<Tenant.Established, T,U> mapping);
 
 	/**
@@ -64,6 +66,11 @@ public sealed interface PerTenant<T> {
 		@Override
 		public void forEach(BiConsumer<? super Established, ? super T> consumer) {
 			consumer.accept(NONE, value);
+		}
+
+		@Override
+		public boolean allMatch(Predicate<? super T> predicate) {
+			return predicate.test(value);
 		}
 
 		@Override
@@ -124,6 +131,11 @@ public sealed interface PerTenant<T> {
 		@Override
 		public void forEach(BiConsumer<? super Established, ? super T> consumer) {
 			values.forEach(consumer);
+		}
+
+		@Override
+		public boolean allMatch(Predicate<? super T> predicate) {
+			return values.values().stream().allMatch(predicate);
 		}
 
 		@Override

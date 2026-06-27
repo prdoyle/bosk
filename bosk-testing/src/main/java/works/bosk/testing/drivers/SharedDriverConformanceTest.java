@@ -3,13 +3,16 @@ package works.bosk.testing.drivers;
 import org.junit.jupiter.api.Test;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
+import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.testing.BoskTestUtils;
 import works.bosk.testing.drivers.state.TestEntity;
+import works.bosk.util.PerTenant;
 
+import static java.util.function.Function.identity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -48,7 +51,16 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		) {
 			actual = latecomer.entireState();
 		}
-		assertEquals(expected, actual);
+		if (scenario.tenancyModel instanceof Fixed(var id)) {
+			// With Fixed tenancy, the same state can be represented as either
+			// SingleTree or MultiTree; normalize before comparing.
+			TenantId tenantId = Tenant.setTo(id);
+			var e = PerTenant.from(expected, identity()).asNoTenant(tenantId);
+			var a = PerTenant.from(actual, identity()).asNoTenant(tenantId);
+			assertEquals(e, a);
+		} else {
+			assertEquals(expected, actual);
+		}
 	}
 
 	@Test

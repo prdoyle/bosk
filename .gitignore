@@ -26,3 +26,6 @@ gradle-app.setting
 
 # # Work around https://youtrack.jetbrains.com/issue/IDEA-116898
 # gradle/wrapper/gradle-wrapper.properties
+
+# I never use this file, and it causes more problems than it solves on Windows with Cygwin
+gradlew.bat
