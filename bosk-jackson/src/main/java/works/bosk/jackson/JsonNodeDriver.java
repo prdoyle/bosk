@@ -1,7 +1,7 @@
 package works.bosk.jackson;
 
-import jakarta.annotation.Nonnull;
 import java.io.IOException;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -130,7 +130,7 @@ public class JsonNodeDriver implements BoskDriver {
 		}
 	}
 
-	@Nonnull JsonNode currentRoot() {
+	@NonNull JsonNode currentRoot() {
 		return switch (contents) {
 			case NoTenant<JsonNode>(var root) -> root;
 			case MultiTenant<JsonNode>(var roots) -> {

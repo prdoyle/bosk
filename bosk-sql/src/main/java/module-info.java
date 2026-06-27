@@ -4,7 +4,7 @@ module works.bosk.sql {
 	requires org.slf4j;
 	requires transitive works.bosk.core;
 	requires works.bosk.jackson;
-	requires jakarta.annotation;
+	requires org.jspecify;
 
 	exports works.bosk.drivers.sql;
 }

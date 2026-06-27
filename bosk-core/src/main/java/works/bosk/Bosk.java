@@ -19,8 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel;
@@ -743,7 +743,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	 * The unadorned version of {@link #hookRegistrar()}.{@link HookRegistrar#registerHook(String, Reference, BoskHook) registerHook}
 	 * that simply registers the hook as given.
 	 */
-	private <T> void localRegisterHook(String name, @NotNull Reference<T> scope, @NotNull BoskHook<T> action) {
+	private <T> void localRegisterHook(String name, @NonNull Reference<T> scope, @NonNull BoskHook<T> action) {
 		HookRegistration<T> reg = new HookRegistration<>(name, requireNonNull(scope), requireNonNull(action));
 		hooks.add(reg);
 		localDriver.triggerEverywhere(reg);
@@ -1028,7 +1028,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 * Unlike the other constructors, this can be used to substitute a new state temporarily,
 		 * even if there's already one active on the current thread.
 		 */
-		ReadSession(@NotNull EntireState<R> state) {
+		ReadSession(@NonNull EntireState<R> state) {
 			originalRoot = rootSnapshot.get();
 			snapshot = requireNonNull(state);
 			rootSnapshot.set(snapshot);

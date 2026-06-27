@@ -4,7 +4,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,7 +106,7 @@ public class SqlDriverDurabilityTest extends AbstractDriverTest {
 		assertEquals(expected, actual);
 	}
 
-	private @NotNull BoskDriver.EntireState<TestEntity> differentInitialState(Bosk<TestEntity> b) throws InvalidTypeException, IOException, InterruptedException {
+	private BoskDriver.@NonNull EntireState<TestEntity> differentInitialState(Bosk<TestEntity> b) throws InvalidTypeException, IOException, InterruptedException {
 		return initialState(b)
 			.map(r -> r.withString("Different"));
 	}

@@ -2,8 +2,8 @@ package works.bosk;
 
 import java.util.Objects;
 import java.util.function.Supplier;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskContext.Tenant.TenantId;
@@ -193,7 +193,7 @@ public final class BoskContext {
 		return currentContext.get().diagnosticAttributes().get(name);
 	}
 
-	public @NotNull MapValue<String> getAttributes() {
+	public @NonNull MapValue<String> getAttributes() {
 		return currentContext.get().diagnosticAttributes();
 	}
 
@@ -248,7 +248,7 @@ public final class BoskContext {
 	 * Adds diagnostic attributes to the current thread's context.
 	 * If an attribute already exists, it will be replaced.
 	 */
-	public ContextScope withAttributes(@NotNull MapValue<String> additionalAttributes) {
+	public ContextScope withAttributes(@NonNull MapValue<String> additionalAttributes) {
 		return newContextScope(currentContext.get().withAttributes(additionalAttributes));
 	}
 

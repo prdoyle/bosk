@@ -19,7 +19,6 @@ import org.bson.BsonInt64;
 import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.Document;
-import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -957,7 +956,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		return new BsonDocument("path", new BsonString("/"));
 	}
 
-	@NotNull
+	@NonNull
 	private BsonString plausibleRootDocumentID() {
 		return (MongoDriverSettings.DatabaseFormat.SEQUOIA == driverSettings.preferredDatabaseFormat())
 			? SequoiaFormatDriver.DOCUMENT_ID

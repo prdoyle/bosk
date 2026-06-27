@@ -8,7 +8,7 @@
  * and reflection utilities ({@link works.bosk.util}).
  */
 module works.bosk.core {
-	requires transitive org.jetbrains.annotations;
+	requires org.jspecify;
 	requires org.objectweb.asm;
 	requires org.pcollections;
 	requires org.slf4j;
