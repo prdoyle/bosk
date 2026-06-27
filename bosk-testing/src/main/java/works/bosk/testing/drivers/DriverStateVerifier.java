@@ -1,6 +1,5 @@
 package works.bosk.testing.drivers;
 
-import jakarta.annotation.Nullable;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Deque;
@@ -10,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;

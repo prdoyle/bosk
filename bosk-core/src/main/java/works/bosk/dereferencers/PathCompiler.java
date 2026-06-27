@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.Value;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskDriver;
@@ -281,7 +281,7 @@ public final class PathCompiler {
 			}
 		}
 
-		@NotNull
+		@NonNull
 		private Step newFieldStep(String segment, Map<String, Method> getters, Constructor<?> constructor) {
 			if (USE_FIELD_STEP) {
 				return new FieldStep(segment, getters, constructor);

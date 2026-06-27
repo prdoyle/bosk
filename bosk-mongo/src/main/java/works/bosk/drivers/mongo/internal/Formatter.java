@@ -2,7 +2,6 @@ package works.bosk.drivers.mongo.internal;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.UpdateDescription;
-import jakarta.annotation.Nonnull;
 import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +21,7 @@ import org.bson.codecs.Codec;
 import org.bson.codecs.DecoderContext;
 import org.bson.codecs.EncoderContext;
 import org.bson.io.BasicOutputBuffer;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskContext.Tenant;
@@ -211,7 +211,7 @@ final class Formatter extends BsonFormatter {
 		return fullDocument.getInt64(DocumentFields.revision.name(), null);
 	}
 
-	@Nonnull MapValue<String> eventDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {
+	@NonNull MapValue<String> eventDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {
 		return getOrSetEventDiagnosticAttributes(getDiagnosticAttributesFromFullDocument(fullDocument));
 	}
 
@@ -228,7 +228,7 @@ final class Formatter extends BsonFormatter {
 		return updatedFields.getInt64(DocumentFields.revision.name(), null);
 	}
 
-	@Nonnull MapValue<String> eventDiagnosticAttributesFromUpdate(ChangeStreamDocument<BsonDocument> event) {
+	@NonNull MapValue<String> eventDiagnosticAttributesFromUpdate(ChangeStreamDocument<BsonDocument> event) {
 		return getOrSetEventDiagnosticAttributes(getDiagnosticAttributesFromUpdateEvent(event));
 	}
 
@@ -254,7 +254,7 @@ final class Formatter extends BsonFormatter {
 	 * This does not necessarily correspond to the tenant that should be established
 	 * in the bosk context! If the {@code id} has no tenant info, this will return {@link Tenant#NONE}.
 	 */
-	@Nonnull static Tenant.Established getTenantFromDocumentId(BsonString id) {
+	static Tenant.@NonNull Established getTenantFromDocumentId(BsonString id) {
 		int pathStartIndex = id.getValue().indexOf('|');
 		if (pathStartIndex < 0) {
 			throw new IllegalArgumentException("Document _id has no path separator: " + id.getValue());
@@ -272,7 +272,7 @@ final class Formatter extends BsonFormatter {
 		return fullDocument.getDocument(DocumentFields.diagnostics.name(), null);
 	}
 
-	@Nonnull private MapValue<String> getOrSetEventDiagnosticAttributes(MapValue<String> fromEvent) {
+	@NonNull private MapValue<String> getOrSetEventDiagnosticAttributes(MapValue<String> fromEvent) {
 		if (fromEvent == null) {
 			LOGGER.debug("No diagnostic attributes in event; assuming they are unchanged");
 			return lastEventDiagnosticAttributes;

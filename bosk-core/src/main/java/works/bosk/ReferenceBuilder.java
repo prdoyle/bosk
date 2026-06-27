@@ -3,7 +3,7 @@ package works.bosk;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.bytecode.ClassBuilder;
 import works.bosk.exceptions.InvalidTypeException;
@@ -78,7 +78,7 @@ class ReferenceBuilder {
 		return cb.buildInstance();
 	}
 
-	@NotNull
+	@NonNull
 	private static String methodName(Method method) {
 		return method.getDeclaringClass().getSimpleName() + "." + method.getName();
 	}

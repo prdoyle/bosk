@@ -3,7 +3,7 @@ package works.bosk.boson.mapping.spec.handles;
 import java.lang.invoke.MethodHandles;
 import java.util.List;
 import java.util.Objects;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import works.bosk.boson.types.KnownType;
 
 import static works.bosk.boson.types.DataType.BOOLEAN;
@@ -20,7 +20,7 @@ public sealed interface MemberPresenceCondition {
 		return fixed(false);
 	}
 
-	private static @NotNull Nullary fixed(boolean value) {
+	private static @NonNull Nullary fixed(boolean value) {
 		return new Nullary(new TypedHandle(
 			MethodHandles.constant(boolean.class, value),
 			BOOLEAN,

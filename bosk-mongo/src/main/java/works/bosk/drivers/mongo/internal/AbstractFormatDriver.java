@@ -4,7 +4,6 @@ import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.result.UpdateResult;
-import jakarta.annotation.Nonnull;
 import java.io.IOException;
 import java.util.Set;
 import java.util.SortedMap;
@@ -17,7 +16,7 @@ import org.bson.BsonInt64;
 import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.BsonValue;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel;
@@ -296,7 +295,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * @return the {@link Tenant} that should be established before processing
 	 * a document with the given {@code id}
 	 */
-	protected @NotNull BoskContext.Tenant.Established tenantFor(BsonString id) {
+	protected BoskContext.Tenant.@NonNull Established tenantFor(BsonString id) {
 		return switch (tenancyModel) {
 			case None _ -> Tenant.NONE;
 			case Fixed(var fixedId) -> Tenant.setTo(fixedId);
@@ -321,7 +320,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * @return all potentially relevant revision numbers found in the database
 	 * @throws RevisionFieldDisruptedException if unexpected database contents make it impossible to determine the revision number
 	 */
-	abstract @Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException;
+	abstract @NonNull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException;
 
 	@Override
 	public void flush() throws IOException, InterruptedException {

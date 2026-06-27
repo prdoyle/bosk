@@ -19,8 +19,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.pcollections.ConsPStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -333,7 +333,7 @@ public abstract class StateTreeSerializer {
 	/**
 	 * @throws InvalidTypeException if the given class has no unique variant case map
 	 */
-	@NotNull
+	@NonNull
 	public static MapValue<Type> getVariantCaseMap(Class<?> nodeClass) throws InvalidTypeException {
 		var result = getVariantCaseMapIfAny(nodeClass);
 		if (result == null) {
@@ -449,7 +449,7 @@ public abstract class StateTreeSerializer {
 
 	private static final ClassValue<ParameterInfo> PARAMETER_INFO = new ClassValue<>() {
 		@Override
-		protected ParameterInfo computeValue(@NotNull Class<?> type) {
+		protected ParameterInfo computeValue(@NonNull Class<?> type) {
 			Set<String> selfParameters = new HashSet<>();
 			Set<String> enclosingParameters = new HashSet<>();
 			Map<String, DeserializationPath> deserializationPathParameters = new HashMap<>();

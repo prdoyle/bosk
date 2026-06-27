@@ -6,8 +6,6 @@ import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.OperationType;
 import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.UpdateResult;
-import com.mongodb.lang.Nullable;
-import jakarta.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -15,6 +13,8 @@ import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonString;
 import org.bson.BsonValue;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
@@ -139,7 +139,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	@Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
+	@NonNull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
 		LOGGER.debug("readRevisionNumbers");
 		try {
 			try (MongoCursor<BsonDocument> cursor = revisionDocumentCursor()) {

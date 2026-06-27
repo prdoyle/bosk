@@ -13,6 +13,7 @@ module works.bosk.logback {
 	// Presumably, everyone wanting this for JUnit will already have it as a dependency anyway.
 	requires static org.junit.platform.commons;
 	requires static org.junit.jupiter.api; // For replay
+	requires org.jspecify;
 
 	exports works.bosk.logback;
 

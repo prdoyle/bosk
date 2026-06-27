@@ -9,8 +9,6 @@ import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
-import com.mongodb.lang.Nullable;
-import jakarta.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -25,6 +23,8 @@ import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.bson.conversions.Bson;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel;
@@ -243,7 +243,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	@Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
+	@NonNull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
 		LOGGER.debug("readRevisionNumbers");
 		try {
 			return switch (format.tenancyFormat()) {
@@ -577,7 +577,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			.collect(toCollection(ArrayList::new));
 	}
 
-	private @Nonnull BsonDocument fullDocumentForSubPart(ChangeStreamDocument<BsonDocument> event) {
+	private @NonNull BsonDocument fullDocumentForSubPart(ChangeStreamDocument<BsonDocument> event) {
 		BsonDocument result = event.getFullDocument();
 		if (result == null) {
 			throw new IllegalStateException("No full document in change stream event for subpart: " + event.getOperationType() + " on " + event.getDocumentKey());

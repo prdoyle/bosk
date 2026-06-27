@@ -3,7 +3,7 @@ package works.bosk;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.concurrent.atomic.AtomicReference;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 import works.bosk.Bosk.DefaultStateFunction;
 import works.bosk.BoskDriver.EntireState;
@@ -147,7 +147,7 @@ public class BoskConstructorTest {
 			BoskConfig.simple()));
 	}
 
-	@NotNull
+	@NonNull
 	private static <R extends StateTreeNode> DriverFactory<R> initialStateDriver(InitialStateFunction<R> initialStateFunction) {
 		return (_, _) -> new NoOpDriver() {
 			@Override

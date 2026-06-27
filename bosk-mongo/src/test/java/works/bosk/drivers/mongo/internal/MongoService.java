@@ -18,7 +18,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.file.Paths;
 import java.util.Map;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -189,7 +189,7 @@ public class MongoService implements Closeable {
 		}
 	}
 
-	@NotNull
+	@NonNull
 	static MongoClientSettings mongoClientSettings(ServerAddress serverAddress) {
 		LOGGER.info("MongoDB: {}", serverAddress);
 		return MongoClientSettings.builder()

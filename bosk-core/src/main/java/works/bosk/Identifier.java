@@ -2,17 +2,17 @@ package works.bosk;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 /**
  * The means by which {@link Entity entities} are identified within
  * a particular domain, such as a {@link Catalog} or {@link SideTable}.
  */
 public final class Identifier {
-	@NotNull
+	@NonNull
 	final String value;
 
-	private Identifier(@NotNull String value) {
+	private Identifier(@NonNull String value) {
 		this.value = value;
 	}
 

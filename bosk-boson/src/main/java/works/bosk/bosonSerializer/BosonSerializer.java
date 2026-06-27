@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 import works.bosk.BoskInfo;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
@@ -461,7 +461,7 @@ public class BosonSerializer extends StateTreeSerializer {
 	/**
 	 * @return nullary callback that opens a {@link DeserializationScope} for a given record component.
 	 */
-	private @NotNull TypedHandle openRecordComponentDeserializationScope(RecordComponent rc, Class<? extends Record> recordClass, Lookup lookup) {
+	private @NonNull TypedHandle openRecordComponentDeserializationScope(RecordComponent rc, Class<? extends Record> recordClass, Lookup lookup) {
 		try {
 			MethodHandle nodeFieldDeserializationScope = lookup.findVirtual(StateTreeSerializer.class,
 				"nodeFieldDeserializationScope",
@@ -480,7 +480,7 @@ public class BosonSerializer extends StateTreeSerializer {
 	 * @return callback that closes a {@link DeserializationScope}
 	 * opened by {@link #openRecordComponentDeserializationScope(RecordComponent, Class, Lookup)}.
 	 */
-	private static @NotNull TypedHandle closeRecordComponentDeserializationScope(RecordComponent rc, Lookup lookup) {
+	private static @NonNull TypedHandle closeRecordComponentDeserializationScope(RecordComponent rc, Lookup lookup) {
 		try {
 			MethodHandle close = lookup.findVirtual(DeserializationScope.class, "close",
 				methodType(void.class));

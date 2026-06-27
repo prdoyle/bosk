@@ -1,6 +1,5 @@
 package works.bosk.drivers.sql;
 
-import jakarta.annotation.Nullable;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.sql.Connection;
@@ -13,6 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.jooq.Record;
 import org.jooq.TableField;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.core.JacksonException;
