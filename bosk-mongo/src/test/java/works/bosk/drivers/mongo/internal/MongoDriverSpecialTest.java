@@ -13,7 +13,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import lombok.With;
-import org.bson.BsonArray;
 import org.bson.BsonDocument;
 import org.bson.BsonInt32;
 import org.bson.BsonInt64;
@@ -24,7 +23,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedClass;
@@ -33,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
-import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.Catalog;
@@ -68,7 +65,7 @@ import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
@@ -90,7 +87,6 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	 * and we want this test to fail.
 	 */
 	public static final String MANIFEST_ID = "!Manifest";
-	public static final String LEGACY_MANIFEST_ID = "manifest"; // Ditto
 
 	ErrorRecordingChangeListener.ErrorRecorder errorRecorder;
 
@@ -120,19 +116,6 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		).map(b -> b.applyDriverSettings(s -> s
 			.timescaleMS(SHORT_TIMESCALE) // Note that some tests can take as long as 25x this
 		)).toList();
-	}
-
-	@Test
-	void multitenant_notSupported() {
-		assertThrows(IllegalArgumentException.class, ()-> new Bosk<>(
-			boskName("multitenant"),
-			TestEntity.class,
-			AbstractMongoDriverTest::initialState,
-			BoskConfig.<TestEntity>builder()
-				.tenancyModel(TenancyModel.PERSISTENT)
-				.driverFactory(driverFactory)
-				.build()
-		));
 	}
 
 	@Test
@@ -665,12 +648,12 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 	@Test
 	void unrelatedDatabase_ignored() throws InvalidTypeException, IOException, InterruptedException {
 		tearDownActions.addFirst(mongoService.client().getDatabase("unrelated")::drop);
-		doUnrelatedChangeTest("unrelated", MainDriver.COLLECTION_NAME, rootDocumentID().getValue());
+		doUnrelatedChangeTest("unrelated", MainDriver.COLLECTION_NAME, plausibleRootDocumentID().getValue());
 	}
 
 	@Test
 	void unrelatedCollection_ignored() throws InvalidTypeException, IOException, InterruptedException {
-		doUnrelatedChangeTest(driverSettings.database(), "unrelated", rootDocumentID().getValue());
+		doUnrelatedChangeTest(driverSettings.database(), "unrelated", plausibleRootDocumentID().getValue());
 	}
 
 	@Test
@@ -775,7 +758,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		);
 		// Must also bump the revision number or else flush rightly does nothing
 		collection.updateOne(
-			new BsonDocument("_id", rootDocumentID()),
+			rootDocumentsFilter(),
 			new BsonDocument("$inc", new BsonDocument("revision", new BsonInt64(1)))
 		);
 
@@ -801,7 +784,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		MongoCollection<Document> collection = mongoService.client()
 			.getDatabase(driverSettings.database())
 			.getCollection(MainDriver.COLLECTION_NAME);
-		deleteFields(collection, Formatter.DocumentFields.path, Formatter.DocumentFields.revision);
+		deleteFields(collection, Formatter.DocumentFields.revision);
 
 		// Make the bosk whose refurbish operation we want to test
 		Bosk<TestEntity> bosk = new Bosk<>(
@@ -820,20 +803,18 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		deleteFields(collection, Formatter.DocumentFields.revision);
 
 		// Verify that the fields are indeed gone
-		BsonDocument filterDoc = new BsonDocument("_id", rootDocumentID());
+		BsonDocument filterDoc = rootDocumentsFilter();
 		try (MongoCursor<Document> cursor = collection.find(filterDoc).cursor()) {
 			Document doc = cursor.next();
-			assertNull(doc.get(Formatter.DocumentFields.path.name()));
 			assertNull(doc.get(Formatter.DocumentFields.revision.name()));
 		}
 
 		// Refurbish
 		bosk.getDriver(MongoDriver.class).refurbish();
 
-		// Verify the fields are all now there
+		// Verify the fields are now there
 		try (MongoCursor<Document> cursor = collection.find(filterDoc).cursor()) {
 			Document doc = cursor.next();
-			assertEquals("/", doc.get(Formatter.DocumentFields.path.name()));
 			assertEquals(1L, doc.getLong(Formatter.DocumentFields.revision.name()));
 		}
 
@@ -886,7 +867,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			@Override
 			public void onConnectionSucceeded() throws UnrecognizedFormatException, UninitializedCollectionException,
 				FailedMongoClientSessionException, InterruptedException, IOException,
-				InitialStateActionException, TimeoutException {
+				InitialStateActionException, TimeoutException, InvalidCollectionContentsException {
 				if (initializationDone.get()) {
 					LOGGER.debug("onConnectionSucceeded waiting for appAtPreWait");
 					appAtPreWait.await();
@@ -926,8 +907,9 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			MongoCollection<BsonDocument> collection = mongoService.client()
 				.getDatabase(driverSettings.database())
 				.getCollection(MainDriver.COLLECTION_NAME, BsonDocument.class);
-			BsonDocument originalManifest = assertUniqueManifest(collection, MANIFEST_ID);
-			collection.deleteOne(new BsonDocument("_id", new BsonString(MANIFEST_ID)));
+			BsonDocument originalManifest = collection.findOneAndDelete(
+				new BsonDocument("_id", new BsonString(MANIFEST_ID)));
+			assertNotNull(originalManifest, "Manifest document must exist");
 			collection.insertOne(originalManifest);
 
 			LOGGER.debug("Waiting for disconnect to complete before submitting replacement");
@@ -950,137 +932,12 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		}
 	}
 
-	/**
-	 * Note that we don't test upgrading the manifest and also changing the format at the same time.
-	 * That should work in theory, but it's not recommended.
-	 */
-	@Disabled("Leads to expected errors. This is a good test but it doesn't really belong in this class.")
-	@Test
-	void manifestUpgrade_works() throws InvalidTypeException, IOException, InterruptedException {
-		TestValues distinctiveValues = TestValues.blank().withString("distinctive value");
-
-		LOGGER.debug("Initialize the database");
-		{
-			Bosk<TestEntity> initializeBosk = new Bosk<>(
-				boskName("Initialize"),
-				TestEntity.class,
-				AbstractMongoDriverTest::initialState,
-				BoskConfig.<TestEntity>builder().driverFactory(driverFactory).build());
-			var initializeRefs = initializeBosk.buildReferences(Refs.class);
-
-			BoskDriver driver = initializeBosk.driver();
-			driver.submitReplacement(initializeRefs.values(), distinctiveValues);
-			driver.flush();
-			initializeBosk.getDriver(MongoDriver.class).close();
-		}
-
-		LOGGER.debug("Use the legacy ID for the manifest");
-		MongoCollection<BsonDocument> collection = mongoService.client()
-			.getDatabase(driverSettings.database())
-			.getCollection(MainDriver.COLLECTION_NAME, BsonDocument.class);
-		BsonDocument newManifest;
-		try (var cursor = findManifestDocs(collection)) {
-			newManifest = cursor.next();
-		}
-		collection.deleteOne(new BsonDocument("_id", new BsonString(MANIFEST_ID)));
-		newManifest.put("_id", new BsonString(LEGACY_MANIFEST_ID));
-		newManifest.put("version", new BsonInt32(1));
-		collection.insertOne(newManifest);
-
-		LOGGER.debug("Connect bosk for refurbishing and verify contents");
-		Bosk<TestEntity> refurbishBosk = new Bosk<>(
-			boskName("Main"),
-			TestEntity.class,
-			AbstractMongoDriverTest::initialState,
-			BoskConfig.<TestEntity>builder().driverFactory(driverFactory).build());
-
-		TestEntity expected = initialRoot(refurbishBosk).withValues(Optional.of(distinctiveValues));
-		TestEntity actual;
-		try (var _ = refurbishBosk.readSession()) {
-			actual = refurbishBosk.rootReference().value();
-		}
-		assertEquals(expected, actual);
-
-		LOGGER.debug("Verify manifest document still has legacy ID");
-		var legacyManifest = assertUniqueManifest(collection, LEGACY_MANIFEST_ID);
-		assertEquals(new BsonInt32(1), legacyManifest.getInt32("version"), "Legacy manifest should have version 1");
-
-		LOGGER.debug("Create bystander bosk");
-		Bosk<TestEntity> bystanderBosk = new Bosk<>(
-			boskName("Bystander"),
-			TestEntity.class,
-			AbstractMongoDriverTest::initialState,
-			BoskConfig.<TestEntity>builder().driverFactory(driverFactory).build());
-
-		LOGGER.debug("Refurbish");
-		MongoDriver refurbishDriver = refurbishBosk.getDriver(MongoDriver.class);
-		refurbishDriver.refurbish();
-
-		LOGGER.debug("Verify manifest ID has been updated and state is intact");
-		var refurbishedManifest = assertUniqueManifest(collection, MANIFEST_ID);
-		assertEquals(new BsonInt32(2), refurbishedManifest.getInt32("version"), "Manifest version should have been bumped to 2");
-		for (String format: List.of("sequoia", "pando")) {
-			// Note: technically this is not the contract here:
-			// refurbish should change the format to be the preferred format, not leave it unchanged.
-			// However, since initializeBosk uses the same preferred format, the format is in fact unchanged.
-			assertEquals(
-				legacyManifest.get(format),
-				refurbishedManifest.get(format),
-				"Refurbish should not have changed the " + format + " field");
-		}
-
-		LOGGER.debug("Refurbish again to verify drivers can consume their own manifest update events");
-		refurbishBosk.driver().flush(); // Make sure we've already seen the first update
-		refurbishDriver.refurbish();
-		refurbishBosk.driver().flush(); // Make sure we've seen the second update
-		errorRecorder.assertAllClear("after second refurbish");
-
-		LOGGER.debug("Verify bystander's state");
-		try (var _ = bystanderBosk.readSession()) {
-			actual = bystanderBosk.rootReference().value();
-			assertEquals(expected, actual);
-		}
-
-		LOGGER.debug("Update state to make sure both bosks are still live");
-		var refurbishRefs = refurbishBosk.buildReferences(Refs.class);
-		refurbishBosk.driver().submitReplacement(refurbishRefs.valuesString(), "new string");
-		refurbishBosk.driver().flush();
-		var expected2 = expected.withValues(Optional.of(expected.values().get().withString("new string")));
-		try (var _ = refurbishBosk.readSession()) {
-			assertEquals(expected2, refurbishBosk.rootReference().value(), "Refurbish bosk should see the change");
-		}
-		bystanderBosk.driver().flush();
-		try (var _ = bystanderBosk.readSession()) {
-			assertEquals(expected2, bystanderBosk.rootReference().value(), "Bystander bosk should see the change");
-		}
-		errorRecorder.assertAllClear("after update");
-
-	}
-
-	private static BsonDocument assertUniqueManifest(MongoCollection<BsonDocument> collection, String expectedID) {
-		try (MongoCursor<BsonDocument> cursor = findManifestDocs(collection)) {
-			assertTrue(cursor.hasNext(), "Manifest document must exist");
-			BsonDocument manifestDoc = cursor.next();
-			assertEquals(expectedID, manifestDoc.getString("_id").getValue(),
-				"Manifest document must still have legacy ID");
-			assertFalse(cursor.hasNext(), "Must be just one manifest");
-			return manifestDoc;
-		}
-	}
-
-	private static @NonNull MongoCursor<BsonDocument> findManifestDocs(MongoCollection<BsonDocument> collection) {
-		List<BsonString> manifestIDs = Stream.of(MANIFEST_ID, LEGACY_MANIFEST_ID).map(BsonString::new).toList();
-		return collection.find(new BsonDocument("_id",
-			new BsonDocument("$in", new BsonArray(manifestIDs))
-		)).cursor();
-	}
-
 	private void deleteFields(MongoCollection<Document> collection, Formatter.DocumentFields... fields) {
 		BsonDocument fieldsToUnset = new BsonDocument();
 		for (Formatter.DocumentFields field: fields) {
 			fieldsToUnset.append(field.name(), BsonNull.VALUE); // Value is ignored
 		}
-		BsonDocument filterDoc = new BsonDocument("_id", rootDocumentID());
+		BsonDocument filterDoc = rootDocumentsFilter();
 		collection.updateOne(
 			filterDoc,
 			new BsonDocument("$unset", fieldsToUnset));
@@ -1096,11 +953,15 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		errorRecorder.assertAllClear("after test");
 	}
 
+	private @NonNull BsonDocument rootDocumentsFilter() {
+		return new BsonDocument("path", new BsonString("/"));
+	}
+
 	@NotNull
-	private BsonString rootDocumentID() {
+	private BsonString plausibleRootDocumentID() {
 		return (MongoDriverSettings.DatabaseFormat.SEQUOIA == driverSettings.preferredDatabaseFormat())
 			? SequoiaFormatDriver.DOCUMENT_ID
-			: PandoFormatDriver.ROOT_DOCUMENT_ID;
+			: new BsonString("|"); // Not every PANDO mode uses this, but hey, it's plausible
 	}
 
 	/**

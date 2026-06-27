@@ -61,6 +61,9 @@ public class BoskLogFilter extends TurboFilter {
 
 		// We'd like to use SLF4J's "Level" but that doesn't support OFF
 		public void setLogging(Level level, Class<?>... loggers) {
+			if (LOGGER.isDebugEnabled()) {
+				LOGGER.debug("Setting logging level {} for loggers {} on {}", level, Stream.of(loggers).map(Class::getName).toList(), System.identityHashCode(this));
+			}
 			// Put them all in one atomic operation
 			overrides.putAll(Stream.of(loggers).collect(toMap(Class::getName, _->level)));
 		}
@@ -83,7 +86,7 @@ public class BoskLogFilter extends TurboFilter {
 	public static <R extends StateTreeNode> DriverFactory<R> withController(LogController controller) {
 		return (b, d) -> {
 			if (LOGGER.isDebugEnabled()) {
-				LOGGER.debug("Registering controller {} for bosk {} \"{}\"", System.identityHashCode(controller), b.instanceID(), b.name(), new Exception("Stack trace"));
+				LOGGER.debug("Registering controller {} for bosk {} \"{}\"", System.identityHashCode(controller), b.instanceID(), b.name());
 			}
 			// We don't actually create a driver object here; we only
 			// need to set the logging override at driver-creation time.

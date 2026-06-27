@@ -40,13 +40,14 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 
 	/**
 	 * Loads the entire collection contents.
+	 * <p>
+	 * This method can assume the manifest exists and indicates the appropriate format;
+	 * manifest creation/validation is handled elsewhere, and if this assumption is violated for whatever
+	 * reason, {@code InvalidCollectionContentsException} is an acceptable exception to throw.
 	 *
-	 * @throws UninitializedCollectionException if it looks like the database has not yet
-	 * been created (as opposed to being in a damaged or unrecognizable state).
-	 * This signals to {@link MainDriver} that it may, if appropriate,
-	 * automatically initialize the collection.
+	 * @throws InvalidCollectionContentsException if the collection contents don't match the declared format
 	 */
-	StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException;
+	PerTenant<StateAndMetadata<R>> loadAllState() throws IOException, InvalidCollectionContentsException;
 
 	/**
 	 * Initializes the collection to the given state.
@@ -62,7 +63,7 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 * "prior" state of the database; in particular, the revision number should be incremented
 	 * so that a {@link #flush} after a {@link #refurbish} succeeds in waiting for the new state.
 	 */
-	void initializeCollection(StateAndMetadata<R> priorContents);
+	void initializeCollection(PerTenant<StateAndMetadata<R>> priorContents);
 
 	/**
 	 * @return a query filter that returns documents corresponding to the roots of the state tree,

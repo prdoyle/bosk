@@ -3,17 +3,13 @@ package works.bosk.drivers.mongo;
 import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.Value;
-import org.bson.BsonString;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode.DISCONNECT;
-import static works.bosk.drivers.mongo.MongoDriverSettings.ManifestDocumentIdMode.STANDARD;
 import static works.bosk.drivers.mongo.MongoDriverSettings.OrphanDocumentMode.EARNEST;
 import static works.bosk.drivers.mongo.MongoDriverSettings.OrphanDocumentMode.HASTY;
-import static works.bosk.drivers.mongo.internal.MainDriver.LEGACY_MANIFEST_ID;
-import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_ID;
 
 @Value
 @Builder(toBuilder = true)
@@ -52,8 +48,6 @@ public class MongoDriverSettings {
 	 * this works across a wide range of values.
 	 */
 	@Default int timescaleMS = 10_000;
-
-	@Default ManifestDocumentIdMode manifestDocumentIdMode = STANDARD;
 
 	/**
 	 * @see DatabaseFormat#SEQUOIA
@@ -104,6 +98,7 @@ public class MongoDriverSettings {
 		 * Simple format that stores the entire bosk state in a single document,
 		 * and (except for {@link MongoDriver#refurbish() refirbish})
 		 * doesn't require any multi-document transactions.
+		 * Does not support multitenancy.
 		 *
 		 * <p>
 		 * This limits the entire bosk state to 16MB when converted to BSON.
@@ -151,21 +146,17 @@ public class MongoDriverSettings {
 		HASTY,
 	}
 
-	public enum ManifestDocumentIdMode {
+	public enum TenancyFormat {
 		/**
-		 * Use {@code manifest}
+		 * There is no concept of tenants in the collection, and there is only one
+		 * copy of the bosk state tree.
 		 */
-		LEGACY,
+		NONE,
 
 		/**
-		 * Use {@code !Manifest}
+		 * The tenant ID is prefixed onto the {@code _id} field, enclosed in angle brackets.
 		 */
-		STANDARD,
-		;
-
-		public BsonString manifestDocumentId() {
-			return this == LEGACY ? LEGACY_MANIFEST_ID : MANIFEST_ID;
-		}
+		ID_PREFIX,
 	}
 
 	public void validate() {

@@ -5,7 +5,6 @@ import com.mongodb.MongoClientSettings.Builder;
 import com.mongodb.MongoException;
 import com.mongodb.ReadConcern;
 import com.mongodb.WriteConcern;
-import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
@@ -17,8 +16,6 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeoutException;
@@ -28,16 +25,13 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
-import org.bson.BsonArray;
 import org.bson.BsonDocument;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.BoskConfig.TenancyModel.Implicit;
 import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.EntireState.MultiTree;
-import works.bosk.BoskDriver.EntireState.SingleTree;
 import works.bosk.BoskInfo;
 import works.bosk.Identifier;
 import works.bosk.Reference;
@@ -47,17 +41,19 @@ import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
 import works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode;
+import works.bosk.drivers.mongo.MongoDriverSettings.SequoiaFormat;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.exceptions.DisconnectedException;
 import works.bosk.drivers.mongo.exceptions.InitialStateFailureException;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
+import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.NoTenant;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
+import static com.mongodb.client.model.Sorts.ascending;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
@@ -160,11 +156,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.driverSettings = driverSettings;
 			this.bsonSerializer = bsonSerializer;
 			this.downstream = downstream;
-
-			switch (boskInfo.tenancyModel()) {
-				case Implicit _ -> {}
-				default -> throw new IllegalArgumentException("Tenancy model not yet supported: " + boskInfo.tenancyModel());
-			}
 
 			// Flushes work by waiting for the latest version to arrive on the change stream.
 			// If we wait for two heartbeats and don't see the update, something has gone wrong.
@@ -326,12 +317,15 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		EntireState<R> entireState;
 		try (var _ = queryCollection.newReadOnlySession()){
 			FormatDriver<R> detectedDriver = detectFormat();
-			StateAndMetadata<R> loadedState = detectedDriver.loadAllState();
+			PerTenant<StateAndMetadata<R>> loadedState = detectedDriver.loadAllState();
+			entireState = switch (loadedState.map(StateAndMetadata::state)) {
+				case NoTenant<R>(R root) -> EntireState.just(root);
+				case PerTenant.MultiTenant<R> v -> v.values().entrySet().stream().collect(MultiTree.collector());
+			};
 
 			// Hasn't technically been applied, but we're still initializing the Bosk, and its constructor won't return until the state has been applied
-			detectedDriver.hasBeenApplied(NoTenant.just(loadedState));
+			detectedDriver.hasBeenApplied(loadedState);
 
-			entireState = EntireState.just(loadedState.state());
 			publishFormatDriver(detectedDriver);
 		} catch (UninitializedCollectionException e) {
 			// We log this at warn because, in production, this is a big deal.
@@ -342,11 +336,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				var session = queryCollection.newSession()
 			) {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
-				var root = switch (entireState) {
-					case SingleTree(var r) -> r;
-					case MultiTree<R> _ -> throw new NotYetImplementedException();
-				};
-				preferredDriver.initializeCollection(new StateAndMetadata<>(root, REVISION_ZERO, boskInfo.context().getAttributes()));
+				PerTenant<StateAndMetadata<R>> priorContents = PerTenant.from(entireState, root ->
+					new StateAndMetadata<>(root, REVISION_ZERO, boskInfo.context().getAttributes()));
+				preferredDriver.initializeCollection(priorContents);
 				session.commitTransactionIfAny();
 				// We can now publish the driver knowing that the transaction, if there is one, has committed
 				publishFormatDriver(preferredDriver);
@@ -354,7 +346,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.warn("Failed to initialize database; disconnecting", e2);
 				setDisconnectedDriver(e2);
 			}
-		} catch (RuntimeException | UnrecognizedFormatException | IOException | FailedMongoClientSessionException e) {
+		} catch (RuntimeException | UnrecognizedFormatException | InvalidCollectionContentsException | IOException | FailedMongoClientSessionException e) {
 			switch (driverSettings.initialDatabaseUnavailableMode()) {
 				case FAIL_FAST:
 					LOGGER.debug("Unable to load initial state from database; aborting initialization", e);
@@ -395,7 +387,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// Design note: this operation shouldn't do any special coordination with
 			// the receiver/listener system, because other replicas won't.
 			// That system needs to cope with refurbish operations without any help.
-			StateAndMetadata<R> result = formatDriver.loadAllState();
+			PerTenant<StateAndMetadata<R>> result = formatDriver.loadAllState();
 			FormatDriver<R> newFormatDriver = newPreferredFormatDriver();
 
 			// initializeCollection is required to replace the manifest anyway,
@@ -403,9 +395,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// FormatDriver must cope with deletions of the manifest document
 			// to avoid disconnection during refurbish operations,
 			// which is a burden. Let's just not.
-			// Note that this does delete the other manifest if it exists,
-			// which is deliberate.
-			BsonDocument deletionFilter = new BsonDocument("_id", new BsonDocument("$ne", driverSettings.manifestDocumentIdMode().manifestDocumentId()));
+			BsonDocument deletionFilter = new BsonDocument("_id", new BsonDocument("$ne", MANIFEST_ID));
 			LOGGER.trace("Deleting state documents: {}", deletionFilter);
 			queryCollection.deleteMany(deletionFilter);
 
@@ -419,8 +409,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 			// Refurbish doesn't actually change what state has been applied to the bosk.
 			// No need to do any downstream submit/flush, nor call hasBeenApplied.
-		} catch (UninitializedCollectionException e) {
-			throw new IOException("Unable to refurbish uninitialized database collection", e);
+		} catch (InvalidCollectionContentsException e) {
+			throw new IOException("Unable to refurbish database collection with invalid contents", e);
 		}
 	}
 
@@ -535,18 +525,18 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			InterruptedException,
 			IOException,
 			InitialStateActionException,
-			TimeoutException
+			InvalidCollectionContentsException
 		{
 			LOGGER.debug("onConnectionSucceeded");
 			FutureTask<EntireState<R>> initialStateAction = this.taskRef.get();
 			if (initialStateAction == null) {
 				FormatDriver<R> newDriver;
-				StateAndMetadata<R> loadedState;
+				PerTenant<StateAndMetadata<R>> contents;
 				try (var _ = queryCollection.newReadOnlySession()) {
 					LOGGER.debug("Loading database state to submit to downstream driver");
 					newDriver = detectFormat();
-					loadedState = newDriver.loadAllState();
-					LOGGER.trace("Loaded state: {}", loadedState);
+					contents = newDriver.loadAllState();
+					LOGGER.trace("Loaded state: {}", contents);
 				}
 				// Note: can't call downstream methods with a session open,
 				// because that could run hooks, which could themselves submit
@@ -560,19 +550,27 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 				publishFormatDriver(newDriver);
 
-				// TODO: It's not clear we actually want loadedState.diagnosticAttributes here.
-				// This causes downstream.submitReplacement to be associated with the last update to the state,
-				// which is of dubious relevance. We might just want to use the context from the current thread,
-				// which is probably empty because this runs on the ChangeReceiver thread.
-				try (
-					var _ = boskInfo.context().withOnly(loadedState.diagnosticAttributes());
-				) {
-					downstream.submitReplacement(boskInfo.rootReference(), loadedState.state());
+				if (contents instanceof PerTenant.NoTenant<StateAndMetadata<R>>(var soleContents)) {
+					downstream.submitReplacement(boskInfo.rootReference(), soleContents.state());
 					LOGGER.debug("Done submitting downstream");
+				} else {
+					// TODO: It's not clear we actually want loadedState.diagnosticAttributes here.
+					// This causes downstream.submitReplacement to be associated with the last update to the state,
+					// which is of dubious relevance. We might just want to use the context from the current thread,
+					// which is probably empty because this runs on the ChangeReceiver thread.
+					contents.forEach((tenant, s) -> {
+						try (
+							var _ = boskInfo.context().withOnly(s.diagnosticAttributes());
+							var _ = boskInfo.context().withTenant(tenant)
+						) {
+							downstream.submitReplacement(boskInfo.rootReference(), s.state());
+							LOGGER.debug("Done submitting downstream");
+						}
+					});
 				}
 
 				downstream.flush();
-				newDriver.hasBeenApplied(NoTenant.just(loadedState));
+				newDriver.hasBeenApplied(contents);
 			} else {
 				LOGGER.debug("Running initialState action");
 				runInitialStateAction(initialStateAction);
@@ -643,59 +641,46 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	}
 
 	private FormatDriver<R> newPreferredFormatDriver() {
-		DatabaseFormat preferred = driverSettings.preferredDatabaseFormat();
-		if (preferred.equals(SEQUOIA) || preferred instanceof PandoFormat) {
-			return newFormatDriver(
-				preferred,
-				driverSettings.manifestDocumentIdMode().manifestDocumentId()
-			);
-		}
-		throw new AssertionError("Unknown database format setting: " + preferred);
+		return newFormatDriver(driverSettings.preferredDatabaseFormat());
 	}
 
 	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException {
 		LOGGER.debug("Detecting format");
-		var manifestInfo = loadManifest();
-		Manifest manifest = manifestInfo.manifest();
+		Manifest manifest = loadManifest().manifest();
 		DatabaseFormat format = manifest.pando().isPresent()? manifest.pando().get() : SEQUOIA;
-		BsonString documentId = (format == SEQUOIA)
-			? SequoiaFormatDriver.DOCUMENT_ID
-			: PandoFormatDriver.ROOT_DOCUMENT_ID;
-		FindIterable<BsonDocument> result = queryCollection.find(new BsonDocument("_id", documentId));
-		try (MongoCursor<BsonDocument> cursor = result.cursor()) {
-			if (cursor.hasNext()) {
-				return newFormatDriver(format, manifestInfo.manifestId());
-			} else {
-				throw new UninitializedCollectionException("Document doesn't exist: "
-					+ "collection=" + driverSettings.database()
-					+ "." + COLLECTION_NAME
-					+ " id=" + documentId.getValue());
-			}
-		}
+		return newFormatDriver(format);
 	}
 
 	record ManifestInfo(Manifest manifest, @Nullable BsonString manifestId) {}
 
-	private ManifestInfo loadManifest() throws UnrecognizedFormatException {
-		try (MongoCursor<BsonDocument> cursor = queryCollection.find(new BsonDocument("_id",
-			new BsonDocument("$in", new BsonArray(List.of(MANIFEST_ID, LEGACY_MANIFEST_ID)))
-		)).cursor()) {
+	private ManifestInfo loadManifest() throws UnrecognizedFormatException, UninitializedCollectionException {
+		// The manifest ID is deliberately chosen to sort first by ID.
+		// This way we can distinguish three cases in one query:
+		// 1) No documents at all: the collection is uninitialized.
+		// 2) A manifest document exists: the collection is initialized and we can proceed.
+		// 3) No manifest document, but another document exists: the collection contents are invalid.
+		try (MongoCursor<BsonDocument> cursor = queryCollection
+			.find(new BsonDocument())
+			.sort(ascending("_id"))
+			.limit(1)
+			.cursor()
+		) {
 			if (cursor.hasNext()) {
 				BsonDocument doc = cursor.next();
-				if (doc.get("_id").equals(LEGACY_MANIFEST_ID)) {
-					LOGGER.info("Found legacy manifest");
+				if (MANIFEST_ID.equals(doc.getString("_id"))) {
+					return new ManifestInfo(formatter.decodeManifest(doc), doc.getString("_id"));
 				} else {
-					LOGGER.debug("Found manifest");
+					throw new UnrecognizedFormatException("Manifest document not found: "
+						+ "collection=" + driverSettings.database()
+						+ "." + COLLECTION_NAME
+						+ " _id=" + MANIFEST_ID
+						+ "; found \"" + doc.getString("_id") + "\"");
 				}
-				Manifest result = formatter.decodeManifest(doc);
-				if (cursor.hasNext()) {
-					throw new UnrecognizedFormatException("Multiple manifest documents found");
-				}
-				return new ManifestInfo(result, doc.getString("_id"));
 			} else {
-				// For legacy databases with no manifest
-				LOGGER.debug("Manifest is missing; checking for Sequoia format in {}", driverSettings.database());
-				return new ManifestInfo(Manifest.forSequoia(), null);
+				throw new UninitializedCollectionException(
+					"Collection is empty: " + driverSettings.database()
+						+ "." + COLLECTION_NAME
+				);
 			}
 		}
 	}
@@ -703,34 +688,31 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	/**
 	 * Meant for tests
 	 */
-	ManifestInfo loadManifestInfo() throws UnrecognizedFormatException, FailedMongoClientSessionException {
+	ManifestInfo loadManifestInfo() throws UnrecognizedFormatException, FailedMongoClientSessionException, UninitializedCollectionException {
 		try (var _ = queryCollection.newReadOnlySession()) {
 			return loadManifest();
 		}
 	}
 
-	private FormatDriver<R> newFormatDriver(DatabaseFormat format, @Nullable BsonString manifestId) {
-		if (format.equals(SEQUOIA)) {
-			return new SequoiaFormatDriver<>(
+	private FormatDriver<R> newFormatDriver(DatabaseFormat format) {
+		return switch (format) {
+			case SequoiaFormat _ -> new SequoiaFormatDriver<>(
 				boskInfo,
 				queryCollection,
 				driverSettings,
 				bsonSerializer,
 				flushTimeout,
-				manifestId,
-				downstream);
-		} else if (format instanceof PandoFormat pandoFormat) {
-			return new PandoFormatDriver<>(
+				downstream
+			);
+			case PandoFormat pandoFormat -> new PandoFormatDriver<>(
 				boskInfo,
 				queryCollection,
 				driverSettings,
 				pandoFormat,
 				bsonSerializer,
 				flushTimeout,
-				manifestId,
 				downstream);
-		}
-		throw new IllegalArgumentException("Unexpected database format: " + format);
+		};
 	}
 
 
@@ -897,8 +879,6 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 	public static final String COLLECTION_NAME = "boskCollection";
 	public static final BsonString MANIFEST_ID = new BsonString("!Manifest");
-	public static final BsonString LEGACY_MANIFEST_ID = new BsonString("manifest");
-	public static final Set<BsonValue> MANIFEST_IDS = Set.of(MANIFEST_ID, LEGACY_MANIFEST_ID);
 	private static final Exception FAILURE_TO_COMPUTE_INITIAL_STATE = new InitialStateFailureException("Failure to compute initial state");
 	private static final Logger LOGGER = LoggerFactory.getLogger(MainDriver.class);
 	private static final Logger UNINITIALIZED_COLLECTION_LOGGER = LoggerFactory.getLogger(UNINITIALIZED_COLLECTION_LOGGER_NAME);

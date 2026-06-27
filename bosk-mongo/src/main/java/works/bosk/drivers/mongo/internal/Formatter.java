@@ -249,6 +249,22 @@ final class Formatter extends BsonFormatter {
 		return updateDescription.getUpdatedFields();
 	}
 
+	/**
+	 * @return the tenant info extracted from the given {@code id}.
+	 * This does not necessarily correspond to the tenant that should be established
+	 * in the bosk context! If the {@code id} has no tenant info, this will return {@link Tenant#NONE}.
+	 */
+	@Nonnull static Tenant.Established getTenantFromDocumentId(BsonString id) {
+		int pathStartIndex = id.getValue().indexOf('|');
+		if (pathStartIndex < 0) {
+			throw new IllegalArgumentException("Document _id has no path separator: " + id.getValue());
+		}
+		String tenantPart = id.getValue().substring(0, pathStartIndex);
+		return tenantPart.isEmpty()
+			? Tenant.NONE
+			: new TenantId(Identifier.from(tenantPart.substring(1, tenantPart.length() - 1)));
+	}
+
 	static BsonDocument getDiagnosticAttributesIfAny(BsonDocument fullDocument) {
 		if (fullDocument == null) {
 			return null;

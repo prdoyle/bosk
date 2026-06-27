@@ -5,22 +5,28 @@ import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.result.UpdateResult;
 import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
 import java.io.IOException;
-import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.BsonValue;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel;
+import works.bosk.BoskConfig.TenancyModel.Fixed;
+import works.bosk.BoskConfig.TenancyModel.None;
+import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext;
 import works.bosk.BoskContext.Tenant;
+import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
 import works.bosk.MapValue;
@@ -33,7 +39,6 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.drivers.mongo.status.StateStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.MultiTenant;
 import works.bosk.util.PerTenant.NoTenant;
@@ -49,7 +54,8 @@ import static java.util.Objects.requireNonNull;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_BEFORE_ANY;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
-import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_IDS;
+import static works.bosk.drivers.mongo.internal.Formatter.getTenantFromDocumentId;
+import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_ID;
 
 abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implements FormatDriver<R> {
 	final RootReference<R> rootRef;
@@ -58,8 +64,16 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	final Formatter formatter;
 	final TransactionalCollection collection;
 	final BoskDriver downstream;
-	final FlushLock flushLock;
-	@Nullable final BsonString manifestId;
+	final long flushTimeoutMS;
+	final Supplier<EntireState<R>> entireStateSupplier;
+
+	/**
+	 * Null only during initialization, until {@link #ensureFlushLocksInitialized},
+	 * and only used after that point.
+	 * (Therefore, there's no need for null tests before using this:
+	 * an NPE is an acceptable outcome if someone ever violates these rules.)
+	 */
+	final AtomicReference<PerTenant<FlushLock>> flushLocks = new AtomicReference<>(null);
 
 	public AbstractFormatDriver(
 		RootReference<R> rootRef,
@@ -69,7 +83,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		TransactionalCollection collection,
 		BoskDriver downstream,
 		long flushTimeoutMS,
-		@Nullable BsonString manifestId
+		Supplier<EntireState<R>> entireStateSupplier
 	) {
 		this.rootRef = rootRef;
 		this.context = context;
@@ -77,34 +91,36 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		this.formatter = formatter;
 		this.collection = collection;
 		this.downstream = downstream;
-		this.manifestId = manifestId;
-
-		// The proper revision number will be established by loadAllState or initializeCollection.
-		// The value we use here doesn't matter a lot, provided that either loadAllState or
-		// initializeCollection is called before the first flush (a condition that is trivially
-		// satisfied if this driver is discarded before the first flush).
-		// In the meantime, let's use a value guaranteed to be less than any real revision number
-		// on the basis that blocking is safer than accidentally proceeding without waiting on a flush.
-		this.flushLock = new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS);
+		this.flushTimeoutMS = flushTimeoutMS;
+		this.entireStateSupplier = entireStateSupplier;
 	}
 
 	@Override
 	public MongoStatus readStatus() {
 		try {
-			BsonStateAndMetadata dbContents = loadBsonStateAndMetadata();
-			BsonDocument loadedBsonState = dbContents.state;
-			BsonValue inMemoryState = formatter.object2bsonValue(rootRef.value(), rootRef.targetType());
+			PerTenant<BsonStateAndMetadata> dbStates = loadBsonStateAndMetadata();
+			var entireState = entireStateSupplier.get();
+			var inMemoryBsonValues = PerTenant.from(entireState,
+				r -> formatter.object2bsonValue(r, rootRef.targetType()));
 			BsonComparator comp = new BsonComparator();
+			var stateStatuses = dbStates.map((Established tenant, BsonStateAndMetadata dbState) -> {
+				BsonValue inMemory = switch (inMemoryBsonValues) {
+					case NoTenant<BsonValue>(var v) -> v;
+					case MultiTenant<BsonValue> m -> m.get(tenant);
+				};
+				BsonDocument loadedBsonState = dbState.state();
+				return new StateStatus(
+					dbState.revision().longValue(),
+					formatter.bsonValueBinarySize(loadedBsonState),
+					comp.difference(inMemory, loadedBsonState)
+				);
+			});
 			return new MongoStatus(
 				null,
 				null, // MainDriver should fill this in
-				NoTenant.just(new StateStatus(
-					dbContents.revision.longValue(),
-					formatter.bsonValueBinarySize(loadedBsonState),
-					comp.difference(inMemoryState, loadedBsonState)
-				))
+				stateStatuses
 			);
-		} catch (UninitializedCollectionException e) {
+		} catch (InvalidCollectionContentsException e) {
 			return new MongoStatus(
 				e.toString(),
 				null,
@@ -114,33 +130,81 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	@Override
-	public StateAndMetadata<R> loadAllState() throws IOException, UninitializedCollectionException {
-		BsonStateAndMetadata bsonStateAndMetadata = loadBsonStateAndMetadata();
-		if (bsonStateAndMetadata.state() == null) {
-			throw new IOException("No existing state in document");
+	public PerTenant<StateAndMetadata<R>> loadAllState() throws IOException, InvalidCollectionContentsException {
+		try {
+			PerTenant<BsonStateAndMetadata> bsonStateAndMetadata = loadBsonStateAndMetadata();
+			ensureFlushLocksInitialized(bsonStateAndMetadata);
+			return bsonStateAndMetadata.map((Established _, BsonStateAndMetadata bsm) -> {
+				if (bsm.state() == null) {
+					throw new TunneledCheckedException(new IOException("No existing state in document"));
+				}
+
+				R root = formatter.document2object(bsm.state(), rootRef);
+				BsonInt64 revision = bsm.revision() == null ? REVISION_ZERO : bsm.revision();
+				MapValue<String> diagnosticAttributes = bsm.diagnosticAttributes() == null
+					? MapValue.empty() // It's not clear what missing attributes mean, but using null here would have the effect of leaving the old attributes in place, which seems flaky
+					: formatter.decodeDiagnosticAttributes(bsm.diagnosticAttributes());
+
+				return new StateAndMetadata<>(root, revision, diagnosticAttributes);
+			});
+		} catch (TunneledCheckedException e) {
+			try {
+				throw e.getCause();
+			} catch (IOException | RuntimeException | Error cause) {
+				throw cause;
+			} catch (Throwable t) {
+				throw e;
+			}
 		}
-
-		R root = formatter.document2object(bsonStateAndMetadata.state(), rootRef);
-		MapValue<String> diagnosticAttributes = bsonStateAndMetadata.diagnosticAttributes() == null
-			? MapValue.empty() // It's not clear what missing attributes mean, but using null here would have the effect of leaving the old attributes in place, which seems flaky
-			: formatter.decodeDiagnosticAttributes(bsonStateAndMetadata.diagnosticAttributes());
-
-		return new StateAndMetadata<>(
-			root,
-			bsonStateAndMetadata.revision() == null
-				? REVISION_ZERO
-				: bsonStateAndMetadata.revision(),
-			diagnosticAttributes
-		);
 	}
 
 	@Override
 	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
-		switch (contents) {
-			case NoTenant(var s) -> flushLock.finishedRevision(s.revision());
-			case MultiTenant<StateAndMetadata<R>> _ -> throw new NotYetImplementedException();
-		}
+		contents.forEach((tenant, stateAndMetadata) -> {
+			finishedRevision(tenant, stateAndMetadata.revision());
+		});
 	}
+
+	/**
+	 * Converts a {@link PerTenant} to the variant appropriate for the {@link #tenancyModel}.
+	 * For {@code None} tenancy, {@code NoTenant} is returned as-is.
+	 * For {@code Fixed} tenancy, {@code NoTenant} is converted to
+	 * {@link MultiTenant} with the fixed tenant ID.
+	 */
+	protected <T> PerTenant<T> normalizePerTenant(PerTenant<T> contents) {
+		return switch (contents) {
+			case NoTenant<T>(var value) -> switch (tenancyModel) {
+				case None _ -> contents;
+				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), value);
+				case Persistent _ -> throw new AssertionError(
+					"Should not have NoTenant contents with Persistent tenancy");
+			};
+			case MultiTenant<T> _ -> contents;
+		};
+	}
+
+	/**
+	 * Must be called before {@link #hasBeenApplied} or any event processing.
+	 */
+	protected void ensureFlushLocksInitialized(PerTenant<?> contents) {
+		flushLocks.compareAndSet(null, switch (contents) {
+			case NoTenant<?> _ -> switch (tenancyModel) {
+				case None _ -> NoTenant.just(new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS));
+				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id),
+					new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS));
+				case Persistent _ -> throw new AssertionError(
+					"Should not have NoTenant contents with Persistent tenancy");
+			};
+			case MultiTenant<?> m -> {
+				SortedMap<TenantId, FlushLock> locks = new TreeMap<>();
+				for (var tenantId : m.values().keySet()) {
+					locks.put(tenantId, new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS));
+				}
+				yield new MultiTenant<>(locks);
+			}
+		});
+	}
+
 
 	/**
 	 * Low-level read of the database contents, with only the minimum interpretation
@@ -149,7 +213,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * @return the contents of the database; fields of the returned
 	 * record can be null if they don't exist in the database.
 	 */
-	abstract BsonStateAndMetadata loadBsonStateAndMetadata() throws UninitializedCollectionException;
+	abstract PerTenant<BsonStateAndMetadata> loadBsonStateAndMetadata() throws InvalidCollectionContentsException;
 
 	protected BsonDocument blankUpdateDoc() {
 		return new BsonDocument()
@@ -193,8 +257,9 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		return blankUpdateDoc().append("$unset", new BsonDocument(key, BsonNull.VALUE));
 	}
 
-	protected boolean shouldSkip(BsonInt64 revision) {
-		return revision != null && flushLock.alreadySeen(revision);
+	protected boolean shouldSkip(Established tenant, BsonInt64 revision) {
+		FlushLock lock = flushLocks.get().get(tenant);
+		return lock == null || lock.alreadySeen(revision);
 	}
 
 	/**
@@ -204,16 +269,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 */
 	protected void validateManifestEvent(ChangeStreamDocument<BsonDocument> event, Manifest effectiveManifest) throws UnprocessableEventException {
 		LOGGER.debug("onManifestEvent({})", event.getOperationType().name());
-		if (!Objects.equals(manifestId, event.getDocumentKey().get("_id"))) {
-			// This is important to avoid additional disconnect churn when a refurbish
-			// deletes the old manifest and creates a new one with a different ID.
-			// We'll already be handling this when the manifest we care about changes;
-			// no need to react to the other one.
-			// Note that it actually doesn't matter which one we watch, as long
-			// as we watch just one.
-			LOGGER.debug("Ignoring event for different manifest document with ID {}", event.getDocumentKey().get("_id"));
-			return;
-		} else if (event.getOperationType() == INSERT || event.getOperationType() == REPLACE) {
+		if (event.getOperationType() == INSERT || event.getOperationType() == REPLACE) {
 			BsonDocument manifestDoc = requireNonNull(event.getFullDocument());
 			Manifest manifest;
 			try {
@@ -232,64 +288,54 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		LOGGER.debug("Ignoring benign manifest change event");
 	}
 
+	protected void finishedRevision(Established tenant, BsonInt64 revision) {
+		flushLocks.get().get(tenant).finishedRevision(revision);
+	}
+
 	/**
 	 * @return the {@link Tenant} that should be established before processing
-	 * a document with the given {@code id}.
+	 * a document with the given {@code id}
 	 */
-	protected Tenant.Established tenantFor(BsonString id) {
+	protected @NotNull BoskContext.Tenant.Established tenantFor(BsonString id) {
 		return switch (tenancyModel) {
-			case TenancyModel.None _ -> Tenant.NONE;
-			case TenancyModel.Fixed(var fixedId) -> new TenantId(fixedId);
-			case TenancyModel.Explicit _ -> throw new NotYetImplementedException();
+			case None _ -> Tenant.NONE;
+			case Fixed(var fixedId) -> Tenant.setTo(fixedId);
+			case Persistent _ -> getTenantFromDocumentId(id);
 		};
 	}
 
-	@Override
-	public abstract BsonDocument rootDocumentsFilter();
+	/**
+	 * @return cursor giving the {@code _id} and {@code revision}
+	 * for all documents that have a revision field,
+	 * read using read concern {@link com.mongodb.ReadConcern#LOCAL LOCAL}.
+	 */
+	protected MongoCursor<BsonDocument> revisionDocumentCursor() {
+		return collection
+			.withReadConcern(LOCAL)
+			.find(rootDocumentsFilter())
+			.projection(fields(include("_id", DocumentFields.revision.name())))
+			.cursor();
+	}
 
 	/**
-	 * @return all potentially relevant revision numbers found in the database,
-	 * one per tenant (or just the one in non-multitenant situations).
-	 * If the database contains no revision number, returns {@link Formatter#REVISION_ZERO}.
-	 * @throws RevisionFieldDisruptedException if unexpected database contents make it impossible
+	 * @return all potentially relevant revision numbers found in the database
+	 * @throws RevisionFieldDisruptedException if unexpected database contents make it impossible to determine the revision number
 	 */
-	protected @Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws FlushFailureException {
-		LOGGER.debug("readRevisionNumbers");
-		try {
-			try (MongoCursor<BsonDocument> cursor = collection
-				.withReadConcern(LOCAL)
-				.find(rootDocumentsFilter())
-				.projection(fields(include(DocumentFields.revision.name())))
-				.cursor()
-			) {
-				BsonDocument doc = cursor.next();
-				BsonInt64 result = doc.getInt64(DocumentFields.revision.name(), null);
-				if (result == null) {
-					// TODO: Is this still relevant? Seems like legacy
-					LOGGER.debug("No revision field; assuming {}", REVISION_ZERO.longValue());
-					return NoTenant.just(REVISION_ZERO);
-				} else {
-					LOGGER.debug("Read revision {}", result.longValue());
-					return NoTenant.just(result);
-				}
-			}
-		} catch (NoSuchElementException e) {
-			LOGGER.debug("Document is missing", e);
-			throw new RevisionFieldDisruptedException("State document is missing", e);
-		} catch (RuntimeException e) {
-			LOGGER.debug("readRevisionNumbers failed", e);
-			throw new FlushFailureException(e);
-		}
-	}
+	abstract @Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException;
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-		PerTenant<BsonInt64> revisions = readRevisionNumbers();
+		var revisions = readRevisionNumbers();
 		try {
-			revisions.forEach((_, revision) -> {
+			flushLocks.get().forEach((tenant, lock) -> {
+				BsonInt64 revision = revisions.get(tenant);
 				try {
-					flushLock.awaitRevision(revision);
-				} catch (InterruptedException | IOException e) {
+					if (revision == null) {
+						throw new RevisionFieldDisruptedException("No revision number for tenant: " + tenant);
+					} else {
+						lock.awaitRevision(revision);
+					}
+				} catch (InterruptedException | FlushFailureException e) {
 					throw new TunneledCheckedException(e);
 				}
 			});
@@ -299,7 +345,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			} catch (IOException | InterruptedException cause) {
 				throw cause;
 			} catch (Throwable ex) {
-				throw new AssertionError("Unexpected exception type", ex);
+				throw e;
 			}
 		}
 		LOGGER.debug("| Flush downstream");
@@ -309,13 +355,13 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	@Override
 	public void close() {
 		LOGGER.debug("+ close()");
-		flushLock.close();
+		flushLocks.get().forEach((_, flushLock) -> flushLock.close());
 	}
 
 	protected void writeManifest(Manifest manifest) {
-		BsonDocument doc = new BsonDocument("_id", requireNonNull(manifestId));
+		BsonDocument doc = new BsonDocument("_id", requireNonNull(MANIFEST_ID));
 		doc.putAll((BsonDocument) formatter.object2bsonValue(manifest, Manifest.class));
-		BsonDocument filter = new BsonDocument("_id", manifestId);
+		BsonDocument filter = new BsonDocument("_id", MANIFEST_ID);
 		LOGGER.debug("| Initial manifest: {}", doc);
 		ReplaceOptions options = new ReplaceOptions().upsert(true);
 		UpdateResult result = collection.replaceOne(filter, doc, options);
@@ -335,7 +381,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	protected boolean isManifestID(BsonValue documentId) {
-		return MANIFEST_IDS.contains(documentId);
+		return MANIFEST_ID.equals(documentId);
 	}
 
 	/**

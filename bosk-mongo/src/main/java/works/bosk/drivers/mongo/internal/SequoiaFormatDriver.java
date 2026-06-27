@@ -7,6 +7,7 @@ import com.mongodb.client.model.changestream.OperationType;
 import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.UpdateResult;
 import com.mongodb.lang.Nullable;
+import jakarta.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -16,6 +17,9 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskConfig.TenancyModel.Fixed;
+import works.bosk.BoskConfig.TenancyModel.None;
+import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
@@ -27,9 +31,14 @@ import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
+import works.bosk.util.PerTenant;
+import works.bosk.util.PerTenant.MultiTenant;
+import works.bosk.util.PerTenant.NoTenant;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static org.bson.BsonBoolean.FALSE;
+import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.referenceTo;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
@@ -48,7 +57,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		MongoDriverSettings driverSettings,
 		BsonSerializer bsonSerializer,
 		long flushTimeoutMS,
-		@Nullable BsonString manifestId,
 		BoskDriver downstream
 	) {
 		super(
@@ -59,8 +67,12 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			collection,
 			downstream,
 			flushTimeoutMS,
-			manifestId
+			() -> boskInfo.bosk().entireState()
 		);
+		if (boskInfo.tenancyModel() instanceof Persistent) {
+			throw new IllegalArgumentException(
+				"SequoiaFormat does not support " + boskInfo.tenancyModel());
+		}
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 	}
 
@@ -100,7 +112,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	BsonStateAndMetadata loadBsonStateAndMetadata() throws UninitializedCollectionException {
+	PerTenant<BsonStateAndMetadata> loadBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		try (MongoCursor<BsonDocument> cursor = collection
 			.withReadConcern(LOCAL) // The revision field needs to be the latest
 			.find(documentFilter())
@@ -108,44 +120,76 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			.cursor()
 		) {
 			BsonDocument document = cursor.next();
-			return new BsonStateAndMetadata(
+			// Saves the tenant info for subsequent events
+			tenantFor(document.getString("_id"));
+			var bsm = new BsonStateAndMetadata(
 				document.getDocument(DocumentFields.state.name(), null),
 				document.getInt64(DocumentFields.revision.name(), null),
 				Formatter.getDiagnosticAttributesIfAny(document)
 			);
+			return switch (tenancyModel) {
+				case None _ -> NoTenant.just(bsm);
+				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), bsm);
+				case Persistent _ -> throw new NotYetImplementedException();
+			};
 		} catch (NoSuchElementException e) {
-			throw new UninitializedCollectionException("No existing document", e);
+			throw new InvalidCollectionContentsException(SEQUOIA, "State document not found: " + DOCUMENT_ID, e);
 		}
 
 	}
 
 	@Override
-	public void initializeCollection(StateAndMetadata<R> priorContents) {
-		BsonValue initialState = formatter.object2bsonValue(priorContents.state(), rootRef.targetType());
-		BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision().longValue());
-		// Note that priorContents.diagnosticAttributes are ignored, and we use the attributes from this thread
-		BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, DOCUMENT_ID));
-		BsonDocument filter = documentFilter();
-		UpdateOptions options = new UpdateOptions().upsert(true);
-		LOGGER.debug("** Initial upsert for {}", DOCUMENT_ID);
-		LOGGER.trace("| Filter: {}", filter);
-		LOGGER.trace("| Update: {}", update);
-		LOGGER.trace("| Options: {}", options);
-		UpdateResult result = collection.updateOne(filter, update, options);
-		LOGGER.debug("| Result: {}", result);
+	@Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
+		LOGGER.debug("readRevisionNumbers");
+		try {
+			try (MongoCursor<BsonDocument> cursor = revisionDocumentCursor()) {
+				// Our revisionDocumentCursor matches only one document
+				BsonInt64 revision = cursor.next().getInt64(DocumentFields.revision.name(), REVISION_ZERO);
+				return switch (tenancyModel) {
+					case None _ -> NoTenant.just(revision);
+					case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), revision);
+					case Persistent _ -> throw new NotYetImplementedException();
+				};
+			}
+		} catch (NoSuchElementException e) {
+			throw new RevisionFieldDisruptedException("No root documents found", e);
+		} catch (RuntimeException e) {
+			throw new RevisionFieldDisruptedException(e);
+		}
+	}
 
-		// This is the only time Sequoia changes two documents for the same operation.
-		// Aside from refurbish, it's the only reason we'd want multi-document transactions,
-		// and it's not even a strong reason, because this still works correctly
-		// if interpreted as two separate events.
-		writeManifest(Manifest.forSequoia());
+	@Override
+	public void initializeCollection(PerTenant<StateAndMetadata<R>> priorContentsArg) {
+		var normalized = normalizePerTenant(priorContentsArg);
+		ensureFlushLocksInitialized(normalized);
+		normalized.forEach((tenant, priorContents) -> {
+			// Sequoia has only one document regardless of tenancy
+			BsonValue initialState = formatter.object2bsonValue(priorContents.state(), rootRef.targetType());
+			BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision().longValue());
+			// Note that priorContents.diagnosticAttributes are ignored, and we use the attributes from this thread
+			BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, DOCUMENT_ID));
+			BsonDocument filter = documentFilter();
+			UpdateOptions options = new UpdateOptions().upsert(true);
+			LOGGER.debug("** Initial upsert for {}", DOCUMENT_ID);
+			LOGGER.trace("| Filter: {}", filter);
+			LOGGER.trace("| Update: {}", update);
+			LOGGER.trace("| Options: {}", options);
+			UpdateResult result = collection.updateOne(filter, update, options);
+			LOGGER.debug("| Result: {}", result);
 
-		// Update the state that we "know about"
-		flushLock.finishedRevision(newRevision);
+			// This is the only time Sequoia changes two documents for the same operation.
+			// Aside from refurbish, it's the only reason we'd want multi-document transactions,
+			// and it's not even a strong reason, because this still works correctly
+			// if interpreted as two separate events.
+			writeManifest(Manifest.forSequoia());
+
+			// Update the state that we "know about"
+			finishedRevision(tenant, newRevision);
+		});
 	}
 
 	/**
-	 * We're required to cope with anything we might ourselves do in {@link #initializeCollection}.
+	 * We're required to cope with anything we might ourselves do in {@link FormatDriver#initializeCollection}.
 	 */
 	@Override
 	public void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
@@ -162,6 +206,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			LOGGER.debug("Ignoring event for unrecognized document key: {}", event.getDocumentKey());
 			return;
 		}
+		Tenant.Established tenant = tenantFor(event.getDocumentKey().getString("_id"));
 		switch (event.getOperationType()) {
 			case INSERT: case REPLACE: {
 				// Note: an INSERT could be coming from this very bosk initializing the collection,
@@ -176,7 +221,6 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 					// also REPLACE. That would imply that this case is impossible.
 					throw new UnprocessableEventException("Missing fullDocument", event.getOperationType());
 				}
-				Tenant.Established tenant = tenantFor(event.getDocumentKey().getString("_id"));
 				MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromFullDocument(fullDocument);
 				try (
 					var _ = context.withTenant(tenant);
@@ -193,15 +237,14 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 					// disappears, we don't null out revisionToSkip. TODO: Rethink what's the right way to handle this.
 					LOGGER.debug("| Replace {}", rootRef);
 					downstream.submitReplacement(rootRef, newRoot);
-					flushLock.finishedRevision(revision);
+					finishedRevision(tenant, revision);
 				}
 			} break;
 			case UPDATE: {
 				UpdateDescription updateDescription = event.getUpdateDescription();
 				if (updateDescription != null) {
 					BsonInt64 revision = formatter.getRevisionFromUpdateEvent(event);
-					if (!shouldSkip(revision)) {
-						Tenant.Established tenant = tenantFor(event.getDocumentKey().getString("_id"));
+					if (!shouldSkip(tenant, revision)) {
 						MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromUpdate(event);
 						try (
 							var _ = context.withTenant(tenant);
@@ -211,12 +254,12 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 							deleteRemovedFields(updateDescription.getRemovedFields(), event.getOperationType());
 						}
 					}
-					flushLock.finishedRevision(revision);
+					finishedRevision(tenant, revision);
 				}
 			} break;
 			case DELETE: {
 				LOGGER.debug("Document containing revision field has been deleted; assuming revision=0");
-				flushLock.finishedRevision(REVISION_ZERO);
+				finishedRevision(tenant, REVISION_ZERO);
 			} break;
 			default: {
 				throw new UnprocessableEventException("Cannot process event", event.getOperationType());

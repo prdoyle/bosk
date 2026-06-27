@@ -52,13 +52,13 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 			actual = latecomer.entireState();
 		}
 		if (scenario.tenancyModel instanceof Fixed(var id)) {
-			// With Fixed tenancy, the same state can be represented as either
-			// SingleTree or MultiTree; normalize before comparing.
+			// Either a single tenant or NoTenant is ok. Normalize before comparing
 			TenantId tenantId = Tenant.setTo(id);
 			var e = PerTenant.from(expected, identity()).asNoTenant(tenantId);
 			var a = PerTenant.from(actual, identity()).asNoTenant(tenantId);
 			assertEquals(e, a);
 		} else {
+			// Must be exactly equal
 			assertEquals(expected, actual);
 		}
 	}
