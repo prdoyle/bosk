@@ -39,7 +39,6 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.drivers.mongo.status.StateStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenant;
 import works.bosk.util.PerTenant.MultiTenant;
 import works.bosk.util.PerTenant.NoTenant;
@@ -55,6 +54,7 @@ import static java.util.Objects.requireNonNull;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_BEFORE_ANY;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
+import static works.bosk.drivers.mongo.internal.Formatter.getTenantFromDocumentId;
 import static works.bosk.drivers.mongo.internal.MainDriver.MANIFEST_ID;
 
 abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implements FormatDriver<R> {
@@ -300,7 +300,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		return switch (tenancyModel) {
 			case None _ -> Tenant.NONE;
 			case Fixed(var fixedId) -> Tenant.setTo(fixedId);
-			case Persistent _ -> throw new NotYetImplementedException("multitenancy");
+			case Persistent _ -> getTenantFromDocumentId(id);
 		};
 	}
 

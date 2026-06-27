@@ -6,8 +6,10 @@ import works.bosk.ListValue;
 import works.bosk.SideTable;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
+import works.bosk.drivers.mongo.MongoDriverSettings.TenancyFormat;
 
 import static java.util.Arrays.asList;
+import static works.bosk.drivers.mongo.MongoDriverSettings.TenancyFormat.NONE;
 
 /**
  * A scalable format that stores the bosk state in multiple documents,
@@ -28,7 +30,8 @@ import static java.util.Arrays.asList;
  *                   are to be stored in their own documents.
  */
 public record PandoFormat(
-	ListValue<String> graftPoints
+	ListValue<String> graftPoints,
+	TenancyFormat tenancyFormat
 ) implements StateTreeNode, DatabaseFormat {
 	@Override public String name() { return "Pando"; }
 
@@ -37,14 +40,18 @@ public record PandoFormat(
 	 * and (2) Sequoia is designed not to need multi-document transactions.
 	 */
 	public static PandoFormat oneBigDocument() {
-		return new PandoFormat(ListValue.empty());
+		return new PandoFormat(ListValue.empty(), NONE);
 	}
 
 	public static PandoFormat withGraftPoints(Collection<String> pathStrings) {
-		return new PandoFormat(ListValue.from(pathStrings));
+		return new PandoFormat(ListValue.from(pathStrings), NONE);
 	}
 
 	public static PandoFormat withGraftPoints(String... pathStrings) {
 		return withGraftPoints(asList(pathStrings));
+	}
+
+	public PandoFormat withTenancyFormat(TenancyFormat tenancyFormat) {
+		return new PandoFormat(graftPoints, tenancyFormat);
 	}
 }

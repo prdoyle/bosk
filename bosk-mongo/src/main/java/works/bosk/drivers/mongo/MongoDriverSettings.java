@@ -146,6 +146,19 @@ public class MongoDriverSettings {
 		HASTY,
 	}
 
+	public enum TenancyFormat {
+		/**
+		 * There is no concept of tenants in the collection, and there is only one
+		 * copy of the bosk state tree.
+		 */
+		NONE,
+
+		/**
+		 * The tenant ID is prefixed onto the {@code _id} field, enclosed in angle brackets.
+		 */
+		ID_PREFIX,
+	}
+
 	public void validate() {
 		if (preferredDatabaseFormat() instanceof PandoFormat) {
 			if (experimental.orphanDocumentMode() == EARNEST) {

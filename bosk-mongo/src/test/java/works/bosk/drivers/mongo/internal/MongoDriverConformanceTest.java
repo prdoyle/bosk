@@ -23,10 +23,12 @@ import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
+import works.bosk.drivers.mongo.MongoDriverSettings.TenancyFormat;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.internal.ErrorRecordingChangeListener.ErrorRecorder;
 import works.bosk.drivers.mongo.internal.MainDriver.MongoClientFactory;
 import works.bosk.drivers.mongo.internal.MongoDriverConformanceTest.ParameterSetInjector;
+import works.bosk.drivers.mongo.internal.MongoDriverConformanceTest.TenancyFormatInjector;
 import works.bosk.drivers.mongo.internal.TestParameters.EventTiming;
 import works.bosk.drivers.mongo.internal.TestParameters.ParameterSet;
 import works.bosk.junit.InjectFields;
@@ -34,7 +36,6 @@ import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
 import works.bosk.junit.Injector;
 import works.bosk.logback.ReplayLogsOnFailure;
-import works.bosk.testing.drivers.AbstractDriverTest.SingleTreeScenarioInjector;
 import works.bosk.testing.drivers.PolyfillDriverConformanceTest;
 import works.bosk.testing.junit.Slow;
 
@@ -43,7 +44,7 @@ import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOI
 @Slow
 @InjectFields
 @ReplayLogsOnFailure
-@InjectFrom({SingleTreeScenarioInjector.class, ParameterSetInjector.class})
+@InjectFrom({TenancyFormatInjector.class, ParameterSetInjector.class})
 class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 	private final Deque<Runnable> tearDownActions = new ArrayDeque<>();
 	private static MongoService mongoService;
@@ -77,7 +78,23 @@ class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 		SHARED_CLIENTS.values().forEach(MongoClient::close);
 	}
 
-	record ParameterSetInjector(Scenario scenario) implements Injector {
+	record TenancyFormatInjector(Scenario scenario) implements Injector {
+		@Override
+		public boolean supports(AnnotatedElement element, Class<?> elementType) {
+			return elementType == TenancyFormat.class;
+		}
+
+		@Override
+		public List<?> values() {
+			return switch (scenario) {
+				case NO_TENANTS -> List.of(TenancyFormat.NONE);
+				case FIXED_TENANT -> List.of(TenancyFormat.NONE, TenancyFormat.ID_PREFIX);
+				case PERSISTENT_TENANT -> List.of(TenancyFormat.ID_PREFIX);
+			};
+		}
+	}
+
+	record ParameterSetInjector(Scenario scenario, TenancyFormat tenancyFormat) implements Injector {
 		@Override
 		public boolean supports(AnnotatedElement element, Class<?> elementType) {
 			return elementType == ParameterSet.class;
@@ -109,7 +126,7 @@ class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 //				PandoFormat.withGraftPoints("/nestedSideTable"), // Documents are themselves side tables
 //				PandoFormat.withGraftPoints("/catalog/-x-/sideTable", "/sideTable/-x-/catalog", "/sideTable/-x-/sideTable/-y-/catalog"), // Nesting, parameters
 //				PandoFormat.withGraftPoints("/sideTable/-x-/sideTable/-y-/catalog"), // Multiple parameters in the not-separated part
-			);
+			).map(f -> f.withTenancyFormat(tenancyFormat));
 		}
 
 	}

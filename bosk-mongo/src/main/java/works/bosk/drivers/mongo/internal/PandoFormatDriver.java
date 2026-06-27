@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
@@ -66,8 +65,11 @@ import static java.util.stream.Collectors.toList;
 import static org.bson.BsonBoolean.TRUE;
 import static works.bosk.Path.parseParameterized;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.docBsonPath;
+import static works.bosk.drivers.mongo.internal.BsonSurgeon.BSON_PATH_FIELD;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
+import static works.bosk.drivers.mongo.internal.Formatter.getTenantFromDocumentId;
 import static works.bosk.util.Classes.enumerableByIdentifier;
+import static works.bosk.util.PerTenant.MultiTenant.multiTenant;
 
 /**
  * Implements {@link PandoFormat}.
@@ -164,7 +166,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	PerTenant<BsonStateAndMetadata> loadBsonStateAndMetadata() {
+	PerTenant<BsonStateAndMetadata> loadBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		// Look for runs of state documents with the same tenant info.
 		// Make a BsonStateAndMetadata for each run.
 		SortedMap<Established, BsonStateAndMetadata> states = new TreeMap<>(comparing(t -> switch (t) {
@@ -174,7 +176,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		List<BsonDocument> partsBuffer = new ArrayList<>();
 		try (MongoCursor<BsonDocument> cursor = collection
 			.withReadConcern(LOCAL) // The revision field needs to be the latest
-			.find(regex("_id", "^" + Pattern.quote("|")))
+			.find(regex("_id", "^[|<]"))
 			.sort(new BsonDocument("_id", new BsonInt32(-1))) // Root doc last
 			.cursor()
 		) {
@@ -189,14 +191,16 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					// Pull what we need from the parts before gather() mutates them
 					BsonInt64 revision = lastPart.getInt64(DocumentFields.revision.name(), null);
 					BsonDocument diagnosticAttributes = Formatter.getDiagnosticAttributesIfAny(lastPart);
+					Established documentTenant = getTenantFromDocumentId(lastPart.getString("_id"));
 
 					BsonDocument state = gather(partsBuffer); // mutates partsBuffer!
 
-					// At the Bson level, where we're describing the contents of the database,
-					// we use Tenant.NONE here because the database info itself does not record tenancy.
-					// For TenancyModel.Fixed, this won't be the right tenant to use when establishing
-					// the bosk context.
-					states.put(Tenant.NONE, new BsonStateAndMetadata(
+					// Note that documentTenant is strictly the tenant from the document.
+					// In the case of TenancyFormat.NONE and TenancyModel.Fixed, this
+					// will be Tenant.NONE which is not actually the correct fixed tenant ID,
+					// but that's ok because we're not going to use it as the tenant ID anyway.
+					// This is just a way of describing what we've found in the database.
+					states.put(documentTenant, new BsonStateAndMetadata(
 						state,
 						revision,
 						diagnosticAttributes
@@ -214,45 +218,108 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 		// Note: we tolerate extra documents here, in the spirit of HASTY mode:
 		// documents are not necessarily deleted promptly, so there can be extra ones lying around.
-		var theState = states.get(Tenant.NONE);
-		if (theState == null) {
-			// Appropriate error message depends on what we did actually discover
-			if (states.isEmpty()) {
-				throw new IllegalStateException("No state documents");
-			} else {
-				throw new IllegalStateException("All state documents have tenant info");
+		return switch (format.tenancyFormat()) {
+			case NONE -> {
+				var theState = states.get(Tenant.NONE);
+				if (theState == null) {
+					// Appropriate error message depends on what we did actually discover
+					if (states.isEmpty()) {
+						throw new IllegalStateException("No state documents");
+					} else {
+						throw new IllegalStateException("All state documents have tenant info, inconsistent with tenancyFormat=NONE");
+					}
+				}
+				yield switch (tenancyModel) {
+					case TenancyModel.None _ -> new NoTenant<>(theState);
+					case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), theState);
+					case Persistent _ -> throw new AssertionError(
+						"Persistent tenancy should use ID_PREFIX format");
+				};
 			}
-		}
-		return switch (tenancyModel) {
-			case TenancyModel.None _ -> new NoTenant<>(theState);
-			case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), theState);
-			case Persistent _ -> throw new AssertionError(
-				"Persistent tenancy should use ID_PREFIX format");
+			case ID_PREFIX -> states.entrySet().stream()
+				.filter(e -> e.getKey() != Tenant.NONE)
+				.collect(multiTenant(e -> (TenantId) e.getKey(), Entry::getValue));
 		};
 	}
 
 	@Override
 	@Nonnull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
 		LOGGER.debug("readRevisionNumbers");
-		try (MongoCursor<BsonDocument> cursor = revisionDocumentCursor()) {
-			BsonDocument doc = cursor.next();
-			BsonInt64 revision = doc.getInt64(DocumentFields.revision.name(), REVISION_ZERO);
-			return switch (tenancyModel) {
-				case TenancyModel.None _ -> NoTenant.just(revision);
-				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), revision);
-				case Persistent _ -> throw new AssertionError(
-					"Persistent tenancy should use ID_PREFIX format");
+		try {
+			return switch (format.tenancyFormat()) {
+				case NONE -> {
+					try (MongoCursor<BsonDocument> cursor = revisionDocumentCursor()) {
+						while (cursor.hasNext()) {
+							BsonDocument doc = cursor.next();
+							if (getTenantFromDocumentId(doc.getString("_id")) instanceof None) {
+								BsonInt64 revision = doc.getInt64(DocumentFields.revision.name(), REVISION_ZERO);
+								yield switch (tenancyModel) {
+									case TenancyModel.None _ -> NoTenant.just(revision);
+									case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), revision);
+									case Persistent _ -> throw new AssertionError(
+										"Persistent tenancy should use ID_PREFIX format");
+								};
+							}
+						}
+					}
+					throw new RevisionFieldDisruptedException("No matching root document");
+				}
+				case ID_PREFIX -> {
+					SortedMap<TenantId, BsonInt64> revisions = new TreeMap<>();
+					try (MongoCursor<BsonDocument> cursor = revisionDocumentCursor()) {
+						while (cursor.hasNext()) {
+							BsonDocument doc = cursor.next();
+							if (getTenantFromDocumentId(doc.getString("_id")) instanceof TenantId tid) {
+								revisions.put(tid, doc.getInt64(DocumentFields.revision.name(), REVISION_ZERO));
+							}
+						}
+					}
+					yield new MultiTenant<>(revisions);
+				}
 			};
-		} catch (NoSuchElementException e) {
-			throw new RevisionFieldDisruptedException("No matching root document");
+		} catch (RuntimeException e) {
+			throw new RevisionFieldDisruptedException(e);
 		}
 	}
 
 	/**
 	 * For efficiency, this modifies <code>partsList</code> in-place.
+	 * <p>
+	 * A version of {@link BsonSurgeon#gather(List)} that handles tenant IDs.
+	 * The "part" recipe documents must all have the same tenant ID.
 	 */
 	private BsonDocument gather(List<BsonDocument> allParts) {
+		var tenantId = getTenantFromDocumentId(allParts.getFirst().getString("_id"));
+		allParts.forEach(d -> removeTenantFromId(d, tenantId));
 		return bsonSurgeon.gather(allParts);
+	}
+
+	/**
+	 * A version of {@link BsonSurgeon#scatter(Reference, BsonDocument)} that handles tenant IDs.
+	 * The resulting "part" recipe documents have the tenant ID prepended to their IDs.
+	 * <p>
+	 * (The incoming {@code value} is not a fully fledged database document yet:
+	 * it is the document produced by the {@link BsonSerializer}, not a "recipe" from the BsonSurgeon.)
+	 */
+	private <T> List<BsonDocument> scatter(Reference<T> target, BsonDocument value, String idPrefix) {
+		return bsonSurgeon.scatter(target, value).stream()
+			.peek(d -> prependTenantToId(d, idPrefix))
+			.toList();
+	}
+
+	private void removeTenantFromId(BsonDocument doc, Established tenant) {
+		String id = doc.getString(BSON_PATH_FIELD).getValue();
+		assert id.startsWith(tenantPrefix(tenant)):
+			"Document ID must start with [" + tenantPrefix(tenant) + "]: " + id;
+		doc.put(BSON_PATH_FIELD, new BsonString(removeTenantFrom(id)));
+	}
+
+	private String removeTenantFrom(String documentId) {
+		return documentId.substring(documentId.indexOf("|"));
+	}
+
+	private void prependTenantToId(BsonDocument doc, String idPrefix) {
+		doc.put(BSON_PATH_FIELD, new BsonString(idPrefix + doc.getString(BSON_PATH_FIELD).getValue()));
 	}
 
 	@Override
@@ -266,10 +333,11 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 			LOGGER.debug("** Initial upsert");
 			collection.ensureTransactionStarted();
+			String tenantPrefix = tenantPrefix(tenant);
 			if (initialState instanceof BsonDocument) {
-				upsertAndRemoveSubParts(rootRef, initialState.asDocument()); // Mutates initialState!
+				upsertAndRemoveSubParts(rootRef, initialState.asDocument(), tenantPrefix); // Mutates initialState!
 			}
-			BsonString documentId = new BsonString("|");
+			BsonString documentId = new BsonString(tenantPrefix + "|");
 			BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, documentId));
 			BsonDocument filter = rootDocumentsFilter();
 			filter.put("_id", documentId);
@@ -286,6 +354,11 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		});
 	}
 
+	/**
+	 * @return {@code given} if it's value, except for {@link Fixed},
+	 * where it's coerced into either a {@link NoTenant} or a {@link MultiTenant} with one tenant
+	 * depending on the {@link PandoFormat#tenancyFormat() tenancyFormat}.
+	 */
 	private PerTenant<StateAndMetadata<R>> validateAndNormalize(PerTenant<StateAndMetadata<R>> given) {
 		return switch (tenancyModel) {
 			case TenancyModel.None _ -> switch (given) {
@@ -293,10 +366,30 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				case MultiTenant<StateAndMetadata<R>> _ -> throw new IllegalArgumentException(
 					"Tenancy model " + tenancyModel + " not compatible with MultiTenant state");
 			};
-			case Persistent _ -> throw new NotYetImplementedException("multitenancy");
-			case Fixed(_) -> switch (given) { // The complex, permissive one
-				case NoTenant<StateAndMetadata<R>> v -> v;
-				case MultiTenant<StateAndMetadata<R>> _ -> throw new NotYetImplementedException("multitenancy");
+			case Persistent _ -> switch (given) {
+				case MultiTenant<StateAndMetadata<R>> v -> v;
+				case NoTenant<StateAndMetadata<R>> _ -> throw new IllegalArgumentException(
+					"Tenancy model " + tenancyModel + " not compatible with NoTenant state");
+			};
+			case Fixed(Identifier id) -> switch (given) { // The complex, permissive one
+				case NoTenant<StateAndMetadata<R>> v -> switch (format.tenancyFormat()) {
+					case NONE -> v;
+					case ID_PREFIX -> MultiTenant.singleton(Tenant.setTo(id), v.value());
+				};
+				case MultiTenant<StateAndMetadata<R>> v -> switch (format.tenancyFormat()) {
+					case NONE -> v.asNoTenant(Tenant.setTo(id));
+					case ID_PREFIX -> v;
+				};
+			};
+		};
+	}
+
+	private String tenantPrefix(Established tenant) {
+		return switch (format.tenancyFormat()) {
+			case NONE -> "";
+			case ID_PREFIX -> switch (tenant) {
+				case TenantId(var id) -> "<" + id + ">";
+				default -> throw new IllegalStateException("Expected tenant ID for ID_PREFIX tenancy format, but got: " + tenant);
 			};
 		};
 	}
@@ -502,7 +595,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 	private Reference<?> documentID2MainRef(String documentId, ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
 		// referenceTo does everything we need already. Build a fake dotted field name and use that
-		String dottedName = "state" + documentId
+		String dottedName = "state" + removeTenantFrom(documentId)
 			.replace('|', '.');
 		try {
 			return BsonFormatter.referenceTo(dottedName, rootRef);
@@ -599,7 +692,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		BsonValue value = formatter.object2bsonValue(newValue, target.targetType());
 		if (value instanceof BsonDocument b) {
 			deletePartsUnder(target);
-			upsertAndRemoveSubParts(target, b);
+			upsertAndRemoveSubParts(target, b, tenantPrefix(context.getEstablishedTenant()));
 			// Note that value will now have the sub-parts removed
 		}
 		if (rootRef.equals(mainRef)) {
@@ -727,11 +820,20 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 	@Override
 	public BsonDocument rootDocumentsFilter() {
-		return new BsonDocument("_id", new BsonString("|"));
+		return switch (format.tenancyFormat()) {
+			case NONE ->
+				new BsonDocument("_id", new BsonString("|"));
+			case ID_PREFIX ->
+				// Whether a document is a root document cannot be determined by a prefix
+				// on the _id field, so the index won't work, and we'll be doing a table scan.
+				// At least with the path field, the search is simpler, and we could in principle
+				// speed it up with an index if need be.
+				new BsonDocument("path", ROOT_PATH);
+		};
 	}
 
 	private BsonDocument documentFilter(Reference<?> docRef) {
-		return new BsonDocument("_id", new BsonString(docBsonPath(docRef, rootRef)));
+		return new BsonDocument("_id", new BsonString(tenantPrefix(context.getEstablishedTenant()) + docBsonPath(docRef, rootRef)));
 	}
 
 	private <T> BsonDocument standardRootPreconditions(Reference<T> target) {
@@ -801,7 +903,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					BsonValue replacementValue = entry.getValue();
 					if (replacementValue instanceof BsonDocument) {
 						LOGGER.debug("Replacement value is a document; gather along with {} subparts", subParts.size());
-						String mainID = docBsonPath(ref, mainRef);
+						String mainID = tenantPrefix(context.getEstablishedTenant()) + docBsonPath(ref, mainRef);
 						BsonDocument mainDocument = new BsonDocument()
 							.append("_id", new BsonString(mainID))
 							.append("state", replacementValue);
@@ -883,8 +985,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	/**
 	 * @param value is mutated to stub-out the parts written to the database
 	 */
-	private <T> void upsertAndRemoveSubParts(Reference<T> target, BsonDocument value) {
-		List<BsonDocument> allParts = bsonSurgeon.scatter(target, value);
+	private <T> void upsertAndRemoveSubParts(Reference<T> target, BsonDocument value, String idPrefix) {
+		List<BsonDocument> allParts = scatter(target, value, idPrefix);
 		// NOTE: `value` has now been mutated so the parts have been stubbed out
 
 		List<BsonDocument> subParts = allParts.subList(0, allParts.size() - 1);
