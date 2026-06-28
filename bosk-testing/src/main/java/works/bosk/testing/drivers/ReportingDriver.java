@@ -37,17 +37,17 @@ public class ReportingDriver implements BoskDriver {
 	final BoskDriver downstream;
 	final BoskContext context;
 	final Consumer<? super UpdateOperation> updateListener;
-	final Consumer<? super FlushOperation> preFlushListener;
-	final Consumer<? super FlushOperation> postFlushListener;
+	final FlushOperation.Consumer preFlushListener;
+	final FlushOperation.Consumer postFlushListener;
 
 	/**
 	 * Builds a driver that reports all updates and flushes to the given listener before sending them to the downstream driver.
 	 */
 	public static <RR extends StateTreeNode> DriverFactory<RR> factory(Consumer<? super DriverOperation> listener) {
-		return (b,d) -> new ReportingDriver(d, b.context(), listener, listener, _->{});
+		return (b,d) -> new ReportingDriver(d, b.context(), listener, listener::accept, _->{});
 	}
 
-	public static <RR extends StateTreeNode> DriverFactory<RR> factory(Consumer<? super UpdateOperation> updateListener, Consumer<? super FlushOperation> preFlushListener, Consumer<? super FlushOperation> postFlushListener) {
+	public static <RR extends StateTreeNode> DriverFactory<RR> factory(Consumer<? super UpdateOperation> updateListener, FlushOperation.Consumer preFlushListener, FlushOperation.Consumer postFlushListener) {
 		return (b,d) -> new ReportingDriver(d, b.context(), updateListener, preFlushListener, postFlushListener);
 	}
 

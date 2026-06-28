@@ -3,7 +3,9 @@ package works.bosk.testing.drivers;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +26,7 @@ import works.bosk.StateTreeNode;
 import works.bosk.drivers.ContextScopeDriver;
 import works.bosk.drivers.ReplicaSet;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NoSuchTenantException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.testing.drivers.operations.DriverOperation;
 import works.bosk.testing.drivers.operations.FlushOperation;
@@ -123,56 +126,70 @@ public final class DriverStateVerifier<R extends StateTreeNode> {
 		if (!(op.boskContext().tenant() instanceof Tenant.Established tenant)) {
 			throw new AssertionError("Missing tenant on update: " + op);
 		}
+		Object before;
+		Object after;
 		try (var _ = stateTrackingBosk.context().withTenant(tenant)) {
-			Object before = currentStateBefore(op);
-			Object after = hypotheticalStateAfter(op);
-			LOGGER.trace("\t\tbefore: {}", before);
-			LOGGER.trace("\t\t after: {}", after);
+			before = currentStateBefore(op);
+			after = newStateAfter(op);
+		} catch (IOException | InterruptedException e) {
+			throw new NotYetImplementedException(e);
+		}
+		LOGGER.trace("\t\tbefore: {}", before);
+		LOGGER.trace("\t\t after: {}", after);
 
-			String threadID = threadId(op);
-			if (threadID == null) {
-				LOGGER.debug("\tMissing " + THREAD_ID + " diagnostic attribute");
+		String threadID = threadId(op);
+		if (threadID == null) {
+			LOGGER.debug("\tMissing " + THREAD_ID + " diagnostic attribute");
+		} else {
+			Deque<UpdateOperation> q = pendingOperationsByThreadID.get(threadID);
+			if (q == null) {
+				LOGGER.debug("\tNo queued events for thread \"{}\"", threadID);
 			} else {
-				Deque<UpdateOperation> q = pendingOperationsByThreadID.get(threadID);
-				if (q == null) {
-					LOGGER.debug("\tNo queued events for thread \"{}\"", threadID);
-				} else {
-					LOGGER.trace("\tThread \"{}\" has {} queued operations", threadID, q.size());
-					for (UpdateOperation expected : q) {
-						Object expectedBefore = currentStateBefore(expected); // May not equal `before` if the two operations have different targets
-						Object expectedAfter = hypotheticalStateAfter(expected);
-						LOGGER.trace("\t\texpectedAfter: {}", expectedAfter);
-						if (op.matchesIfApplied(expected) && Objects.equals(after, expectedAfter)) {
-							LOGGER.debug("\tConclusion: found match: {}", expected);
-							var expectedTenant = expected.boskContext().tenant();
-							if (!(expectedTenant.equals(tenant))) {
-								throw new AssertionError(
-									"Operation has incorrect tenant " + tenant
-									+ "; expected " + expectedTenant);
-							}
-							UpdateOperation discarded;
-							while ((discarded = q.removeFirst()) != expected) {
-								LOGGER.trace("\t\tdiscard preceding no-op: {}", discarded);
-							}
-							expected.submitTo(stateTrackingDriver);
-							return;
-						} else if (Objects.equals(expectedBefore, expectedAfter)) {
-							LOGGER.trace("\t\tSkip queued no-op: {}", expected);
-						} else {
-							LOGGER.trace("\t\tNo match for: {}", expected);
-							break;
+				LOGGER.trace("\tThread \"{}\" has {} queued operations", threadID, q.size());
+				for (Iterator<UpdateOperation> it = q.iterator(); it.hasNext();) {
+					UpdateOperation expected = it.next();
+
+					if (op.matchesIfApplied(expected)) {
+						LOGGER.debug("\tConclusion: found match: {}", expected);
+						var expectedTenant = expected.boskContext().tenant();
+						if (!(expectedTenant.equals(tenant))) {
+							throw new AssertionError(
+								"Operation has incorrect tenant " + tenant
+								+ "; expected " + expectedTenant);
 						}
+						// expected is already the first element — preceding no-ops
+						// were removed via it.remove() above
+						q.removeFirst();
+						return;
 					}
+
+					// Not a match. Check if expected is a no-op.
+					Object expectedBefore;
+					Object expectedAfter;
+					try {
+						expectedBefore = currentStateBefore(expected);
+						expectedAfter = newStateAfter(expected);
+					} catch (IOException | InterruptedException e) {
+						throw new NotYetImplementedException(e);
+					}
+					if (Objects.equals(expectedBefore, expectedAfter)) {
+						LOGGER.trace("\t\tSkip queued no-op: {}", expected);
+						it.remove();
+						continue;
+					}
+
+					LOGGER.trace("\tNo match for: {}", expected);
+					break;
 				}
 			}
+		}
 
+		try (var _ = stateTrackingBosk.context().withTenant(tenant)) {
 			if (Objects.equals(before, after)) {
 				LOGGER.debug("\tConclusion: spontaneous no-op: {}", op);
 			} else {
 				throw new AssertionError("No matching operation\n\t" + op);
 			}
-		} catch (IOException | InterruptedException e) {
-			throw new NotYetImplementedException(e);
 		}
 	}
 
@@ -180,15 +197,18 @@ public final class DriverStateVerifier<R extends StateTreeNode> {
 	 * Before calling the downstream flush, the subject driver must first have sent
 	 * all the previous updates, so there should be no pending operations on any thread.
 	 */
-	private void preOutgoingFlush(FlushOperation op) {
+	private void preOutgoingFlush(FlushOperation op) throws IOException, InterruptedException {
 		LOGGER.debug("preOutgoingFlush()");
-		pendingOperationsByThreadID.forEach((thread, q) -> {
+		for (Entry<String, Deque<UpdateOperation>> entry : pendingOperationsByThreadID.entrySet()) {
+			String thread = entry.getKey();
+			Deque<UpdateOperation> q = entry.getValue();
+
 			discardLeadingNops(q);
 			if (!q.isEmpty()) {
 				throw new AssertionError(q.size() + " pending operations remain on thread " + thread
 					+ "\n\tFirst is: " + q.getFirst());
 			}
-		});
+		}
 
 		// Leave evidence that the flush indeed happened.
 		flushObservedByThreadID.add(threadId(op));
@@ -205,23 +225,19 @@ public final class DriverStateVerifier<R extends StateTreeNode> {
 		}
 	}
 
-	private void discardLeadingNops(Deque<UpdateOperation> q) {
-		try {
-			UpdateOperation op;
-			while ((op = q.peekFirst()) != null) {
-				Object before = currentStateBefore(op);
-				Object after = hypotheticalStateAfter(op);
-				if (Objects.equals(before, after)) {
-					LOGGER.debug("\tDiscarding nop: {}", op);
-					var removed = q.removeFirst();
-					assert op == removed;
-				} else {
-					LOGGER.trace("\tNext operation is not a nop: {}", op);
-					break;
-				}
+	private void discardLeadingNops(Deque<UpdateOperation> q) throws IOException, InterruptedException {
+		UpdateOperation op;
+		while ((op = q.peekFirst()) != null) {
+			Object before = currentStateBefore(op);
+			Object after = newStateAfter(op);
+			if (Objects.equals(before, after)) {
+				LOGGER.debug("\tDiscarding nop: {}", op);
+				var removed = q.removeFirst();
+				assert op == removed;
+			} else {
+				LOGGER.trace("\tNext operation is not a nop: {}", op);
+				break;
 			}
-		} catch (InterruptedException | IOException e) {
-			throw new NotYetImplementedException(e);
 		}
 	}
 
@@ -231,26 +247,23 @@ public final class DriverStateVerifier<R extends StateTreeNode> {
 			Reference<T> stateTrackingRef = (Reference<T>) stateTrackingRef(op.target());
 			stateTrackingBosk.driver().flush();
 			try (var _ = stateTrackingBosk.readSession()) {
-				return stateTrackingRef.valueIfExists();
+				try {
+					return stateTrackingRef.valueIfExists();
+				} catch (NoSuchTenantException e) {
+					return null;
+				}
 			}
 		}
 	}
 
 	@SuppressWarnings("unchecked")
-	private <T> T hypotheticalStateAfter(UpdateOperation op) throws IOException, InterruptedException {
+	private <T> T newStateAfter(UpdateOperation op) throws IOException, InterruptedException {
 		try (var _ = stateTrackingBosk.context().withMaybeTenant(op.boskContext().tenant())) {
-			R originalState;
 			Reference<T> stateTrackingRef = (Reference<T>) stateTrackingRef(op.target());
-			stateTrackingBosk.driver().flush();
-			try (var _ = stateTrackingBosk.readSession()) {
-				originalState = stateTrackingBosk.rootReference().value();
-			}
 			op.submitTo(stateTrackingDriver);
 			stateTrackingBosk.driver().flush();
 			try (var _ = stateTrackingBosk.readSession()) {
 				return stateTrackingRef.valueIfExists();
-			} finally {
-				stateTrackingBosk.driver().submitReplacement(stateTrackingBosk.rootReference(), originalState);
 			}
 		}
 	}
