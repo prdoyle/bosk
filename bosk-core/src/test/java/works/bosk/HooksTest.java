@@ -19,6 +19,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import works.bosk.annotations.Hook;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.libtesting.AbstractBoskTest;
 
 import static java.lang.Thread.currentThread;
 import static java.util.Arrays.asList;

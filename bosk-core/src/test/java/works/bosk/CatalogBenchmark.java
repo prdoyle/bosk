@@ -12,6 +12,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.libtesting.AbstractBoskTest;
+import works.bosk.libtesting.TestEntityBuilder;
 
 import static org.openjdk.jmh.annotations.Mode.Throughput;
 import static works.bosk.testing.BoskTestUtils.boskName;

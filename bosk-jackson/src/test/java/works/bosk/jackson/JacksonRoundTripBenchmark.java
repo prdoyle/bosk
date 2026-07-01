@@ -14,11 +14,11 @@ import org.openjdk.jmh.annotations.Warmup;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
-import works.bosk.AbstractRoundTripTest;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.DriverStack;
 import works.bosk.Reference;
+import works.bosk.libtesting.AbstractRoundTripTest;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.openjdk.jmh.annotations.Mode.AverageTime;

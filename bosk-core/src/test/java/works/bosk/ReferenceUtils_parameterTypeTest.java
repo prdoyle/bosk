@@ -4,6 +4,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import works.bosk.libtesting.AbstractBoskTest;
 import works.bosk.util.Types;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

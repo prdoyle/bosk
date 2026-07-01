@@ -13,6 +13,7 @@ import org.junit.jupiter.api.TestFactory;
 import works.bosk.BindingEnvironment.Builder;
 import works.bosk.exceptions.ParameterAlreadyBoundException;
 import works.bosk.exceptions.ParameterUnboundException;
+import works.bosk.libtesting.AbstractBoskTest;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;

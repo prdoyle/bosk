@@ -1,6 +1,7 @@
 package works.bosk;
 
 import org.junit.jupiter.api.Test;
+import works.bosk.libtesting.AbstractBoskTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

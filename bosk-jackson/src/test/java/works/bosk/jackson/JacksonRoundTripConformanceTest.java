@@ -10,7 +10,7 @@ import works.bosk.junit.Injected;
 import works.bosk.junit.Injector;
 import works.bosk.testing.drivers.DriverConformanceTest;
 
-import static works.bosk.AbstractRoundTripTest.jacksonRoundTripFactory;
+import static works.bosk.libtesting.AbstractRoundTripTest.jacksonRoundTripFactory;
 
 @InjectFields
 @InjectFrom(ConfigurationInjector.class)

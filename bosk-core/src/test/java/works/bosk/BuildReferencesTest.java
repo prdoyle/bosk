@@ -4,6 +4,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.libtesting.AbstractBoskTest;
+import works.bosk.libtesting.TestEntityBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static works.bosk.BoskConfig.simpleDriver;
