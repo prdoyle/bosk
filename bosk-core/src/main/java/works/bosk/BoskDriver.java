@@ -114,27 +114,28 @@ public interface BoskDriver {
 	 * Note: Use of this method in application code is a smell.
 	 * If you feel the need to call this in your application code, there's a pretty good chance
 	 * you have logic that should be in a hook and isn't.
-	 * It's intended to be called in system-level code and test cases, in order to provide
+	 * It's intended to be called in system-level code and test cases to provide
 	 * the desired ordering guarantees.
 	 * </em>
 	 *
 	 * <p>
 	 * The definition of "prior" is intuitively the same as the "happens-before" relationship in
-	 * the Java memory model, and includes:
+	 * the Java memory model, and includes any operation that "happens before" this call
+	 * according to the Java memory model. In particular it includes:
 	 *
-	 * <ul><li>
-	 *    any operation that "happens before" this call according to the Java memory model.
-	 *    In particular,
-	 * </li><li>
-	 *    any operation that already happened on the same thread that called this method.
-	 * </li><li>
-	 *    any operation on any server that was successfully submitted to any bosk driver
-	 *    configured to use the same backing database as this one.
-	 * </li></ul>
+	 * <ul>
+	 *     <li>
+	 *         any operation that already happened on the same thread that called this method, and
+	 *     </li>
+	 *     <li>
+	 *         any operation on any server that was successfully submitted to any bosk driver
+	 *         configured to use the same backing database as this one.
+	 *     </li>
+	 * </ul>
 	 *
-	 * All of these events "happen before" this method returns.
+	 * All such events "happen before" this method returns.
 	 * If a {@link ReadSession} is acquired after this method returns,
-	 * all of the effects of the above operations (and possibly some additional subsequent operations)
+	 * all effects of the above operations (and possibly some additional subsequent operations)
 	 * will be reflected in the bosk state.
 	 * Hooks triggered by the above operations may or may not have run before this method returns.
 	 *
