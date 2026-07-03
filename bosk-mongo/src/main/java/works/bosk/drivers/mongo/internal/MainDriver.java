@@ -34,6 +34,7 @@ import works.bosk.BoskDriver;
 import works.bosk.BoskDriver.EntireState.MultiTree;
 import works.bosk.BoskInfo;
 import works.bosk.Identifier;
+import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.BsonSerializer;
@@ -239,7 +240,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.formatter = new Formatter(boskInfo, bsonSerializer);
 
 			Class<R> rootType = boskInfo.rootReference().targetClass();
-			ChangeListener listener = this.listener = new Listener(new FutureTask<>(() -> doInitialState(rootType)));
+			var initializationAttributes = boskInfo.context().getAttributes();
+			ChangeListener listener = this.listener = new Listener(new FutureTask<>(() -> doInitialState(rootType, initializationAttributes)));
 			var factory = LISTENER_FACTORY.get();
 			if (factory != null) {
 				listener = factory.apply(listener);
@@ -303,7 +305,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 * @throws InitialStateFailureException if unable to load the initial state from the database,
 	 * and {@link InitialDatabaseUnavailableMode#FAIL_FAST} is active.
 	 */
-	private EntireState<R> doInitialState(Class<R> rootType) {
+	private EntireState<R> doInitialState(Class<R> rootType, MapValue<String> diagnosticAttributes) {
 		// This establishes a safe fallback in case things go wrong. It also causes any
 		// calls to driver update methods to wait until we're finished here. (There shouldn't
 		// be any such calls while initialState is still running, but this ensures that if any
@@ -337,7 +339,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			) {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
 				PerTenant<StateAndMetadata<R>> priorContents = PerTenant.from(entireState, root ->
-					new StateAndMetadata<>(root, REVISION_ZERO, boskInfo.context().getAttributes()));
+					new StateAndMetadata<>(root, REVISION_ZERO, diagnosticAttributes));
 				preferredDriver.initializeCollection(priorContents);
 				session.commitTransactionIfAny();
 				// We can now publish the driver knowing that the transaction, if there is one, has committed
@@ -551,8 +553,12 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				publishFormatDriver(newDriver);
 
 				if (contents instanceof PerTenant.NoTenant<StateAndMetadata<R>>(var soleContents)) {
-					downstream.submitReplacement(boskInfo.rootReference(), soleContents.state());
-					LOGGER.debug("Done submitting downstream");
+					try (
+						var _ = boskInfo.context().withOnly(soleContents.diagnosticAttributes())
+					) {
+						downstream.submitReplacement(boskInfo.rootReference(), soleContents.state());
+						LOGGER.debug("Done submitting downstream");
+					}
 				} else {
 					// TODO: It's not clear we actually want loadedState.diagnosticAttributes here.
 					// This causes downstream.submitReplacement to be associated with the last update to the state,

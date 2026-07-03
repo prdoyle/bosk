@@ -166,16 +166,17 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			// Sequoia has only one document regardless of tenancy
 			BsonValue initialState = formatter.object2bsonValue(priorContents.state(), rootRef.targetType());
 			BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision().longValue());
-			// Note that priorContents.diagnosticAttributes are ignored, and we use the attributes from this thread
-			BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, DOCUMENT_ID));
-			BsonDocument filter = documentFilter();
-			UpdateOptions options = new UpdateOptions().upsert(true);
-			LOGGER.debug("** Initial upsert for {}", DOCUMENT_ID);
-			LOGGER.trace("| Filter: {}", filter);
-			LOGGER.trace("| Update: {}", update);
-			LOGGER.trace("| Options: {}", options);
-			UpdateResult result = collection.updateOne(filter, update, options);
-			LOGGER.debug("| Result: {}", result);
+			try (var _ = context.withOnly(priorContents.diagnosticAttributes())) {
+				BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, DOCUMENT_ID));
+				BsonDocument filter = documentFilter();
+				UpdateOptions options = new UpdateOptions().upsert(true);
+				LOGGER.debug("** Initial upsert for {}", DOCUMENT_ID);
+				LOGGER.trace("| Filter: {}", filter);
+				LOGGER.trace("| Update: {}", update);
+				LOGGER.trace("| Options: {}", options);
+				UpdateResult result = collection.updateOne(filter, update, options);
+				LOGGER.debug("| Result: {}", result);
+			}
 
 			// This is the only time Sequoia changes two documents for the same operation.
 			// Aside from refurbish, it's the only reason we'd want multi-document transactions,
