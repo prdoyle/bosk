@@ -11,4 +11,8 @@ public record FlushOperation(
 	public void submitTo(BoskDriver driver) throws IOException, InterruptedException {
 		driver.flush();
 	}
+
+	public interface Consumer {
+		void accept(FlushOperation op) throws IOException, InterruptedException;
+	}
 }
