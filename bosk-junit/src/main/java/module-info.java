@@ -5,7 +5,7 @@ module works.bosk.junit {
 	requires transitive org.junit.jupiter.api;
 	requires org.slf4j;
 
-	requires org.jspecify;
+	requires static transitive org.jspecify;
 
 	exports works.bosk.junit;
 }

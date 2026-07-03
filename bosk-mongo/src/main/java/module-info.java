@@ -16,7 +16,7 @@ module works.bosk.mongo {
 	requires transitive works.bosk.core;
 
 	requires static lombok;
-	requires org.jspecify;
+	requires static transitive org.jspecify;
 
 	exports works.bosk.drivers.mongo;
 	exports works.bosk.drivers.mongo.exceptions;

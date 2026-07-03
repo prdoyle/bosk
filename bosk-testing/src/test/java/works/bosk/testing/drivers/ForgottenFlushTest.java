@@ -44,6 +44,7 @@ public class ForgottenFlushTest extends AbstractDriverTest {
 			super(downstream);
 		}
 
+		@SuppressWarnings("unchecked") // This "overrides" an inherited static method (??)
 		public static DriverFactory<TestEntity> factory() {
 			return (_, d) -> new ForgetfulDriver(d);
 		}

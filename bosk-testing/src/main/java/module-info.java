@@ -5,7 +5,7 @@ module works.bosk.testing {
 	requires transitive works.bosk.core;
 	requires transitive works.bosk.junit;
 	requires transitive org.junit.jupiter.api;
-	requires org.jspecify;
+	requires static transitive org.jspecify;
 	requires org.slf4j;
 
 	requires static lombok;

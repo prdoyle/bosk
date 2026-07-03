@@ -2,9 +2,9 @@
  * Internal test infrastructure for Bosk subprojects.
  */
 module works.bosk.libtesting {
-	requires works.bosk.core;
+	requires transitive works.bosk.core;
 	requires works.bosk.testing;
-	requires works.bosk.jackson;
+	requires transitive works.bosk.jackson;
 	requires works.bosk.mongo;
 	requires works.bosk.bosonSerializer;
 
