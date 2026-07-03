@@ -192,10 +192,6 @@ subprojects {
 			endWithNewline()
 		}
 	}
-
-	tasks.withType(SpotlessTask).configureEach {
-		notCompatibleWithConfigurationCache("https://github.com/diffplug/spotless/issues/2878")
-	}
 }
 
 // Apply publishing only to published modules
