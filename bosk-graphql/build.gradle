@@ -3,3 +3,8 @@ dependencies {
 	api project(":bosk-core")
 	testImplementation project(":bosk-testing")
 }
+
+tasks.withType(JavaCompile).configureEach {
+	// Silence bogus warnings about annotation libraries used by graphql-java
+	options.compilerArgs += ["-Xlint:-classfile"]
+}
