@@ -12,6 +12,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.libtesting.AbstractBoskTest;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.openjdk.jmh.annotations.Mode.AverageTime;

@@ -6,6 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.libtesting.AbstractRoundTripTest;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.StringContains.containsString;

@@ -4,6 +4,6 @@
 module works.bosk.bosonSerializer {
 	requires transitive works.bosk.core;
 	requires transitive works.bosk.boson;
-	requires org.jspecify;
+	requires static transitive org.jspecify;
 	exports works.bosk.bosonSerializer;
 }

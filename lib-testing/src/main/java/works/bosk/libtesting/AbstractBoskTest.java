@@ -1,10 +1,25 @@
-package works.bosk;
+package works.bosk.libtesting;
 
 import java.lang.reflect.Type;
 import java.util.Optional;
 import lombok.With;
 import lombok.experimental.FieldNameConstants;
+import works.bosk.Bosk;
+import works.bosk.BoskConfig;
 import works.bosk.BoskDriver.EntireState;
+import works.bosk.Catalog;
+import works.bosk.CatalogReference;
+import works.bosk.DriverFactory;
+import works.bosk.Entity;
+import works.bosk.Identifier;
+import works.bosk.ListValue;
+import works.bosk.Listing;
+import works.bosk.MapValue;
+import works.bosk.Phantom;
+import works.bosk.Reference;
+import works.bosk.SideTable;
+import works.bosk.TaggedUnion;
+import works.bosk.VariantCase;
 import works.bosk.annotations.Enclosing;
 import works.bosk.annotations.Self;
 import works.bosk.annotations.VariantCaseMap;
@@ -147,11 +162,11 @@ public abstract class AbstractBoskTest {
 		);
 	}
 
-	protected static EntireState<TestRoot> initialState(Bosk<TestRoot> bosk) {
+	public static EntireState<TestRoot> initialState(Bosk<TestRoot> bosk) {
 		return EntireState.just(initialRoot(bosk));
 	}
 
-	protected static TestRoot initialRoot(Bosk<TestRoot> bosk) {
+	public static TestRoot initialRoot(Bosk<TestRoot> bosk) {
 		TestEntityBuilder teb;
 		try {
 			teb = new TestEntityBuilder(bosk);

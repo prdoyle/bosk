@@ -8,7 +8,7 @@ import works.bosk.graphql.BoskGraphQL;
 module works.bosk.graphql {
 	requires transitive com.graphqljava;
 	requires transitive works.bosk.core;
-	requires org.jspecify;
+	requires static transitive org.jspecify;
 
 	exports works.bosk.graphql;
 	exports works.bosk.graphql.exceptions;

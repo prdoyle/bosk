@@ -10,7 +10,7 @@ module works.bosk.jackson {
 	requires transitive works.bosk.core;
 
 	requires static lombok;
-	requires org.jspecify;
+	requires static transitive org.jspecify;
 
 	exports works.bosk.jackson;
 }

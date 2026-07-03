@@ -7,6 +7,7 @@ import works.bosk.BoskDriver.EntireState;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.annotations.VariantCaseMap;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.libtesting.AbstractBoskTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;

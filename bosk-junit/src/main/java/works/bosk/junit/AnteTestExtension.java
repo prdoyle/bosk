@@ -11,7 +11,7 @@ import org.junit.jupiter.api.extension.ExtensionContext.Store;
 
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-class AnteTestExtension implements BeforeEachCallback, AfterEachCallback {
+public class AnteTestExtension implements BeforeEachCallback, AfterEachCallback {
 
 	private static final String ANTE_FAILED = "anteTestFailed";
 

@@ -13,7 +13,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.type.TypeFactory;
-import works.bosk.AbstractRoundTripTest;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
@@ -35,6 +34,7 @@ import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
 import works.bosk.junit.Injector;
+import works.bosk.libtesting.AbstractRoundTripTest;
 import works.bosk.testing.drivers.DriverConformanceTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

@@ -3,6 +3,7 @@ package works.bosk;
 import org.junit.jupiter.api.Test;
 import works.bosk.drivers.ForwardingDriver;
 import works.bosk.drivers.NoOpDriver;
+import works.bosk.libtesting.AbstractBoskTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;

@@ -7,15 +7,15 @@ import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import works.bosk.AbstractBoskTest;
 import works.bosk.Bosk;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
 import works.bosk.Identifier;
 import works.bosk.Reference;
-import works.bosk.TestEntityBuilder;
 import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.libtesting.AbstractBoskTest;
+import works.bosk.libtesting.TestEntityBuilder;
 import works.bosk.util.Types;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -73,7 +73,7 @@ class BsonFormatterTest extends AbstractBoskTest {
 
 		ArrayList<String> dottedName = BsonFormatter.dottedFieldNameSegments(weirdRef, weirdRef.path().length(), bosk.rootReference());
 		BsonDocument expected = new BsonDocument()
-			.append(dottedName.get(dottedName.size()-1), weirdDoc);
+			.append(dottedName.getLast(), weirdDoc);
 		assertEquals(expected, actual);
 	}
 }
