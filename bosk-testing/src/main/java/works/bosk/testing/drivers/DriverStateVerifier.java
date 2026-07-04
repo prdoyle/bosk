@@ -125,21 +125,16 @@ public final class DriverStateVerifier<R extends StateTreeNode> {
 		if (!(op.boskContext().tenant() instanceof Tenant.Established tenant)) {
 			throw new AssertionError("Missing tenant on update: " + op);
 		}
-		Object before;
-		Object after;
-		try (var _ = stateTrackingBosk.context().withTenant(tenant)) {
-			before = currentStateBefore(op);
-			after = newStateAfter(op);
-		} catch (IOException | InterruptedException e) {
-			throw new NotYetImplementedException(e);
-		}
-		LOGGER.trace("\t\tbefore: {}", before);
-		LOGGER.trace("\t\t after: {}", after);
 
-		String threadID = threadId(op);
-		if (threadID == null) {
-			throw new AssertionError("Missing " + THREAD_ID + " diagnostic attribute");
-		} else {
+		try (var _ = stateTrackingBosk.context().withTenant(tenant)) {
+			// Capture the state before speculatively applying operations
+			// to see if they're no-ops
+			Object before = currentStateBefore(op);
+
+			String threadID = threadId(op);
+			if (threadID == null) {
+				throw new AssertionError("Missing " + THREAD_ID + " diagnostic attribute");
+			}
 			Deque<UpdateOperation> q = pendingOperationsByThreadID.get(threadID);
 			if (q == null) {
 				LOGGER.debug("\tNo queued events for thread \"{}\"", threadID);
@@ -154,12 +149,17 @@ public final class DriverStateVerifier<R extends StateTreeNode> {
 						if (!(expectedTenant.equals(tenant))) {
 							throw new AssertionError(
 								"Operation has incorrect tenant " + tenant
-								+ "; expected " + expectedTenant);
+									+ "; expected " + expectedTenant);
 						}
 						// expected is already the first element — preceding no-ops
-						// were removed via it.remove() above
+						// were removed via it.remove() below
 						q.removeFirst();
+
+						// Apply the matching operation to stateTrackingBosk
+						newStateAfter(op);
 						return;
+					} else {
+						LOGGER.trace("\t\tDid not find match for: {}", expected);
 					}
 
 					// Not a match. Check if expected is a no-op.
@@ -181,14 +181,21 @@ public final class DriverStateVerifier<R extends StateTreeNode> {
 					break;
 				}
 			}
-		}
 
-		try (var _ = stateTrackingBosk.context().withTenant(tenant)) {
+			// op doesn't match what we were expecting.
+			// It's valid if and only if it's a no-op.
+			// We can now try applying it to find out.
+			Object after = newStateAfter(op);
+			LOGGER.trace("\t\tbefore: {}", before);
+			LOGGER.trace("\t\t after: {}", after);
+
 			if (Objects.equals(before, after)) {
 				LOGGER.debug("\tConclusion: spontaneous no-op: {}", op);
 			} else {
 				throw new AssertionError("No matching operation\n\t" + op);
 			}
+		} catch (InterruptedException | IOException e) {
+			throw new NotYetImplementedException(e);
 		}
 	}
 

@@ -344,7 +344,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	 * for each updated field.
 	 */
 	private void replaceUpdatedFields(@Nullable BsonDocument updatedFields) {
-		if (updatedFields != null) {
+		if (updatedFields == null) {
+			LOGGER.trace("| (No updated fields; nothing to replace)");
+		} else {
 			for (Map.Entry<String, BsonValue> entry : updatedFields.entrySet()) {
 				String dottedName = entry.getKey();
 				if (dottedName.startsWith(DocumentFields.state.name())) {
@@ -358,6 +360,8 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 					LOGGER.debug("| Replace {}", ref);
 					Object replacement = formatter.bsonValue2object(entry.getValue(), ref);
 					downstream.submitReplacement(ref, replacement);
+				} else {
+					LOGGER.trace("| (Ignoring field: {})", dottedName);
 				}
 			}
 		}
@@ -368,7 +372,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	 * for each removed field.
 	 */
 	private void deleteRemovedFields(@Nullable List<String> removedFields, OperationType operationType) throws UnprocessableEventException {
-		if (removedFields != null) {
+		if (removedFields == null) {
+			LOGGER.trace("| (No removed fields; nothing to delete)");
+		} else {
 			for (String dottedName : removedFields) {
 				if (dottedName.startsWith(DocumentFields.state.name())) {
 					Reference<Object> ref;
