@@ -329,28 +329,29 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		allPriorContents.forEach((tenant, priorContents) -> {
 			BsonValue initialState = formatter.object2bsonValue(priorContents.state(), rootRef.targetType());
 			BsonInt64 newRevision = new BsonInt64(1 + priorContents.revision().longValue());
-			// Note that priorContents.diagnosticAttributes are ignored, and we use the attributes from this thread
+			try (var _ = context.withOnly(priorContents.diagnosticAttributes())) {
 
-			LOGGER.debug("** Initial upsert");
-			collection.ensureTransactionStarted();
-			String tenantPrefix = tenantPrefix(tenant);
-			if (initialState instanceof BsonDocument) {
-				upsertAndRemoveSubParts(rootRef, initialState.asDocument(), tenantPrefix); // Mutates initialState!
+				LOGGER.debug("** Initial upsert");
+				collection.ensureTransactionStarted();
+				String tenantPrefix = tenantPrefix(tenant);
+				if (initialState instanceof BsonDocument) {
+					upsertAndRemoveSubParts(rootRef, initialState.asDocument(), tenantPrefix); // Mutates initialState!
+				}
+				BsonString documentId = new BsonString(tenantPrefix + "|");
+				BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, documentId));
+				BsonDocument filter = rootDocumentsFilter();
+				filter.put("_id", documentId);
+				UpdateOptions options = new UpdateOptions().upsert(true);
+				LOGGER.trace("| Filter: {}", filter);
+				LOGGER.trace("| Update: {}", update);
+				LOGGER.trace("| Options: {}", options);
+				UpdateResult result = collection.updateOne(filter, update, options);
+				LOGGER.debug("| Result: {}", result);
+				writeManifest(Manifest.forPando(format));
+
+				// Update the state that we "know about"
+				finishedRevision(tenant, newRevision);
 			}
-			BsonString documentId = new BsonString(tenantPrefix + "|");
-			BsonDocument update = new BsonDocument("$set", initialDocument(initialState, newRevision, documentId));
-			BsonDocument filter = rootDocumentsFilter();
-			filter.put("_id", documentId);
-			UpdateOptions options = new UpdateOptions().upsert(true);
-			LOGGER.trace("| Filter: {}", filter);
-			LOGGER.trace("| Update: {}", update);
-			LOGGER.trace("| Options: {}", options);
-			UpdateResult result = collection.updateOne(filter, update, options);
-			LOGGER.debug("| Result: {}", result);
-			writeManifest(Manifest.forPando(format));
-
-			// Update the state that we "know about"
-			finishedRevision(tenant, newRevision);
 		});
 	}
 
