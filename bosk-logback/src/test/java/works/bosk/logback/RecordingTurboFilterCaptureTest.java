@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.slf4j.helpers.SubstituteLoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -18,8 +19,11 @@ public class RecordingTurboFilterCaptureTest {
 	private RecordingTurboFilter filter;
 
 	@BeforeAll
-	static void initializeLogging() {
-		LoggerFactory.getLogger(RecordingTurboFilterCaptureTest.class);
+	static void initializeLogging() throws InterruptedException {
+		// Logback offers no known way to wait for initialization to finish before running tests!
+		while (LoggerFactory.getILoggerFactory() instanceof SubstituteLoggerFactory) {
+			Thread.sleep(100);
+		}
 	}
 
 	@BeforeEach
