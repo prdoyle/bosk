@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
+import works.bosk.BoskConfig.TenancyModel.Implicit;
 import works.bosk.BoskConfig.TenancyModel.None;
 import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Context;
@@ -317,7 +318,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		@Override
 		public <T> void submitDeletion(Reference<T> target) {
 			try (var _ = setupMDC(name(), instanceID())) {
-				if (target.path().isEmpty()) {
+				if (target.isRoot() && tenancyModel() instanceof Implicit) {
 					// TODO: Augment dereferencer so it can tell us this for all references, not just the root
 					throw new IllegalArgumentException("Cannot delete root object");
 				}
@@ -542,10 +543,26 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 */
 		private <T> boolean tryGraftReplacement(Reference<T> target, T newValue) {
 			assert holdsLock(this);
+			Path targetPath = target.path();
+			if (targetPath.isEmpty()) {
+				// Root replacement = tenant creation/overwrite
+				@SuppressWarnings("unchecked")
+				R newRoot = (R) requireNonNull(newValue);
+				currentState = switch (currentState) {
+					case null -> EntireState.just(newRoot);
+					case SingleTree<R> _ -> EntireState.just(newRoot);
+					case MultiTree<R> m -> m.with((TenantId)context().getTenant(), newRoot);
+				};
+				return true;
+			}
 			Dereferencer dereferencer = dereferencerFor(target);
 			try {
 				LOGGER.debug("Applying replacement at {}", target);
 				R oldRoot = currentRoot();
+				if (oldRoot == null) {
+					LOGGER.debug("Ignoring replacement of {}: tenant root does not exist", target);
+					return false;
+				}
 				@SuppressWarnings("unchecked")
 				R newRoot = (R) requireNonNull(dereferencer.with(oldRoot, target, requireNonNull(newValue)));
 				currentState = switch (currentState) {
@@ -572,11 +589,23 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		private <T> boolean tryGraftDeletion(Reference<T> target) {
 			assert holdsLock(this);
 			Path targetPath = target.path();
-			assert !targetPath.isEmpty();
+			if (targetPath.isEmpty()) {
+				// Root deletion = tenant deletion
+				currentState = switch (currentState) {
+					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
+					case SingleTree<R> _ -> throw new IllegalArgumentException("Cannot delete root object");
+					case MultiTree<R> m -> m.without((TenantId)context().getTenant());
+				};
+				return true;
+			}
 			Dereferencer dereferencer = dereferencerFor(target);
 			try {
 				LOGGER.debug("Applying deletion at {}", target);
 				R oldRoot = currentRoot();
+				if (oldRoot == null) {
+					LOGGER.debug("Ignoring deletion of {}: tenant root does not exist", target);
+					return false;
+				}
 				@SuppressWarnings("unchecked")
 				R newRoot = (R) requireNonNull(dereferencer.without(oldRoot, target));
 				currentState = switch (currentState) {
@@ -1400,9 +1429,13 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		@SuppressWarnings("unchecked")
 		public T valueIfExists() {
 			assertTenantEstablished();
-			R snapshot = getRoot(rootSnapshot.get());
-			if (snapshot == null) {
+			var entireState = rootSnapshot.get();
+			if (entireState == null) {
 				throw new NoReadSessionException("No active read session for " + name + " in " + Thread.currentThread());
+			}
+			R snapshot = getRoot(entireState);
+			if (snapshot == null) {
+				return null;
 			}
 			LOGGER.trace("Snapshot is {}", System.identityHashCode(snapshot));
 			try {
@@ -1535,11 +1568,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			case SingleTree<RR>(var r) -> r;
 			case MultiTree<RR>(var r) -> {
 				if (context().getTenant() instanceof TenantId s) {
-					RR result = r.get(s);
-					if (result == null) {
-						throw new IllegalStateException("Tenant " + s + " does not exist");
-					}
-					yield result;
+					yield r.get(s);
 				} else {
 					throw new IllegalStateException("Tenant must be TenantId for multi-tenant bosk");
 				}

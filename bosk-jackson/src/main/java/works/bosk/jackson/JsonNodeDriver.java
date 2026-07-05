@@ -1,7 +1,8 @@
 package works.bosk.jackson;
 
 import java.io.IOException;
-import org.jspecify.annotations.NonNull;
+import java.util.function.Supplier;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -63,7 +64,7 @@ public class JsonNodeDriver implements BoskDriver {
 	@Override
 	public synchronized <T> void submitReplacement(Reference<T> target, T newValue) {
 		traceCurrentState("Before submitReplacement");
-		doReplacement(surgeon.nodeInfo(currentRoot(), target), target.path().lastSegment(), newValue);
+		doReplacement(surgeon.nodeInfo(currentRoot(), target), () -> target.path().lastSegment(), newValue);
 		downstream.submitReplacement(target, newValue);
 		traceCurrentState("After submitReplacement");
 	}
@@ -71,8 +72,9 @@ public class JsonNodeDriver implements BoskDriver {
 	@Override
 	public synchronized <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) {
 		traceCurrentState("Before submitConditionalReplacement");
-		if (requiredValue.toString().equals(surgeon.valueNode(currentRoot(), precondition).asString())) {
-			doReplacement(surgeon.nodeInfo(currentRoot(), target), target.path().lastSegment(), newValue);
+		JsonNode root = currentRoot();
+		if (root != null && requiredValue.toString().equals(surgeon.valueNode(root, precondition).asString())) {
+			doReplacement(surgeon.nodeInfo(root, target), () -> target.path().lastSegment(), newValue);
 		}
 		downstream.submitConditionalReplacement(target, newValue, precondition, requiredValue);
 		traceCurrentState("After submitConditionalReplacement");
@@ -82,7 +84,14 @@ public class JsonNodeDriver implements BoskDriver {
 	public synchronized <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		traceCurrentState("Before submitConditionalCreation");
 		if (surgeon.valueNode(currentRoot(), target) == null) {
-			doReplacement(surgeon.nodeInfo(currentRoot(), target), target.path().lastSegment(), newValue);
+			if (target.isRoot()) {
+				contents = switch (contents) {
+					case MultiTenant<JsonNode> m -> m.with(context.getTenantId(), mapper.convertValue(newValue, JsonNode.class));
+					default -> throw new IllegalStateException("Unexpected contents type: " + contents.getClass().getSimpleName());
+				};
+			} else {
+				doReplacement(surgeon.nodeInfo(currentRoot(), target), () -> target.path().lastSegment(), newValue);
+			}
 		}
 		downstream.submitConditionalCreation(target, newValue);
 		traceCurrentState("After submitConditionalCreation");
@@ -91,7 +100,14 @@ public class JsonNodeDriver implements BoskDriver {
 	@Override
 	public synchronized <T> void submitDeletion(Reference<T> target) {
 		traceCurrentState("Before submitDeletion");
-		surgeon.deleteNode(surgeon.nodeInfo(currentRoot(), target));
+		if (target.isRoot()) {
+			contents = switch (contents) {
+				case NoTenant<JsonNode> _ -> throw new IllegalArgumentException("Cannot delete root object");
+				case MultiTenant<JsonNode> m -> m.without(context.getTenantId());
+			};
+		} else {
+			surgeon.deleteNode(surgeon.nodeInfo(currentRoot(), target));
+		}
 		downstream.submitDeletion(target);
 		traceCurrentState("After submitDeletion");
 	}
@@ -99,8 +115,16 @@ public class JsonNodeDriver implements BoskDriver {
 	@Override
 	public synchronized <T> void submitConditionalDeletion(Reference<T> target, Reference<Identifier> precondition, Identifier requiredValue) {
 		traceCurrentState("Before submitConditionalDeletion");
-		if (requiredValue.toString().equals(surgeon.valueNode(currentRoot(), precondition).asString())) {
-			surgeon.deleteNode(surgeon.nodeInfo(currentRoot(), target));
+		JsonNode root = currentRoot();
+		if (root != null && requiredValue.toString().equals(surgeon.valueNode(root, precondition).asString())) {
+			if (target.isRoot()) {
+				contents = switch (contents) {
+					case NoTenant<JsonNode> _ -> throw new IllegalArgumentException("Cannot delete root object");
+					case MultiTenant<JsonNode> m -> m.without(context.getTenantId());
+				};
+			} else {
+				surgeon.deleteNode(surgeon.nodeInfo(root, target));
+			}
 		}
 		downstream.submitConditionalDeletion(target, precondition, requiredValue);
 		traceCurrentState("After submitConditionalDeletion");
@@ -112,14 +136,15 @@ public class JsonNodeDriver implements BoskDriver {
 		downstream.flush();
 	}
 
-	private <T> void doReplacement(NodeInfo nodeInfo, String lastSegment, T newValue) {
-		JsonNode replacement = surgeon.replacementNode(nodeInfo, lastSegment, () -> mapper.convertValue(newValue, JsonNode.class));
+	private <T> void doReplacement(NodeInfo nodeInfo, Supplier<String> lastSegment, T newValue) {
 		if (nodeInfo.replacementLocation() instanceof Root) {
+			JsonNode replacement = mapper.convertValue(newValue, JsonNode.class);
 			contents = switch (contents) {
 				case PerTenant.NoTenant<JsonNode> _ -> NoTenant.just(replacement);
 				case PerTenant.MultiTenant<JsonNode> m -> m.with(context.getTenantId(), replacement);
 			};
 		} else {
+			JsonNode replacement = surgeon.replacementNode(nodeInfo, lastSegment.get(), () -> mapper.convertValue(newValue, JsonNode.class));
 			surgeon.replaceNode(nodeInfo, replacement);
 		}
 	}
@@ -130,16 +155,10 @@ public class JsonNodeDriver implements BoskDriver {
 		}
 	}
 
-	@NonNull JsonNode currentRoot() {
+	@Nullable JsonNode currentRoot() {
 		return switch (contents) {
 			case NoTenant<JsonNode>(var root) -> root;
-			case MultiTenant<JsonNode>(var roots) -> {
-				JsonNode root = roots.get(context.getTenantId());
-				if (root == null) {
-					throw new IllegalStateException("No state for tenant " + context.getTenantId());
-				}
-				yield root;
-			}
+			case MultiTenant<JsonNode>(var roots) -> roots.get(context.getTenantId());
 		};
 	}
 
