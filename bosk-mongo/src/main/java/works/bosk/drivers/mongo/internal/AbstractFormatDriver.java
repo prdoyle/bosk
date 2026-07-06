@@ -21,9 +21,9 @@ import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel;
+import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
-import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
@@ -178,8 +178,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			case NoTenant<T>(var value) -> switch (tenancyModel) {
 				case None _ -> contents;
 				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), value);
-				case Persistent _ -> throw new AssertionError(
-					"Should not have NoTenant contents with Persistent tenancy");
+				case Explicit _ -> throw new AssertionError(
+					"Should not have NoTenant contents with Explicit tenancy");
 			};
 			case MultiTenant<T> _ -> contents;
 		};
@@ -193,8 +193,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			case NoTenant<?> _ -> switch (tenancyModel) {
 				case None _ -> NoTenant.just(newFlushLock());
 				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), newFlushLock());
-				case Persistent _ -> throw new AssertionError(
-					"Should not have NoTenant contents with Persistent tenancy");
+				case Explicit _ -> throw new AssertionError(
+					"Should not have NoTenant contents with Explicit tenancy");
 			};
 			case MultiTenant<?> m -> {
 				SortedMap<TenantId, FlushLock> locks = new TreeMap<>();
@@ -344,7 +344,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		return switch (tenancyModel) {
 			case None _ -> Tenant.NONE;
 			case Fixed(var fixedId) -> Tenant.setTo(fixedId);
-			case Persistent _ -> getTenantFromDocumentId(id);
+			case Explicit _ -> getTenantFromDocumentId(id);
 		};
 	}
 

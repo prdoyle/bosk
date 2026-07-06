@@ -3,8 +3,8 @@ package works.bosk.testing.drivers;
 import org.junit.jupiter.api.Test;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
+import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
-import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver.EntireState;
@@ -95,7 +95,7 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		Refs refs = bosk.buildReferences(Refs.class);
 
 		// Note: do this assume after the setup is done, or cleanup will crash!
-		assumeTrue(scenario.tenancyModel instanceof Persistent);
+		assumeTrue(scenario.tenancyModel instanceof Explicit);
 
 		tenantScope.close();
 		tenantScope = null;

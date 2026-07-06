@@ -16,7 +16,6 @@ import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
-import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.ContextScope;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.TenantId;
@@ -63,7 +62,7 @@ public abstract class AbstractDriverTest {
 	public enum Scenario {
 		NO_TENANTS(TenancyModel.NONE, Tenant.NONE),
 		FIXED_TENANT(new Fixed(TENANT1), Tenant.setTo(TENANT1)),
-		PERSISTENT_TENANT(TenancyModel.PERSISTENT, Tenant.setTo(TENANT1))
+		EXPLICIT_TENANT(TenancyModel.EXPLICIT, Tenant.setTo(TENANT1))
 		;
 
 		public final TenancyModel tenancyModel;
@@ -122,7 +121,7 @@ public abstract class AbstractDriverTest {
 
 		@Override
 		public List<?> values() {
-			return List.of(Scenario.PERSISTENT_TENANT);
+			return List.of(Scenario.EXPLICIT_TENANT);
 		}
 	}
 
@@ -193,7 +192,7 @@ public abstract class AbstractDriverTest {
 	public EntireState<TestEntity> initialState(Bosk<TestEntity> b) throws InvalidTypeException {
 		TestEntity root = initialRoot(b);
 		return switch (scenario.tenancyModel) {
-			case Persistent _ -> MultiTree.<TestEntity>empty()
+			case Explicit _ -> MultiTree.<TestEntity>empty()
 				.with((TenantId) scenario.startingTenant, root)
 				.with(Tenant.setTo(TENANT2), root.withId(Identifier.from(TENANT2 + " root")));
 			case None _, Fixed _ -> EntireState.just(root);
