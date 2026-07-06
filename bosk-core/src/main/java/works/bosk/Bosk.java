@@ -28,7 +28,6 @@ import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.Implicit;
 import works.bosk.BoskConfig.TenancyModel.None;
-import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
@@ -522,7 +521,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 						var tenant = switch (tenancyModel) {
 							case None _ -> Tenant.NONE;
 							case Fixed(var id) -> new TenantId(id);
-							case Persistent _ -> throw new IllegalStateException("Persistent tenancy model is not supported in single-tree bosk");
+							case Explicit _ -> throw new IllegalStateException("Explicit tenancy model is not supported in single-tree bosk");
 						};
 						try (var _ = context.withTenant(tenant)) {
 							action.accept(root);

@@ -17,9 +17,9 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
 import works.bosk.BoskConfig.TenancyModel.None;
-import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
@@ -69,7 +69,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			flushTimeoutMS,
 			() -> boskInfo.bosk().entireState()
 		);
-		if (boskInfo.tenancyModel() instanceof Persistent) {
+		if (boskInfo.tenancyModel() instanceof Explicit) {
 			throw new IllegalArgumentException(
 				"SequoiaFormat does not support " + boskInfo.tenancyModel());
 		}
@@ -130,7 +130,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			return switch (tenancyModel) {
 				case None _ -> NoTenant.just(bsm);
 				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), bsm);
-				case Persistent _ -> throw new NotYetImplementedException();
+				case Explicit _ -> throw new NotYetImplementedException();
 			};
 		} catch (NoSuchElementException e) {
 			throw new InvalidCollectionContentsException(SEQUOIA, "State document not found: " + DOCUMENT_ID, e);
@@ -148,7 +148,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				return switch (tenancyModel) {
 					case None _ -> NoTenant.just(revision);
 					case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), revision);
-					case Persistent _ -> throw new NotYetImplementedException();
+					case Explicit _ -> throw new NotYetImplementedException();
 				};
 			}
 		} catch (NoSuchElementException e) {

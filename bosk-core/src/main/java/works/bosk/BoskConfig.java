@@ -60,18 +60,6 @@ public record BoskConfig<R extends StateTreeNode> (
 			return this;
 		}
 
-		public Builder<R> noTenants() {
-			return tenancyModel(TenancyModel.NONE);
-		}
-
-		public Builder<R> fixedTenant(Identifier tenantId) {
-			return tenancyModel(new TenancyModel.Fixed(tenantId));
-		}
-
-		public Builder<R> persistentTenants() {
-			return tenancyModel(TenancyModel.PERSISTENT);
-		}
-
 		public Builder<R> tenancyModel(TenancyModel tenancyModel) {
 			this.tenancyModel = requireNonNull(tenancyModel);
 			return this;
@@ -99,12 +87,6 @@ public record BoskConfig<R extends StateTreeNode> (
 		sealed interface Implicit extends TenancyModel {}
 
 		/**
-		 * All threads are initially {@link Tenant.NotEstablished not established}.
-		 * Most bosk operations won't work until a tenant is {@link works.bosk.BoskContext#withTenant(Tenant.Established) established}.
-		 */
-		sealed interface Explicit extends TenancyModel {}
-
-		/**
 		 * {@link Tenant.None} is automatically established on all threads, including in hooks.
 		 * <p>
 		 * This is a good default choice for a bosk that doesn't yet need multitenancy.
@@ -127,7 +109,7 @@ public record BoskConfig<R extends StateTreeNode> (
 		 * This is useful in a multi-tree system, where each tenant has its own state,
 		 * since tenant information is essential for disambiguating reads and updates.
 		 */
-		record Persistent() implements Explicit {}
+		record Explicit() implements TenancyModel {}
 
 		/**
 		 * @see works.bosk.BoskConfig.TenancyModel.None
@@ -135,9 +117,9 @@ public record BoskConfig<R extends StateTreeNode> (
 		None NONE = new None();
 
 		/**
-		 * @see works.bosk.BoskConfig.TenancyModel.Persistent
+		 * @see Explicit
 		 */
-		Persistent PERSISTENT = new Persistent();
+		Explicit EXPLICIT = new Explicit();
 	}
 
 	private static final DriverFactory<?> SIMPLE_DRIVER_FACTORY = (_, d) -> d;

@@ -16,7 +16,7 @@ import works.bosk.libtesting.AbstractBoskTest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static works.bosk.BoskConfig.TenancyModel.PERSISTENT;
+import static works.bosk.BoskConfig.TenancyModel.EXPLICIT;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
 @RunAnteTestsFirst
@@ -46,7 +46,7 @@ public class BoskTenantTest extends AbstractBoskTest {
 			TestRoot.class,
 			this::initialEntireState,
 			BoskConfig.<TestRoot>builder()
-				.tenancyModel(PERSISTENT)
+				.tenancyModel(EXPLICIT)
 				.build());
 		refs = bosk.buildReferences(Refs.class);
 	}

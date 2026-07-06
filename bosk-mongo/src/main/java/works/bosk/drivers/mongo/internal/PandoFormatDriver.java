@@ -32,8 +32,8 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel;
+import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
-import works.bosk.BoskConfig.TenancyModel.Persistent;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskContext.Tenant.None;
@@ -250,8 +250,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				yield switch (tenancyModel) {
 					case TenancyModel.None _ -> new NoTenant<>(theState);
 					case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), theState);
-					case Persistent _ -> throw new AssertionError(
-						"Persistent tenancy should use ID_PREFIX format");
+					case Explicit _ -> throw new AssertionError(
+						"Explicit tenancy should use ID_PREFIX format");
 				};
 			}
 			case ID_PREFIX -> states.entrySet().stream()
@@ -292,8 +292,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 								yield switch (tenancyModel) {
 									case TenancyModel.None _ -> NoTenant.just(revision);
 									case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), revision);
-									case Persistent _ -> throw new AssertionError(
-										"Persistent tenancy should use ID_PREFIX format");
+									case Explicit _ -> throw new AssertionError(
+										"Explicit tenancy should use ID_PREFIX format");
 								};
 							}
 						}
@@ -437,7 +437,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				case MultiTenant<StateAndMetadata<R>> _ -> throw new IllegalArgumentException(
 					"Tenancy model " + tenancyModel + " not compatible with MultiTenant state");
 			};
-			case Persistent _ -> switch (given) {
+			case Explicit _ -> switch (given) {
 				case MultiTenant<StateAndMetadata<R>> v -> v;
 				case NoTenant<StateAndMetadata<R>> _ -> throw new IllegalArgumentException(
 					"Tenancy model " + tenancyModel + " not compatible with NoTenant state");

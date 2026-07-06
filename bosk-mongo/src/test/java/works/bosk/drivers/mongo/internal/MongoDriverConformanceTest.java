@@ -90,7 +90,7 @@ class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 			return switch (scenario) {
 				case NO_TENANTS -> List.of(TenancyFormat.NONE);
 				case FIXED_TENANT -> List.of(TenancyFormat.NONE, TenancyFormat.ID_PREFIX);
-				case PERSISTENT_TENANT -> List.of(TenancyFormat.ID_PREFIX);
+				case EXPLICIT_TENANT -> List.of(TenancyFormat.ID_PREFIX);
 			};
 		}
 	}
@@ -106,7 +106,7 @@ class MongoDriverConformanceTest extends PolyfillDriverConformanceTest {
 			Stream<DatabaseFormat> formats = switch (scenario) {
 				case NO_TENANTS, FIXED_TENANT ->
 					Stream.concat(sequoiaFormats(), pandoFormats());
-				case PERSISTENT_TENANT ->
+				case EXPLICIT_TENANT ->
 					pandoFormats();
 			};
 			return TestParameters.driverSettings(
