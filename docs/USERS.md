@@ -11,7 +11,7 @@ though it actually does several more things:
 - it acts as a factory for `Reference` objects, via `RootReference`, which provide efficient access to specific nodes of your state tree,
 - it provides stable thread-local state snapshots, via `ReadSession`,
 - it provides a `BoskDriver` interface, through which you can modify the immutable state tree,
-- it propagates telemetry information, via `BoskDiagnosticContext`, and
+- it propagates telemetry information, via `BoskContext`, and
 - it can execute _hook_ callback functions when part of the tree changes.
 
 The `Bosk` object is typically a singleton.
@@ -50,8 +50,8 @@ Drivers are free to choose how the initial state is computed: they can supply th
 For example, `MongoDriver` will load the initial state from the database if it's available, and if not, it will delegate to the downstream driver.
 
 If all drivers choose to delegate to their downstream drivers, ultimately the `initialState` method of the bosk's local driver will be called.
-This method calls the `Bosk` constructor's `DefaultRootFunction` parameter to compute the initial state tree.
-The overall effect of this setup is that the `DefaultRootFunction` parameter is only used if the bosk's driver does not supply the initial state.
+This method calls the `Bosk` constructor's `DefaultStateFunction` parameter to compute the initial state tree.
+The overall effect of this setup is that the `DefaultStateFunction` parameter is only used if the bosk's driver does not supply the initial state.
 
 ### The State Tree
 
@@ -484,7 +484,7 @@ This is a powerful technique to add functionality to a Bosk instance.
 
 To retain compatibility with application code, however, driver implementations should obey the `BoskDriver` contract.
 The low-level details of that contract are well documented in the `BoskDriver` javadocs, and are tested in the `DriverConformanceTest` class.
-In addition, there there are also important higher-level rules governing the allowed differences between the updates a driver receives and those it forwards to the downstream driver.
+In addition, there are also important higher-level rules governing the allowed differences between the updates a driver receives and those it forwards to the downstream driver.
 Breaking these rules might alter application behaviour in ways that the developers won't be expecting.
 
 Broadly, the validity of a sequence of updates can be understood in terms of the implied _sequence of states_ that exist between updates.
@@ -716,8 +716,6 @@ static DriverFactory<ExampleState> driverFactory() {
 
 ##### Database setup
 
-Bosk supports MongoDB 4.4 and up.
-
 To support change streams, MongoDB must be deployed as a replica set.
 In production, this is a good practice anyway, so this requirement shouldn't cause any hardship:
 the MongoDB documentation recommends against deploying a standalone server to production.
@@ -727,7 +725,7 @@ To support `MongoDriver`, you must use a replica set, even if you are running ju
 This can be achieved using the following `Dockerfile`:
 
 ``` dockerfile
-FROM mongo:4.4 # ...but use a newer version if you can
+FROM mongo
 RUN echo "rs.initiate()" > /docker-entrypoint-initdb.d/rs-initiate.js
 CMD [ "mongod", "--replSet", "rsLonesome", "--port", "27017", "--bind_ip_all" ]
 ```
@@ -769,6 +767,8 @@ meaning it takes up no space at all when it's not present.
 - The _Sequoia_ format (the default) stores the entire bosk state in a single document in a single collection.
 - The _Pando_ format divides up the bosk state into multiple documents, to overcome the MongoDB limit of 16MB for a single document.
 
+The format of the database is described by a manifest document whose ID is `!Manifest`.
+
 For Sequoia, the collection is called `boskCollection` and the document has four fields:
 
 - `_id`: this is always `boskDocument`
@@ -785,6 +785,37 @@ The code will have the details, but some high-level points about the BSON format
 For Pando, the situation is similar, except that instead of having a single document with an `_id` of `boskDocument`,
 there are multiple documents with `_id` values that start with `|` (vertical bar)
 and that describe where the document fits within the overall BSON structure.
+
+Pando also supports multitenancy by prepending onto the document IDs the tenant ID surrounded by angle brackets.
+The tenants are listed in a document whose ID is `!contents`.
+
+`MongoDriver` is designed to tolerate some amount of manual intervention in the database by an operator.
+If something has gone wrong and you need to do an emergency repair,
+`MongoDriver` will try to accommodate your changes, especially if you increment the `revision` number.
+See `MongoDriverRecoveryTest` for some of the scenarios we've envisaged and tested.
+
+##### Format evolution
+
+`MongoDriver.refurbish()` atomically rewrites the database contents
+into the preferred format specified in the `MongoDriverSettings`.
+This can achieve all kinds of format evolution,
+including migrating from Sequoia to or from Pando,
+or migrating between different Pando formats.
+
+To evolve from `TenancyModel.None` to `TenancyModel.Explicit` on a live application that already contains data,
+follow this sequence:
+
+1. Prepare the application code for the transition:
+   - Configure `Bosk` to use `TenancyModel.Fixed` using a tenant ID you've chosen to represent the current state tree.
+   - Configure `MongoDriverSettings` to specify `ID_PREFIX` as the preferred tenancy format.
+   - Rotate all servers.
+2. Use `MongoDriver.refurbish()` to rewrite the database contents to support multiple tenants.
+3. (Concurrently with 2) Prepare the application code for explicit tenancy:
+    - Configure `Bosk` to use `TenancyModel.Explicit`
+    - Use `bosk.context().withTenant(...)` (sparingly) around all operations, ideally alongside your authentication layer
+    - Rotate all servers.
+
+After this, you can create new tenants.
 
 ##### Schema evolution: how to add a new field
 
@@ -924,6 +955,49 @@ typically from your dependency injection framework.
 For an object whose _fields_ represent specific nodes of the bosk state,
 use the `@DeserializationPath` annotation; see the javadocs for more info.
 
+### Multitenancy
+
+Bosk has a built-in notion of _multitenancy_,
+allowing a single `Bosk` object to house multiple copies of the state tree at the same time.
+
+Bosk multitenancy is carefully designed to minimize intrusion into your application code.
+First, application developers can freely ignore this feature until they need it,
+since there's a clearly defined migration path.
+Second, even when multitenancy is active, most application code can ignore it and act like there's just one tenant,
+since the system is designed to make sure the right tenant context is established for every read and update.
+
+#### Tenancy models
+
+Bosk supports two primary tenancy models, described by the `TenancyModel` type hierarchy.
+
+The first is `TenancyModel.None`: the bosk has just a single state tree and there is no concept of tenants.
+
+The second is `TenancyModel.Explicit`: the bosk has multiple state trees, one per tenant.
+Every read or update operation must happen in a thread context with an established tenant ID:
+
+``` java
+try (
+    var _ = bosk.context().withTenant(exampleTenant);
+    var _ = bosk.readSession()
+) {
+    return exampleRef.value();
+}
+```
+
+To support the transition from `TenancyModel.None` to `TenancyModel.Explicit`,
+bosk supports a third mode:
+with `TenancyModel.Fixed`, the bosk has a single state tree, but it also has a specific assigned tenant ID.
+An application transitioning from single-tenant to multi-tenant can select a tenant ID with the `Fixed` model,
+and with _no other changes_ to the application code, they can begin to transition to multitenancy.
+For example, in the `Fixed` model, the `MongoDriver`'s `refurbish()` operation can evolve to a format that supports multiple tenants,
+paving the way for a subsequent change to the `Explicit` model.
+
+For multi-tenant applications, leaking data from one customer to another can be an existential business threat.
+Bosk offers no way to circumvent a thread's established tenant context,
+providing a fairly high assurance that downstream code won't access the wrong tenant:
+doing so would require passing control to another thread with a different tenant context,
+which should be apparent in a code review, so it hopefully would not go unnoticed.
+
 ### Recommendations
 
 #### Create a subclass of `Bosk` and create references at startup
@@ -975,15 +1049,34 @@ public class ExampleBosk extends Bosk<ExampleState> {
 }
 ```
 
-#### Services, tenants, catalogs
+#### Services first
 
 To reduce coupling between different parts of a large codebase sharing a single bosk,
 the fields of the root node are typically different "services" owned by different development teams.
-The next level would be a `Catalog` of tenants or users, depending on your application's tenancy pattern.
-Finally, within a tenant node, many of the important objects are stored in top-level catalogs,
-rather than existing only deeper in the tree.
+Within each service node, many of the important objects are stored in top-level catalogs,
+rather than existing only deeper in the tree.[^top-level]
 
-For example, a typical bosk path might look like `/exampleService/tenants/-tenant-/exampleWidgets/-widget-`.
+[^top-level]: "Top-level" is something of a misnomer here: we mean the "top" under the service object.
+
+For example, a typical bosk path might look like `/exampleService/exampleWidgets/-widget-`.
+
+#### Avoid recursive data structures
+
+Having a node of some type contain a descendant node of the same type is usually a code smell in a Bosk state tree.
+Recursive structures require the application to create an unlimited number of `Reference`s dynamically
+(for example, `/root/child`, `/root/child/child`, `/root/child/child/child` and so on),
+which is awkward and slow.
+It also makes it difficult to evolve your design if you discover you need to handle a use case in which the relationship is not strictly a tree.
+
+For example, if you are representing information about files and folders in your bosk,
+one natural design would be to nest child folders inside parent folders,
+and make the files children of the folder they are in.
+**Don't do this.**
+
+Instead, create two top-level `Catalog`s: one for `File`s and one for `Folder`s.
+Represent their nesting relationships using `Reference`s.
+This way, two parameterized references can access all your objects: `/files/-file-` and `/folders/-folder-`.
+In addition, if you discover you need to handle hard links, where the same file is in multiple folders, this becomes a straightforward extension instead of an awkward redesign.
 
 #### Arrange state by who modifies it
 
@@ -1059,23 +1152,14 @@ write your hooks in a style that follows these steps:
 
 This style leads to more stable systems than imperative-style hooks that respond to bosk updates by issuing arbitrary imperative commands.
 
-#### Avoid recursive data structures
+#### Establish tenant context in the authentication layer
 
-Having a node of some type contain a descendant node of the same type is usually a code smell in a Bosk state tree.
-Recursive structures require the application to create an unlimited number of `Reference`s dynamically
-(for example, `/root/child`, `/root/child/child`, `/root/child/child/child` and so on),
-which is awkward and slow.
-It also makes it difficult to evolve your design if you discover you need to handle a use case in which the relationship is not strictly a tree.
+For web servers, establish the tenant context right after authentication in the request pipeline.
+The downstream code can then proceed in blissful ignorance of the tenant context.
 
-For example, if you are representing information about files and folders in your bosk,
-one natural design would be to nest child folders inside parent folders,
-and make the files children of the folder they are in.
- **Don't do this.**
-
-Instead, create two top-level `Catalog`s: one for `File`s and one for `Folder`s.
-Represent their nesting relationships using `Reference`s.
-This way, two parameterized references can access all your objects: `/files/-file-` and `/folders/-folder-`.
-In addition, if you discover you need to handle hard links, where the same file is in multiple folders, this becomes a straightforward extension instead of an awkward redesign.
+Use a second `Bosk` object for application-wide state that is not specific to any tenant.
+The two bosks can use phantom catalogs for references to each other's objects,
+though Bosk has no built-in support for this, and the application must establish its own practices here.
 
 ### Glossary
 
