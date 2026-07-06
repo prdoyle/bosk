@@ -28,6 +28,14 @@ allprojects {
 	tasks.withType(Javadoc).configureEach {
 		options.addStringOption('Xdoclint:-missing', '-quiet')
 	}
+
+	test {
+		maxParallelForks = 1;
+
+		jvmArgs += ['-XX:+FlightRecorder', '-XX:StartFlightRecording=duration=300s,filename=test-run-%p.jfr']
+
+		doFirst { println "jvmArgs: ${jvmArgs}" }
+	}
 }
 
 configure(subprojects.findAll {
