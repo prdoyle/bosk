@@ -4,6 +4,7 @@ import com.mongodb.MongoCommandException;
 import com.mongodb.MongoException;
 import com.mongodb.MongoInterruptedException;
 import com.mongodb.MongoTimeoutException;
+import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
@@ -54,10 +55,10 @@ class ChangeReceiver implements Closeable {
 	private final Identifier boskID;
 	private final ChangeListener listener;
 	private final MongoDriverSettings settings;
-	private final MongoCollection<BsonDocument> collection;
 	private final Thread.Builder threadBuilder = Thread.ofPlatform().name("bosk-mongo-change-receiver");
 	private final ScheduledExecutorService ex = Executors.newScheduledThreadPool(1, threadBuilder::unstarted);
 	private final Exception creationPoint;
+	private final ChangeStreamIterable<BsonDocument> changeStreamIterable;
 	private volatile @Nullable Thread thread = null;
 	private volatile boolean isClosed = false;
 
@@ -66,8 +67,8 @@ class ChangeReceiver implements Closeable {
 		this.boskID = boskID;
 		this.listener = listener;
 		this.settings = settings;
-		this.collection = collection;
 		this.creationPoint = new Exception("Additional context: ChangeReceiver creation stack trace:");
+		this.changeStreamIterable = collection.watch();
 		if (settings.initialDatabaseUnavailableMode() == FAIL_FAST) {
 			// User requested fail-fast behaviour; try to open the cursor right away
 			// to ensure the database is set up for change streams.
@@ -240,9 +241,7 @@ class ChangeReceiver implements Closeable {
 	}
 
 	private MongoChangeStreamCursor<ChangeStreamDocument<BsonDocument>> openCursor() {
-		MongoChangeStreamCursor<ChangeStreamDocument<BsonDocument>> result = collection
-			.watch()
-			.cursor();
+		var result = changeStreamIterable.cursor();
 		LOGGER.debug("Cursor is open");
 		return result;
 	}
