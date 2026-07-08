@@ -5,8 +5,9 @@ import works.bosk.drivers.mongo.MongoDriverSettings;
 
 /**
  * Thrown from {@link BoskDriver#initialState} if the initial state
- * can't be loaded from the database and {@link MongoDriverSettings.InitialDatabaseUnavailableMode#FAIL_FAST FAIL_FAST}
- * is in effect.
+ * can't be loaded from the database and either
+ * {@link MongoDriverSettings.InitialDatabaseUnavailableMode#FAIL_FAST FAIL_FAST} is in effect
+ * or the downstream driver's {@code initialState} call throws.
  */
 public class InitialStateFailureException extends RuntimeException {
 	public InitialStateFailureException(String message) {

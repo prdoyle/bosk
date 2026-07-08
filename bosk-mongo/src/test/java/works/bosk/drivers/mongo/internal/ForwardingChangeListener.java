@@ -13,7 +13,7 @@ class ForwardingChangeListener implements ChangeListener {
 	}
 
 	@Override
-	public void onConnectionSucceeded() throws UnrecognizedFormatException, UninitializedCollectionException, InterruptedException, IOException, InitialStateActionException, TimeoutException, FailedMongoClientSessionException, InvalidCollectionContentsException {
+	public void onConnectionSucceeded() throws UnrecognizedFormatException, InterruptedException, IOException, InitialStateException, TimeoutException, FailedMongoClientSessionException, InvalidCollectionContentsException {
 		downstream.onConnectionSucceeded();
 	}
 
@@ -23,8 +23,8 @@ class ForwardingChangeListener implements ChangeListener {
 	}
 
 	@Override
-	public void onConnectionFailed() throws InterruptedException, TimeoutException {
-		downstream.onConnectionFailed();
+	public void onConnectionFailed(Exception cause) throws DownstreamInitialStateException {
+		downstream.onConnectionFailed(cause);
 	}
 
 	@Override

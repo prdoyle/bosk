@@ -1,22 +1,13 @@
 package works.bosk.drivers.mongo.internal;
 
-import java.util.concurrent.FutureTask;
-import works.bosk.drivers.mongo.MongoDriver;
-
-import static java.util.Objects.requireNonNull;
-
 /**
- * Unlike other exceptions we use internally, this one is a {@link RuntimeException}
- * because it's thrown from a {@link FutureTask}, and those can't throw checked exceptions.
- * Callers of {@link FutureTask#get()} implementing {@link MongoDriver#initialState}
- * need to handle this appropriately without any help from the compiler.
+ * Thrown to indicate that the downstream driver's {@code initialState} failed.
+ * <p>
+ * This is typically fatal to the Bosk constructor because the downstream {@code initialState}
+ * is used as a fallback when the MongoDB initial state is already unavailable.
  */
-class DownstreamInitialStateException extends IllegalStateException {
+class DownstreamInitialStateException extends InitialStateException {
 	public DownstreamInitialStateException(String message, Throwable cause) {
-		super(message, requireNonNull(cause));
-	}
-
-	public DownstreamInitialStateException(Throwable cause) {
-		super(requireNonNull(cause));
+		super(message, cause);
 	}
 }

@@ -30,6 +30,7 @@ import works.bosk.Phantom;
 import works.bosk.ReferenceUtils;
 import works.bosk.bytecode.ClassBuilder;
 import works.bosk.bytecode.LocalVariable;
+import works.bosk.exceptions.DeserializationException;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.util.Arrays.asList;
@@ -310,7 +311,12 @@ final class JacksonCompiler {
 					// because we need to tolerate the fields arriving in arbitrary order.
 					Map<String, Object> valueMap = jacksonSerializer.gatherParameterValuesByName(nodeJavaType, componentsByName, p, ctxt);
 
-					List<Object> parameterValues = jacksonSerializer.parameterValueList(nodeJavaType.getRawClass(), valueMap, componentsByName, boskInfo);
+					List<Object> parameterValues;
+					try {
+						parameterValues = jacksonSerializer.parameterValueList(nodeJavaType.getRawClass(), valueMap, componentsByName, boskInfo);
+					} catch (DeserializationException e) {
+						throw new IllegalStateException(e);
+					}
 
 					@SuppressWarnings("unchecked")
 					T result = (T) codec.instantiateFrom(parameterValues);

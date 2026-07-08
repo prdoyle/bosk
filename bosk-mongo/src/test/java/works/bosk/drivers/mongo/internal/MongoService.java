@@ -185,7 +185,7 @@ public class MongoService implements Closeable {
 				MONGO_CONTAINER.getNetworkAliases().getFirst() + ":27017"
 			);
 		} catch (IOException e) {
-			throw new RuntimeException("Failed to create Mongo proxy", e);
+			throw new IllegalStateException("Failed to create Mongo proxy", e);
 		}
 	}
 

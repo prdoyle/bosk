@@ -184,19 +184,17 @@ class ChangeReceiver implements Closeable {
 						} catch (UnrecognizedFormatException e) {
 							disconnect("Unrecognized MongoDB database content format", REMEDY_RETURN, e);
 							return;
-						} catch (UninitializedCollectionException e) {
-							disconnect("MongoDB collection is not initialized", REMEDY_RETURN, e);
-							return;
 						} catch (InvalidCollectionContentsException e) {
 							disconnect("MongoDB collection contents are invalid", REMEDY_RETURN, e);
 							return;
-						} catch (InitialStateActionException e) {
-							disconnect("Unable to initialize bosk state", REMEDY_RETURN, e);
+						} catch (InitialStateException e) {
+							disconnect("Unable to load bosk state", REMEDY_RETURN, e);
 							return;
 						} catch (TimeoutException e) {
 							disconnect("Timed out waiting for bosk state to initialize", REMEDY_RETURN, e);
 							return;
 						} catch (DisconnectedException e) {
+							// Don't call disconnect: we're already disconnected
 							addContextToException(e);
 							LOGGER.warn("Driver is disconnected; will wait and retry", e);
 							return;
@@ -208,10 +206,10 @@ class ChangeReceiver implements Closeable {
 						addContextToException(e);
 						LOGGER.warn("Unable to connect to MongoDB database; will wait and retry", e);
 						try {
-							listener.onConnectionFailed();
-						} catch (InterruptedException | TimeoutException e2) {
-							addContextToException(e);
-							LOGGER.error("Error while running MongoDB connection failure handler; will wait and reconnect", e2);
+							listener.onConnectionFailed(e);
+						} catch (DownstreamInitialStateException e2) {
+							addContextToException(e2);
+							LOGGER.error("Unable to initialize; will wait and reconnect", e2);
 						}
 						return;
 					}
