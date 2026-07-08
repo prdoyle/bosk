@@ -262,7 +262,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		try (var _ = beginDriverOperation("initialState({})", rootType)) {
 			// The actual loading of the initial state happens on the ChangeReceiver thread.
 			// Here, we just wait for that to finish and deal with the consequences.
-			var task = listener.task;
+			var task = listener.initialStateTask;
 			if (task == null) {
 				throw new IllegalStateException("initialState has already run");
 			}
@@ -291,7 +291,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	}
 
 	/**
-	 * Called on the {@link ChangeReceiver}'s background thread via {@link Listener#task}
+	 * Called on the {@link ChangeReceiver}'s background thread via {@link Listener#initialStateTask}
 	 * because it's important that this logic finishes before processing any change events,
 	 * and no other change events can arrive concurrently.
 	 * <p>
@@ -502,10 +502,10 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 * to update {@link MainDriver}'s state in response to various occurrences.
 	 */
 	private class Listener implements ChangeListener {
-		final RemoteCallable<MapValue<String>, EntireState<R>> task;
+		final RemoteCallable<MapValue<String>, EntireState<R>> initialStateTask;
 
-		private Listener(RemoteCallable<MapValue<String>, EntireState<R>> task) {
-			this.task = task;
+		private Listener(RemoteCallable<MapValue<String>, EntireState<R>> initialStateTask) {
+			this.initialStateTask = initialStateTask;
 		}
 
 		@Override
@@ -519,7 +519,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			InvalidCollectionContentsException
 		{
 			LOGGER.debug("onConnectionSucceeded");
-			if (this.task.isDone()) {
+			if (this.initialStateTask.isDone()) {
 				FormatDriver<R> newDriver;
 				PerTenant<StateAndMetadata<R>> contents;
 				try (var _ = queryCollection.newReadOnlySession()) {
@@ -562,9 +562,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				downstream.flush();
 				newDriver.hasBeenApplied(contents);
 			} else {
-				LOGGER.debug("Running initialState action");
+				LOGGER.debug("Running initialStateTask");
 				try {
-					task.run();
+					initialStateTask.run();
 				} catch (RuntimeException e) {
 					handleInitFailure(e);
 				}
@@ -597,7 +597,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			LOGGER.debug("onConnectionFailed");
 			// If there's an initialStateAction, the main thread is waiting for us.
 			// Signal the failure to the waiting main thread.
-			if (this.task.isDone()) {
+			if (this.initialStateTask.isDone()) {
 				LOGGER.debug("Nothing to do");
 			} else {
 				handleInitFailure(new InitialStateFailureException("Failed to connect to MongoDB"));
@@ -616,16 +616,16 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		private void handleInitFailure(Throwable cause) {
 			switch (driverSettings.initialDatabaseUnavailableMode()) {
 				case FAIL_FAST:
-					task.fail(new InitialStateFailureException("Unable to load initial state from MongoDB", cause));
+					initialStateTask.fail(new InitialStateFailureException("Unable to load initial state from MongoDB", cause));
 					break;
 				case DISCONNECT:
 					LOGGER.info("Unable to load initial state from database; will proceed with downstream.initialState", cause);
 					setDisconnectedDriver(cause);
 					try {
-						task.complete(callDownstreamInitialState(boskInfo.rootReference().targetClass()));
+						initialStateTask.complete(callDownstreamInitialState(boskInfo.rootReference().targetClass()));
 					} catch (DownstreamInitialStateException e) {
 						LOGGER.error("Downstream driver also failed; failing initialization", e);
-						task.fail(new InitialStateFailureException("Failed to initialize from either MongoDB or downstream", e));
+						initialStateTask.fail(new InitialStateFailureException("Failed to initialize from either MongoDB or downstream", e));
 					}
 					break;
 			}
