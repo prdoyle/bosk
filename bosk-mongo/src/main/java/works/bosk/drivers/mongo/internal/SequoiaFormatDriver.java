@@ -112,7 +112,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	PerTenant<BsonStateAndMetadata> loadBsonStateAndMetadata() throws InvalidCollectionContentsException {
+	PerTenant<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		try (MongoCursor<BsonDocument> cursor = collection
 			.withReadConcern(LOCAL) // The revision field needs to be the latest
 			.find(documentFilter())
@@ -120,16 +120,15 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			.cursor()
 		) {
 			BsonDocument document = cursor.next();
-			// Saves the tenant info for subsequent events
-			tenantFor(document.getString("_id"));
 			var bsm = new BsonStateAndMetadata(
+				document.getString("_id"),
 				document.getDocument(DocumentFields.state.name(), null),
 				document.getInt64(DocumentFields.revision.name(), null),
 				Formatter.getDiagnosticAttributesIfAny(document)
 			);
 			return switch (tenancyModel) {
 				case None _ -> NoTenant.just(bsm);
-				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), bsm);
+				case Fixed(var tenantId) -> MultiTenant.singleton(Tenant.setTo(tenantId), bsm);
 				case Explicit _ -> throw new NotYetImplementedException();
 			};
 		} catch (NoSuchElementException e) {
@@ -194,6 +193,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	 */
 	@Override
 	public void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
+		fieldTracker.processEvent(event);
 		assert event.getDocumentKey() != null;
 		if (isManifestID(event.getDocumentKey().get("_id"))) {
 			/* We're required to cope with anything we might ourselves do in {@link #initializeCollection},
@@ -222,7 +222,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 					// also REPLACE. That would imply that this case is impossible.
 					throw new UnprocessableEventException("Missing fullDocument", event.getOperationType());
 				}
-				MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromFullDocument(fullDocument);
+				BsonString docId = event.getDocumentKey().getString("_id");
+				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DocumentFieldTracker.TrackedField.DIAGNOSTICS);
+				MapValue<String> diagnosticAttributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
 				try (
 					var _ = context.withTenant(tenant);
 					var _ = context.withOnly(diagnosticAttributes)
@@ -246,7 +248,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				if (updateDescription != null) {
 					BsonInt64 revision = formatter.getRevisionFromUpdateEvent(event);
 					if (!shouldSkip(tenant, revision)) {
-						MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromUpdate(event);
+						BsonString updateDocId = event.getDocumentKey().getString("_id");
+						BsonDocument updateAttrsBson = fieldTracker.getFieldAsDocument(updateDocId, DocumentFieldTracker.TrackedField.DIAGNOSTICS);
+						MapValue<String> diagnosticAttributes = updateAttrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(updateAttrsBson);
 						try (
 							var _ = context.withTenant(tenant);
 							var _ = context.withOnly(diagnosticAttributes)

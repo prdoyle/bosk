@@ -39,7 +39,9 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException;
 
 	/**
-	 * Loads the entire collection contents.
+	 * Reads all state documents in the entire collection and, as a side effect,
+	 * updates the driver's internal state in the expectation that the loaded state
+	 * is to be considered the "current" state with respect to subsequent change stream events.
 	 * <p>
 	 * This method can assume the manifest exists and indicates the appropriate format;
 	 * manifest creation/validation is handled elsewhere, and if this assumption is violated for whatever

@@ -73,6 +73,7 @@ import static org.bson.BsonBoolean.TRUE;
 import static works.bosk.Path.parseParameterized;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.docBsonPath;
 import static works.bosk.drivers.mongo.internal.BsonSurgeon.BSON_PATH_FIELD;
+import static works.bosk.drivers.mongo.internal.DocumentFieldTracker.TrackedField.DIAGNOSTICS;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_BEFORE_ANY;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.internal.Formatter.getTenantFromDocumentId;
@@ -174,7 +175,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	PerTenant<BsonStateAndMetadata> loadBsonStateAndMetadata() throws InvalidCollectionContentsException {
+	PerTenant<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		// Read the !contents document to get the authoritative tenant list
 		Set<TenantId> contentsTenants = readContentsTenants();
 
@@ -202,7 +203,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					// Pull what we need from the parts before gather() mutates them
 					BsonInt64 revision = lastPart.getInt64(DocumentFields.revision.name(), null);
 					BsonDocument diagnosticAttributes = Formatter.getDiagnosticAttributesIfAny(lastPart);
-					Established documentTenant = getTenantFromDocumentId(lastPart.getString("_id"));
+					BsonString id = lastPart.getString("_id");
+					Established documentTenant = getTenantFromDocumentId(id);
 
 					// Skip tenants that are not in the !contents list (they've been deleted)
 					if (documentTenant instanceof TenantId tid && !contentsTenants.contains(tid)) {
@@ -219,6 +221,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					// but that's ok because we're not going to use it as the tenant ID anyway.
 					// This is just a way of describing what we've found in the database.
 					states.put(documentTenant, new BsonStateAndMetadata(
+						id,
 						state,
 						revision,
 						diagnosticAttributes
@@ -470,6 +473,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	 */
 	@Override
 	public void onEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
+		fieldTracker.processEvent(event);
 		assert event.getDocumentKey() != null;
 		BsonValue bsonDocumentID = event.getDocumentKey().get("_id");
 		if (isManifestID(bsonDocumentID)) {
@@ -556,7 +560,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 				// Grab the tenant and diagnostics early. If we're supposed to skip this event,
 				// we still need to stash the tenant for later events.
-				MapValue<String> diagnosticAttributes = formatter.eventDiagnosticAttributesFromFullDocument(fullDocument);
+				BsonString docId = finalEvent.getDocumentKey().getString("_id");
+				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DIAGNOSTICS);
+				MapValue<String> diagnosticAttributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
 
 				BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
 				if (shouldSkip(tenant, revision)) {
@@ -592,7 +598,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					LOGGER.debug("Skipping revision {}", revision.longValue());
 					return;
 				}
-				MapValue<String> attributes = formatter.eventDiagnosticAttributesFromUpdate(finalEvent);
+				BsonString docId = finalEvent.getDocumentKey().getString("_id");
+				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DIAGNOSTICS);
+				MapValue<String> attributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
 				try (
 					var _ = context.withTenant(tenant);
 					var _ = context.withOnly(attributes)
@@ -665,7 +673,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			var event = tenantEvents.get(i);
 			BsonValue id = event.getDocumentKey().get("_id");
 			if (id instanceof BsonString s && s.getValue().startsWith(tenantPrefix)) {
-				return formatter.eventDiagnosticAttributesFromUpdate(event);
+				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(s, DIAGNOSTICS);
+				return attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
 			}
 		}
 		return MapValue.empty();
