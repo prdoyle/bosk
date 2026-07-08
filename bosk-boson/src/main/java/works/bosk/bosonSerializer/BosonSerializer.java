@@ -34,6 +34,7 @@ import works.bosk.StateTreeNode;
 import works.bosk.StateTreeSerializer;
 import works.bosk.TaggedUnion;
 import works.bosk.VariantCase;
+import works.bosk.boson.exceptions.JsonContentException;
 import works.bosk.boson.mapping.TypeScanner;
 import works.bosk.boson.mapping.TypeScanner.Directive;
 import works.bosk.boson.mapping.spec.BooleanNode;
@@ -57,6 +58,7 @@ import works.bosk.boson.types.DataType;
 import works.bosk.boson.types.KnownType;
 import works.bosk.boson.types.TypeReference;
 import works.bosk.boson.types.TypeVariable;
+import works.bosk.exceptions.DeserializationException;
 import works.bosk.exceptions.InvalidTypeException;
 
 import static java.lang.invoke.MethodHandles.dropArguments;
@@ -335,7 +337,13 @@ public class BosonSerializer extends StateTreeSerializer {
 						} else if (isImplicitParameter(recordClass, rc)) {
 							componentsByName.put(rc.getName(), new RecognizedMember(
 								new ComputedSpec(supplier(DataType.known(rc.getGenericType()),
-									() -> implicitReference(recordClass, rc, bosk))),
+									() -> {
+										try {
+											return implicitReference(recordClass, rc, bosk);
+										} catch (DeserializationException e) {
+											throw new JsonContentException(e);
+										}
+									})),
 								componentAccessor(rc, lookup)
 							));
 						} else {

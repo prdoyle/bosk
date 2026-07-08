@@ -258,7 +258,7 @@ public abstract class StateTreeSerializer {
 	 * supplied where possible, such as <code>Optional.empty()</code> and
 	 * {@link Enclosing} references.
 	 */
-	public final List<Object> parameterValueList(Class<?> nodeClass, Map<String, Object> parameterValuesByName, LinkedHashMap<String, RecordComponent> componentsByName, BoskInfo<?> boskInfo) {
+	public final List<Object> parameterValueList(Class<?> nodeClass, Map<String, Object> parameterValuesByName, LinkedHashMap<String, RecordComponent> componentsByName, BoskInfo<?> boskInfo) throws DeserializationException {
 		List<Object> parameterValues = new ArrayList<>();
 		for (var component: componentsByName.values()) {
 			String name = component.getName();
@@ -409,7 +409,7 @@ public abstract class StateTreeSerializer {
 		}
 	}
 
-	protected final Reference<?> implicitReference(Class<?> nodeClass, RecordComponent parameter, BoskInfo<?> boskInfo) {
+	protected final Reference<?> implicitReference(Class<?> nodeClass, RecordComponent parameter, BoskInfo<?> boskInfo) throws DeserializationException {
 		Reference<?> result = findImplicitReferenceIfAny(nodeClass, parameter, boskInfo);
 		if (result == null) {
 			throw new DeserializationException("No implicit reference for parameter \"" + parameter.getName()

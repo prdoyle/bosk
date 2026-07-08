@@ -50,6 +50,7 @@ import works.bosk.StateTreeSerializer;
 import works.bosk.TaggedUnion;
 import works.bosk.VariantCase;
 import works.bosk.drivers.mongo.exceptions.BsonFormatException;
+import works.bosk.exceptions.DeserializationException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.UnexpectedPathException;
 
@@ -434,7 +435,12 @@ public final class BsonSerializer extends StateTreeSerializer {
 				reader.readStartDocument();
 				Map<String, Object> parameterValuesByName = gatherParameterValuesByName(nodeClass, parametersByName, reader, decoderContext, registry, boskInfo);
 				reader.readEndDocument();
-				List<Object> parameterValues = parameterValueList(nodeClass, parameterValuesByName, parametersByName, boskInfo);
+				List<Object> parameterValues;
+				try {
+					parameterValues = parameterValueList(nodeClass, parameterValuesByName, parametersByName, boskInfo);
+				} catch (DeserializationException e) {
+					throw new IllegalStateException(e);
+				}
 				try {
 					return (T) factoryHandle.invoke(parameterValues.toArray());
 				} catch (Throwable e) {
