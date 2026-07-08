@@ -41,9 +41,11 @@ import works.bosk.ListingEntry;
 import works.bosk.ListingReference;
 import works.bosk.Reference;
 import works.bosk.SideTable;
+import works.bosk.StateTreeNode;
 import works.bosk.StateTreeSerializer;
 import works.bosk.TaggedUnion;
 import works.bosk.drivers.BufferingDriver;
+import works.bosk.drivers.ForwardingDriver;
 import works.bosk.drivers.mongo.MongoDriver;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.PandoFormat;
@@ -66,6 +68,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -395,9 +398,9 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		var lock = new Object(){};
 		MainDriver.LISTENER_FACTORY.set(d -> new ForwardingChangeListener(d) {
 			@Override
-			public void onConnectionFailed() throws InterruptedException, TimeoutException {
+			public void onConnectionFailed(Exception cause) throws DownstreamInitialStateException {
 				waitUp();
-				super.onConnectionFailed();
+				super.onConnectionFailed(cause);
 			}
 
 			@Override
@@ -641,7 +644,38 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 
 		assertEquals(expected2, actual2, "Reconnected bosk should see the state from the database");
 
-		errorRecorder.assertAllClear("after test");
+		assertEquals(0, errorRecorder.failureCount, "No connection failures");
+		assertEquals(1, errorRecorder.disconnections.size(),
+			"Expected 1 disconnection: DatabaseLoadException from DISCONNECT fallback");
+	}
+
+	@Test
+	@DisruptsMongoProxy
+	void downstreamInitialStateThrows_wrappedInIllegalArgumentException() {
+		setLogging(ERROR, MainDriver.class, ChangeReceiver.class);
+
+		// Force the downstream driver to be used for initial state
+		mongoService.cutConnection();
+		tearDownActions.add(() -> mongoService.restoreConnection());
+
+		IOException thrown = new IOException("downstream initial state failed");
+		var e = assertThrows(IllegalArgumentException.class, () -> new Bosk<>(
+			boskName("Test"),
+			TestEntity.class,
+			AbstractMongoDriverTest::initialState,
+			BoskConfig.<TestEntity>builder().driverFactory((b, d) -> {
+				BoskDriver failingDownstream = new ForwardingDriver(d) {
+					@Override
+					public <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws IOException {
+						throw thrown;
+					}
+				};
+				return driverFactory.build(b, failingDownstream);
+			}).build()
+		));
+
+		assertEquals("Error computing initial state: downstream initial state failed", e.getMessage());
+		assertSame(thrown, e.getCause());
 	}
 
 	@Test
@@ -864,9 +898,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			}
 
 			@Override
-			public void onConnectionSucceeded() throws UnrecognizedFormatException, UninitializedCollectionException,
-				FailedMongoClientSessionException, InterruptedException, IOException,
-				InitialStateActionException, TimeoutException, InvalidCollectionContentsException {
+			public void onConnectionSucceeded() throws UnrecognizedFormatException, FailedMongoClientSessionException, InterruptedException, IOException, TimeoutException, InvalidCollectionContentsException, InitialStateException {
 				if (initializationDone.get()) {
 					LOGGER.debug("onConnectionSucceeded waiting for appAtPreWait");
 					appAtPreWait.await();

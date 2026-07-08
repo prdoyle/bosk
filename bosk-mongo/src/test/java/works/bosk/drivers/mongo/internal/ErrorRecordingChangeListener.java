@@ -2,7 +2,6 @@ package works.bosk.drivers.mongo.internal;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,9 +32,9 @@ class ErrorRecordingChangeListener extends ForwardingChangeListener {
 	}
 
 	@Override
-	public void onConnectionFailed() throws InterruptedException, TimeoutException {
+	public void onConnectionFailed(Exception cause) throws DownstreamInitialStateException {
 		errorRecorder.failureCount++;
-		super.onConnectionFailed();
+		super.onConnectionFailed(cause);
 	}
 
 	@Override

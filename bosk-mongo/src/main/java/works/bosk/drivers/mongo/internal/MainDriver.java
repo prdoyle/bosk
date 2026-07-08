@@ -53,6 +53,7 @@ import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static com.mongodb.client.model.Sorts.ascending;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
+import static works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode.DISCONNECT;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.logging.MappedDiagnosticContext.setupMDC;
 
@@ -270,19 +271,20 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				return task.call(boskInfo.context().getAttributes()).cast(rootType);
 			} catch (ExecutionException e) {
 				switch (e.getCause()) {
-					case InitialStateFailureException i -> throw i;
-					case DownstreamInitialStateException d -> {
-						// Try to throw the downstream exception directly,
-						// as though we had called it without using RemoteCallable
-						switch (d.getCause()) {
-							case IOException i -> throw i;
-							case InvalidTypeException i -> throw i;
-							case InterruptedException i -> throw i;
-							case RuntimeException r -> throw r;
-							case null, default -> throw new AssertionError("Unexpected exception during initialState: " + e.getClass().getSimpleName(), e);
+					case InitialStateFailureException i -> {
+						if (i.getCause() instanceof DownstreamInitialStateException d) {
+							switch (d.getCause()) {
+								case IOException io -> throw io;
+								case InvalidTypeException ite -> throw ite;
+								case InterruptedException ie -> throw ie;
+								case RuntimeException r -> throw r;
+								case null, default -> throw i;
+							}
+						} else {
+							throw i;
 						}
 					}
-					case null, default -> throw new AssertionError("Exception from initialState was not wrapped in DownstreamInitialStateException: " + e.getClass().getSimpleName(), e);
+					case null, default -> throw new AssertionError("Exception from initialState was not wrapped in InitialStateFailureException: " + e.getClass().getSimpleName(), e);
 				}
 			} finally {
 				LOGGER.debug("Done initialState");
@@ -294,16 +296,13 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 * Called on the {@link ChangeReceiver}'s background thread via {@link Listener#initialStateTask}
 	 * because it's important that this logic finishes before processing any change events,
 	 * and no other change events can arrive concurrently.
-	 * <p>
-	 * Should throw no exceptions except {@link DownstreamInitialStateException}.
 	 *
 	 * @param diagnosticAttributes the attributes from the {@link #initialState(Class) initialState} call
+	 * @throws DatabaseLoadException if unable to load the initial state from the database
 	 * @throws DownstreamInitialStateException if we attempt to delegate {@link #initialState} to
-	 * the {@link #downstream} driver and it throws an exception; this is a fatal initialization error.
-	 * @throws InitialStateFailureException if unable to load the initial state from the database,
-	 * and {@link InitialDatabaseUnavailableMode#FAIL_FAST} is active.
+	 * the {@link #downstream} driver and it throws an exception
 	 */
-	private EntireState<R> doInitialState(Class<R> rootType, MapValue<String> diagnosticAttributes) {
+	private EntireState<R> doInitialState(Class<R> rootType, MapValue<String> diagnosticAttributes) throws InitialStateException {
 		// This establishes a safe fallback in case things go wrong. It also causes any
 		// calls to driver update methods to wait until we're finished here. (There shouldn't
 		// be any such calls while initialState is still running, but this ensures that if any
@@ -347,9 +346,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				setDisconnectedDriver(e2);
 			}
 		} catch (UnrecognizedFormatException | InvalidCollectionContentsException | IOException | FailedMongoClientSessionException e) {
-			// Convert to an unchecked exception so it can propagate out through the RemoteCallable
-			// function lambda. The caller (onConnectionSucceeded) decides FAIL_FAST vs DISCONNECT.
-			throw new InitialStateFailureException("Unable to load initial state from MongoDB", e);
+			throw new DatabaseLoadException("Unable to load initial state from MongoDB", e);
 		}
 		return entireState;
 	}
@@ -357,7 +354,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	/**
 	 * @throws DownstreamInitialStateException only
 	 */
-	private EntireState<R> callDownstreamInitialState(Class<R> rootType) {
+	private EntireState<R> callDownstreamInitialState(Class<R> rootType) throws DownstreamInitialStateException {
 		try {
 			return downstream.initialState(rootType);
 		} catch (RuntimeException | Error | InvalidTypeException | IOException | InterruptedException e) {
@@ -502,24 +499,23 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 * to update {@link MainDriver}'s state in response to various occurrences.
 	 */
 	private class Listener implements ChangeListener {
-		final RemoteCallable<MapValue<String>, EntireState<R>> initialStateTask;
+		final RemoteCallable<MapValue<String>, EntireState<R>, InitialStateException> initialStateTask;
 
-		private Listener(RemoteCallable<MapValue<String>, EntireState<R>> initialStateTask) {
+		private Listener(RemoteCallable<MapValue<String>, EntireState<R>, InitialStateException> initialStateTask) {
 			this.initialStateTask = initialStateTask;
 		}
 
 		@Override
 		public void onConnectionSucceeded() throws
 			UnrecognizedFormatException,
-			UninitializedCollectionException,
 			FailedMongoClientSessionException,
 			InterruptedException,
 			IOException,
-			InitialStateActionException,
+			InitialStateException,
 			InvalidCollectionContentsException
 		{
 			LOGGER.debug("onConnectionSucceeded");
-			if (this.initialStateTask.isDone()) {
+			if (initialStateTask.isDone()) {
 				FormatDriver<R> newDriver;
 				PerTenant<StateAndMetadata<R>> contents;
 				try (var _ = queryCollection.newReadOnlySession()) {
@@ -527,7 +523,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 					newDriver = detectFormat();
 					contents = newDriver.loadAllState();
 					LOGGER.trace("Loaded state: {}", contents);
+				} catch (UninitializedCollectionException e) {
+					// We don't auto-initialize after the initialStateTask is done
+					throw new DatabaseLoadException("Cannot reload state from database", e);
 				}
+
 				// Note: can't call downstream methods with a session open,
 				// because that could run hooks, which could themselves submit
 				// new updates, and those updates need their own session.
@@ -565,8 +565,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.debug("Running initialStateTask");
 				try {
 					initialStateTask.run();
-				} catch (RuntimeException e) {
+				} catch (InitialStateException | RuntimeException e) {
 					handleInitFailure(e);
+					if (driverSettings.initialDatabaseUnavailableMode() == DISCONNECT) {
+						throw new DatabaseLoadException("Unable to load initial state from MongoDB", e);
+					}
 				}
 			}
 		}
@@ -593,29 +596,32 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		}
 
 		@Override
-		public void onConnectionFailed() {
+		public void onConnectionFailed(Exception cause) throws DownstreamInitialStateException {
 			LOGGER.debug("onConnectionFailed");
 			// If there's an initialStateAction, the main thread is waiting for us.
 			// Signal the failure to the waiting main thread.
-			if (this.initialStateTask.isDone()) {
+			if (initialStateTask.isDone()) {
 				LOGGER.debug("Nothing to do");
 			} else {
-				handleInitFailure(new InitialStateFailureException("Failed to connect to MongoDB"));
+				handleInitFailure(cause);
 			}
 		}
 
 		/**
 		 * Resolves a failure to load the initial state from the database, from either
 		 * {@link #onConnectionSucceeded} (the change stream cursor opened but reading the
-		 * state failed) or {@link #onConnectionFailed} (the cursor could not open).
+		 * state failed) or {@link ChangeListener#onConnectionFailed} (the cursor could not open).
 		 * Both converge here so the {@link InitialDatabaseUnavailableMode mode} decision
 		 * lives in exactly one place.
 		 *
 		 * @param cause why we were unable to load the initial state from the database
+		 * @throws DownstreamInitialStateException if DISCONNECT mode was used and the
+		 * downstream driver also failed to provide initial state
 		 */
-		private void handleInitFailure(Throwable cause) {
+		private void handleInitFailure(Exception cause) throws DownstreamInitialStateException {
 			switch (driverSettings.initialDatabaseUnavailableMode()) {
 				case FAIL_FAST:
+					LOGGER.debug("Unable to load initial state from database; aborting initialization", cause);
 					initialStateTask.fail(new InitialStateFailureException("Unable to load initial state from MongoDB", cause));
 					break;
 				case DISCONNECT:
@@ -624,8 +630,13 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 					try {
 						initialStateTask.complete(callDownstreamInitialState(boskInfo.rootReference().targetClass()));
 					} catch (DownstreamInitialStateException e) {
-						LOGGER.error("Downstream driver also failed; failing initialization", e);
-						initialStateTask.fail(new InitialStateFailureException("Failed to initialize from either MongoDB or downstream", e));
+						// The main thread gets an InitialStateFailureException
+						var mainThreadException = new InitialStateFailureException("Unable to obtain initial state from MongoDB or downstream driver", e);
+						mainThreadException.addSuppressed(cause);
+						initialStateTask.fail(mainThreadException);
+
+						// The ChangeReceiver thread gets the original DownstreamInitialStateException
+						throw e;
 					}
 					break;
 			}
@@ -878,7 +889,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 	public static final String COLLECTION_NAME = "boskCollection";
 	public static final BsonString MANIFEST_ID = new BsonString("!Manifest");
-	private static final Exception FAILURE_TO_COMPUTE_INITIAL_STATE = new InitialStateFailureException("Failure to compute initial state");
+	private static final Exception FAILURE_TO_COMPUTE_INITIAL_STATE = new IllegalStateException("Failure to compute initial state");
 	private static final Logger LOGGER = LoggerFactory.getLogger(MainDriver.class);
 	private static final Logger UNINITIALIZED_COLLECTION_LOGGER = LoggerFactory.getLogger(UNINITIALIZED_COLLECTION_LOGGER_NAME);
 }

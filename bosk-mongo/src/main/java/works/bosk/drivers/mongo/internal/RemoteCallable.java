@@ -2,7 +2,6 @@ package works.bosk.drivers.mongo.internal;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,13 +15,23 @@ import org.slf4j.LoggerFactory;
  * and provide output. In case of failure, the background thread may call
  * {@link #fail(Exception)} instead. In case the function should be skipped entirely
  * and the output provided directly, call {@link #complete(Object)}.
+ *
+ * @param <I> the input type
+ * @param <O> the output type
+ * @param <E> the checked exception the function may throw
  */
-final class RemoteCallable<I, O> {
-	private final Function<? super I, ? extends O> function;
+final class RemoteCallable<I, O, E extends Exception> {
+
+	@FunctionalInterface
+	interface ThrowingFunction<I, O, E extends Exception> {
+		O apply(I input) throws E;
+	}
+
+	private final ThrowingFunction<? super I, ? extends O, ? extends E> function;
 	private final CompletableFuture<I> input = new CompletableFuture<>();
 	private final CompletableFuture<O> output = new CompletableFuture<>();
 
-	RemoteCallable(Function<? super I, ? extends O> function) {
+	RemoteCallable(ThrowingFunction<? super I, ? extends O, ? extends E> function) {
 		this.function = function;
 	}
 
@@ -48,12 +57,12 @@ final class RemoteCallable<I, O> {
 	 *     arrived; we settle {@link #output} exceptionally so the calling thread isn't left waiting,
 	 *     and restore the interrupt flag.</li>
 	 * </ul>
-	 * A {@link RuntimeException} (or {@link Error}) thrown by the function is a business-logic
-	 * failure whose resolution (retry, fallback, abort) depends on the caller, so it propagates
-	 * out with {@link #output} left unresolved. The caller must then settle it via
-	 * {@link #fail} or {@link #complete}.
+	 * A checked exception of type {@code E}, or a {@link RuntimeException} (or {@link Error}),
+	 * thrown by the function is a business-logic failure whose resolution (retry, fallback, abort)
+	 * depends on the caller, so it propagates out with {@link #output} left unresolved.
+	 * The caller must then settle it via {@link #fail} or {@link #complete}.
 	 */
-	void run() {
+	void run() throws E {
 		I inputValue;
 		try {
 			inputValue = input.get();
