@@ -292,7 +292,7 @@ class ChangeReceiver implements Closeable {
 		}
 	}
 
-	private synchronized void processEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
+	private void processEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
 		if (settings.testing().eventDelayMS() > 0) {
 			LOGGER.debug("| eventDelayMS {}ms ", settings.testing().eventDelayMS());
 			try {
@@ -308,7 +308,9 @@ class ChangeReceiver implements Closeable {
 				case UPDATE:
 				case REPLACE:
 				case DELETE:
-					listener.onEvent(event);
+					synchronized (this) {
+						listener.onEvent(event);
+					}
 					break;
 				case RENAME:
 				case DROP:
