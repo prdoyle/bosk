@@ -75,6 +75,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 */
 	final AtomicReference<PerTenant<FlushLock>> flushLocks = new AtomicReference<>(null);
 
+	final DocumentFieldTracker fieldTracker = new DocumentFieldTracker();
 	final FlushLock contentsFlushLock;
 
 	public AbstractFormatDriver(
@@ -101,7 +102,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	@Override
 	public MongoStatus readStatus() {
 		try {
-			PerTenant<BsonStateAndMetadata> dbStates = loadBsonStateAndMetadata();
+			PerTenant<BsonStateAndMetadata> dbStates = readBsonStateAndMetadata();
 			var entireState = entireStateSupplier.get();
 			var inMemoryBsonValues = PerTenant.from(entireState,
 				r -> formatter.object2bsonValue(r, rootRef.targetType()));
@@ -135,12 +136,14 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	@Override
 	public PerTenant<StateAndMetadata<R>> loadAllState() throws IOException, InvalidCollectionContentsException {
 		try {
-			PerTenant<BsonStateAndMetadata> bsonStateAndMetadata = loadBsonStateAndMetadata();
+			PerTenant<BsonStateAndMetadata> bsonStateAndMetadata = readBsonStateAndMetadata();
 			ensureFlushLocksInitialized(bsonStateAndMetadata);
 			return bsonStateAndMetadata.map((Established _, BsonStateAndMetadata bsm) -> {
 				if (bsm.state() == null) {
 					throw new TunneledCheckedException(new IOException("No existing state in document"));
 				}
+
+				fieldTracker.process(bsm);
 
 				R root = formatter.document2object(bsm.state(), rootRef);
 				BsonInt64 revision = bsm.revision() == null ? REVISION_ZERO : bsm.revision();
@@ -217,7 +220,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * @return the contents of the database; fields of the returned
 	 * record can be null if they don't exist in the database.
 	 */
-	abstract PerTenant<BsonStateAndMetadata> loadBsonStateAndMetadata() throws InvalidCollectionContentsException;
+	abstract PerTenant<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException;
 
 	protected BsonDocument blankUpdateDoc() {
 		return new BsonDocument()
@@ -446,6 +449,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * Low-level version of {@link StateAndMetadata}.
 	 */
 	record BsonStateAndMetadata(
+		BsonString _id,
 		BsonDocument state,
 		BsonInt64 revision,
 		BsonDocument diagnosticAttributes

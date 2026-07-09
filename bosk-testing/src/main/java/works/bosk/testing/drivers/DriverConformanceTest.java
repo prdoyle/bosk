@@ -16,11 +16,13 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig;
+import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Implicit;
 import works.bosk.BoskContext;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
+import works.bosk.BoskDriver.EntireState;
 import works.bosk.Catalog;
 import works.bosk.CatalogReference;
 import works.bosk.DriverFactory;
@@ -58,8 +60,10 @@ import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static works.bosk.ListingEntry.LISTING_ENTRY;
 import static works.bosk.util.Classes.listValue;
 import static works.bosk.util.Classes.mapValue;
@@ -85,6 +89,9 @@ import static works.bosk.util.ReflectionHelpers.boxedClass;
 public abstract class DriverConformanceTest extends AbstractDriverTest {
 	// Subclass can initialize this as desired
 	protected DriverFactory<TestEntity> driverFactory;
+
+	final TenantId tenant1 = Tenant.setTo(TENANT1);
+	final TenantId tenant2 = Tenant.setTo(TENANT2);
 
 	public interface Refs {
 		@ReferencePath("/id") Reference<Identifier> rootID();
@@ -722,6 +729,60 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 			}
 		}
 		assertCorrectBoskContents();
+	}
+
+	@Test
+	void multiTenant_keepsTenantStateSeparate() throws Exception {
+		setupBosksAndReferences(driverFactory);
+
+		// Note: do this assume after the setup is done, or cleanup will crash!
+		assumeTrue(scenario.tenancyModel instanceof Explicit);
+
+		closeTenantScope();
+
+		EntireState.MultiTree<TestEntity> expectedState = (EntireState.MultiTree<TestEntity>) initialState(bosk);
+		assertNotEquals(
+			expectedState.tenantRoots().get(tenant1),
+			expectedState.tenantRoots().get(tenant2),
+			"Meta-assertion: the tests won't detect problems if the tenant states are indistinguishable");
+
+		try (var _ = bosk.readSession()) {
+			assertEquals(expectedState, bosk.entireState(), "Entire state should be correct");
+
+			// Check that each tenant has its own state
+			try (var _ = bosk.context().withTenant(tenant1)) {
+				var expected = expectedState.tenantRoots().get(tenant1);
+				assertEquals(expected, bosk.rootReference().value());
+			}
+
+			try (var _ = bosk.context().withTenant(tenant2)) {
+				var expected = expectedState.tenantRoots().get(tenant2);
+				assertEquals(expected, bosk.rootReference().value());
+			}
+		}
+
+		// Change them in different ways
+
+		Refs refs = bosk.buildReferences(Refs.class);
+		try (var _ = bosk.context().withTenant(tenant1)) {
+			driver.submitReplacement(refs.string(), "new tenant1 string");
+		}
+		try (var _ = bosk.context().withTenant(tenant2)) {
+			driver.submitReplacement(refs.string(), "new tenant2 string");
+		}
+		driver.flush();
+
+		// Ensure each tenant sees its own change
+
+		try (var _ = bosk.readSession()) {
+			try (var _ = bosk.context().withTenant(tenant1)) {
+				assertEquals("new tenant1 string", refs.string().value());
+			}
+
+			try (var _ = bosk.context().withTenant(tenant2)) {
+				assertEquals("new tenant2 string", refs.string().value());
+			}
+		}
 	}
 
 	private Reference<TestValues> initializeBoskWithBlankValues(@EnclosingCatalog Path enclosingCatalogPath) throws InvalidTypeException {

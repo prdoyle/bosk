@@ -367,27 +367,35 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 * Refurbish is the one operation that always <em>must</em> happen in a transaction,
 	 * or else we could fail after deleting the existing contents but before rewriting them,
 	 * which would be catastrophic.
+	 *
+	 * <em<>Design note:</em> This operation shouldn't do any special coordination with
+	 * the receiver/listener system, because other replicas won't.
+	 * That system needs to cope with refurbish operations without any help.
 	 */
 	private void refurbishTransaction() throws IOException {
 		queryCollection.ensureTransactionStarted();
 		LOGGER.debug("Refurbishing to {}", driverSettings.preferredDatabaseFormat());
 		try {
-			// Design note: this operation shouldn't do any special coordination with
-			// the receiver/listener system, because other replicas won't.
-			// That system needs to cope with refurbish operations without any help.
-			PerTenant<StateAndMetadata<R>> result = formatDriver.loadAllState();
-			FormatDriver<R> newFormatDriver = newPreferredFormatDriver();
+			FormatDriver<R> newFormatDriver;
 
-			// initializeCollection is required to replace the manifest anyway,
-			// so deleting it has no value; and if we do delete it, then every
-			// FormatDriver must cope with deletions of the manifest document
-			// to avoid disconnection during refurbish operations,
-			// which is a burden. Let's just not.
-			BsonDocument deletionFilter = new BsonDocument("_id", new BsonDocument("$ne", MANIFEST_ID));
-			LOGGER.trace("Deleting state documents: {}", deletionFilter);
-			queryCollection.deleteMany(deletionFilter);
+			// The calls to loadAllState and initializeCollection must occur atomically
+			// with respect to event processing, because both of them have side effects
+			// that affect event processing (field tracking and flush locks, respectively).
+			synchronized (receiver) {
+				PerTenant<StateAndMetadata<R>> result = formatDriver.loadAllState();
+				newFormatDriver = newPreferredFormatDriver();
 
-			newFormatDriver.initializeCollection(result);
+				// initializeCollection is required to replace the manifest anyway,
+				// so deleting it has no value; and if we do delete it, then every
+				// FormatDriver must cope with deletions of the manifest document
+				// to avoid disconnection during refurbish operations,
+				// which is a burden. Let's just not.
+				BsonDocument deletionFilter = new BsonDocument("_id", new BsonDocument("$ne", MANIFEST_ID));
+				LOGGER.trace("Deleting state documents: {}", deletionFilter);
+				queryCollection.deleteMany(deletionFilter);
+
+				newFormatDriver.initializeCollection(result);
+			}
 
 			// We must rudely commit the transaction here, since correctness requires that
 			// the database updates commit before we publish newFormatDriver.

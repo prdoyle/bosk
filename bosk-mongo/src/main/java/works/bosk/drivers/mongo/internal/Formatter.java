@@ -44,12 +44,6 @@ import static works.bosk.ReferenceUtils.rawClass;
  */
 final class Formatter extends BsonFormatter {
 
-	/**
-	 * If the diagnostic attributes are identical from one update to the next,
-	 * MongoDB won't send them. This field retains the last value so we can
-	 * always set the correct context for each downstream operation.
-	 */
-	private volatile MapValue<String> lastEventDiagnosticAttributes = MapValue.empty();
 	private final Codec<?> manifestCodec = codecFor(Manifest.class);
 
 	Formatter(BoskInfo<?> boskInfo, BsonSerializer bsonSerializer) {
@@ -211,10 +205,6 @@ final class Formatter extends BsonFormatter {
 		return fullDocument.getInt64(DocumentFields.revision.name(), null);
 	}
 
-	@NonNull MapValue<String> eventDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {
-		return getOrSetEventDiagnosticAttributes(getDiagnosticAttributesFromFullDocument(fullDocument));
-	}
-
 	MapValue<String> getDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {
 		BsonDocument diagnostics = getDiagnosticAttributesIfAny(fullDocument);
 		return diagnostics == null ? null : decodeDiagnosticAttributes(diagnostics);
@@ -226,10 +216,6 @@ final class Formatter extends BsonFormatter {
 			return null;
 		}
 		return updatedFields.getInt64(DocumentFields.revision.name(), null);
-	}
-
-	@NonNull MapValue<String> eventDiagnosticAttributesFromUpdate(ChangeStreamDocument<BsonDocument> event) {
-		return getOrSetEventDiagnosticAttributes(getDiagnosticAttributesFromUpdateEvent(event));
 	}
 
 	MapValue<String> getDiagnosticAttributesFromUpdateEvent(ChangeStreamDocument<BsonDocument> event) {
@@ -270,16 +256,6 @@ final class Formatter extends BsonFormatter {
 			return null;
 		}
 		return fullDocument.getDocument(DocumentFields.diagnostics.name(), null);
-	}
-
-	@NonNull private MapValue<String> getOrSetEventDiagnosticAttributes(MapValue<String> fromEvent) {
-		if (fromEvent == null) {
-			LOGGER.debug("No diagnostic attributes in event; assuming they are unchanged");
-			return lastEventDiagnosticAttributes;
-		} else {
-			lastEventDiagnosticAttributes = fromEvent;
-			return fromEvent;
-		}
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(Formatter.class);

@@ -1,5 +1,6 @@
 package works.bosk.testing.drivers;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
@@ -14,7 +15,6 @@ import works.bosk.util.PerTenant;
 
 import static java.util.function.Function.identity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
@@ -26,9 +26,6 @@ import static works.bosk.testing.BoskTestUtils.boskName;
  * the assertion.
  */
 public abstract class SharedDriverConformanceTest extends DriverConformanceTest {
-	final TenantId tenant1 = Tenant.setTo(TENANT1);
-	final TenantId tenant2 = Tenant.setTo(TENANT2);
-
 	Bosk<TestEntity> remoteBosk;
 
 	@Override
@@ -89,58 +86,55 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		}
 	}
 
+	/**
+	 * Don't get confused! This test has two bosks <em>and</em> two tenants.
+	 * <p>
+	 * The single-bosk version of this test would also be valid,
+	 * but this particular one is a regression test for a bug that required two bosks.
+	 */
 	@Test
-	void multiTenant_replicatesStateAcrossTenants() throws Exception {
+	void multiTenant_unchangedDiagnostics_propagateCorrectly() throws Exception {
 		setupBosksAndReferences(driverFactory);
-		Refs refs = bosk.buildReferences(Refs.class);
-
-		// Note: do this assume after the setup is done, or cleanup will crash!
 		assumeTrue(scenario.tenancyModel instanceof Explicit);
+		closeTenantScope();
 
-		tenantScope.close();
-		tenantScope = null;
+		Refs refs = bosk.buildReferences(Refs.class);
+		Refs remoteRefs = remoteBosk.buildReferences(Refs.class);
+		AtomicBoolean hooksArmed = new AtomicBoolean(false);
 
-		EntireState.MultiTree<TestEntity> expectedState = (EntireState.MultiTree<TestEntity>) initialState(bosk);
-		assertNotEquals(
-			expectedState.tenantRoots().get(tenant1),
-			expectedState.tenantRoots().get(tenant2),
-			"Meta-assertion: the tests won't detect problems if the tenant states are indistinguishable");
-
-		try (var _ = bosk.readSession()) {
-			assertEquals(expectedState, bosk.entireState(), "Entire state should be correct");
-
-			// Check that each tenant has its own state
-			try (var _ = bosk.context().withTenant(tenant1)) {
-				var expected = expectedState.tenantRoots().get(tenant1);
-				assertEquals(expected, bosk.rootReference().value());
+		bosk.hookRegistrar().registerHook("Verify attribute value", refs.string(), _ -> {
+			if (hooksArmed.get()) {
+				var tenant = bosk.context().getTenantId();
+				assertEquals(tenant.tenant().toString(), bosk.context().getAttribute("testKey"));
 			}
-
-			try (var _ = bosk.context().withTenant(tenant2)) {
-				var expected = expectedState.tenantRoots().get(tenant2);
-				assertEquals(expected, bosk.rootReference().value());
+		});
+		remoteBosk.hookRegistrar().registerHook("Verify attribute value", remoteRefs.string(), _ -> {
+			if (hooksArmed.get()) {
+				var tenant = remoteBosk.context().getTenantId();
+				assertEquals(tenant.tenant().toString(), remoteBosk.context().getAttribute("testKey"));
 			}
-		}
+		});
 
-		// Change them in different ways
+		hooksArmed.set(true);
 
-		try (var _ = bosk.context().withTenant(tenant1)) {
-			driver.submitReplacement(refs.string(), "new tenant1 string");
-		}
-		try (var _ = bosk.context().withTenant(tenant2)) {
-			driver.submitReplacement(refs.string(), "new tenant2 string");
-		}
-		driver.flush();
-
-		// Ensure each tenant sees its own change
-
-		try (var _ = bosk.readSession()) {
-			try (var _ = bosk.context().withTenant(tenant1)) {
-				assertEquals("new tenant1 string", refs.string().value());
+		for (int i = 1; i <= 3; i++) {
+			try (
+				var _ = bosk.context().withTenant(tenant1);
+				var _ = bosk.context().withAttribute("testKey", tenant1.tenant().toString())
+			) {
+				driver.submitReplacement(refs.string(), "tenant1-update" + i);
 			}
-
-			try (var _ = bosk.context().withTenant(tenant2)) {
-				assertEquals("new tenant2 string", refs.string().value());
+			try (
+				var _ = bosk.context().withTenant(tenant2);
+				var _ = bosk.context().withAttribute("testKey", tenant2.tenant().toString())
+			) {
+				driver.submitReplacement(refs.string(), "tenant2-update" + i);
 			}
 		}
+		bosk.driver().flush();
+		remoteBosk.driver().flush();
+
+		assertCorrectBoskContents();
 	}
+
 }

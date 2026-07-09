@@ -34,6 +34,11 @@ since the change stream will include all updates from all drivers; and
 persistence is achieved by having
 `MongoDriver` read the initial bosk state from the database during `Bosk` initialization (in the `initialRoot` method).
 
+Note in particular that there must be no direct connection between the `MongoDriver` update methods and the downstream driver:
+updates are always propagated downstream driven by change stream events.
+(The `initialState` and `flush` methods are different: they're not update methods
+and they are inherently synchronous.)
+
 While conceptually simple, the real complexity lies in fault tolerance.
 An important goal of `MongoDriver` is that if the database is somehow damaged and then repaired,
 `MongoDriver` should recover and resume normal operation without any intervention.
