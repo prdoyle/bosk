@@ -43,9 +43,22 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 * updates the driver's internal state in the expectation that the loaded state
 	 * is to be considered the "current" state with respect to subsequent change stream events.
 	 * <p>
+	 * This method should be called from the {@link ChangeReceiver} thread so that
+	 * the ordering with respect to change stream events is well-defined.
+	 * Otherwise, use the receiver's monitor to ensure the appropriate logic
+	 * occurs atomically with respect to change stream event processing.
+	 * <p>
 	 * This method can assume the manifest exists and indicates the appropriate format;
 	 * manifest creation/validation is handled elsewhere, and if this assumption is violated for whatever
 	 * reason, {@code InvalidCollectionContentsException} is an acceptable exception to throw.
+	 * <p>
+	 * <em>Maintenance note:</em> This method's contract is pretty weird,
+	 * especially with its side effect. It's a struggle to make a clean separation
+	 * between the format driver and the main driver, and this particular compromise
+	 * was a consequence of encapsulating the revision number logic inside the format driver.
+	 * Hopefully some day we can arrive at a cleaner interface.
+	 * In the meantime, we've tried to hint at the significance by
+	 * calling this operation "load" instead of just "read".
 	 *
 	 * @throws InvalidCollectionContentsException if the collection contents don't match the declared format
 	 */

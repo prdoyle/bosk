@@ -38,7 +38,14 @@ import static works.bosk.logging.MappedDiagnosticContext.setupMDC;
  * Houses a background thread that repeatedly initializes, processes, and closes a change stream cursor.
  * Ideally, the opening and closing happen just once, but they're done in a loop for fault tolerance,
  * so that the driver can reinitialize if certain unusual conditions arise.
- *
+ * <p>
+ * This object's monitor is acquired while processing each event,
+ * so other operations that must occur atomically with respect to event processing
+ * can synchronize on this object.
+ * Note that when the monitor is released, event processing will resume with an event
+ * received before or during that other operation,
+ * so the other operation must leave the driver in a state where such events are
+ * correctly handled or ignored.
  * <p>
  * We're maintaining an in-memory replica of database state, and so
  * the loading of database state and the subsequent handling of events are inherently coupled.
@@ -285,7 +292,7 @@ class ChangeReceiver implements Closeable {
 		}
 	}
 
-	private void processEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
+	private synchronized void processEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
 		if (settings.testing().eventDelayMS() > 0) {
 			LOGGER.debug("| eventDelayMS {}ms ", settings.testing().eventDelayMS());
 			try {
