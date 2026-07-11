@@ -323,7 +323,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			};
 
 			// Hasn't technically been applied, but we're still initializing the Bosk, and its constructor won't return until the state has been applied
-			detectedDriver.hasBeenApplied(loadedState);
+			detectedDriver.onHasBeenApplied(loadedState);
 
 			publishFormatDriver(detectedDriver);
 		} catch (UninitializedCollectionException e) {
@@ -404,7 +404,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			publishFormatDriver(newFormatDriver);
 
 			// Refurbish doesn't actually change what state has been applied to the bosk.
-			// No need to do any downstream submit/flush, nor call hasBeenApplied.
+			// No need to do any downstream submit/flush, nor call onHasBeenApplied.
 		} catch (InvalidCollectionContentsException e) {
 			throw new IOException("Unable to refurbish database collection with invalid contents", e);
 		}
@@ -568,7 +568,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				}
 
 				downstream.flush();
-				newDriver.hasBeenApplied(contents);
+				newDriver.onHasBeenApplied(contents);
 			} else {
 				LOGGER.debug("Running initialStateTask");
 				try {

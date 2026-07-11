@@ -90,7 +90,7 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 * Indicates that the given contents have been {@link #flush() flushed} to the downstream driver already,
 	 * or are otherwise known to have been applied to the bosk state.
 	 */
-	void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents);
+	void onHasBeenApplied(PerTenant<StateAndMetadata<R>> contents);
 
 	@Override
 	default <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) {

@@ -165,7 +165,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	@Override
-	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
+	public void onHasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
 		contents.forEach((tenant, stateAndMetadata) ->
 			finishedRevision(tenant, stateAndMetadata.revision()));
 	}
@@ -189,7 +189,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	/**
-	 * Must be called before {@link #hasBeenApplied} or any event processing.
+	 * Must be called before {@link #onHasBeenApplied} or any event processing.
 	 */
 	protected void ensureFlushLocksInitialized(PerTenant<?> contents) {
 		flushLocks.compareAndSet(null, switch (contents) {

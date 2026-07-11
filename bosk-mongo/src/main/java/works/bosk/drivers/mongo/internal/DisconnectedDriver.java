@@ -78,7 +78,7 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 	}
 
 	@Override
-	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
+	public void onHasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
 		throw disconnected();
 	}
 

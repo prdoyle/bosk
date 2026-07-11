@@ -1224,8 +1224,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	public void hasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
-		super.hasBeenApplied(contents);
+	public void onHasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
+		super.onHasBeenApplied(contents);
 		finishedContentsRevision(readContentsRevision());
 	}
 
