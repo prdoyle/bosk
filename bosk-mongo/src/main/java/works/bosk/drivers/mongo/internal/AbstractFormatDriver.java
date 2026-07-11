@@ -320,25 +320,6 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		}
 	}
 
-	protected void finishedContentsRevision(BsonInt64 revision) {
-		if (revision != null) {
-			contentsFlushLock.finishedRevision(revision);
-		}
-	}
-
-	protected BsonInt64 readContentsRevision() {
-		try (MongoCursor<BsonDocument> cursor = collection
-			.withReadConcern(LOCAL)
-			.find(new BsonDocument("_id", CONTENTS_ID))
-			.projection(fields(include("_id", DocumentFields.revision.name())))
-			.cursor()) {
-			if (cursor.hasNext()) {
-				return cursor.next().getInt64(DocumentFields.revision.name(), REVISION_ZERO);
-			}
-			return REVISION_ZERO;
-		}
-	}
-
 	/**
 	 * @return the {@link Tenant} that should be established before processing
 	 * a document with the given {@code id}
@@ -441,10 +422,6 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		return MANIFEST_ID.equals(documentId);
 	}
 
-	protected boolean isContentsID(BsonValue documentId) {
-		return CONTENTS_ID.equals(documentId);
-	}
-
 	/**
 	 * Low-level version of {@link StateAndMetadata}.
 	 */
@@ -456,7 +433,6 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	){}
 
 	private static final Set<String> ALREADY_WARNED = newSetFromMap(new ConcurrentHashMap<>());
-	static final BsonString CONTENTS_ID = new BsonString("!contents");
 	private static final Logger LOGGER = LoggerFactory.getLogger(AbstractFormatDriver.class);
 
 }

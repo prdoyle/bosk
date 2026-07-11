@@ -62,6 +62,8 @@ import works.bosk.util.PerTenant.NoTenant;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Filters.regex;
+import static com.mongodb.client.model.Projections.fields;
+import static com.mongodb.client.model.Projections.include;
 import static com.mongodb.client.model.changestream.OperationType.DELETE;
 import static com.mongodb.client.model.changestream.OperationType.INSERT;
 import static com.mongodb.client.model.changestream.OperationType.UPDATE;
@@ -92,6 +94,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	private final List<Reference<? extends EnumerableByIdentifier<?>>> graftPoints;
 
 	private static final BsonString ROOT_PATH = new BsonString("/");
+	private static final BsonString CONTENTS_ID = new BsonString("!contents");
+
 
 	PandoFormatDriver(
 		BoskInfo<R> boskInfo,
@@ -263,24 +267,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		};
 	}
 
-	private Set<TenantId> readContentsTenants() {
-		BsonDocument filter = new BsonDocument("_id", CONTENTS_ID);
-		try (MongoCursor<BsonDocument> cursor = collection.find(filter).limit(1).cursor()) {
-			if (cursor.hasNext()) {
-				BsonDocument doc = cursor.next();
-				BsonDocument tenants = doc.getDocument("tenants", null);
-				if (tenants != null) {
-					Set<TenantId> result = new HashSet<>();
-					for (String key : tenants.keySet()) {
-						result.add(new TenantId(Identifier.from(key)));
-					}
-					return result;
-				}
-			}
-		}
-		return Set.of();
-	}
-
 	@Override
 	@NonNull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
 		LOGGER.debug("readRevisionNumbers");
@@ -401,27 +387,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		LOGGER.trace("| Options: {}", options);
 		UpdateResult result = collection.updateOne(filter, update, options);
 		LOGGER.debug("| Result: {}", result);
-	}
-
-	private @NonNull BsonInt64 writeContentsDocument(PerTenant<?> contents) {
-		collection.ensureTransactionStarted();
-		BsonInt64 revision = nextRevision(REVISION_ZERO);
-		BsonDocument tenantsDoc = new BsonDocument();
-		contents.forEach((tenant, _) -> {
-			switch (tenant) {
-				case None _ -> {}
-				case TenantId tid -> tenantsDoc.put(tid.tenant().toString(), TRUE);
-			}
-		});
-		BsonDocument contentsDoc = new BsonDocument("_id", CONTENTS_ID);
-		contentsDoc.put(DocumentFields.revision.name(), revision);
-		if (!tenantsDoc.isEmpty()) {
-			contentsDoc.put("tenants", tenantsDoc);
-		}
-		BsonDocument filter = new BsonDocument("_id", CONTENTS_ID);
-		LOGGER.debug("| Write !contents document with revision {} and tenants {}", revision.longValue(), tenantsDoc.keySet());
-		collection.replaceOne(filter, contentsDoc, new ReplaceOptions().upsert(true));
-		return revision;
 	}
 
 	private static @NonNull BsonInt64 nextRevision(BsonInt64 priorRevision) {
@@ -1175,6 +1140,67 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}
 	}
 
+	private BsonInt64 readContentsRevision() {
+		try (MongoCursor<BsonDocument> cursor = collection
+			.withReadConcern(LOCAL)
+			.find(new BsonDocument("_id", CONTENTS_ID))
+			.projection(fields(include("_id", DocumentFields.revision.name())))
+			.cursor()) {
+			if (cursor.hasNext()) {
+				return cursor.next().getInt64(DocumentFields.revision.name(), REVISION_ZERO);
+			}
+			return REVISION_ZERO;
+		}
+	}
+
+	private Set<TenantId> readContentsTenants() {
+		BsonDocument filter = new BsonDocument("_id", CONTENTS_ID);
+		try (MongoCursor<BsonDocument> cursor = collection.find(filter).limit(1).cursor()) {
+			if (cursor.hasNext()) {
+				BsonDocument doc = cursor.next();
+				BsonDocument tenants = doc.getDocument("tenants", null);
+				if (tenants != null) {
+					Set<TenantId> result = new HashSet<>();
+					for (String key : tenants.keySet()) {
+						result.add(new TenantId(Identifier.from(key)));
+					}
+					return result;
+				}
+			}
+		}
+		return Set.of();
+	}
+
+	private @NonNull BsonInt64 writeContentsDocument(PerTenant<?> contents) {
+		collection.ensureTransactionStarted();
+		BsonInt64 revision = nextRevision(REVISION_ZERO);
+		BsonDocument tenantsDoc = new BsonDocument();
+		contents.forEach((tenant, _) -> {
+			switch (tenant) {
+				case None _ -> {}
+				case TenantId tid -> tenantsDoc.put(tid.tenant().toString(), TRUE);
+			}
+		});
+		BsonDocument contentsDoc = new BsonDocument("_id", CONTENTS_ID);
+		contentsDoc.put(DocumentFields.revision.name(), revision);
+		if (!tenantsDoc.isEmpty()) {
+			contentsDoc.put("tenants", tenantsDoc);
+		}
+		BsonDocument filter = new BsonDocument("_id", CONTENTS_ID);
+		LOGGER.debug("| Write !contents document with revision {} and tenants {}", revision.longValue(), tenantsDoc.keySet());
+		collection.replaceOne(filter, contentsDoc, new ReplaceOptions().upsert(true));
+		return revision;
+	}
+
+	private void addTenantToContents(TenantId tenant) {
+		BsonDocument filter = new BsonDocument("_id", CONTENTS_ID);
+		BsonDocument update = new BsonDocument()
+			.append("$inc", new BsonDocument(DocumentFields.revision.name(), new BsonInt64(1)))
+			.append("$set", new BsonDocument("tenants." + tenant.tenant(), TRUE));
+		LOGGER.debug("| Add tenant {} to !contents", tenant.tenant());
+		collection.updateOne(filter, update, new UpdateOptions().upsert(true));
+	}
+
 	private void removeTenantFromContents() {
 		switch (context.getEstablishedTenant()) {
 			case None _ -> {
@@ -1191,14 +1217,16 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}
 	}
 
-	private void addTenantToContents(TenantId tenant) {
-		BsonDocument filter = new BsonDocument("_id", CONTENTS_ID);
-		BsonDocument update = new BsonDocument()
-			.append("$inc", new BsonDocument(DocumentFields.revision.name(), new BsonInt64(1)))
-			.append("$set", new BsonDocument("tenants." + tenant.tenant(), TRUE));
-		LOGGER.debug("| Add tenant {} to !contents", tenant.tenant());
-		collection.updateOne(filter, update, new UpdateOptions().upsert(true));
+	private void finishedContentsRevision(BsonInt64 revision) {
+		if (revision != null) {
+			contentsFlushLock.finishedRevision(revision);
+		}
 	}
+
+	private boolean isContentsID(BsonValue documentId) {
+		return CONTENTS_ID.equals(documentId);
+	}
+
 
 	/**
 	 * @param value is mutated to stub-out the parts written to the database
