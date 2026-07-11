@@ -12,18 +12,18 @@ import works.bosk.BoskContext.Tenant;
 import works.bosk.Identifier;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.InjectedTest;
-import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue.MultiTenant;
+import works.bosk.util.PerTenantValue.NoTenant;
 
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static works.bosk.BoskContext.Tenant.NONE;
 import static works.bosk.BoskContext.Tenant.TenantId;
-import static works.bosk.util.PerTenant.MultiTenant.multiTenant;
+import static works.bosk.util.PerTenantValue.MultiTenant.multiTenant;
 
-@InjectFrom(PerTenantTest.Scenario.Injector.class)
-class PerTenantTest {
+@InjectFrom(PerTenantValueTest.Scenario.Injector.class)
+class PerTenantValueTest {
 	static final TenantId t1 = new TenantId(Identifier.from("t1"));
 	static final TenantId t2 = new TenantId(Identifier.from("t2"));
 	static final TenantId t3 = new TenantId(Identifier.from("t3"));
@@ -33,7 +33,7 @@ class PerTenantTest {
 		MULTI_TENANT,
 		;
 
-		PerTenant<String> perTenant() {
+		PerTenantValue<String> perTenant() {
 			return switch (this) {
 				case NO_TENANT -> NoTenant.just("sole");
 				case MULTI_TENANT -> Stream.of(t1,t2,t3)
@@ -77,7 +77,7 @@ class PerTenantTest {
 
 	@InjectedTest
 	void map(Scenario scenario) {
-		PerTenant<String> mapped = scenario.perTenant().map(s -> s.toUpperCase(Locale.ROOT));
+		PerTenantValue<String> mapped = scenario.perTenant().map(s -> s.toUpperCase(Locale.ROOT));
 		List<Seen> actual = new ArrayList<>();
 		mapped.forEach((tenant, value) -> actual.add(new Seen(tenant, value)));
 

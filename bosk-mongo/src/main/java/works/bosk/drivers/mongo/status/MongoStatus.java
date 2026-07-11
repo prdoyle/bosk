@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
 import works.bosk.drivers.mongo.internal.Manifest;
-import works.bosk.util.PerTenant;
+import works.bosk.util.PerTenantValue;
 
 import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 
@@ -15,7 +15,7 @@ import static com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL;
 public record MongoStatus(
 	@JsonInclude(NON_NULL) String error,
 	ManifestStatus manifest,
-	PerTenant<StateStatus> state
+	PerTenantValue<StateStatus> state
 ) {
 	public MongoStatus with(DatabaseFormat preferredFormat, StateTreeNode actualManifest) {
 		return new MongoStatus(

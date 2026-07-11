@@ -46,8 +46,8 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
-import works.bosk.util.PerTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue;
+import works.bosk.util.PerTenantValue.NoTenant;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static com.mongodb.client.model.Sorts.ascending;
@@ -316,10 +316,10 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		EntireState<R> entireState;
 		try (var _ = queryCollection.newReadOnlySession()){
 			FormatDriver<R> detectedDriver = detectFormat();
-			PerTenant<StateAndMetadata<R>> loadedState = detectedDriver.loadAllState();
+			PerTenantValue<StateAndMetadata<R>> loadedState = detectedDriver.loadAllState();
 			entireState = switch (loadedState.map(StateAndMetadata::state)) {
 				case NoTenant<R>(R root) -> EntireState.just(root);
-				case PerTenant.MultiTenant<R> v -> v.values().entrySet().stream().collect(MultiTree.collector());
+				case PerTenantValue.MultiTenant<R> v -> v.values().entrySet().stream().collect(MultiTree.collector());
 			};
 
 			// Hasn't technically been applied, but we're still initializing the Bosk, and its constructor won't return until the state has been applied
@@ -335,7 +335,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				var session = queryCollection.newSession()
 			) {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
-				PerTenant<StateAndMetadata<R>> priorContents = PerTenant.from(entireState, root ->
+				PerTenantValue<StateAndMetadata<R>> priorContents = PerTenantValue.from(entireState, root ->
 					new StateAndMetadata<>(root, REVISION_ZERO, diagnosticAttributes));
 				preferredDriver.initializeCollection(priorContents);
 				session.commitTransactionIfAny();
@@ -382,7 +382,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// with respect to event processing, because both of them have side effects
 			// that affect event processing (field tracking and flush locks, respectively).
 			synchronized (receiver) {
-				PerTenant<StateAndMetadata<R>> result = formatDriver.loadAllState();
+				PerTenantValue<StateAndMetadata<R>> result = formatDriver.loadAllState();
 				newFormatDriver = newPreferredFormatDriver();
 
 				// initializeCollection is required to replace the manifest anyway,
@@ -525,7 +525,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			LOGGER.debug("onConnectionSucceeded");
 			if (initialStateTask.isDone()) {
 				FormatDriver<R> newDriver;
-				PerTenant<StateAndMetadata<R>> contents;
+				PerTenantValue<StateAndMetadata<R>> contents;
 				try (var _ = queryCollection.newReadOnlySession()) {
 					LOGGER.debug("Loading database state to submit to downstream driver");
 					newDriver = detectFormat();
@@ -548,7 +548,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 				publishFormatDriver(newDriver);
 
-				if (contents instanceof PerTenant.NoTenant<StateAndMetadata<R>>(var soleContents)) {
+				if (contents instanceof PerTenantValue.NoTenant<StateAndMetadata<R>>(var soleContents)) {
 					downstream.submitReplacement(boskInfo.rootReference(), soleContents.state());
 					LOGGER.debug("Done submitting downstream");
 				} else {

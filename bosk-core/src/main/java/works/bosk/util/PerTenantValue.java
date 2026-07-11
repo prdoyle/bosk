@@ -25,11 +25,11 @@ import static works.bosk.BoskContext.Tenant.NONE;
 /**
  * A data structure that needs separate versions in multitenant situations.
  */
-public sealed interface PerTenant<T> {
+public sealed interface PerTenantValue<T> {
 	T get(Tenant.Established tenant);
 	void forEach(BiConsumer<? super Established, ? super T> consumer);
 	boolean allMatch(Predicate<? super T> predicate);
-	<U> PerTenant<U> map(BiFunction<Tenant.Established, T,U> mapping);
+	<U> PerTenantValue<U> map(BiFunction<Tenant.Established, T,U> mapping);
 
 	/**
 	 * @throws IllegalArgumentException if this can't be represented as a {@link NoTenant}
@@ -37,11 +37,11 @@ public sealed interface PerTenant<T> {
 	 */
 	NoTenant<T> asNoTenant(TenantId expectedTenant);
 
-	default <U> PerTenant<U> map(Function<T,U> mapping) {
+	default <U> PerTenantValue<U> map(Function<T,U> mapping) {
 		return map((_, x) -> mapping.apply(x));
 	}
 
-	static <R extends StateTreeNode, V> PerTenant<V> from(EntireState<R> state, Function<R, V> valueMapper) {
+	static <R extends StateTreeNode, V> PerTenantValue<V> from(EntireState<R> state, Function<R, V> valueMapper) {
 		return switch (state) {
 			case SingleTree<R>(var root) -> new NoTenant<>(valueMapper.apply(root));
 			case MultiTree<R>(var roots)-> roots.entrySet().stream()
@@ -53,7 +53,7 @@ public sealed interface PerTenant<T> {
 	 * Not a multitenant situation: the {@link Tenant} is {@link Tenant#NONE NONE}
 	 * and there's exactly one {@code value}.
 	 */
-	record NoTenant<T>(T value) implements PerTenant<T> {
+	record NoTenant<T>(T value) implements PerTenantValue<T> {
 		@Override
 		public T get(Established tenant) {
 			if (tenant == NONE) {
@@ -74,7 +74,7 @@ public sealed interface PerTenant<T> {
 		}
 
 		@Override
-		public <U> PerTenant<U> map(BiFunction<Established, T, U> mapping) {
+		public <U> PerTenantValue<U> map(BiFunction<Established, T, U> mapping) {
 			return new NoTenant<>(mapping.apply(NONE, value));
 		}
 
@@ -94,7 +94,7 @@ public sealed interface PerTenant<T> {
 	 * <p>
 	 * Tenants are ordered by their ID.
 	 */
-	record MultiTenant<T>(SortedMap<TenantId, T> values) implements PerTenant<T> {
+	record MultiTenant<T>(SortedMap<TenantId, T> values) implements PerTenantValue<T> {
 		public MultiTenant {
 			requireNonNull(values);
 			// The values should always be a TreePMap so that we can do efficient
@@ -139,7 +139,7 @@ public sealed interface PerTenant<T> {
 		}
 
 		@Override
-		public <U> PerTenant<U> map(BiFunction<Established, T, U> mapping) {
+		public <U> PerTenantValue<U> map(BiFunction<Established, T, U> mapping) {
 			return values.entrySet().stream().collect(MultiTenant.multiTenant(
 				Entry::getKey,
 				e -> mapping.apply(e.getKey(), e.getValue())));

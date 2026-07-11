@@ -39,9 +39,9 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.drivers.mongo.status.StateStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.util.PerTenant;
-import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue;
+import works.bosk.util.PerTenantValue.MultiTenant;
+import works.bosk.util.PerTenantValue.NoTenant;
 import works.bosk.util.TunneledCheckedException;
 
 import static com.mongodb.ReadConcern.LOCAL;
@@ -73,7 +73,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * (Therefore, there's no need for null tests before using this:
 	 * an NPE is an acceptable outcome if someone ever violates these rules.)
 	 */
-	final AtomicReference<PerTenant<FlushLock>> flushLocks = new AtomicReference<>(null);
+	final AtomicReference<PerTenantValue<FlushLock>> flushLocks = new AtomicReference<>(null);
 
 	final DocumentFieldTracker fieldTracker = new DocumentFieldTracker();
 	final FlushLock contentsFlushLock;
@@ -102,9 +102,9 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	@Override
 	public MongoStatus readStatus() {
 		try {
-			PerTenant<BsonStateAndMetadata> dbStates = readBsonStateAndMetadata();
+			PerTenantValue<BsonStateAndMetadata> dbStates = readBsonStateAndMetadata();
 			var entireState = entireStateSupplier.get();
-			var inMemoryBsonValues = PerTenant.from(entireState,
+			var inMemoryBsonValues = PerTenantValue.from(entireState,
 				r -> formatter.object2bsonValue(r, rootRef.targetType()));
 			BsonComparator comp = new BsonComparator();
 			var stateStatuses = dbStates.map((Established tenant, BsonStateAndMetadata dbState) -> {
@@ -134,9 +134,9 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	@Override
-	public PerTenant<StateAndMetadata<R>> loadAllState() throws IOException, InvalidCollectionContentsException {
+	public PerTenantValue<StateAndMetadata<R>> loadAllState() throws IOException, InvalidCollectionContentsException {
 		try {
-			PerTenant<BsonStateAndMetadata> bsonStateAndMetadata = readBsonStateAndMetadata();
+			PerTenantValue<BsonStateAndMetadata> bsonStateAndMetadata = readBsonStateAndMetadata();
 			ensureFlushLocksInitialized(bsonStateAndMetadata);
 			return bsonStateAndMetadata.map((Established _, BsonStateAndMetadata bsm) -> {
 				if (bsm.state() == null) {
@@ -165,18 +165,18 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	@Override
-	public void onHasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
+	public void onHasBeenApplied(PerTenantValue<StateAndMetadata<R>> contents) {
 		contents.forEach((tenant, stateAndMetadata) ->
 			finishedRevision(tenant, stateAndMetadata.revision()));
 	}
 
 	/**
-	 * Converts a {@link PerTenant} to the variant appropriate for the {@link #tenancyModel}.
+	 * Converts a {@link PerTenantValue} to the variant appropriate for the {@link #tenancyModel}.
 	 * For {@code None} tenancy, {@code NoTenant} is returned as-is.
 	 * For {@code Fixed} tenancy, {@code NoTenant} is converted to
 	 * {@link MultiTenant} with the fixed tenant ID.
 	 */
-	protected <T> PerTenant<T> normalizePerTenant(PerTenant<T> contents) {
+	protected <T> PerTenantValue<T> normalizePerTenant(PerTenantValue<T> contents) {
 		return switch (contents) {
 			case NoTenant<T>(var value) -> switch (tenancyModel) {
 				case None _ -> contents;
@@ -191,7 +191,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	/**
 	 * Must be called before {@link #onHasBeenApplied} or any event processing.
 	 */
-	protected void ensureFlushLocksInitialized(PerTenant<?> contents) {
+	protected void ensureFlushLocksInitialized(PerTenantValue<?> contents) {
 		flushLocks.compareAndSet(null, switch (contents) {
 			case NoTenant<?> _ -> switch (tenancyModel) {
 				case None _ -> NoTenant.just(newFlushLock());
@@ -220,7 +220,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * @return the contents of the database; fields of the returned
 	 * record can be null if they don't exist in the database.
 	 */
-	abstract PerTenant<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException;
+	abstract PerTenantValue<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException;
 
 	protected BsonDocument blankUpdateDoc() {
 		return new BsonDocument()
@@ -265,7 +265,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	protected boolean shouldSkip(Established tenant, BsonInt64 revision) {
-		PerTenant<FlushLock> f = flushLocks.get();
+		PerTenantValue<FlushLock> f = flushLocks.get();
 		FlushLock lock = (f instanceof MultiTenant<FlushLock> m && tenant instanceof TenantId tid)
 			? m.values().get(tid) : f.get(tenant);
 		// When lock is null, we don't have a lock for this tenant, so this revision is always interesting.
@@ -299,7 +299,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	protected void finishedRevision(Established tenant, BsonInt64 revision) {
-		PerTenant<FlushLock> f = flushLocks.get();
+		PerTenantValue<FlushLock> f = flushLocks.get();
 		if (f instanceof MultiTenant<FlushLock> m && tenant instanceof TenantId tid) {
 			FlushLock lock = m.values().get(tid);
 			if (lock == null) {
@@ -349,7 +349,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * @return all potentially relevant revision numbers found in the database
 	 * @throws RevisionFieldDisruptedException if unexpected database contents make it impossible to determine the revision number
 	 */
-	abstract @NonNull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException;
+	abstract @NonNull PerTenantValue<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException;
 
 	@Override
 	public void flush() throws IOException, InterruptedException {

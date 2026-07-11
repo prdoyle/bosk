@@ -56,9 +56,9 @@ import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
-import works.bosk.util.PerTenant;
-import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue;
+import works.bosk.util.PerTenantValue.MultiTenant;
+import works.bosk.util.PerTenantValue.NoTenant;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Filters.regex;
@@ -80,7 +80,7 @@ import static works.bosk.drivers.mongo.internal.Formatter.REVISION_BEFORE_ANY;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
 import static works.bosk.drivers.mongo.internal.Formatter.getTenantFromDocumentId;
 import static works.bosk.util.Classes.enumerableByIdentifier;
-import static works.bosk.util.PerTenant.MultiTenant.multiTenant;
+import static works.bosk.util.PerTenantValue.MultiTenant.multiTenant;
 
 /**
  * Implements {@link PandoFormat}.
@@ -179,7 +179,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	PerTenant<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
+	PerTenantValue<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		// Read the !contents document to get the authoritative tenant list
 		Set<TenantId> contentsTenants = readContentsTenants();
 
@@ -268,7 +268,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	@NonNull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
+	@NonNull PerTenantValue<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
 		LOGGER.debug("readRevisionNumbers");
 		try {
 			return switch (format.tenancyFormat()) {
@@ -348,7 +348,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	public void initializeCollection(PerTenant<StateAndMetadata<R>> priorContentsArg) {
+	public void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContentsArg) {
 		var allPriorContents = normalizePerTenant(validateAndNormalize(priorContentsArg));
 		ensureFlushLocksInitialized(allPriorContents);
 		allPriorContents.forEach((tenant, priorContents) -> {
@@ -398,7 +398,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	 * where it's coerced into either a {@link NoTenant} or a {@link MultiTenant} with one tenant
 	 * depending on the {@link PandoFormat#tenancyFormat() tenancyFormat}.
 	 */
-	private PerTenant<StateAndMetadata<R>> validateAndNormalize(PerTenant<StateAndMetadata<R>> given) {
+	private PerTenantValue<StateAndMetadata<R>> validateAndNormalize(PerTenantValue<StateAndMetadata<R>> given) {
 		return switch (tenancyModel) {
 			case TenancyModel.None _ -> switch (given) {
 				case NoTenant<StateAndMetadata<R>> v -> v;
@@ -1171,7 +1171,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		return Set.of();
 	}
 
-	private @NonNull BsonInt64 writeContentsDocument(PerTenant<?> contents) {
+	private @NonNull BsonInt64 writeContentsDocument(PerTenantValue<?> contents) {
 		collection.ensureTransactionStarted();
 		BsonInt64 revision = nextRevision(REVISION_ZERO);
 		BsonDocument tenantsDoc = new BsonDocument();
@@ -1252,7 +1252,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	public void onHasBeenApplied(PerTenant<StateAndMetadata<R>> contents) {
+	public void onHasBeenApplied(PerTenantValue<StateAndMetadata<R>> contents) {
 		super.onHasBeenApplied(contents);
 		finishedContentsRevision(readContentsRevision());
 	}

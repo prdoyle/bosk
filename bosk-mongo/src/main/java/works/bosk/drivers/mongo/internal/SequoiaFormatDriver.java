@@ -32,9 +32,9 @@ import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
-import works.bosk.util.PerTenant;
-import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue;
+import works.bosk.util.PerTenantValue.MultiTenant;
+import works.bosk.util.PerTenantValue.NoTenant;
 
 import static com.mongodb.ReadConcern.LOCAL;
 import static org.bson.BsonBoolean.FALSE;
@@ -112,7 +112,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	PerTenant<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
+	PerTenantValue<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		try (MongoCursor<BsonDocument> cursor = collection
 			.withReadConcern(LOCAL) // The revision field needs to be the latest
 			.find(documentFilter())
@@ -138,7 +138,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	@NonNull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
+	@NonNull PerTenantValue<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
 		LOGGER.debug("readRevisionNumbers");
 		try {
 			try (MongoCursor<BsonDocument> cursor = revisionDocumentCursor()) {
@@ -158,7 +158,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	public void initializeCollection(PerTenant<StateAndMetadata<R>> priorContentsArg) {
+	public void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContentsArg) {
 		var normalized = normalizePerTenant(priorContentsArg);
 		ensureFlushLocksInitialized(normalized);
 		normalized.forEach((tenant, priorContents) -> {

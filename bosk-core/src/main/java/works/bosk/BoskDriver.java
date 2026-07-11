@@ -254,7 +254,7 @@ public interface BoskDriver {
 			}
 
 			public static <IN, OUT extends StateTreeNode> Collector<Entry<TenantId, IN>, ?, MultiTree<OUT>> withValues(Function<IN, OUT> valueMapper) {
-				// TODO: Common with PerTenant?
+				// TODO: Common with PerTenantValue?
 				class Accumulator {
 					TreePMap<TenantId, OUT> map = org.pcollections.TreePMap.empty();
 					void accumulate(Entry<TenantId, IN> e) { map = map.plus(e.getKey(), valueMapper.apply(e.getValue())); }
