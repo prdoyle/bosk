@@ -55,8 +55,8 @@ The usual Gradle commands, plus:
   - The overarching goal of Bosk is to reduce the behaviour gap between local development and production. If your code works, you probably did things right.
 
 ### Code ordering
-- Generally, in a class, instance fields come first, followed by constructors, then methods in use-before-declaration order
-- Static final constants go at the bottom, including any logger
+- Generally, in a class, instance fields come first, followed by shared mutable state (i.e. static fields, even if the reference is final), then constructors, then methods in use-before-declaration order
+- Internal constants (static final) and the logger go at the bottom
 
 ### Formatting
 
@@ -84,6 +84,8 @@ where `throws` clauses have no real downside.
 
 We put exceptions for a module into a sub-package that ends with `.exceptions`
 so they don't clutter up other packages.
+
+When declaring `throws` on a method, use the specific exception type(s), not a superclass like `Exception`. This applies to test methods too — declaring `throws Exception` is not a good habit and we don't want examples of that in the code.
 
 ### Javadocs
 
@@ -122,7 +124,7 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
 - Each commit should have correct spotless formatting.
 - Each commit should pass all tests unless it's marked as WIP or is explicitly doing test-driven development.
 
-## Testing Patterns
+## Test Coding Patterns
 
 - Tests use JUnit 5
 - For parameterizing test methods, use the `@InjectedTest` annotation: `bosk-junit/src/main/java/works/bosk/junit/InjectedTest.java`
@@ -154,16 +156,18 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
 - "Meta-tests" verify that a test is working correctly, like `bosk-testing/src/test/java/works/bosk/testing/drivers/ConformanceMetaTest.java`
 - Tests should be deterministic, and they should not rely on timing except in rare cases where there is no alternative, or where timeout behaviour is specifically being tested
   - Where components have timeout settings, tests should adjust those settings to be very short or very long as appropriate to make spurious failures vanishingly rare
+- Prefer building the entire expected data structure and using `assertEquals` over checking individual fields one-by-one. Tests with per-field assertions get stale when the object acquires new fields.
+- Assertion message strings should state what was expected (e.g. `"Set must have the new item"`), not describe the error (e.g. `"Set does not contain the new item"`).
 
 ## Hints
 
 ### Testing
 
+- Use gradle's `--fail-fast` option to save time
 - When developing a bug fix, write the test first and verify it fails against the unfixed code. Then apply the fix and confirm the test passes. This ensures the test would actually catch the bug.
-- Prefer building the entire expected data structure and using `assertEquals` over checking individual fields one-by-one. Tests with per-field assertions get stale when the object acquires new fields.
-- Assertion message strings should state what was expected (e.g. `"Set must have the new item"`), not describe the error (e.g. `"Set does not contain the new item"`).
 - Use `./gradlew <task> --rerun` (not `--rerun-tasks`) to force Gradle to re-execute a task when cached results exist.
 - Java assertions (-ea) are enabled for tests
+- Do not dismiss test failures as "pre-existing". We must fix all failures. Pre-existing failures can be deferred until after the main work, but we must ultimately fix them.
 
 ### Miscellaneous
 
