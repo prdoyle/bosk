@@ -101,6 +101,11 @@ public final class TenantLocal<T> {
 		return values.get().computeIfAbsent(tenant, mappingFunction);
 	}
 
+	public T removeFor(Tenant.Established tenant) {
+		checkTenantAccess(tenant);
+		return values.get().remove(tenant);
+	}
+
 	public void forEach(BiConsumer<? super Established, ? super T> action) {
 		checkAllAccess();
 		values.get().forEach(action);
