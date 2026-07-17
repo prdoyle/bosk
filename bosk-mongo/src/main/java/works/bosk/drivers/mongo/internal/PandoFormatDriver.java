@@ -64,7 +64,6 @@ import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
 import static com.mongodb.client.model.changestream.OperationType.DELETE;
 import static com.mongodb.client.model.changestream.OperationType.INSERT;
-import static com.mongodb.client.model.changestream.OperationType.UPDATE;
 import static java.util.Collections.singletonList;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toCollection;
@@ -672,10 +671,21 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				revision = fullDocument.getInt64(DocumentFields.revision.name(), null);
 			}
 			case DELETE -> {
+				// We're cheating a bit here.
 				// refurbish() deletes every non-manifest document (including !contents) and then
 				// re-creates them in the same transaction, so this delete is immediately followed
 				// by an insert that re-establishes the revision. There's nothing to do for the
 				// delete itself.
+				//
+				// However, a deletion could happen for other reasons not involving a refurbish
+				// (eg. a human operator mistakenly deleting the document), so we shouldn't really
+				// be ignoring these. A better approach would be for the refurbish to avoid the
+				// DELETE event, like it already does for !Manifest, but that implies additional
+				// coupling with MainDriver that makes this awkward.
+				//
+				// Let's face it: if someone deletes the contents document, the very next thing
+				// they do (like a flush or update) is likely to fail and disconnect, which
+				// is the right response anyway.
 				return;
 			}
 			default -> throw new UnprocessableEventException("Unexpected !contents event", contentsEvent.getOperationType());
