@@ -139,8 +139,8 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	@NonNull PerTenantValue<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
-		LOGGER.debug("readRevisionNumbers");
+	@NonNull PerTenantValue<BsonInt64> readRevisionNumbersToFlush() throws RevisionFieldDisruptedException {
+		LOGGER.debug("readRevisionNumbersToFlush");
 		try {
 			try (MongoCursor<BsonDocument> cursor = revisionDocumentCursor()) {
 				// Our revisionDocumentCursor matches only one document
@@ -161,7 +161,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	@Override
 	public void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContentsArg) {
 		var normalized = normalizePerTenant(priorContentsArg);
-		ensureFlushLocksInitialized(normalized);
+		replaceFlushLocks(normalized.map(StateAndMetadata::revision));
 		normalized.forEach((tenant, priorContents) -> {
 			// Sequoia has only one document regardless of tenancy
 			BsonValue initialState = formatter.object2bsonValue(priorContents.state(), rootRef.targetType());
@@ -248,17 +248,20 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				UpdateDescription updateDescription = event.getUpdateDescription();
 				if (updateDescription != null) {
 					BsonInt64 revision = formatter.getRevisionFromUpdateEvent(event);
-					if (!shouldSkip(tenant, revision)) {
-						BsonString updateDocId = event.getDocumentKey().getString("_id");
-						BsonDocument updateAttrsBson = fieldTracker.getFieldAsDocument(updateDocId, DocumentFieldTracker.TrackedField.DIAGNOSTICS);
-						MapValue<String> diagnosticAttributes = updateAttrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(updateAttrsBson);
-						try (
-							var _ = context.withTenant(tenant);
-							var _ = context.withOnly(diagnosticAttributes)
-						) {
-							replaceUpdatedFields(updateDescription.getUpdatedFields());
-							deleteRemovedFields(updateDescription.getRemovedFields(), event.getOperationType());
+					BsonString updateDocId = event.getDocumentKey().getString("_id");
+					BsonDocument updateAttrsBson = fieldTracker.getFieldAsDocument(updateDocId, DocumentFieldTracker.TrackedField.DIAGNOSTICS);
+					MapValue<String> diagnosticAttributes = updateAttrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(updateAttrsBson);
+					try (
+						var _ = context.withTenant(tenant);
+						var _ = context.withOnly(diagnosticAttributes)
+					) {
+						if (shouldSkip(revision)) {
+							LOGGER.debug("Skipping revision {}", revision.longValue());
+							return;
 						}
+
+						replaceUpdatedFields(updateDescription.getUpdatedFields());
+						deleteRemovedFields(updateDescription.getRemovedFields(), event.getOperationType());
 					}
 					finishedRevision(tenant, revision);
 				}

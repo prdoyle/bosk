@@ -1,16 +1,12 @@
 package works.bosk.drivers.mongo.internal;
 
-import com.mongodb.ReadConcern;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
@@ -28,7 +24,6 @@ import works.bosk.BoskConfig.TenancyModel.None;
 import works.bosk.BoskContext;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
-import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver;
 import works.bosk.MapValue;
 import works.bosk.Reference;
@@ -43,12 +38,14 @@ import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.util.PerTenantValue;
 import works.bosk.util.PerTenantValue.MultiTenant;
 import works.bosk.util.PerTenantValue.NoTenant;
+import works.bosk.util.TenantLocal;
 import works.bosk.util.TunneledCheckedException;
 
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
 import static com.mongodb.client.model.changestream.OperationType.INSERT;
 import static com.mongodb.client.model.changestream.OperationType.REPLACE;
+import static java.lang.Thread.currentThread;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
@@ -67,13 +64,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	final long flushTimeoutMS;
 	final Supplier<EntireState<R>> entireStateSupplier;
 
-	/**
-	 * Null only during initialization, until {@link #ensureFlushLocksInitialized},
-	 * and only used after that point.
-	 * (Therefore, there's no need for null tests before using this:
-	 * an NPE is an acceptable outcome if someone ever violates these rules.)
-	 */
-	final AtomicReference<PerTenantValue<FlushLock>> flushLocks = new AtomicReference<>(null);
+	final TenantLocal<FlushLock> flushLocks;
 
 	final DocumentFieldTracker fieldTracker = new DocumentFieldTracker();
 	final FlushLock contentsFlushLock;
@@ -97,6 +88,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		this.flushTimeoutMS = flushTimeoutMS;
 		this.entireStateSupplier = entireStateSupplier;
 		this.contentsFlushLock = new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS);
+		this.flushLocks = TenantLocal.in(context);
 	}
 
 	@Override
@@ -137,7 +129,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	public AllState<R> loadAllState() throws IOException, InvalidCollectionContentsException {
 		try {
 			BsonAllState bsonAllState = readBsonStateAndMetadata();
-			ensureFlushLocksInitialized(bsonAllState.contents());
+			replaceFlushLocks(bsonAllState.contents().map(BsonStateAndMetadata::revision));
 			PerTenantValue<StateAndMetadata<R>> contents = bsonAllState.contents().map((Established _, BsonStateAndMetadata bsm) -> {
 				if (bsm.state() == null) {
 					throw new TunneledCheckedException(new IOException("No existing state in document"));
@@ -192,26 +184,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	/**
 	 * Must be called before {@link #onHasBeenApplied} or any event processing.
 	 */
-	protected void ensureFlushLocksInitialized(PerTenantValue<?> contents) {
-		flushLocks.compareAndSet(null, switch (contents) {
-			case NoTenant<?> _ -> switch (tenancyModel) {
-				case None _ -> NoTenant.just(newFlushLock());
-				case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), newFlushLock());
-				case Explicit _ -> throw new AssertionError(
-					"Should not have NoTenant contents with Explicit tenancy");
-			};
-			case MultiTenant<?> m -> {
-				SortedMap<TenantId, FlushLock> locks = new TreeMap<>();
-				for (var tenantId : m.values().keySet()) {
-					locks.put(tenantId, newFlushLock());
-				}
-				yield new MultiTenant<>(locks);
-			}
-		});
-	}
-
-	private @NonNull FlushLock newFlushLock() {
-		return new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS);
+	protected void replaceFlushLocks(PerTenantValue<BsonInt64> revisionNumbers) {
+		flushLocks.replaceWith(revisionNumbers.map(n -> new FlushLock(n.longValue(), flushTimeoutMS)));
 	}
 
 	/**
@@ -266,10 +240,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		return blankUpdateDoc().append("$unset", new BsonDocument(key, BsonNull.VALUE));
 	}
 
-	protected boolean shouldSkip(Established tenant, BsonInt64 revision) {
-		PerTenantValue<FlushLock> f = flushLocks.get();
-		FlushLock lock = (f instanceof MultiTenant<FlushLock> m && tenant instanceof TenantId tid)
-			? m.values().get(tid) : f.get(tenant);
+	protected boolean shouldSkip(BsonInt64 revision) {
+		FlushLock lock = flushLocks.get();
 		// When lock is null, we don't have a lock for this tenant, so this revision is always interesting.
 		return lock != null && lock.alreadySeen(revision);
 	}
@@ -300,26 +272,17 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		LOGGER.debug("Ignoring benign manifest change event");
 	}
 
+	protected void finishedRevision(BsonInt64 revision) {
+		flushLocks.computeIfAbsent(
+			_ -> new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS)
+		).finishedRevision(revision);
+	}
+
 	protected void finishedRevision(Established tenant, BsonInt64 revision) {
-		PerTenantValue<FlushLock> f = flushLocks.get();
-		if (f instanceof MultiTenant<FlushLock> m && tenant instanceof TenantId tid) {
-			FlushLock lock = m.values().get(tid);
-			if (lock == null) {
-				flushLocks.compareAndSet(f, m.with(tid, new FlushLock(revision.longValue(), flushTimeoutMS)));
-			} else {
-				lock.finishedRevision(revision);
-			}
-		} else {
-			FlushLock lock = f.get(tenant);
-			if (lock == null) {
-				flushLocks.compareAndSet(f, switch (f) {
-					case NoTenant<FlushLock> nt -> NoTenant.just(new FlushLock(revision.longValue(), flushTimeoutMS));
-					default -> throw new IllegalStateException("Cannot add tenant " + tenant);
-				});
-			} else {
-				lock.finishedRevision(revision);
-			}
-		}
+		flushLocks.computeIfAbsentFor(
+			tenant,
+			_ -> new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS)
+		).finishedRevision(revision);
 	}
 
 	/**
@@ -336,8 +299,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 
 	/**
 	 * @return cursor giving the {@code _id} and {@code revision}
-	 * for all documents that have a revision field,
-	 * read using read concern {@link ReadConcern#LOCAL LOCAL}.
+	 * for all root documents that have a revision field.
 	 */
 	protected MongoCursor<BsonDocument> revisionDocumentCursor() {
 		return collection
@@ -347,24 +309,38 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	/**
+	 * If there's any other waiting to be done besides the per-tenant revision number waiting,
+	 * this method must do that before returning.
 	 * @return all potentially relevant revision numbers found in the database
 	 * @throws RevisionFieldDisruptedException if unexpected database contents make it impossible to determine the revision number
 	 */
-	abstract @NonNull PerTenantValue<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException;
+	abstract @NonNull PerTenantValue<BsonInt64> readRevisionNumbersToFlush() throws FlushFailureException, InterruptedException;
 
 	@Override
 	public void flush() throws IOException, InterruptedException {
-		var revisions = readRevisionNumbers();
+		var revisions = readRevisionNumbersToFlush();
+
+		// Don't hold a database transaction while waiting for the flush locks
+		// or flushing downstream.
+		collection.commitTransactionIfAny();
+
+		LOGGER.debug("Revisions to flush: {}", revisions);
+
+		// Wait for tenants that are present in flushLocks.
+		// Any tenant missing from flushLocks must have been deleted after
+		// the flush point, so we have no obligation to wait for it.
 		try {
-			flushLocks.get().forEach((tenant, lock) -> {
-				BsonInt64 revision = revisions.get(tenant);
+			LOGGER.debug("flushLocks: {}", flushLocks);
+			flushLocks.forEach((tenant, lock) -> {
+				BsonInt64 revision = revisions.getOrDefault(tenant, null);
+				if (revision == null) {
+					// Tenant is not present at the flush point so it must have been created after.
+					// No obligation to wait.
+					LOGGER.debug("Skipping {} for {}", revision, tenant);
+					return;
+				}
 				try {
-					if (revision == null) {
-						// Tenant has been deleted from the database; nothing to flush
-						return;
-					} else {
-						lock.awaitRevision(revision);
-					}
+					lock.awaitRevision(revision);
 				} catch (InterruptedException | FlushFailureException e) {
 					throw new TunneledCheckedException(e);
 				}
@@ -378,23 +354,24 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 				throw e;
 			}
 		}
-		additionalFlushWaits();
 		LOGGER.debug("| Flush downstream");
 		downstream.flush();
-	}
-
-	/**
-	 * Override in subclasses to add additional waits during {@link #flush()}.
-	 */
-	protected void additionalFlushWaits() throws IOException, InterruptedException {
-		// Default: no additional waits
 	}
 
 	@Override
 	public void close() {
 		LOGGER.debug("+ close()");
-		flushLocks.get().forEach((_, flushLock) -> flushLock.close());
 		contentsFlushLock.close();
+		try {
+			// Jailbreak! Disconnection affects all tenants, but it can be triggered by
+			// an operation with an established tenant context.
+			// Close the flush locks on a thread without the tenant restriction.
+			Thread.startVirtualThread(()->
+				flushLocks.forEach((_, flushLock) -> flushLock.close())
+			).join();
+		} catch (InterruptedException e) {
+			currentThread().interrupt();
+		}
 	}
 
 	protected void writeManifest(Manifest manifest) {

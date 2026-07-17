@@ -10,7 +10,6 @@ import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -53,7 +52,6 @@ import works.bosk.drivers.mongo.MongoDriverSettings.OrphanDocumentMode;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.exceptions.FormatMisconfigurationException;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
-import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenantValue;
@@ -266,8 +264,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	@NonNull PerTenantValue<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
-		LOGGER.debug("readRevisionNumbers");
+	@NonNull PerTenantValue<BsonInt64> readRevisionNumbersToFlush() throws RevisionFieldDisruptedException {
+		LOGGER.debug("readRevisionNumbersToFlush");
 		try {
 			return switch (format.tenancyFormat()) {
 				case NONE -> {
@@ -348,7 +346,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	@Override
 	public void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContentsArg) {
 		var allPriorContents = normalizePerTenant(validateAndNormalize(priorContentsArg));
-		ensureFlushLocksInitialized(allPriorContents);
+		replaceFlushLocks(allPriorContents.map(StateAndMetadata::revision));
 		allPriorContents.forEach((tenant, priorContents) -> {
 			BsonValue initialState = formatter.object2bsonValue(priorContents.state(), rootRef.targetType());
 			BsonInt64 revision = nextRevision(priorContents.revision());
@@ -528,15 +526,15 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				MapValue<String> diagnosticAttributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
 
 				BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
-				if (shouldSkip(tenant, revision)) {
-					LOGGER.debug("Skipping revision {}", revision.longValue());
-					return;
-				}
-
 				try (
 					var _ = context.withTenant(tenant);
 					var _ = context.withOnly(diagnosticAttributes)
 				) {
+					if (shouldSkip(revision)) {
+						LOGGER.debug("Skipping revision {}", revision.longValue());
+						return;
+					}
+
 					BsonDocument state = fullDocument.getDocument(DocumentFields.state.name());
 					if (state == null) {
 						// Final event has only the new revision number; the previous event is the main event.
@@ -556,18 +554,19 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			} break;
 			case UPDATE: {
 				// TODO: Combine code with INSERT and REPLACE events
-				BsonInt64 revision = formatter.getRevisionFromUpdateEvent(finalEvent);
-				if (shouldSkip(tenant, revision)) {
-					LOGGER.debug("Skipping revision {}", revision.longValue());
-					return;
-				}
 				BsonString docId = finalEvent.getDocumentKey().getString("_id");
 				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DIAGNOSTICS);
 				MapValue<String> attributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
+				BsonInt64 revision;
 				try (
 					var _ = context.withTenant(tenant);
 					var _ = context.withOnly(attributes)
 				) {
+					revision = formatter.getRevisionFromUpdateEvent(finalEvent);
+					if (shouldSkip(revision)) {
+						LOGGER.debug("Skipping revision {}", revision.longValue());
+						return;
+					}
 					boolean mainEventIsFinalEvent = updateEventHasField(finalEvent, DocumentFields.state); // If the final update changes only the revision field, then it's not the main event
 					if (mainEventIsFinalEvent) {
 						LOGGER.debug("Main event is final event");
@@ -1252,16 +1251,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	public void onHasBeenApplied(AllState<R> allState) {
 		super.onHasBeenApplied(allState);
 		finishedContentsRevision(readContentsRevision());
-	}
-
-	@Override
-	protected void additionalFlushWaits() throws IOException, InterruptedException {
-		BsonInt64 contentsRevision = readContentsRevision();
-		try {
-			contentsFlushLock.awaitRevision(contentsRevision);
-		} catch (FlushFailureException e) {
-			throw new IOException("Timed out waiting for !contents revision", e);
-		}
 	}
 
 	@Override
