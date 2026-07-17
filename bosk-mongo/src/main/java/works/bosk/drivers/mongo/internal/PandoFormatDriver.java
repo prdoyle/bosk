@@ -862,8 +862,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			if (target.isRoot() && format.tenancyFormat() == MongoDriverSettings.TenancyFormat.ID_PREFIX && !isTenantInContents()) {
 				// Tenant was removed (e.g. via submitDeletion); re-create it
 				var tid = context.getTenantId();
-				addTenantToContents(tid);
 				initializeTenant(tid, value, nextRevision(REVISION_ZERO));
+				addTenantToContents(tid);
 
 				// For newly created tenants, we use the change stream event to
 				// update the downstream driver. We could manually stuff it downstream,
@@ -884,8 +884,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			} catch (NoSuchTenantException e) {
 				var tid = context.getTenantId();
 				if (target.isRoot()) {
-					addTenantToContents(tid);
 					initializeTenant(tid, value, nextRevision(REVISION_ZERO));
+					addTenantToContents(tid);
 
 					// For newly created tenants, we use the change stream event to
 					// update the downstream driver. We could manually stuff it downstream,
