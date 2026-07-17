@@ -146,7 +146,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 			case Fixed(var id) -> () -> new Context(new TenantId(id), MapValue.empty());
 			case Explicit _ -> Context::empty;
 		};
-		context = new BoskContext(initialContextSupplier, name);
+		context = new BoskContext(initialContextSupplier, name, tenancyModel);
 		Info<R> boskInfo = new Info<>(
 			name, instanceID, rootRef, context, tenancyModel, new AtomicReference<>());
 
