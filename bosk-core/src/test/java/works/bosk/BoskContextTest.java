@@ -162,7 +162,10 @@ public class BoskContextTest extends AbstractDriverTest {
 		// in the correct order even after trying to close them in the wrong order.)
 	}
 
-	public static BoskContext newContext(Supplier<Context> initialContextSupplier, String boskName) {
-		return new BoskContext(initialContextSupplier, boskName);
+	/**
+	 * Expose the BoskContext constructor for tests
+	 */
+	public static BoskContext newContext(Supplier<Context> initialContextSupplier, String boskName, Explicit tenancyModel) {
+		return new BoskContext(initialContextSupplier, boskName, tenancyModel);
 	}
 }
