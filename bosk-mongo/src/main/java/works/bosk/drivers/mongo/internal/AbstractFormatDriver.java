@@ -44,7 +44,6 @@ import works.bosk.util.PerTenantValue.MultiTenant;
 import works.bosk.util.PerTenantValue.NoTenant;
 import works.bosk.util.TunneledCheckedException;
 
-import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
 import static com.mongodb.client.model.changestream.OperationType.INSERT;
@@ -335,8 +334,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 */
 	protected MongoCursor<BsonDocument> revisionDocumentCursor() {
 		return collection
-			.withReadConcern(LOCAL)
-			.find(rootDocumentsFilter())
+			.findLatest(rootDocumentsFilter())
 			.projection(fields(include("_id", DocumentFields.revision.name())))
 			.cursor();
 	}

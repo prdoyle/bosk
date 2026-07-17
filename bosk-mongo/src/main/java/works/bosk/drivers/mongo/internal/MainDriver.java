@@ -399,7 +399,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 			// We must rudely commit the transaction here, since correctness requires that
 			// the database updates commit before we publish newFormatDriver.
-			queryCollection.commitTransaction();
+			queryCollection.commitTransactionIfAny();
 
 			publishFormatDriver(newFormatDriver);
 
