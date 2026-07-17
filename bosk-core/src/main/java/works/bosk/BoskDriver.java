@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.SortedMap;
 import java.util.function.Function;
 import java.util.stream.Collector;
+import org.jspecify.annotations.NullMarked;
 import org.pcollections.TreePMap;
 import works.bosk.Bosk.ReadSession;
 import works.bosk.BoskContext.Tenant.TenantId;
@@ -179,6 +180,7 @@ public interface BoskDriver {
 		 * This bosk has zero or more tenants,
 		 * but they all share the same state tree whose node is {@code rootNode}.
 		 */
+		@NullMarked
 		record SingleTree<R extends StateTreeNode>(R rootNode) implements EntireState<R> {
 			public SingleTree {
 				requireNonNull(rootNode);
@@ -195,6 +197,7 @@ public interface BoskDriver {
 			}
 		}
 
+		@NullMarked
 		record MultiTree<R extends StateTreeNode>(SortedMap<TenantId, R> tenantRoots) implements EntireState<R> {
 			public MultiTree {
 				requireNonNull(tenantRoots);
