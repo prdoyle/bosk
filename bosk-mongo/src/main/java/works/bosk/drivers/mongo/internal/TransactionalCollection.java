@@ -118,8 +118,6 @@ class TransactionalCollection {
 			}
 		}
 
-		private static final Logger LOGGER = LoggerFactory.getLogger(Session.class);
-
 		@Override
 		public void close() {
 			if (clientSession.hasActiveTransaction()) {
@@ -132,6 +130,7 @@ class TransactionalCollection {
 			MDC.put(MdcKeys.TRANSACTION, oldMDC);
 		}
 
+		private static final Logger LOGGER = LoggerFactory.getLogger(Session.class);
 	}
 
 	/**

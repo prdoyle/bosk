@@ -104,6 +104,8 @@ However, there are three major differences between `refurbish` and this read-the
 
 The implementation of `refurbish` uses a multi-document transaction to read, deserialize, re-serialize, and write the database contents atomically.
 
+ **Format-specific document IDs**: Races with a concurrent `refurbish` can cause a write from one format to be interpreted under another format's semantics, corrupting the database. To prevent this, formats should only write to document IDs whose meaning is the same in all formats (like `!Manifest`).
+
 #### `close`
 
 The `close` method shuts down a `MongoDriver` when the application is finished with it.
