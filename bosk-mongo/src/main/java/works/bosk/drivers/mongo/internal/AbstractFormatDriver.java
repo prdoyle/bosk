@@ -427,9 +427,9 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 */
 	record BsonStateAndMetadata(
 		BsonString _id,
-		BsonDocument state,
 		BsonInt64 revision,
-		BsonDocument diagnosticAttributes
+		BsonDocument diagnosticAttributes,
+		BsonDocument state
 	){}
 
 	private static final Set<String> ALREADY_WARNED = newSetFromMap(new ConcurrentHashMap<>());

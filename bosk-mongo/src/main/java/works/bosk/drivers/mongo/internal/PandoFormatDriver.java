@@ -226,9 +226,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					// This is just a way of describing what we've found in the database.
 					states.put(documentTenant, new BsonStateAndMetadata(
 						id,
-						state,
 						revision,
-						diagnosticAttributes
+						diagnosticAttributes,
+						state
 					));
 
 					partsBuffer.clear();
