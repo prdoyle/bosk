@@ -476,7 +476,11 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}
 		if (isContentsID(bsonDocumentID)) {
 			LOGGER.debug("Found !contents event: {} on {}", event.getOperationType(), event.getDocumentKey());
-			routeEvent(event);
+			// !contents events are handled separately from state-document events, and never
+			// enter the demultiplexer. Because we always write !contents last in every
+			// transaction, its change event arrives after the tenant's state-document events,
+			// so by the time we get here those state updates have already been processed.
+			handleContentsEvent(event);
 			return;
 		}
 		if (!(bsonDocumentID instanceof BsonString s) || !(s.getValue().contains("|"))) {
@@ -518,27 +522,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				&& updateEventHasField(event, DocumentFields.revision);
 	}
 
-	private void processTree(List<ChangeStreamDocument<BsonDocument>> events) throws UnprocessableEventException {
-		// Separate !contents events from tenant events
-		List<ChangeStreamDocument<BsonDocument>> contentsEvents = new ArrayList<>();
-		List<ChangeStreamDocument<BsonDocument>> tenantEvents = new ArrayList<>(events.size());
-		for (var event : events) {
-			if (isContentsID(event.getDocumentKey().get("_id"))) {
-				contentsEvents.add(event);
-			} else {
-				tenantEvents.add(event);
-			}
-		}
-
-		// Handle !contents events (tenant removals and additions)
-		BsonInt64 contentsRevision = null;
-		for (var contentsEvent : contentsEvents) {
-			BsonInt64 revision = handleContentsEvent(contentsEvent, tenantEvents);
-			if (revision != null) {
-				contentsRevision = revision;
-			}
-		}
-
+	private void processTree(List<ChangeStreamDocument<BsonDocument>> tenantEvents) throws UnprocessableEventException {
+		// This only ever sees tenant state-document events. !contents events are handled
+		// separately in handleContentsEvent and never enter the demultiplexer.
 		if (!tenantEvents.isEmpty()) {
 			ChangeStreamDocument<BsonDocument> finalEvent = tenantEvents.getLast();
 			Established tenant = tenantFor(finalEvent.getDocumentKey().getString("_id"));
@@ -612,6 +598,10 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					finishedRevision(tenant, revision);
 				} break;
 				case DELETE: {
+					// A root document is only ever deleted after its state field has already been
+					// unset (see doDelete), and that earlier $unset event is what drives the
+					// downstream deletion. By the time we see the document DELETE itself, the
+					// tenant is already gone downstream, so there's nothing to propagate here.
 					finishedRevision(tenant, REVISION_ZERO);
 				} break;
 				default: {
@@ -619,33 +609,49 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				}
 			}
 		}
-
-		// Signal the contents flush lock after all state updates are complete.
-		// This must happen after propagateDownstream and finishedRevision so
-		// that the per-tenant flush lock is in the flushLocks map before the
-		// contentsFlushLock signals "caught up".
-		if (contentsRevision != null) {
-			finishedContentsRevision(contentsRevision);
-		}
 	}
 
-	private @Nullable BsonInt64 handleContentsEvent(ChangeStreamDocument<BsonDocument> contentsEvent, List<ChangeStreamDocument<BsonDocument>> tenantEvents) throws UnprocessableEventException {
+	/**
+	 * Handles a change event for the {@code !contents} document.
+	 * <p>
+	 * The {@code !contents} document is bookkeeping only: it records which tenants exist and
+	 * carries the {@code contentsFlushLock} revision. The actual tenant creations and deletions
+	 * are driven entirely by the tenants' own state-document events (see {@link #processTree}),
+	 * so this method does <em>not</em> propagate anything downstream. Its responsibilities are:
+	 * <ol><li>
+	 *     Advance {@link #contentsFlushLock} so that {@link #readRevisionNumbersToFlush} can tell
+	 *     when the change stream has caught up with tenant creations and deletions.
+	 * </li><li>
+	 *     Drop any removed tenants from {@link #flushLocks}. A tenant's flush lock tracks a
+	 *     monotonically increasing revision number for as long as the tenant exists; removing the
+	 *     tenant from {@code !contents} ends that lifecycle, so we must discard the stale lock.
+	 *     Otherwise, if the same tenant were re-created later (starting again at a low revision
+	 *     number), the leftover lock's higher {@code alreadySeen} value would cause the re-creation
+	 *     event to be wrongly skipped as a duplicate.
+	 * </li></ol>
+	 * Because {@code !contents} is always written last, this event is processed after the tenant's
+	 * own state-document events, so by now the state-driven deletion has already been applied and
+	 * the lock has already advanced to its final revision.
+	 */
+	private void handleContentsEvent(ChangeStreamDocument<BsonDocument> contentsEvent) {
 		if (contentsEvent.getOperationType() != UPDATE) {
+			// INSERT/REPLACE happen only during initializeCollection, which advances
+			// contentsFlushLock directly, so there's nothing to do here.
 			LOGGER.debug("Ignoring non-UPDATE !contents event: {}", contentsEvent.getOperationType());
-			return null;
+			return;
 		}
 
 		BsonInt64 revision = formatter.getRevisionFromUpdateEvent(contentsEvent);
 		if (revision == null) {
-			return null;
+			return;
 		}
 
 		if (contentsFlushLock.alreadySeen(revision)) {
 			LOGGER.debug("Skipping !contents revision {}", revision.longValue());
-			return null;
+			return;
 		}
 
-		// Extract removed tenants and submit deletions
+		// End the revision-tracking lifecycle of any tenants removed from !contents.
 		UpdateDescription updateDescription = contentsEvent.getUpdateDescription();
 		if (updateDescription != null) {
 			List<String> removedFields = updateDescription.getRemovedFields();
@@ -654,31 +660,18 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					if (removedField.startsWith("tenants.")) {
 						String tenantIdStr = removedField.substring("tenants.".length());
 						TenantId removedTenant = new TenantId(Identifier.from(tenantIdStr));
-						MapValue<String> attributes = findDiagnosticsForTenant(tenantEvents, tenantIdStr);
-						try (var _ = context.withTenant(removedTenant);
-							var _ = context.withOnly(attributes)) {
-							LOGGER.debug("| Delete downstream {} (from !contents)", rootRef);
-							downstream.submitDeletion(rootRef);
-						}
+						LOGGER.debug("| Drop flush lock for removed tenant {}", removedTenant);
+						flushLocks.removeFor(removedTenant);
 					}
 				}
 			}
 		}
 
-		return revision;
-	}
+		// TODO: Use the tenant set in this event as a consistency check against the tenants
+		// we've actually created/deleted from state-document events, and react somehow (perhaps
+		// by disconnecting) if they disagree. It's not yet clear what the right reaction is.
 
-	private MapValue<String> findDiagnosticsForTenant(List<ChangeStreamDocument<BsonDocument>> tenantEvents, String tenantIdStr) {
-		String tenantPrefix = "<" + tenantIdStr + ">";
-		for (int i = tenantEvents.size() - 1; i >= 0; i--) {
-			var event = tenantEvents.get(i);
-			BsonValue id = event.getDocumentKey().get("_id");
-			if (id instanceof BsonString s && s.getValue().startsWith(tenantPrefix)) {
-				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(s, DIAGNOSTICS);
-				return attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
-			}
-		}
-		return MapValue.empty();
+		finishedContentsRevision(revision);
 	}
 
 	private void propagateDownstream(ChangeStreamDocument<BsonDocument> mainEvent, List<ChangeStreamDocument<BsonDocument>> priorEvents) throws UnprocessableEventException {
@@ -940,8 +933,14 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		if (target.isRoot()) {
 			LOGGER.debug("| Delete root {}", target);
 			try {
+				// Unset the state field (bumping revision and recording diagnostics) first: this
+				// is what drives the downstream deletion via the change stream, exactly the same
+				// way any other state node is deleted. The near-empty root document may be left
+				// behind (acceptable in HASTY mode); it must not be physically deleted until its
+				// state has been unset like this.
+				doUpdate(deletionDoc(target, rootRef), standardRootPreconditions(target));
+				// Update !contents last, per the invariant that !contents is always written last.
 				removeTenantFromContents();
-				doUpdate(blankUpdateDoc(), standardRootPreconditions(target));
 			} catch (NoSuchTenantException e) {
 				LOGGER.debug("Tenant is already nonexistent: {}", e.tenant);
 			}
