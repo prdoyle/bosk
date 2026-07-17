@@ -614,13 +614,19 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	/**
 	 * Handles a change event for the {@code !contents} document.
 	 * <p>
-	 * The {@code !contents} document is bookkeeping only: it records which tenants exist and
-	 * carries the {@code contentsFlushLock} revision. The actual tenant creations and deletions
-	 * are driven entirely by the tenants' own state-document events (see {@link #processTree}),
-	 * so this method does <em>not</em> propagate anything downstream. Its responsibilities are:
+	 * The {@code !contents} document is the authoritative record of which tenants currently exist:
+	 * {@link #readBsonStateAndMetadata} consults it to ignore stale state documents of tenants that
+	 * have been deleted (which, in {@link OrphanDocumentMode#HASTY HASTY} mode, may linger in the
+	 * database). It also carries a revision number that advances on every tenant creation or
+	 * deletion, giving {@link #flush} a single point to wait on ({@link #contentsFlushLock}) to know
+	 * the change stream has caught up with the tenant set.
+	 * <p>
+	 * What {@code !contents} is <em>not</em> is a source of downstream updates: the actual tenant
+	 * creations and deletions are driven entirely by the tenants' own state-document events (see
+	 * {@link #processTree}), so this method never propagates anything downstream. It only keeps the
+	 * flush machinery in step:
 	 * <ol><li>
-	 *     Advance {@link #contentsFlushLock} so that {@link #readRevisionNumbersToFlush} can tell
-	 *     when the change stream has caught up with tenant creations and deletions.
+	 *     Advance {@link #contentsFlushLock} to the new revision.
 	 * </li><li>
 	 *     Drop any removed tenants from {@link #flushLocks}. A tenant's flush lock tracks a
 	 *     monotonically increasing revision number for as long as the tenant exists; removing the
@@ -633,15 +639,48 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	 * own state-document events, so by now the state-driven deletion has already been applied and
 	 * the lock has already advanced to its final revision.
 	 */
-	private void handleContentsEvent(ChangeStreamDocument<BsonDocument> contentsEvent) {
-		if (contentsEvent.getOperationType() != UPDATE) {
-			// INSERT/REPLACE happen only during initializeCollection, which advances
-			// contentsFlushLock directly, so there's nothing to do here.
-			LOGGER.debug("Ignoring non-UPDATE !contents event: {}", contentsEvent.getOperationType());
-			return;
+	private void handleContentsEvent(ChangeStreamDocument<BsonDocument> contentsEvent) throws UnprocessableEventException {
+		BsonInt64 revision;
+		switch (contentsEvent.getOperationType()) {
+			case UPDATE -> {
+				revision = formatter.getRevisionFromUpdateEvent(contentsEvent);
+				// End the revision-tracking lifecycle of any tenants removed from !contents.
+				UpdateDescription updateDescription = contentsEvent.getUpdateDescription();
+				if (updateDescription != null) {
+					List<String> removedFields = updateDescription.getRemovedFields();
+					if (removedFields != null) {
+						for (String removedField : removedFields) {
+							if (removedField.startsWith("tenants.")) {
+								String tenantIdStr = removedField.substring("tenants.".length());
+								TenantId removedTenant = new TenantId(Identifier.from(tenantIdStr));
+								LOGGER.debug("| Drop flush lock for removed tenant {}", removedTenant);
+								flushLocks.removeFor(removedTenant);
+							}
+						}
+					}
+				}
+			}
+			case INSERT -> {
+				// initializeCollection (initialState and refurbish) writes the whole !contents
+				// document at once. We can't diff the tenant set from an insert, but we don't need
+				// to: tenant creations and deletions are driven by state-document events, so all we
+				// do here is pick up the new revision.
+				BsonDocument fullDocument = contentsEvent.getFullDocument();
+				if (fullDocument == null) {
+					throw new UnprocessableEventException("Missing fullDocument on !contents insert", contentsEvent.getOperationType());
+				}
+				revision = fullDocument.getInt64(DocumentFields.revision.name(), null);
+			}
+			case DELETE -> {
+				// refurbish() deletes every non-manifest document (including !contents) and then
+				// re-creates them in the same transaction, so this delete is immediately followed
+				// by an insert that re-establishes the revision. There's nothing to do for the
+				// delete itself.
+				return;
+			}
+			default -> throw new UnprocessableEventException("Unexpected !contents event", contentsEvent.getOperationType());
 		}
 
-		BsonInt64 revision = formatter.getRevisionFromUpdateEvent(contentsEvent);
 		if (revision == null) {
 			return;
 		}
@@ -649,22 +688,6 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		if (contentsFlushLock.alreadySeen(revision)) {
 			LOGGER.debug("Skipping !contents revision {}", revision.longValue());
 			return;
-		}
-
-		// End the revision-tracking lifecycle of any tenants removed from !contents.
-		UpdateDescription updateDescription = contentsEvent.getUpdateDescription();
-		if (updateDescription != null) {
-			List<String> removedFields = updateDescription.getRemovedFields();
-			if (removedFields != null) {
-				for (String removedField : removedFields) {
-					if (removedField.startsWith("tenants.")) {
-						String tenantIdStr = removedField.substring("tenants.".length());
-						TenantId removedTenant = new TenantId(Identifier.from(tenantIdStr));
-						LOGGER.debug("| Drop flush lock for removed tenant {}", removedTenant);
-						flushLocks.removeFor(removedTenant);
-					}
-				}
-			}
 		}
 
 		// TODO: Use the tenant set in this event as a consistency check against the tenants
