@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
+import org.bson.BsonInvalidOperationException;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.jspecify.annotations.NonNull;
@@ -122,9 +123,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			BsonDocument document = cursor.next();
 			var bsm = new BsonStateAndMetadata(
 				document.getString("_id"),
-				document.getInt64(DocumentFields.revision.name(), null),
+				document.getInt64(DocumentFields.revision.name()),
 				Formatter.getDiagnosticAttributesIfAny(document),
-				document.getDocument(DocumentFields.state.name(), null)
+				document.getDocument(DocumentFields.state.name())
 			);
 			return switch (tenancyModel) {
 				case None _ -> NoTenant.just(bsm);
@@ -133,6 +134,8 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			};
 		} catch (NoSuchElementException e) {
 			throw new InvalidCollectionContentsException(SEQUOIA, "State document not found: " + DOCUMENT_ID, e);
+		} catch (BsonInvalidOperationException e) {
+			throw new InvalidCollectionContentsException(SEQUOIA, "State document is missing required fields: " + DOCUMENT_ID, e);
 		}
 
 	}

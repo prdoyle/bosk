@@ -810,14 +810,15 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			AbstractMongoDriverTest::initialState,
 			BoskConfig.<TestEntity>builder().driverFactory(createDriverFactory(logController, testInfo)).build());
 
-		// (Close this so it doesn't crash when we delete the "path" field)
+		// (Close this so it doesn't crash when we start mucking with the database)
 		initialBosk.getDriver(MongoDriver.class).close();
 
-		// Delete some metadata fields
-		MongoCollection<Document> collection = mongoService.client()
+		// Add a bogus metadata field
+		MongoCollection<BsonDocument> collection = mongoService.client()
 			.getDatabase(driverSettings.database())
-			.getCollection(MainDriver.COLLECTION_NAME);
-		deleteFields(collection, Formatter.DocumentFields.revision);
+			.getCollection(MainDriver.COLLECTION_NAME, BsonDocument.class);
+		String bogusField = "bogusField";
+		addFields(collection, bogusField);
 
 		// Make the bosk whose refurbish operation we want to test
 		Bosk<TestEntity> bosk = new Bosk<>(
@@ -829,26 +830,20 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		// Get the new bosk reconnected
 		bosk.driver().flush();
 
-		// Simply connecting a new bosk repairs certain fields.
-		// To test those, delete them again.
-		// This may cause the receiver to throw an exception for deleting this field unexpectedly,
-		// but it recovers, so that's ok.
-		deleteFields(collection, Formatter.DocumentFields.revision);
-
-		// Verify that the fields are indeed gone
+		// Verify that the fields are indeed there
 		BsonDocument filterDoc = rootDocumentsFilter();
-		try (MongoCursor<Document> cursor = collection.find(filterDoc).cursor()) {
-			Document doc = cursor.next();
-			assertNull(doc.get(Formatter.DocumentFields.revision.name()));
+		try (MongoCursor<BsonDocument> cursor = collection.find(filterDoc).cursor()) {
+			BsonDocument doc = cursor.next();
+			assertEquals(new BsonString(bogusField), doc.getString(bogusField));
 		}
 
 		// Refurbish
 		bosk.getDriver(MongoDriver.class).refurbish();
 
-		// Verify the fields are now there
-		try (MongoCursor<Document> cursor = collection.find(filterDoc).cursor()) {
-			Document doc = cursor.next();
-			assertEquals(1L, doc.getLong(Formatter.DocumentFields.revision.name()));
+		// Verify the field is now gone
+		try (MongoCursor<BsonDocument> cursor = collection.find(filterDoc).cursor()) {
+			BsonDocument doc = cursor.next();
+			assertNull(doc.get(bogusField));
 		}
 
 	}
@@ -963,7 +958,7 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 		}
 	}
 
-	private void deleteFields(MongoCollection<Document> collection, Formatter.DocumentFields... fields) {
+	private void deleteFields(MongoCollection<BsonDocument> collection, Formatter.DocumentFields... fields) {
 		BsonDocument fieldsToUnset = new BsonDocument();
 		for (Formatter.DocumentFields field: fields) {
 			fieldsToUnset.append(field.name(), BsonNull.VALUE); // Value is ignored
@@ -974,10 +969,31 @@ class MongoDriverSpecialTest extends AbstractMongoDriverTest {
 			new BsonDocument("$unset", fieldsToUnset));
 
 		// Let's just make sure they're gone
-		try (MongoCursor<Document> cursor = collection.find(filterDoc).cursor()) {
-			Document doc = cursor.next();
+		try (MongoCursor<BsonDocument> cursor = collection.find(filterDoc).cursor()) {
+			BsonDocument doc = cursor.next();
 			for (Formatter.DocumentFields field: fields) {
 				assertNull(doc.get(field.name()));
+			}
+		}
+
+		errorRecorder.assertAllClear("after test");
+	}
+
+	private void addFields(MongoCollection<BsonDocument> collection, String... fieldNames) {
+		BsonDocument fieldsToSet = new BsonDocument();
+		for (String fieldName: fieldNames) {
+			fieldsToSet.append(fieldName, new BsonString(fieldName));
+		}
+		BsonDocument filterDoc = rootDocumentsFilter();
+		collection.updateOne(
+			filterDoc,
+			new BsonDocument("$set", fieldsToSet));
+
+		// Make sure they exist
+		try (MongoCursor<BsonDocument> cursor = collection.find(filterDoc).cursor()) {
+			BsonDocument doc = cursor.next();
+			for (String fieldName: fieldNames) {
+				assertEquals(new BsonString(fieldName), doc.getString(fieldName));
 			}
 		}
 
