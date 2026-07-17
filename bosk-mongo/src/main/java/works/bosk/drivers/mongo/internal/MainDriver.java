@@ -382,7 +382,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// with respect to event processing, because both of them have side effects
 			// that affect event processing (field tracking and flush locks, respectively).
 			synchronized (receiver) {
-				AllState<R> result = formatDriver.loadAllState();
+				AllState<R> allState = formatDriver.loadAllState();
 				newFormatDriver = newPreferredFormatDriver();
 
 				// initializeCollection is required to replace the manifest anyway,
@@ -394,7 +394,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.trace("Deleting state documents: {}", deletionFilter);
 				queryCollection.deleteMany(deletionFilter);
 
-				newFormatDriver.initializeCollection(result.contents());
+				newFormatDriver.initializeCollection(allState.contents());
 			}
 
 			// We must rudely commit the transaction here, since correctness requires that
@@ -453,11 +453,14 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public void flush() throws IOException, InterruptedException {
 		try {
+			// TODO: This could use a read-only session, but doRetryableDriverOperation uses a normal read-write session
+			//  because it was designed for updates rather than flushes.
 			this.<InterruptedException, IOException>doRetryableDriverOperation(() -> {
 				formatDriver.flush();
 			}, "flush");
 		} catch (DisconnectedException | IOException e) {
 			// Callers are expecting a FlushFailureException in these cases
+			// TODO: Is this true for IOException? Why is flush() declared to throw IOException then?
 			throw new FlushFailureException(e);
 		}
 	}

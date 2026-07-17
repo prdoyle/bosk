@@ -32,7 +32,6 @@ import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenantValue;
 import works.bosk.util.PerTenantValue.MultiTenant;
 import works.bosk.util.PerTenantValue.NoTenant;
@@ -148,7 +147,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				return switch (tenancyModel) {
 					case None _ -> NoTenant.just(revision);
 					case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), revision);
-					case Explicit _ -> throw new NotYetImplementedException();
+					case Explicit _ -> throw new AssertionError("Sequoia does not support explicit tenancy");
 				};
 			}
 		} catch (NoSuchElementException e) {

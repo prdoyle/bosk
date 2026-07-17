@@ -12,7 +12,7 @@ import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -52,6 +52,7 @@ import works.bosk.drivers.mongo.MongoDriverSettings.OrphanDocumentMode;
 import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.drivers.mongo.exceptions.FormatMisconfigurationException;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
+import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenantValue;
@@ -139,15 +140,23 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	@Override
 	public <T> void submitConditionalCreation(Reference<T> target, T newValue) {
 		collection.ensureTransactionStarted();
-		Reference<?> mainRef = mainRef(target);
-		BsonDocument filter = documentFilter(mainRef)
-			.append(BsonFormatter.dottedFieldNameOf(target, mainRef), new BsonDocument("$exists", TRUE));
-		if (documentExists(filter)) {
-			LOGGER.debug("Already exists: {}", filter);
-			collection.abortTransaction();
+		if (target.isRoot() && format.tenancyFormat() == MongoDriverSettings.TenancyFormat.ID_PREFIX) {
+			if (isTenantInContents()) {
+				LOGGER.debug("Already exists: tenant {} is in !contents", context.getEstablishedTenant());
+				collection.abortTransaction();
+				return;
+			}
 		} else {
-			doReplacement(target, newValue);
+			Reference<?> mainRef = mainRef(target);
+			BsonDocument filter = documentFilter(mainRef)
+				.append(BsonFormatter.dottedFieldNameOf(target, mainRef), new BsonDocument("$exists", TRUE));
+			if (documentExists(filter)) {
+				LOGGER.debug("Already exists: {}", filter);
+				collection.abortTransaction();
+				return;
+			}
 		}
+		doReplacement(target, newValue);
 	}
 
 	@Override
@@ -162,6 +171,10 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			collection.abortTransaction();
 			return;
 		}
+		if (format.tenancyFormat() == MongoDriverSettings.TenancyFormat.ID_PREFIX && !isTenantInContents()) {
+			collection.abortTransaction();
+			return;
+		}
 		doReplacement(target, newValue);
 	}
 
@@ -172,13 +185,19 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			collection.abortTransaction();
 			return;
 		}
+		if (format.tenancyFormat() == MongoDriverSettings.TenancyFormat.ID_PREFIX && !isTenantInContents()) {
+			collection.abortTransaction();
+			return;
+		}
 		doDelete(target);
 	}
 
 	@Override
 	BsonAllState readBsonStateAndMetadata() throws InvalidCollectionContentsException {
-		// Read the !contents document to get the authoritative tenant list
-		Set<TenantId> contentsTenants = readContentsTenants();
+		// Read the !contents document to get the authoritative tenant list and revision
+		ContentsDoc contentsDoc = readContents();
+		Set<TenantId> contentsTenants = contentsDoc.tenants();
+		BsonInt64 contentsRevision = contentsDoc.revision();
 
 		// Look for runs of state documents with the same tenant info.
 		// Make a BsonStateAndMetadata for each run.
@@ -222,9 +241,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					// This is just a way of describing what we've found in the database.
 					states.put(documentTenant, new BsonStateAndMetadata(
 						id,
-						revision,
-						diagnosticAttributes,
-						state
+						revision, diagnosticAttributes, state
 					));
 
 					partsBuffer.clear();
@@ -260,11 +277,11 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			case ID_PREFIX -> states.entrySet().stream()
 				.filter(e -> e.getKey() != Tenant.NONE)
 				.collect(multiTenant(e -> (TenantId) e.getKey(), Entry::getValue));
-		}, null);
+		}, contentsRevision);
 	}
 
 	@Override
-	@NonNull PerTenantValue<BsonInt64> readRevisionNumbersToFlush() throws RevisionFieldDisruptedException {
+	@NonNull PerTenantValue<BsonInt64> readRevisionNumbersToFlush() throws FlushFailureException, InterruptedException {
 		LOGGER.debug("readRevisionNumbersToFlush");
 		try {
 			return switch (format.tenancyFormat()) {
@@ -291,10 +308,21 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 						while (cursor.hasNext()) {
 							BsonDocument doc = cursor.next();
 							if (getTenantFromDocumentId(doc.getString("_id")) instanceof TenantId tid) {
-								revisions.put(tid, doc.getInt64(DocumentFields.revision.name(), REVISION_ZERO));
+								revisions.put(tid, doc.getInt64(DocumentFields.revision.name()));
 							}
 						}
 					}
+
+					var contents = readContents();
+					// Wait for !contents so we've seen all the necessary tenant management events.
+					LOGGER.debug("Await !contents revision {}", contents.revision());
+					contentsFlushLock.awaitRevision(contents.revision());
+
+					// Only include tenants that existed at the !contents point-in-time.
+					// Any tenant missing from !contents was deleted concurrently,
+					// so we have no obligation to wait for it.
+					revisions.keySet().retainAll(contents.tenants());
+
 					yield new MultiTenant<>(revisions);
 				}
 			};
@@ -361,7 +389,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 				finishedRevision(tenant, revision);
 			}
 		});
-		BsonInt64 contentsRevision = writeContentsDocument(allPriorContents);
+		BsonInt64 priorContentsRevision = readContentsRevision();
+		BsonInt64 contentsRevision = writeContentsDocument(allPriorContents, priorContentsRevision);
 		finishedContentsRevision(contentsRevision);
 		writeManifest(Manifest.forPando(format));
 	}
@@ -502,108 +531,118 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}
 
 		// Handle !contents events (tenant removals and additions)
+		BsonInt64 contentsRevision = null;
 		for (var contentsEvent : contentsEvents) {
-			handleContentsEvent(contentsEvent, tenantEvents);
-		}
-
-		if (tenantEvents.isEmpty()) {
-			return;
-		}
-
-		ChangeStreamDocument<BsonDocument> finalEvent = tenantEvents.getLast();
-		Established tenant = tenantFor(finalEvent.getDocumentKey().getString("_id"));
-		switch (finalEvent.getOperationType()) {
-			case INSERT: case REPLACE: {
-				BsonDocument fullDocument = finalEvent.getFullDocument();
-				if (fullDocument == null) {
-					throw new UnprocessableEventException("Missing fullDocument on final event", finalEvent.getOperationType());
-				}
-
-				// Grab the tenant and diagnostics early. If we're supposed to skip this event,
-				// we still need to stash the tenant for later events.
-				BsonString docId = finalEvent.getDocumentKey().getString("_id");
-				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DIAGNOSTICS);
-				MapValue<String> diagnosticAttributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
-
-				BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
-				try (
-					var _ = context.withTenant(tenant);
-					var _ = context.withOnly(diagnosticAttributes)
-				) {
-					if (shouldSkip(revision)) {
-						LOGGER.debug("Skipping revision {}", revision.longValue());
-						return;
-					}
-
-					BsonDocument state = fullDocument.getDocument(DocumentFields.state.name());
-					if (state == null) {
-						// Final event has only the new revision number; the previous event is the main event.
-						// A standalone INSERT/REPLACE always has a state field; lacking one is nonsensical
-						// and implies a programming error or an unexpected database state.
-						assert tenantEvents.size() >= 2 : "INSERT/REPLACE without state needs a prior main event";
-						ChangeStreamDocument<BsonDocument> mainEvent = tenantEvents.get(tenantEvents.size() - 2);
-						LOGGER.debug("Main event is {} on {}", mainEvent.getOperationType(), mainEvent.getDocumentKey());
-						propagateDownstream(mainEvent, tenantEvents.subList(0, tenantEvents.size() - 2));
-					} else {
-						LOGGER.debug("Main event is final event");
-						propagateDownstream(finalEvent, tenantEvents.subList(0, tenantEvents.size() - 1));
-					}
-				}
-
-				finishedRevision(tenant, revision);
-			} break;
-			case UPDATE: {
-				// TODO: Combine code with INSERT and REPLACE events
-				BsonString docId = finalEvent.getDocumentKey().getString("_id");
-				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DIAGNOSTICS);
-				MapValue<String> attributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
-				BsonInt64 revision;
-				try (
-					var _ = context.withTenant(tenant);
-					var _ = context.withOnly(attributes)
-				) {
-					revision = formatter.getRevisionFromUpdateEvent(finalEvent);
-					if (shouldSkip(revision)) {
-						LOGGER.debug("Skipping revision {}", revision.longValue());
-						return;
-					}
-					boolean mainEventIsFinalEvent = updateEventHasField(finalEvent, DocumentFields.state); // If the final update changes only the revision field, then it's not the main event
-					if (mainEventIsFinalEvent) {
-						LOGGER.debug("Main event is final event");
-						propagateDownstream(finalEvent, tenantEvents.subList(0, tenantEvents.size() - 1));
-					} else if (tenantEvents.size() < 2) {
-						LOGGER.debug("Main event is a no-op");
-					} else {
-						ChangeStreamDocument<BsonDocument> mainEvent = tenantEvents.get(tenantEvents.size() - 2);
-						LOGGER.debug("Main event is {} on {}", mainEvent.getOperationType(), mainEvent.getDocumentKey());
-						propagateDownstream(mainEvent, tenantEvents.subList(0, tenantEvents.size() - 2));
-					}
-				}
-				finishedRevision(tenant, revision);
-			} break;
-			case DELETE: {
-				finishedRevision(tenant, REVISION_ZERO);
-			} break;
-			default: {
-				throw new UnprocessableEventException("Cannot process event", finalEvent.getOperationType());
+			BsonInt64 revision = handleContentsEvent(contentsEvent, tenantEvents);
+			if (revision != null) {
+				contentsRevision = revision;
 			}
+		}
+
+		if (!tenantEvents.isEmpty()) {
+			ChangeStreamDocument<BsonDocument> finalEvent = tenantEvents.getLast();
+			Established tenant = tenantFor(finalEvent.getDocumentKey().getString("_id"));
+			switch (finalEvent.getOperationType()) {
+				case INSERT: case REPLACE: {
+					BsonDocument fullDocument = finalEvent.getFullDocument();
+					if (fullDocument == null) {
+						throw new UnprocessableEventException("Missing fullDocument on final event", finalEvent.getOperationType());
+					}
+
+					// Grab the tenant and diagnostics early. If we're supposed to skip this event,
+					// we still need to stash the tenant for later events.
+					BsonString docId = finalEvent.getDocumentKey().getString("_id");
+					BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DIAGNOSTICS);
+					MapValue<String> diagnosticAttributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
+
+					BsonInt64 revision = formatter.getRevisionFromFullDocument(fullDocument);
+					try (
+						var _ = context.withTenant(tenant);
+						var _ = context.withOnly(diagnosticAttributes)
+					) {
+						if (shouldSkip(revision)) {
+							LOGGER.debug("Skipping revision {}", revision.longValue());
+							return;
+						}
+
+						BsonDocument state = fullDocument.getDocument(DocumentFields.state.name());
+						if (state == null) {
+							// Final event has only the new revision number; the previous event is the main event.
+							// A standalone INSERT/REPLACE always has a state field; lacking one is nonsensical
+							// and implies a programming error or an unexpected database state.
+							assert tenantEvents.size() >= 2 : "INSERT/REPLACE without state needs a prior main event";
+							ChangeStreamDocument<BsonDocument> mainEvent = tenantEvents.get(tenantEvents.size() - 2);
+							LOGGER.debug("Main event is {} on {}", mainEvent.getOperationType(), mainEvent.getDocumentKey());
+							propagateDownstream(mainEvent, tenantEvents.subList(0, tenantEvents.size() - 2));
+						} else {
+							LOGGER.debug("Main event is final event");
+							propagateDownstream(finalEvent, tenantEvents.subList(0, tenantEvents.size() - 1));
+						}
+					}
+
+					finishedRevision(tenant, revision);
+				} break;
+				case UPDATE: {
+					// TODO: Combine code with INSERT and REPLACE events
+					BsonString docId = finalEvent.getDocumentKey().getString("_id");
+					BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DIAGNOSTICS);
+					MapValue<String> attributes = attrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(attrsBson);
+					BsonInt64 revision;
+					try (
+						var _ = context.withTenant(tenant);
+						var _ = context.withOnly(attributes)
+					) {
+						revision = formatter.getRevisionFromUpdateEvent(finalEvent);
+						if (shouldSkip(revision)) {
+							LOGGER.debug("Skipping revision {}", revision.longValue());
+							return;
+						}
+						boolean mainEventIsFinalEvent = updateEventHasField(finalEvent, DocumentFields.state); // If the final update changes only the revision field, then it's not the main event
+						if (mainEventIsFinalEvent) {
+							LOGGER.debug("Main event is final event");
+							propagateDownstream(finalEvent, tenantEvents.subList(0, tenantEvents.size() - 1));
+						} else if (tenantEvents.size() < 2) {
+							LOGGER.debug("Main event is a no-op");
+						} else {
+							ChangeStreamDocument<BsonDocument> mainEvent = tenantEvents.get(tenantEvents.size() - 2);
+							LOGGER.debug("Main event is {} on {}", mainEvent.getOperationType(), mainEvent.getDocumentKey());
+							propagateDownstream(mainEvent, tenantEvents.subList(0, tenantEvents.size() - 2));
+						}
+					}
+					finishedRevision(tenant, revision);
+				} break;
+				case DELETE: {
+					finishedRevision(tenant, REVISION_ZERO);
+				} break;
+				default: {
+					throw new UnprocessableEventException("Cannot process event", finalEvent.getOperationType());
+				}
+			}
+		}
+
+		// Signal the contents flush lock after all state updates are complete.
+		// This must happen after propagateDownstream and finishedRevision so
+		// that the per-tenant flush lock is in the flushLocks map before the
+		// contentsFlushLock signals "caught up".
+		if (contentsRevision != null) {
+			finishedContentsRevision(contentsRevision);
 		}
 	}
 
-	private void handleContentsEvent(ChangeStreamDocument<BsonDocument> contentsEvent, List<ChangeStreamDocument<BsonDocument>> tenantEvents) throws UnprocessableEventException {
+	private @Nullable BsonInt64 handleContentsEvent(ChangeStreamDocument<BsonDocument> contentsEvent, List<ChangeStreamDocument<BsonDocument>> tenantEvents) throws UnprocessableEventException {
 		if (contentsEvent.getOperationType() != UPDATE) {
 			LOGGER.debug("Ignoring non-UPDATE !contents event: {}", contentsEvent.getOperationType());
-			return;
+			return null;
 		}
 
 		BsonInt64 revision = formatter.getRevisionFromUpdateEvent(contentsEvent);
 		if (revision == null) {
-			return;
+			return null;
 		}
 
 		if (contentsFlushLock.alreadySeen(revision)) {
 			LOGGER.debug("Skipping !contents revision {}", revision.longValue());
-			return;
+			return null;
 		}
 
 		// Extract removed tenants and submit deletions
@@ -626,7 +665,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			}
 		}
 
-		finishedContentsRevision(revision);
+		return revision;
 	}
 
 	private MapValue<String> findDiagnosticsForTenant(List<ChangeStreamDocument<BsonDocument>> tenantEvents, String tenantIdStr) {
@@ -820,6 +859,19 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}
 		if (rootRef.equals(mainRef)) {
 			LOGGER.debug("| Root ref is main ref");
+			if (target.isRoot() && format.tenancyFormat() == MongoDriverSettings.TenancyFormat.ID_PREFIX && !isTenantInContents()) {
+				// Tenant was removed (e.g. via submitDeletion); re-create it
+				var tid = context.getTenantId();
+				addTenantToContents(tid);
+				initializeTenant(tid, value, nextRevision(REVISION_ZERO));
+
+				// For newly created tenants, we use the change stream event to
+				// update the downstream driver. We could manually stuff it downstream,
+				// but the change stream path needs to work for remote bosks anyway,
+				// so we might as well reduce variety and make that the only way.
+				finishedRevision(REVISION_BEFORE_ANY);
+				return;
+			}
 			LOGGER.debug("| Pre-delete on root document");
 			String key = BsonFormatter.dottedFieldNameOf(target, rootRef);
 			try {
@@ -839,7 +891,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					// update the downstream driver. We could manually stuff it downstream,
 					// but the change stream path needs to work for remote bosks anyway,
 					// so we might as well reduce variety and make that the only way.
-					finishedRevision(tid, REVISION_BEFORE_ANY);
+					finishedRevision(REVISION_BEFORE_ANY);
 				}
 			}
 		} else try {
@@ -1137,6 +1189,42 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}
 	}
 
+	record ContentsDoc(BsonInt64 revision, Set<TenantId> tenants) { }
+
+	private ContentsDoc readContents() {
+		try (MongoCursor<BsonDocument> cursor = collection
+			.findLatest(new BsonDocument("_id", CONTENTS_ID))
+			.cursor()
+		) {
+			BsonDocument doc = cursor.next();
+			BsonInt64 revision = doc.getInt64(DocumentFields.revision.name());
+			Set<TenantId> tenants = new LinkedHashSet<>();
+			BsonDocument tenantsDoc = doc.getDocument("tenants");
+			for (String key : tenantsDoc.keySet()) {
+				tenants.add(new TenantId(Identifier.from(key)));
+			}
+			return new ContentsDoc(revision, tenants);
+		}
+	}
+
+	/**
+	 * Uses the current session, rather than the latest value from the database,
+	 * for better determinism and reproducibility.
+	 */
+	private boolean isTenantInContents() {
+		try (MongoCursor<BsonDocument> cursor = collection
+			.find(new BsonDocument("_id", CONTENTS_ID))
+			.cursor()
+		) {
+			if (!cursor.hasNext()) {
+				return false;
+			}
+			BsonDocument doc = cursor.next();
+			BsonDocument tenantsDoc = doc.getDocument("tenants", new BsonDocument());
+			return tenantsDoc.containsKey(((TenantId) context.getEstablishedTenant()).tenant().toString());
+		}
+	}
+
 	private BsonInt64 readContentsRevision() {
 		try (MongoCursor<BsonDocument> cursor = collection
 			.findLatest(new BsonDocument("_id", CONTENTS_ID))
@@ -1149,27 +1237,9 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}
 	}
 
-	private Set<TenantId> readContentsTenants() {
-		BsonDocument filter = new BsonDocument("_id", CONTENTS_ID);
-		try (MongoCursor<BsonDocument> cursor = collection.find(filter).limit(1).cursor()) {
-			if (cursor.hasNext()) {
-				BsonDocument doc = cursor.next();
-				BsonDocument tenants = doc.getDocument("tenants", null);
-				if (tenants != null) {
-					Set<TenantId> result = new HashSet<>();
-					for (String key : tenants.keySet()) {
-						result.add(new TenantId(Identifier.from(key)));
-					}
-					return result;
-				}
-			}
-		}
-		return Set.of();
-	}
-
-	private @NonNull BsonInt64 writeContentsDocument(PerTenantValue<?> contents) {
+	private @NonNull BsonInt64 writeContentsDocument(PerTenantValue<?> contents, BsonInt64 priorRevision) {
 		collection.ensureTransactionStarted();
-		BsonInt64 revision = nextRevision(REVISION_ZERO);
+		BsonInt64 revision = nextRevision(priorRevision);
 		BsonDocument tenantsDoc = new BsonDocument();
 		contents.forEach((tenant, _) -> {
 			switch (tenant) {
@@ -1179,9 +1249,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		});
 		BsonDocument contentsDoc = new BsonDocument("_id", CONTENTS_ID);
 		contentsDoc.put(DocumentFields.revision.name(), revision);
-		if (!tenantsDoc.isEmpty()) {
-			contentsDoc.put("tenants", tenantsDoc);
-		}
+		contentsDoc.put("tenants", tenantsDoc);
 		BsonDocument filter = new BsonDocument("_id", CONTENTS_ID);
 		LOGGER.debug("| Write !contents document with revision {} and tenants {}", revision.longValue(), tenantsDoc.keySet());
 		collection.replaceOne(filter, contentsDoc, new ReplaceOptions().upsert(true));
@@ -1250,7 +1318,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	@Override
 	public void onHasBeenApplied(AllState<R> allState) {
 		super.onHasBeenApplied(allState);
-		finishedContentsRevision(readContentsRevision());
+		finishedContentsRevision(allState.contentsRevision());
 	}
 
 	@Override
