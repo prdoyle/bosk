@@ -104,10 +104,8 @@ public record BoskConfig<R extends StateTreeNode> (
 		record Fixed(Identifier id) implements Implicit {}
 
 		/**
-		 * Tenant information is stored in the bosk state, and is propagated into hooks.
-		 * <p>
-		 * This is useful in a multi-tree system, where each tenant has its own state,
-		 * since tenant information is essential for disambiguating reads and updates.
+		 * {@link TenantId} must be established on a thread before reading or updating the bosk state,
+		 * and each tenant has its own state tree.
 		 */
 		record Explicit() implements TenancyModel {}
 
