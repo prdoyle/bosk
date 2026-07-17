@@ -27,6 +27,7 @@ import static works.bosk.BoskContext.Tenant.NONE;
  */
 public sealed interface PerTenantValue<T> {
 	T get(Tenant.Established tenant);
+	T getOrDefault(Tenant.Established tenant, T defaultValue);
 	void forEach(BiConsumer<? super Established, ? super T> consumer);
 	boolean allMatch(Predicate<? super T> predicate);
 	<U> PerTenantValue<U> map(BiFunction<Tenant.Established, T,U> mapping);
@@ -61,6 +62,11 @@ public sealed interface PerTenantValue<T> {
 			} else {
 				throw new IllegalStateException("No such tenant: " + tenant);
 			}
+		}
+
+		@Override
+		public T getOrDefault(Established tenant, T defaultValue) {
+			return tenant == NONE ? value : defaultValue;
 		}
 
 		@Override
@@ -117,13 +123,19 @@ public sealed interface PerTenantValue<T> {
 
 		@Override
 		public T get(Established tenant) {
+			T value = getOrDefault(tenant, null);
+			if (value == null) {
+				throw new IllegalStateException("No such tenant: " + tenant);
+			} else {
+				return value;
+			}
+		}
+
+		@Override
+		public T getOrDefault(Established tenant, T defaultValue) {
 			if (tenant instanceof TenantId tenantId) {
 				T value = values.get(tenantId);
-				if (value == null) {
-					throw new IllegalStateException("No such tenant: " + tenant);
-				} else {
-					return value;
-				}
+				return value == null ? defaultValue : value;
 			}
 			throw new IllegalStateException("Invalid tenant: " + tenant);
 		}

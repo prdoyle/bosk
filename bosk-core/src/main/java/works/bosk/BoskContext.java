@@ -6,6 +6,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskContext.Tenant.TenantId;
 
 import static java.util.Objects.requireNonNull;
@@ -24,10 +25,16 @@ public final class BoskContext {
 	private final ThreadLocal<Context> currentContext;
 
 	private final String boskName; // For diagnostics
+	private final TenancyModel tenancyModel;
 
-	BoskContext(Supplier<Context> initialContextSupplier, String boskName) {
+	BoskContext(Supplier<Context> initialContextSupplier, String boskName, TenancyModel tenancyModel) {
 		currentContext = ThreadLocal.withInitial(initialContextSupplier);
 		this.boskName = boskName;
+		this.tenancyModel = tenancyModel;
+	}
+
+	public TenancyModel tenancyModel() {
+		return tenancyModel;
 	}
 
 	ContextScope newContextScope(Context newContext) {
