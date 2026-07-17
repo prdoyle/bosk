@@ -23,7 +23,10 @@ import org.bson.conversions.Bson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import works.bosk.Bosk;
 import works.bosk.logging.MdcKeys;
+
+import static com.mongodb.ReadConcern.LOCAL;
 
 /**
  * A wrapper for {@link MongoCollection} that manages a thread-local
@@ -36,7 +39,6 @@ class TransactionalCollection {
 	private final MongoCollection<BsonDocument> downstream;
 	private final MongoClient mongoClient;
 	private final ThreadLocal<Session> currentSession = new ThreadLocal<>();
-	private static final AtomicLong identityCounter = new AtomicLong(1);
 
 	public Session newSession() throws FailedMongoClientSessionException {
 		return new Session(false);
@@ -57,6 +59,7 @@ class TransactionalCollection {
 		final boolean isReadOnly;
 		final String name;
 		final String oldMDC;
+		static final AtomicLong identityCounter = new AtomicLong(1);
 
 		public Session(boolean isReadOnly) throws FailedMongoClientSessionException {
 			this.isReadOnly = isReadOnly;
@@ -115,6 +118,8 @@ class TransactionalCollection {
 			}
 		}
 
+		private static final Logger LOGGER = LoggerFactory.getLogger(Session.class);
+
 		@Override
 		public void close() {
 			if (clientSession.hasActiveTransaction()) {
@@ -165,17 +170,10 @@ class TransactionalCollection {
 	 * have expected you to have ended their transaction: they might have pending
 	 * updates they don't expect to be committed, or they may do subsequent operations
 	 * and then expect to be able to roll them back.
-	 *
-	 * @throws IllegalStateException if there's no active transaction
 	 */
-	public void commitTransaction() {
+	public void commitTransactionIfAny() {
 		LOGGER.debug("Commit transaction");
-		Session session = currentSession.get();
-		if (session.clientSession.hasActiveTransaction()) {
-			session.commitTransactionIfAny();
-		} else {
-			throw new IllegalStateException("No active transaction");
-		}
+		currentSession.get().commitTransactionIfAny();
 	}
 
 	public void abortTransaction() {
@@ -192,16 +190,26 @@ class TransactionalCollection {
 		}
 	}
 
-	public MongoCollection<BsonDocument> withReadConcern(ReadConcern readConcern) {
-		return this.downstream.withReadConcern(readConcern);
-	}
-
-	public long countDocuments(Bson filter, CountOptions options) {
-		return this.downstream.countDocuments(currentSession(), filter, options);
+	/**
+	 * Read the most recent value from the database regardless of the current session.
+	 * Uses {@link ReadConcern#LOCAL} and bypasses any session/transaction in progress.
+	 * Analogous to {@link Bosk#supersedingReadSession()} in that it bypasses the usual
+	 * determinism features and gives direct access to the very latest data.
+	 * <p>
+	 * This is appropriate for initializing state and implementing {@link FormatDriver#flush()}.
+	 * It's probably not appropriate for ordinary updates, which benefit from the determinism
+	 * and reproducibility of sessions and transactions.
+	 */
+	public FindIterable<BsonDocument> findLatest(Bson filter) {
+		return this.downstream.withReadConcern(LOCAL).find(filter);
 	}
 
 	public FindIterable<BsonDocument> find(Bson filter) {
 		return this.downstream.find(currentSession(), filter);
+	}
+
+	public long countDocuments(Bson filter, CountOptions options) {
+		return this.downstream.countDocuments(currentSession(), filter, options);
 	}
 
 	public InsertOneResult insertOne(BsonDocument document) {

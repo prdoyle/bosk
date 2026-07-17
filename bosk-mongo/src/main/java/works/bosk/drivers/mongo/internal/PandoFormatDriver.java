@@ -60,7 +60,6 @@ import works.bosk.util.PerTenantValue;
 import works.bosk.util.PerTenantValue.MultiTenant;
 import works.bosk.util.PerTenantValue.NoTenant;
 
-import static com.mongodb.ReadConcern.LOCAL;
 import static com.mongodb.client.model.Filters.regex;
 import static com.mongodb.client.model.Projections.fields;
 import static com.mongodb.client.model.Projections.include;
@@ -191,8 +190,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		}));
 		List<BsonDocument> partsBuffer = new ArrayList<>();
 		try (MongoCursor<BsonDocument> cursor = collection
-			.withReadConcern(LOCAL) // The revision field needs to be the latest
-			.find(regex("_id", "^[|<]"))
+			.findLatest(regex("_id", "^[|<]")) // The revision field needs to be the latest
 			.sort(new BsonDocument("_id", new BsonInt32(-1))) // Root doc last
 			.cursor()
 		) {
@@ -1142,8 +1140,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 	private BsonInt64 readContentsRevision() {
 		try (MongoCursor<BsonDocument> cursor = collection
-			.withReadConcern(LOCAL)
-			.find(new BsonDocument("_id", CONTENTS_ID))
+			.findLatest(new BsonDocument("_id", CONTENTS_ID))
 			.projection(fields(include("_id", DocumentFields.revision.name())))
 			.cursor()) {
 			if (cursor.hasNext()) {

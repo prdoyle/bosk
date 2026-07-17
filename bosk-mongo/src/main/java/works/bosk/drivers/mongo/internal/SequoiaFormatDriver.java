@@ -37,7 +37,6 @@ import works.bosk.util.PerTenantValue;
 import works.bosk.util.PerTenantValue.MultiTenant;
 import works.bosk.util.PerTenantValue.NoTenant;
 
-import static com.mongodb.ReadConcern.LOCAL;
 import static org.bson.BsonBoolean.FALSE;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
@@ -115,8 +114,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	@Override
 	PerTenantValue<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		try (MongoCursor<BsonDocument> cursor = collection
-			.withReadConcern(LOCAL) // The revision field needs to be the latest
-			.find(documentFilter())
+			.findLatest(documentFilter()) // The revision field needs to be the latest
 			.limit(1)
 			.cursor()
 		) {
