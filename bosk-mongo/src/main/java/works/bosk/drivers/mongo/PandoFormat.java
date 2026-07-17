@@ -14,6 +14,7 @@ import static works.bosk.drivers.mongo.MongoDriverSettings.TenancyFormat.NONE;
 /**
  * A scalable format that stores the bosk state in multiple documents,
  * thereby overcoming MongoDB's 16MB document size limit.
+ * Also supports {@link works.bosk.BoskConfig.TenancyModel#EXPLICIT multitenancy}.
  * <p>
  * Reconstructing the state tree from the documents is not dependent
  * on the graft point configuration because the documents are self-describing:

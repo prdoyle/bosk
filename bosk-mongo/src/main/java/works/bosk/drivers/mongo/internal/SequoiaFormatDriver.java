@@ -122,9 +122,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			BsonDocument document = cursor.next();
 			var bsm = new BsonStateAndMetadata(
 				document.getString("_id"),
-				document.getDocument(DocumentFields.state.name(), null),
 				document.getInt64(DocumentFields.revision.name(), null),
-				Formatter.getDiagnosticAttributesIfAny(document)
+				Formatter.getDiagnosticAttributesIfAny(document),
+				document.getDocument(DocumentFields.state.name(), null)
 			);
 			return switch (tenancyModel) {
 				case None _ -> NoTenant.just(bsm);
