@@ -178,7 +178,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	PerTenantValue<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
+	BsonAllState readBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		// Read the !contents document to get the authoritative tenant list
 		Set<TenantId> contentsTenants = readContentsTenants();
 
@@ -241,7 +241,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 		// Note: we tolerate extra documents here, in the spirit of HASTY mode:
 		// documents are not necessarily deleted promptly, so there can be extra ones lying around.
-		return switch (format.tenancyFormat()) {
+		return new BsonAllState(switch (format.tenancyFormat()) {
 			case NONE -> {
 				var theState = states.get(Tenant.NONE);
 				if (theState == null) {
@@ -262,7 +262,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			case ID_PREFIX -> states.entrySet().stream()
 				.filter(e -> e.getKey() != Tenant.NONE)
 				.collect(multiTenant(e -> (TenantId) e.getKey(), Entry::getValue));
-		};
+		}, null);
 	}
 
 	@Override
@@ -1249,8 +1249,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
-	public void onHasBeenApplied(PerTenantValue<StateAndMetadata<R>> contents) {
-		super.onHasBeenApplied(contents);
+	public void onHasBeenApplied(AllState<R> allState) {
+		super.onHasBeenApplied(allState);
 		finishedContentsRevision(readContentsRevision());
 	}
 

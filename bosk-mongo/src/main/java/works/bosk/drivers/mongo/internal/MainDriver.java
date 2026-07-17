@@ -316,8 +316,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		EntireState<R> entireState;
 		try (var _ = queryCollection.newReadOnlySession()){
 			FormatDriver<R> detectedDriver = detectFormat();
-			PerTenantValue<StateAndMetadata<R>> loadedState = detectedDriver.loadAllState();
-			entireState = switch (loadedState.map(StateAndMetadata::state)) {
+			AllState<R> loadedState = detectedDriver.loadAllState();
+			entireState = switch (loadedState.contents().map(StateAndMetadata::state)) {
 				case NoTenant<R>(R root) -> EntireState.just(root);
 				case PerTenantValue.MultiTenant<R> v -> v.values().entrySet().stream().collect(MultiTree.collector());
 			};
@@ -382,7 +382,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// with respect to event processing, because both of them have side effects
 			// that affect event processing (field tracking and flush locks, respectively).
 			synchronized (receiver) {
-				PerTenantValue<StateAndMetadata<R>> result = formatDriver.loadAllState();
+				AllState<R> result = formatDriver.loadAllState();
 				newFormatDriver = newPreferredFormatDriver();
 
 				// initializeCollection is required to replace the manifest anyway,
@@ -394,7 +394,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.trace("Deleting state documents: {}", deletionFilter);
 				queryCollection.deleteMany(deletionFilter);
 
-				newFormatDriver.initializeCollection(result);
+				newFormatDriver.initializeCollection(result.contents());
 			}
 
 			// We must rudely commit the transaction here, since correctness requires that
@@ -525,12 +525,12 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			LOGGER.debug("onConnectionSucceeded");
 			if (initialStateTask.isDone()) {
 				FormatDriver<R> newDriver;
-				PerTenantValue<StateAndMetadata<R>> contents;
+				AllState<R> allState;
 				try (var _ = queryCollection.newReadOnlySession()) {
 					LOGGER.debug("Loading database state to submit to downstream driver");
 					newDriver = detectFormat();
-					contents = newDriver.loadAllState();
-					LOGGER.trace("Loaded state: {}", contents);
+					allState = newDriver.loadAllState();
+					LOGGER.trace("Loaded state: {}", allState);
 				} catch (UninitializedCollectionException e) {
 					// We don't auto-initialize after the initialStateTask is done
 					throw new DatabaseLoadException("Cannot reload state from database", e);
@@ -548,6 +548,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 				publishFormatDriver(newDriver);
 
+				PerTenantValue<StateAndMetadata<R>> contents = allState.contents();
 				if (contents instanceof PerTenantValue.NoTenant<StateAndMetadata<R>>(var soleContents)) {
 					downstream.submitReplacement(boskInfo.rootReference(), soleContents.state());
 					LOGGER.debug("Done submitting downstream");
@@ -568,7 +569,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				}
 
 				downstream.flush();
-				newDriver.onHasBeenApplied(contents);
+				newDriver.onHasBeenApplied(allState);
 			} else {
 				LOGGER.debug("Running initialStateTask");
 				try {
