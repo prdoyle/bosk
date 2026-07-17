@@ -62,7 +62,7 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 *
 	 * @throws InvalidCollectionContentsException if the collection contents don't match the declared format
 	 */
-	PerTenantValue<StateAndMetadata<R>> loadAllState() throws IOException, InvalidCollectionContentsException;
+	AllState<R> loadAllState() throws IOException, InvalidCollectionContentsException;
 
 	/**
 	 * Initializes the collection to the given state.
@@ -87,10 +87,10 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	BsonDocument rootDocumentsFilter();
 
 	/**
-	 * Indicates that the given contents have been {@link #flush() flushed} to the downstream driver already,
+	 * Indicates that the given allState have been {@link #flush() flushed} to the downstream driver already,
 	 * or are otherwise known to have been applied to the bosk state.
 	 */
-	void onHasBeenApplied(PerTenantValue<StateAndMetadata<R>> contents);
+	void onHasBeenApplied(AllState<R> allState);
 
 	@Override
 	default <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) {

@@ -112,7 +112,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	PerTenantValue<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
+	BsonAllState readBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		try (MongoCursor<BsonDocument> cursor = collection
 			.findLatest(documentFilter()) // The revision field needs to be the latest
 			.limit(1)
@@ -125,11 +125,11 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				Formatter.getDiagnosticAttributesIfAny(document),
 				document.getDocument(DocumentFields.state.name())
 			);
-			return switch (tenancyModel) {
+			return new BsonAllState(switch (tenancyModel) {
 				case None _ -> NoTenant.just(bsm);
 				case Fixed(var tenantId) -> MultiTenant.singleton(Tenant.setTo(tenantId), bsm);
-				case Explicit _ -> throw new NotYetImplementedException();
-			};
+				case Explicit _ -> throw new AssertionError("Sequoia does not support explicit tenancy");
+			}, null);
 		} catch (NoSuchElementException e) {
 			throw new InvalidCollectionContentsException(SEQUOIA, "State document not found: " + DOCUMENT_ID, e);
 		} catch (BsonInvalidOperationException e) {

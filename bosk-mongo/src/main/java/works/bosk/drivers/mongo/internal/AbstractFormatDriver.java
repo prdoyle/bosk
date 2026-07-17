@@ -18,6 +18,7 @@ import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskConfig.TenancyModel;
@@ -101,7 +102,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	@Override
 	public MongoStatus readStatus() {
 		try {
-			PerTenantValue<BsonStateAndMetadata> dbStates = readBsonStateAndMetadata();
+			PerTenantValue<BsonStateAndMetadata> dbStates = readBsonStateAndMetadata().contents();
 			var entireState = entireStateSupplier.get();
 			var inMemoryBsonValues = PerTenantValue.from(entireState,
 				r -> formatter.object2bsonValue(r, rootRef.targetType()));
@@ -133,11 +134,11 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	@Override
-	public PerTenantValue<StateAndMetadata<R>> loadAllState() throws IOException, InvalidCollectionContentsException {
+	public AllState<R> loadAllState() throws IOException, InvalidCollectionContentsException {
 		try {
-			PerTenantValue<BsonStateAndMetadata> bsonStateAndMetadata = readBsonStateAndMetadata();
-			ensureFlushLocksInitialized(bsonStateAndMetadata);
-			return bsonStateAndMetadata.map((Established _, BsonStateAndMetadata bsm) -> {
+			BsonAllState bsonAllState = readBsonStateAndMetadata();
+			ensureFlushLocksInitialized(bsonAllState.contents());
+			PerTenantValue<StateAndMetadata<R>> contents = bsonAllState.contents().map((Established _, BsonStateAndMetadata bsm) -> {
 				if (bsm.state() == null) {
 					throw new TunneledCheckedException(new IOException("No existing state in document"));
 				}
@@ -152,6 +153,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 
 				return new StateAndMetadata<>(root, revision, diagnosticAttributes);
 			});
+			return new AllState<>(contents, bsonAllState.contentsRevision());
 		} catch (TunneledCheckedException e) {
 			try {
 				throw e.getCause();
@@ -164,8 +166,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	}
 
 	@Override
-	public void onHasBeenApplied(PerTenantValue<StateAndMetadata<R>> contents) {
-		contents.forEach((tenant, stateAndMetadata) ->
+	public void onHasBeenApplied(AllState<R> allState) {
+		allState.contents().forEach((tenant, stateAndMetadata) ->
 			finishedRevision(tenant, stateAndMetadata.revision()));
 	}
 
@@ -219,7 +221,12 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * @return the contents of the database; fields of the returned
 	 * record can be null if they don't exist in the database.
 	 */
-	abstract PerTenantValue<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException;
+	static record BsonAllState(
+		PerTenantValue<BsonStateAndMetadata> contents,
+		@Nullable BsonInt64 contentsRevision
+	) {}
+
+	abstract BsonAllState readBsonStateAndMetadata() throws InvalidCollectionContentsException;
 
 	protected BsonDocument blankUpdateDoc() {
 		return new BsonDocument()

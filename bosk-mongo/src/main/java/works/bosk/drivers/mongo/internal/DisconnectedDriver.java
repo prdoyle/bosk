@@ -63,7 +63,7 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 	}
 
 	@Override
-	public PerTenantValue<StateAndMetadata<R>> loadAllState() {
+	public AllState<R> loadAllState() {
 		throw disconnected();
 	}
 
@@ -78,7 +78,7 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 	}
 
 	@Override
-	public void onHasBeenApplied(PerTenantValue<StateAndMetadata<R>> contents) {
+	public void onHasBeenApplied(AllState<R> allState) {
 		throw disconnected();
 	}
 
