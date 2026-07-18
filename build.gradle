@@ -305,6 +305,54 @@ tasks.register('listPublishedLibraries') {
 	}
 }
 
+def spotlessProjects = rootProject.subprojects
+tasks.register('diagSpotlessLints') {
+	group = 'help'
+	description = 'Deserialize and print Spotless lint files with full exception details'
+	doLast {
+		def anyFound = false
+		spotlessProjects.each { p ->
+			def lintDir = new File(p.buildDir, "spotless-lints")
+			if (!lintDir.exists()) return
+			lintDir.eachFileRecurse { f ->
+				if (!f.isFile()) return
+				anyFound = true
+				println "=== ${p.path} ${f.name} ==="
+				try {
+					def ois = new ObjectInputStream(new FileInputStream(f)) {
+						protected Class<?> resolveClass(ObjectStreamClass desc) throws ClassNotFoundException {
+							try {
+								return Class.forName(desc.getName(), false, Thread.currentThread().contextClassLoader)
+							} catch (ClassNotFoundException ignored) {
+								return super.resolveClass(desc)
+							}
+						}
+					}
+					def map = ois.readObject()
+					ois.close()
+					map.each { stepName, lints ->
+						lints.each { lint ->
+							println "  Step: $stepName"
+							def detail = lint.getClass().getMethod('getDetail').invoke(lint)
+							println "  Full detail:"
+							detail.eachLine { line -> println "    $line" }
+						}
+					}
+				} catch (ClassNotFoundException e) {
+					println "  Lint class not available: ${e.message}"
+					println "  Add spotless-lib to buildscript dependencies to see full details."
+				} catch (Exception e) {
+					println "  Error: ${e.class.name}: ${e.message}"
+				}
+				println ""
+			}
+		}
+		if (!anyFound) {
+			println "No lint files found. Run spotlessCheck first."
+		}
+	}
+}
+
 tasks.register('diagSpotless') {
 	group = 'help'
 	description = 'Print diagnostics relevant to Spotless JavaParser crashes'

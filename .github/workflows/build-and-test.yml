@@ -52,6 +52,12 @@ jobs:
           ORG_GRADLE_PROJECT_signingKey: ${{secrets.GPG_PRIVATE_KEY}}
           ORG_GRADLE_PROJECT_signingPassword: ${{secrets.GPG_PASSWORD}}
 
+      - name: Dump Spotless lint diagnostics
+        if: success() || failure()
+        run: |
+          echo "=== Spotless lint diagnostics ==="
+          ./gradlew diagSpotlessLints --no-configuration-cache
+
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: success() || failure()
