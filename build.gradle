@@ -164,6 +164,7 @@ subprojects {
 	apply plugin: 'com.diffplug.spotless'
 	spotless {
 		java {
+			targetExclude '**/module-info.java' // https://github.com/diffplug/spotless/issues/2839
 			importOrder '', '\\#' // Static imports after regular imports, as per mt-server standard and IntelliJ default
 			removeUnusedImports()
 			expandWildcardImports()
