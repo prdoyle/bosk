@@ -1,6 +1,5 @@
 package works.bosk.drivers.mongo.internal;
 
-import java.io.Closeable;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.Lock;
@@ -49,7 +48,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * it within the {@link FormatDriver}. Once that happens, we can easily evolve
  * that logic to include an epoch concept without touching other components.
  */
-class FlushLock implements Closeable {
+class FlushLock {
 	private final long flushTimeoutMS;
 	private final Lock queueLock = new ReentrantLock();
 	private final PriorityBlockingQueue<Waiter> queue = new PriorityBlockingQueue<>();
@@ -148,7 +147,6 @@ class FlushLock implements Closeable {
 		}
 	}
 
-	@Override
 	public void close() {
 		try {
 			queueLock.lock();

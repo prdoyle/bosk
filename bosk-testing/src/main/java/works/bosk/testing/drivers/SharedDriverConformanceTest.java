@@ -11,7 +11,7 @@ import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.DriverFactory;
 import works.bosk.testing.drivers.state.TestEntity;
-import works.bosk.util.PerTenant;
+import works.bosk.util.PerTenantValue;
 
 import static java.util.function.Function.identity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -77,8 +77,8 @@ public abstract class SharedDriverConformanceTest extends DriverConformanceTest 
 		if (scenario.tenancyModel instanceof Fixed(var id)) {
 			// Either a single tenant or NoTenant is ok. Normalize before comparing
 			TenantId tenantId = Tenant.setTo(id);
-			var e = PerTenant.from(expected, identity()).asNoTenant(tenantId);
-			var a = PerTenant.from(actual, identity()).asNoTenant(tenantId);
+			var e = PerTenantValue.from(expected, identity()).asNoTenant(tenantId);
+			var a = PerTenantValue.from(actual, identity()).asNoTenant(tenantId);
 			assertEquals(e, a);
 		} else {
 			// Must be exactly equal

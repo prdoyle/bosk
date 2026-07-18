@@ -46,8 +46,8 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
-import works.bosk.util.PerTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue;
+import works.bosk.util.PerTenantValue.NoTenant;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static com.mongodb.client.model.Sorts.ascending;
@@ -316,14 +316,14 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		EntireState<R> entireState;
 		try (var _ = queryCollection.newReadOnlySession()){
 			FormatDriver<R> detectedDriver = detectFormat();
-			PerTenant<StateAndMetadata<R>> loadedState = detectedDriver.loadAllState();
-			entireState = switch (loadedState.map(StateAndMetadata::state)) {
+			AllState<R> loadedState = detectedDriver.loadAllState();
+			entireState = switch (loadedState.contents().map(StateAndMetadata::state)) {
 				case NoTenant<R>(R root) -> EntireState.just(root);
-				case PerTenant.MultiTenant<R> v -> v.values().entrySet().stream().collect(MultiTree.collector());
+				case PerTenantValue.MultiTenant<R> v -> v.values().entrySet().stream().collect(MultiTree.collector());
 			};
 
 			// Hasn't technically been applied, but we're still initializing the Bosk, and its constructor won't return until the state has been applied
-			detectedDriver.hasBeenApplied(loadedState);
+			detectedDriver.onHasBeenApplied(loadedState);
 
 			publishFormatDriver(detectedDriver);
 		} catch (UninitializedCollectionException e) {
@@ -335,7 +335,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				var session = queryCollection.newSession()
 			) {
 				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
-				PerTenant<StateAndMetadata<R>> priorContents = PerTenant.from(entireState, root ->
+				PerTenantValue<StateAndMetadata<R>> priorContents = PerTenantValue.from(entireState, root ->
 					new StateAndMetadata<>(root, REVISION_ZERO, diagnosticAttributes));
 				preferredDriver.initializeCollection(priorContents);
 				session.commitTransactionIfAny();
@@ -382,7 +382,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// with respect to event processing, because both of them have side effects
 			// that affect event processing (field tracking and flush locks, respectively).
 			synchronized (receiver) {
-				PerTenant<StateAndMetadata<R>> result = formatDriver.loadAllState();
+				AllState<R> allState = formatDriver.loadAllState();
 				newFormatDriver = newPreferredFormatDriver();
 
 				// initializeCollection is required to replace the manifest anyway,
@@ -394,17 +394,17 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.trace("Deleting state documents: {}", deletionFilter);
 				queryCollection.deleteMany(deletionFilter);
 
-				newFormatDriver.initializeCollection(result);
+				newFormatDriver.initializeCollection(allState.contents());
 			}
 
 			// We must rudely commit the transaction here, since correctness requires that
 			// the database updates commit before we publish newFormatDriver.
-			queryCollection.commitTransaction();
+			queryCollection.commitTransactionIfAny();
 
 			publishFormatDriver(newFormatDriver);
 
 			// Refurbish doesn't actually change what state has been applied to the bosk.
-			// No need to do any downstream submit/flush, nor call hasBeenApplied.
+			// No need to do any downstream submit/flush, nor call onHasBeenApplied.
 		} catch (InvalidCollectionContentsException e) {
 			throw new IOException("Unable to refurbish database collection with invalid contents", e);
 		}
@@ -453,11 +453,14 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	@Override
 	public void flush() throws IOException, InterruptedException {
 		try {
+			// TODO: This could use a read-only session, but doRetryableDriverOperation uses a normal read-write session
+			//  because it was designed for updates rather than flushes.
 			this.<InterruptedException, IOException>doRetryableDriverOperation(() -> {
 				formatDriver.flush();
 			}, "flush");
 		} catch (DisconnectedException | IOException e) {
 			// Callers are expecting a FlushFailureException in these cases
+			// TODO: Is this true for IOException? Why is flush() declared to throw IOException then?
 			throw new FlushFailureException(e);
 		}
 	}
@@ -525,12 +528,12 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			LOGGER.debug("onConnectionSucceeded");
 			if (initialStateTask.isDone()) {
 				FormatDriver<R> newDriver;
-				PerTenant<StateAndMetadata<R>> contents;
+				AllState<R> allState;
 				try (var _ = queryCollection.newReadOnlySession()) {
 					LOGGER.debug("Loading database state to submit to downstream driver");
 					newDriver = detectFormat();
-					contents = newDriver.loadAllState();
-					LOGGER.trace("Loaded state: {}", contents);
+					allState = newDriver.loadAllState();
+					LOGGER.trace("Loaded state: {}", allState);
 				} catch (UninitializedCollectionException e) {
 					// We don't auto-initialize after the initialStateTask is done
 					throw new DatabaseLoadException("Cannot reload state from database", e);
@@ -548,7 +551,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 				publishFormatDriver(newDriver);
 
-				if (contents instanceof PerTenant.NoTenant<StateAndMetadata<R>>(var soleContents)) {
+				PerTenantValue<StateAndMetadata<R>> contents = allState.contents();
+				if (contents instanceof PerTenantValue.NoTenant<StateAndMetadata<R>>(var soleContents)) {
 					downstream.submitReplacement(boskInfo.rootReference(), soleContents.state());
 					LOGGER.debug("Done submitting downstream");
 				} else {
@@ -568,7 +572,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				}
 
 				downstream.flush();
-				newDriver.hasBeenApplied(contents);
+				newDriver.onHasBeenApplied(allState);
 			} else {
 				LOGGER.debug("Running initialStateTask");
 				try {

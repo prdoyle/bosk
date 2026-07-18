@@ -6,10 +6,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Implicit;
+import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.annotations.ReferencePath;
@@ -27,7 +29,7 @@ import static works.bosk.testing.BoskTestUtils.boskName;
 /**
  * Note that context propagation for driver operations is tested by {@link DriverConformanceTest}.
  */
-class BoskContextTest extends AbstractDriverTest {
+public class BoskContextTest extends AbstractDriverTest {
 	final TenantId tenant1 = Tenant.setTo(Identifier.from("tenant1"));
 	final TenantId tenant2 = Tenant.setTo(Identifier.from("tenant2"));
 
@@ -158,5 +160,12 @@ class BoskContextTest extends AbstractDriverTest {
 
 		// (If we made it to this point, we were able to close the scopes
 		// in the correct order even after trying to close them in the wrong order.)
+	}
+
+	/**
+	 * Expose the BoskContext constructor for tests
+	 */
+	public static BoskContext newContext(Supplier<Context> initialContextSupplier, String boskName, Explicit tenancyModel) {
+		return new BoskContext(initialContextSupplier, boskName, tenancyModel);
 	}
 }

@@ -20,9 +20,9 @@ import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JsonNodeSurgeon.NodeInfo;
 import works.bosk.jackson.JsonNodeSurgeon.NodeLocation.Root;
-import works.bosk.util.PerTenant;
-import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue;
+import works.bosk.util.PerTenantValue.MultiTenant;
+import works.bosk.util.PerTenantValue.NoTenant;
 
 /**
  * Maintains an in-memory representation of the bosk state
@@ -33,7 +33,7 @@ public class JsonNodeDriver implements BoskDriver {
 	final BoskContext context;
 	final ObjectMapper mapper;
 	final JsonNodeSurgeon surgeon;
-	PerTenant<JsonNode> contents;
+	PerTenantValue<JsonNode> contents;
 	int updateNumber = 0;
 
 	public static <R extends StateTreeNode> DriverFactory<R> factory(JacksonSerializer jacksonSerializer) {
@@ -140,8 +140,8 @@ public class JsonNodeDriver implements BoskDriver {
 		if (nodeInfo.replacementLocation() instanceof Root) {
 			JsonNode replacement = mapper.convertValue(newValue, JsonNode.class);
 			contents = switch (contents) {
-				case PerTenant.NoTenant<JsonNode> _ -> NoTenant.just(replacement);
-				case PerTenant.MultiTenant<JsonNode> m -> m.with(context.getTenantId(), replacement);
+				case PerTenantValue.NoTenant<JsonNode> _ -> NoTenant.just(replacement);
+				case PerTenantValue.MultiTenant<JsonNode> m -> m.with(context.getTenantId(), replacement);
 			};
 		} else {
 			JsonNode replacement = surgeon.replacementNode(nodeInfo, lastSegment.get(), () -> mapper.convertValue(newValue, JsonNode.class));

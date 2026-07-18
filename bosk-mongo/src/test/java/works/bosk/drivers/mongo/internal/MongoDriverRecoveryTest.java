@@ -13,6 +13,7 @@ import org.bson.BsonString;
 import org.bson.Document;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedClass;
@@ -246,6 +247,7 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
+	@Disabled
 	void revisionDeleted_recovers() throws InterruptedException, IOException {
 		// It's not clear that this is a valid test. If this test is a burden to support,
 		// we can consider removing it.

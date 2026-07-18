@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
+import org.bson.BsonInvalidOperationException;
 import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.jspecify.annotations.NonNull;
@@ -31,12 +32,10 @@ import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.InvalidTypeException;
-import works.bosk.exceptions.NotYetImplementedException;
-import works.bosk.util.PerTenant;
-import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue;
+import works.bosk.util.PerTenantValue.MultiTenant;
+import works.bosk.util.PerTenantValue.NoTenant;
 
-import static com.mongodb.ReadConcern.LOCAL;
 import static org.bson.BsonBoolean.FALSE;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
@@ -112,34 +111,35 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	PerTenant<BsonStateAndMetadata> readBsonStateAndMetadata() throws InvalidCollectionContentsException {
+	BsonAllState readBsonStateAndMetadata() throws InvalidCollectionContentsException {
 		try (MongoCursor<BsonDocument> cursor = collection
-			.withReadConcern(LOCAL) // The revision field needs to be the latest
-			.find(documentFilter())
+			.findLatest(documentFilter()) // The revision field needs to be the latest
 			.limit(1)
 			.cursor()
 		) {
 			BsonDocument document = cursor.next();
 			var bsm = new BsonStateAndMetadata(
 				document.getString("_id"),
-				document.getDocument(DocumentFields.state.name(), null),
-				document.getInt64(DocumentFields.revision.name(), null),
-				Formatter.getDiagnosticAttributesIfAny(document)
+				document.getInt64(DocumentFields.revision.name()),
+				Formatter.getDiagnosticAttributesIfAny(document),
+				document.getDocument(DocumentFields.state.name())
 			);
-			return switch (tenancyModel) {
+			return new BsonAllState(switch (tenancyModel) {
 				case None _ -> NoTenant.just(bsm);
 				case Fixed(var tenantId) -> MultiTenant.singleton(Tenant.setTo(tenantId), bsm);
-				case Explicit _ -> throw new NotYetImplementedException();
-			};
+				case Explicit _ -> throw new AssertionError("Sequoia does not support explicit tenancy");
+			}, null);
 		} catch (NoSuchElementException e) {
 			throw new InvalidCollectionContentsException(SEQUOIA, "State document not found: " + DOCUMENT_ID, e);
+		} catch (BsonInvalidOperationException e) {
+			throw new InvalidCollectionContentsException(SEQUOIA, "State document is missing required fields: " + DOCUMENT_ID, e);
 		}
 
 	}
 
 	@Override
-	@NonNull PerTenant<BsonInt64> readRevisionNumbers() throws RevisionFieldDisruptedException {
-		LOGGER.debug("readRevisionNumbers");
+	@NonNull PerTenantValue<BsonInt64> readRevisionNumbersToFlush() throws RevisionFieldDisruptedException {
+		LOGGER.debug("readRevisionNumbersToFlush");
 		try {
 			try (MongoCursor<BsonDocument> cursor = revisionDocumentCursor()) {
 				// Our revisionDocumentCursor matches only one document
@@ -147,7 +147,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				return switch (tenancyModel) {
 					case None _ -> NoTenant.just(revision);
 					case Fixed(var id) -> MultiTenant.singleton(Tenant.setTo(id), revision);
-					case Explicit _ -> throw new NotYetImplementedException();
+					case Explicit _ -> throw new AssertionError("Sequoia does not support explicit tenancy");
 				};
 			}
 		} catch (NoSuchElementException e) {
@@ -158,9 +158,9 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
-	public void initializeCollection(PerTenant<StateAndMetadata<R>> priorContentsArg) {
+	public void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContentsArg) {
 		var normalized = normalizePerTenant(priorContentsArg);
-		ensureFlushLocksInitialized(normalized);
+		replaceFlushLocks(normalized.map(StateAndMetadata::revision));
 		normalized.forEach((tenant, priorContents) -> {
 			// Sequoia has only one document regardless of tenancy
 			BsonValue initialState = formatter.object2bsonValue(priorContents.state(), rootRef.targetType());
@@ -247,17 +247,20 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				UpdateDescription updateDescription = event.getUpdateDescription();
 				if (updateDescription != null) {
 					BsonInt64 revision = formatter.getRevisionFromUpdateEvent(event);
-					if (!shouldSkip(tenant, revision)) {
-						BsonString updateDocId = event.getDocumentKey().getString("_id");
-						BsonDocument updateAttrsBson = fieldTracker.getFieldAsDocument(updateDocId, DocumentFieldTracker.TrackedField.DIAGNOSTICS);
-						MapValue<String> diagnosticAttributes = updateAttrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(updateAttrsBson);
-						try (
-							var _ = context.withTenant(tenant);
-							var _ = context.withOnly(diagnosticAttributes)
-						) {
-							replaceUpdatedFields(updateDescription.getUpdatedFields());
-							deleteRemovedFields(updateDescription.getRemovedFields(), event.getOperationType());
+					BsonString updateDocId = event.getDocumentKey().getString("_id");
+					BsonDocument updateAttrsBson = fieldTracker.getFieldAsDocument(updateDocId, DocumentFieldTracker.TrackedField.DIAGNOSTICS);
+					MapValue<String> diagnosticAttributes = updateAttrsBson == null ? MapValue.empty() : formatter.decodeDiagnosticAttributes(updateAttrsBson);
+					try (
+						var _ = context.withTenant(tenant);
+						var _ = context.withOnly(diagnosticAttributes)
+					) {
+						if (shouldSkip(revision)) {
+							LOGGER.debug("Skipping revision {}", revision.longValue());
+							return;
 						}
+
+						replaceUpdatedFields(updateDescription.getUpdatedFields());
+						deleteRemovedFields(updateDescription.getRemovedFields(), event.getOperationType());
 					}
 					finishedRevision(tenant, revision);
 				}

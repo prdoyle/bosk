@@ -7,9 +7,9 @@ import works.bosk.BoskDriver.EntireState.MultiTree;
 import works.bosk.BoskDriver.EntireState.SingleTree;
 import works.bosk.testing.drivers.DriverConformanceTest;
 import works.bosk.testing.drivers.state.TestEntity;
-import works.bosk.util.PerTenant;
-import works.bosk.util.PerTenant.MultiTenant;
-import works.bosk.util.PerTenant.NoTenant;
+import works.bosk.util.PerTenantValue;
+import works.bosk.util.PerTenantValue.MultiTenant;
+import works.bosk.util.PerTenantValue.NoTenant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -28,7 +28,7 @@ class JsonNodeDriverConformanceTest extends DriverConformanceTest {
 	@Override
 	protected void assertCorrectBoskContents() {
 		super.assertCorrectBoskContents();
-		PerTenant<JsonNode> expected, actual;
+		PerTenantValue<JsonNode> expected, actual;
 		try (var _ = bosk.readSession()) {
 			var state = bosk.entireState();
 			expected = switch (state) {
