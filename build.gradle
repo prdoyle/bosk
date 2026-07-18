@@ -162,7 +162,12 @@ configure(subprojects.findAll { it.name.startsWith("bosk-") || it.name == "boson
 // Spotless configuration
 subprojects {
 	apply plugin: 'com.diffplug.spotless'
+
 	spotless {
+		// Workaround for
+		// https://github.com/diffplug/spotless/issues/2998
+		enforceCheck = false
+
 		java {
 			importOrder '', '\\#' // Static imports after regular imports, as per mt-server standard and IntelliJ default
 			removeUnusedImports()
@@ -188,24 +193,6 @@ subprojects {
 			replaceRegex 'class-level javadoc indentation fix', /^\*/, ' *'
 			replaceRegex 'method-level javadoc indentation fix', /\t\*/, '\t *'
 			endWithNewline()
-		}
-	}
-}
-
-// https://github.com/diffplug/spotless/issues/2998
-// Spotless's expandWildcardImports() resolves ALL of a project's resolvable
-// configurations (including test/runtime classpaths) into plain File paths at
-// configuration time, without preserving Gradle's task-dependency info.
-// If one of those files is another subproject's jar that hasn't been built yet
-// (e.g. via a cross-project test dependency), spotlessJavaCheck can crash with
-// a FileNotFoundException instead of Gradle simply building it first.
-// As a workaround, we force all subprojects' jar tasks to run before any
-// spotlessJava/spotlessJavaCheck task.
-gradle.projectsEvaluated {
-	def allJarTasks = subprojects.findAll { it.tasks.findByName('jar') }.collect { it.tasks.named('jar') }
-	subprojects.each { sub ->
-		sub.tasks.matching { it.name == 'spotlessJava' || it.name == 'spotlessJavaCheck' }.configureEach { t ->
-			t.dependsOn allJarTasks
 		}
 	}
 }
