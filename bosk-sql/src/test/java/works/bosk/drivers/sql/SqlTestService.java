@@ -5,8 +5,10 @@ import com.zaxxer.hikari.HikariDataSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.testing.drivers.state.TestEntity;
 
@@ -29,16 +31,35 @@ public class SqlTestService {
 	}
 
 	public enum Database {
-		// TODO: Use a dockerfile like we do for MongoDB so dependabot can keep these up to date
-		MYSQL(testcontainers("mysql:9.6.0", "/var/lib/mysql")),
-		POSTGRES(testcontainers("postgresql:18.3", "/var/lib/postgresql")),
+		MYSQL("mysql", "mysql", "bosk-test", "src/test/resources/mysql.dockerfile", "/var/lib/mysql"),
+		POSTGRES("postgres", "postgresql", "bosk-test", "src/test/resources/postgresql.dockerfile", "/var/lib/postgresql"),
 		SQLITE(dbName -> "jdbc:sqlite:" + TEMP_DIR.resolve(dbName + ".db")),
 		;
 
 		final Function<String, String> url;
 
+		Database(String dockerName, String jdbcName, String tag, String dockerfilePath, String dataDir) {
+			String imageTag = dockerName + ":" + tag;
+			this.url = dbName -> {
+				ensureImageIsBuilt(imageTag, dockerfilePath);
+				return "jdbc:tc:" + jdbcName + ":" + tag
+					+ ":///" + dbName
+					+ "?TC_DAEMON=true"
+					+ "&TC_TMPFS=" + dataDir + ":rw";
+			};
+		}
+
 		Database(Function<String, String> url) {
 			this.url = url;
+		}
+
+		private static final ConcurrentHashMap<String, Boolean> IMAGES_BUILT = new ConcurrentHashMap<>();
+
+		private static void ensureImageIsBuilt(String imageTag, String dockerfilePath) {
+			IMAGES_BUILT.computeIfAbsent(imageTag, _ ->
+				new ImageFromDockerfile(imageTag)
+					.withDockerfile(Paths.get(dockerfilePath)).get()
+				!= null); // Super clever way to always generate `true`
 		}
 
 		public HikariDataSource dataSourceFor(String databaseName) {
@@ -51,14 +72,6 @@ public class SqlTestService {
 		config.setJdbcUrl(key.database().url.apply(key.databaseName()));
 		config.setAutoCommit(false);
 		return new HikariDataSource(config);
-	}
-
-	private static Function<String, String> testcontainers(String image, String dataDir) {
-		return dbName -> "jdbc:tc:" + image
-			+ ":///" + dbName
-			+ "?TC_DAEMON=true"
-			+ "&TC_TMPFS=" + dataDir + ":rw"
-			;
 	}
 
 	public static SqlDriverImpl.SqlDriverFactory<TestEntity> sqlDriverFactory(SqlDriverSettings settings, HikariDataSource dataSource) {

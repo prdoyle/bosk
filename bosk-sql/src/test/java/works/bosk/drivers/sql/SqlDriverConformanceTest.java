@@ -6,7 +6,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import works.bosk.drivers.sql.SqlTestService.Database;
@@ -28,17 +27,6 @@ class SqlDriverConformanceTest extends PolyfillDriverConformanceTest {
 	private final AtomicInteger dbCounter = new AtomicInteger(0);
 	private SqlDriverSettings settings;
 	private HikariDataSource dataSource;
-
-	@BeforeAll
-	static void validateSmokeTestDatabases() {
-		// Fail this test promptly if we can't connect to the smoke test databases,
-		// instead of painstakingly hitting this error on every single test.
-		for (Database database : Database.values()) {
-			try (var ds = database.dataSourceFor("smoke-test")) {
-				ds.validate();
-			}
-		}
-	}
 
 	@BeforeEach
 	void setupDriverFactory() {
