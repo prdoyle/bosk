@@ -5,8 +5,10 @@ import com.zaxxer.hikari.HikariDataSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.testing.drivers.state.TestEntity;
 
@@ -14,6 +16,14 @@ import static tools.jackson.core.StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION;
 import static tools.jackson.databind.SerializationFeature.INDENT_OUTPUT;
 
 public class SqlTestService {
+	static {
+		// Build images from Dockerfiles so Dependabot can track updates
+		new ImageFromDockerfile("mysql:bosk-test")
+			.withDockerfile(Paths.get("src/test/resources/mysql.dockerfile")).get();
+		new ImageFromDockerfile("postgres:bosk-test")
+			.withDockerfile(Paths.get("src/test/resources/postgresql.dockerfile")).get();
+	}
+
 	record DBKey(Database database, String databaseName) {}
 	private static final ConcurrentHashMap<DBKey, HikariDataSource> DATA_SOURCES = new ConcurrentHashMap<>();
 
@@ -29,9 +39,8 @@ public class SqlTestService {
 	}
 
 	public enum Database {
-		// TODO: Use a dockerfile like we do for MongoDB so dependabot can keep these up to date
-		MYSQL(testcontainers("mysql:9.6.0", "/var/lib/mysql")),
-		POSTGRES(testcontainers("postgresql:18.3", "/var/lib/postgresql")),
+		MYSQL(testcontainers("mysql:bosk-test", "/var/lib/mysql")),
+		POSTGRES(testcontainers("postgresql:bosk-test", "/var/lib/postgresql")),
 		SQLITE(dbName -> "jdbc:sqlite:" + TEMP_DIR.resolve(dbName + ".db")),
 		;
 
