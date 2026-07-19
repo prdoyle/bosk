@@ -31,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CatalogTest {
 	static final BasicEntity a = new BasicEntity(Identifier.unique("m"));
-	static final BasicEntity b = new BasicEntity(Identifier.from("\n"));
-	static final BasicEntity bNot = new BasicEntity(Identifier.from("\n"));
+	static final BasicEntity b = new BasicEntity(Identifier.from("_b"));
+	static final BasicEntity bNot = new BasicEntity(Identifier.from("_b"));
 	static final BasicEntity c = new BasicEntity(Identifier.unique(";͉̙̖̳͙ ̧̺̰͕̭̲ͅd̢͈̣̦ró̜͙̬̬͚̺͔p̡̟ ̠ị̯͕n̮̦̞͝ṱ̩̥e҉͖̻r̜͕̠̝̙͢n͈ ͖̩̹̫̜̪́s͘h҉̺a̲h̹͈̞̜̯̹i̻͕̱̣̯̘̳͝n̞͚͚̟̬̣-̷̭̤̗̼-̘̼̣͎̗͙̗"));
 	static final ComplexEntity x = new ComplexEntity(Identifier.unique("1"), "");
 	static final BasicEntity xNot = new BasicEntity(Identifier.unique("1"));

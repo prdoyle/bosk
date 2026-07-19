@@ -69,7 +69,7 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 		);
 		makeCatalog(catalogRef);
 		makeCatalog(nestedCatalogRef.boundTo(Identifier.from("entity1")));
-		makeCatalog(nestedCatalogRef.boundTo(Identifier.from("weird|i.d. +")));
+		makeCatalog(nestedCatalogRef.boundTo(Identifier.from("weird|i.d. !")));
 		makeCatalog(refs.doubleNestedCatalog().boundTo(Identifier.from("entity1"), Identifier.from("child1")));
 		driver.submitReplacement(sideTableRef.then(Identifier.from("child1")),
 			TestEntity.empty(Identifier.from("sideTableValue"), catalogRef));
@@ -129,19 +129,19 @@ public class BsonSurgeonTest extends AbstractDriverTest {
 		List<String> partPaths = parts.stream()
 			.map(part -> part.getString("_id"))
 			.map(BsonString::getValue)
-			.collect(toList());
+			.toList();
 		Set<String> actual = new LinkedHashSet<>(partPaths);
 		assertEquals(partPaths.size(), actual.size(), "partPaths should have no duplicates");
 
 		Set<String> expected = new LinkedHashSet<>(asList(
 			"|catalog|entity1|catalog|child1",
 			"|catalog|entity1|catalog|child2",
-			"|catalog|weird%7Ci%2Ed%2E%20%2B|catalog|child1",
-			"|catalog|weird%7Ci%2Ed%2E%20%2B|catalog|child2",
+			"|catalog|weird%7Ci%2Ed%2E%20%21|catalog|child1",
+			"|catalog|weird%7Ci%2Ed%2E%20%21|catalog|child2",
 			"|catalog|child1",
 			"|catalog|child2",
 			"|catalog|entity1",
-			"|catalog|weird%7Ci%2Ed%2E%20%2B",
+			"|catalog|weird%7Ci%2Ed%2E%20%21",
 			"|sideTable|valuesById|child1",
 			"|"
 		));

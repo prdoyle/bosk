@@ -16,16 +16,82 @@ public final class Identifier {
 		this.value = value;
 	}
 
+	static final int MAX_LENGTH = 100;
+
 	// TODO: Intern these.  No need to have several Identifier objects for the same value
 	public static Identifier from(String value) {
 		if (value.isEmpty()) {
 			throw new IllegalArgumentException("Identifier can't be empty");
-		} else if (value.startsWith("-") || value.endsWith("-")) {
-			throw new IllegalArgumentException("Identifier can't start or end with a hyphen");
 		}
-		// TODO: We probably ought to outlaw some characters like NUL (\u0000) but
-		//  that's O(n) in the length of the string, so it's not clear that's worth the overhead.
+		if (value.length() > MAX_LENGTH) {
+			throw new IllegalArgumentException(
+				"Identifier too long (max " + MAX_LENGTH + " characters)");
+		}
+
+		char first = value.charAt(0);
+		checkBoundaryCharacter(first, "start");
+
+		if (value.length() > 1) {
+			char last = value.charAt(value.length() - 1);
+			checkBoundaryCharacter(last, "end");
+
+			checkNotBoundaryModifier(value.charAt(1), "second");
+			checkNotBoundaryModifier(value.charAt(value.length() - 2), "second-last");
+		}
+
+		// Hyphens are implicitly rejected in boundary positions:
+		// DASH_PUNCTUATION is not in isAllowedBoundaryChar
+
 		return new Identifier(value);
+	}
+
+	private static void checkBoundaryCharacter(char c, String position) {
+		if (!isAllowedBoundaryChar(c)) {
+			throw new IllegalArgumentException(
+				"Identifier can't " + position + " with " + describeChar(c));
+		}
+	}
+
+	private static void checkNotBoundaryModifier(char c, String position) {
+		if (isBoundaryModifier(c)) {
+			throw new IllegalArgumentException(
+				"Identifier's " + position + " character can't modify a boundary character: "
+					+ describeChar(c));
+		}
+	}
+
+	private static boolean isAllowedBoundaryChar(char c) {
+		return switch (Character.getType(c)) {
+			case Character.UPPERCASE_LETTER,
+				Character.LOWERCASE_LETTER,
+				Character.TITLECASE_LETTER,
+				Character.MODIFIER_LETTER,
+				Character.OTHER_LETTER,
+				Character.DECIMAL_DIGIT_NUMBER,
+				Character.LETTER_NUMBER,
+				Character.OTHER_NUMBER,
+				Character.CONNECTOR_PUNCTUATION,
+				Character.OTHER_PUNCTUATION,
+				Character.CURRENCY_SYMBOL -> true;
+			default -> false;
+		};
+	}
+
+	private static boolean isBoundaryModifier(char c) {
+		return switch (Character.getType(c)) {
+			case Character.NON_SPACING_MARK,
+				Character.COMBINING_SPACING_MARK,
+				Character.ENCLOSING_MARK,
+				Character.FORMAT -> true;
+			default -> false;
+		};
+	}
+
+	private static String describeChar(char c) {
+		String name = Character.getName(c);
+		return c > 0x20 && c <= 0x7F
+			? "'" + c + "'"
+			: name != null ? name : String.format("U+%04X", (int) c);
 	}
 
 	/**

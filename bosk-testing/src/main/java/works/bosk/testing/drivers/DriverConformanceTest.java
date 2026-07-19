@@ -878,7 +878,7 @@ public abstract class DriverConformanceTest extends AbstractDriverTest {
 	/**
 	 * Contains all kinds of special characters
 	 */
-	public static final String AWKWARD_ID = "awkward$id.with%everything:/ +\uD83D\uDE09";
+	public static final String AWKWARD_ID = "awkward$id.with%everything:/ +\uD83D\uDE09$";
 
 	static List<String> testEntityFields() {
 		return List.of(
