@@ -34,7 +34,10 @@ StateFunc == [Path -> Vals]
 
 \* A change stream event records which paths changed.
 \* updated[p] = NONE means path p did not change in this event.
-Event == [ revision : 0..MaxRev, updated : StateFunc ]
+\* For INSERT/REPLACE events, updated gives the full new state for every path.
+\* For DELETE events, updated is ignored.
+EventType == {"insert", "replace", "update", "delete"}
+Event == [ type : EventType, revision : 0..MaxRev, updated : StateFunc ]
 
 (*************************************************************************)
 \* VARIABLES
@@ -47,10 +50,11 @@ VARIABLES
     cursorOpen,         \* [Bosk -> BOOLEAN]
     formatType,         \* [Bosk -> {"sequoia","disconnected"}]
     flushSeen,          \* [Bosk -> 0..MaxRev]
-    wrote               \* [Bosk \times WriterID -> BOOLEAN]
+    wrote,              \* [Bosk \times WriterID -> BOOLEAN]
+    dbDeleted           \* BOOLEAN
 
 vars == <<dbState, dbRevision, inMemory, pendingEvents,
-          cursorOpen, formatType, flushSeen, wrote>>
+          cursorOpen, formatType, flushSeen, wrote, dbDeleted>>
 
 (*************************************************************************)
 \* Type invariant
@@ -64,6 +68,7 @@ TypeOK ==
     /\ formatType \in [Bosk -> {"sequoia", "disconnected"}]
     /\ flushSeen \in [Bosk -> 0..MaxRev]
     /\ wrote \in [Bosk \times WriterID -> BOOLEAN]
+    /\ dbDeleted \in BOOLEAN
 
 (*************************************************************************)
 \* Initial state
@@ -81,6 +86,7 @@ Init ==
     /\ formatType   = [b \in Bosk |-> "disconnected"]
     /\ flushSeen    = [b \in Bosk |-> 0]
     /\ wrote        = [b \in Bosk, w \in WriterID |-> FALSE]
+    /\ dbDeleted    = FALSE
 
 (*************************************************************************)
 \* Helper: apply event updates to a state
@@ -95,18 +101,20 @@ ApplyEvent(state, event) ==
 \* A writer writes a new value to a path in the DB.
 \* Only enabled if the value actually changes (to avoid no-op events).
 \* Updates dbState, increments dbRevision, and queues a change event
-\* for every bosk whose change stream cursor is currently open.
+\* for every bosk.
 Write(b, w, t, v) ==
     /\ formatType[b] = "sequoia"
     /\ dbRevision < MaxRev
+    /\ ~dbDeleted
     /\ t \in Path
     /\ v \in Value
     /\ v # dbState[t]       \* Only useful writes — skip no-ops
     /\ LET newRev   == dbRevision + 1
            newState == [dbState EXCEPT ![t] = v]
-           event    == [ revision |-> newRev,
-                         updated  |-> [p \in Path |->
-                             IF p = t THEN v ELSE NONE] ]
+           event    == [ type |-> "update",
+                          revision |-> newRev,
+                          updated  |-> [p \in Path |->
+                              IF p = t THEN v ELSE NONE] ]
        IN
        /\ dbState' = newState
        /\ dbRevision' = newRev
@@ -117,7 +125,7 @@ Write(b, w, t, v) ==
             ELSE pendingEvents[b2]]
        \* Record that this writer has written
        /\ wrote' = [wrote EXCEPT ![<<b, w>>] = TRUE]
-       /\ UNCHANGED <<inMemory, cursorOpen, formatType, flushSeen>>
+       /\ UNCHANGED <<inMemory, cursorOpen, formatType, flushSeen, dbDeleted>>
 
 \* Flush: wait until all prior updates have been applied downstream.
 \* Completes when flushSeen[b] >= dbRevision, meaning inMemory matches DB.
@@ -127,44 +135,96 @@ Flush(b, w) ==
     /\ UNCHANGED vars
 
 (*************************************************************************)
+\* DATABASE LIFECYCLE actions
+(*************************************************************************)
+
+\* Delete the entire database state (models external deletion or refurbish).
+DeleteState ==
+    /\ dbRevision < MaxRev
+    /\ LET newRev == dbRevision + 1
+           event  == [ type |-> "delete", revision |-> newRev,
+                       updated |-> [p \in Path |-> NONE] ]
+       IN
+       /\ dbState'    = [p \in Path |-> NONE]
+       /\ dbRevision' = newRev
+       /\ dbDeleted'  = TRUE
+       \* Queue DELETE event for all bosks
+       /\ pendingEvents' = [b2 \in Bosk |->
+            Append(pendingEvents[b2], event)]
+       /\ UNCHANGED <<inMemory, cursorOpen, formatType, flushSeen, wrote>>
+
+\* Reinitialize the database with a fresh state (models the completion
+\* of a refurbish or external re-creation).
+ReinitializeState ==
+    /\ dbRevision < MaxRev
+    /\ LET newRev == dbRevision + 1
+       IN
+       \E newState \in StateFunc :
+       /\ \A p \in Path : newState[p] # NONE   \* No NONE values in live state
+       /\ LET event == [ type |-> "replace", revision |-> newRev,
+                         updated |-> newState ]
+          IN
+          /\ dbState'    = newState
+          /\ dbRevision' = newRev
+          /\ dbDeleted'  = FALSE
+          \* Queue INSERT/REPLACE event for all bosks
+          /\ pendingEvents' = [b2 \in Bosk |->
+               Append(pendingEvents[b2], event)]
+          /\ UNCHANGED <<inMemory, cursorOpen, formatType, flushSeen, wrote>>
+
+(*************************************************************************)
 \* CHANGE RECEIVER actions
 (*************************************************************************)
 \* Process the next queued change event for bosk b.
-\* If the event's revision <= flushSeen[b], skip it — it's a stale event
-\* left over from before a prior reconnect. Otherwise apply the updates
-\* and advance flushSeen.
+\* Behavior depends on event type:
+\*   - INSERT/REPLACE: always apply full state (no shouldSkip check)
+\*   - UPDATE: skip if revision <= flushSeen[b], else apply incremental updates
+\*   - DELETE: reset flushSeen to 0 without changing inMemory
 ProcessEvent(b) ==
     /\ cursorOpen[b]
     /\ pendingEvents[b] # << >>
     /\ LET event == Head(pendingEvents[b])
            rest  == Tail(pendingEvents[b])
-           skip  == event.revision <= flushSeen[b]
        IN
        /\ pendingEvents' = [pendingEvents EXCEPT ![b] = rest]
-       /\ IF skip
-          THEN UNCHANGED <<inMemory, flushSeen>>
-          ELSE ( inMemory'  = [inMemory  EXCEPT ![b] = ApplyEvent(inMemory[b], event)]
-                 /\ flushSeen' = [flushSeen EXCEPT ![b] = event.revision] )
-       /\ UNCHANGED <<dbState, dbRevision, cursorOpen, formatType, wrote>>
+       /\ CASE event.type = "delete" ->
+               \* Reset flushSeen to 0; inMemory remains stale until next event
+               /\ flushSeen' = [flushSeen EXCEPT ![b] = 0]
+               /\ UNCHANGED inMemory
+          [] event.type \in {"insert", "replace"} ->
+               \* Full-document replacement: always apply, no shouldSkip
+               /\ inMemory'  = [inMemory EXCEPT ![b] = event.updated]
+               /\ flushSeen' = [flushSeen EXCEPT ![b] = event.revision]
+          [] event.type = "update" ->
+               LET skip == event.revision <= flushSeen[b]
+               IN
+               /\ IF skip
+                  THEN UNCHANGED <<inMemory, flushSeen>>
+                  ELSE ( inMemory'  = [inMemory EXCEPT ![b] = ApplyEvent(inMemory[b], event)]
+                         /\ flushSeen' = [flushSeen EXCEPT ![b] = event.revision] )
+       /\ UNCHANGED <<dbState, dbRevision, cursorOpen, formatType, wrote, dbDeleted>>
 
 (*************************************************************************)
 \* CONNECTION LIFECYCLE actions
 (*************************************************************************)
 \* Open cursor: reload in-memory state from the current DB.
+\* Clear any stale events accumulated during disconnection;
+\* the new cursor delivers only future events.
 OpenCursor(b) ==
     /\ ~cursorOpen[b]
     /\ cursorOpen' = [cursorOpen EXCEPT ![b] = TRUE]
     /\ formatType' = [formatType EXCEPT ![b] = "sequoia"]
     /\ inMemory'  = [inMemory  EXCEPT ![b] = dbState]
     /\ flushSeen' = [flushSeen EXCEPT ![b] = dbRevision]
-    /\ UNCHANGED <<dbState, dbRevision, pendingEvents, wrote>>
+    /\ pendingEvents' = [pendingEvents EXCEPT ![b] = << >>]
+    /\ UNCHANGED <<dbState, dbRevision, wrote, dbDeleted>>
 
 \* Close cursor: disconnect due to network error or other failure.
 CloseCursor(b) ==
     /\ cursorOpen[b]
     /\ cursorOpen' = [cursorOpen EXCEPT ![b] = FALSE]
     /\ formatType' = [formatType EXCEPT ![b] = "disconnected"]
-    /\ UNCHANGED <<dbState, dbRevision, inMemory, pendingEvents, flushSeen, wrote>>
+    /\ UNCHANGED <<dbState, dbRevision, inMemory, pendingEvents, flushSeen, wrote, dbDeleted>>
 
 (*************************************************************************)
 \* Next-state relation
@@ -195,6 +255,8 @@ Next ==
     \/ AnyProcess
     \/ AnyOpen
     \/ AnyClose
+    \/ DeleteState
+    \/ ReinitializeState
 
 (*************************************************************************)
 \* Specification
@@ -218,11 +280,13 @@ PendingRevsOK ==
         \A i \in 1..Len(pendingEvents[b]) :
             pendingEvents[b][i].revision <= dbRevision
 
-\* 2. When a connected bosk has drained its queue, its in-memory state
-\*    must match the database state exactly.
+\* 2. When the database exists and a connected bosk has drained its queue,
+\*    its in-memory state must match the database state exactly.
+\*    Excludes the deletion window (dbDeleted) where inMemory is intentionally stale
+\*    until the next INSERT/REPLACE event arrives.
 ConsistentWhenIdle ==
     \A b \in Bosk :
-        (cursorOpen[b] /\ pendingEvents[b] = << >>)
+        (cursorOpen[b] /\ pendingEvents[b] = << >> /\ ~dbDeleted)
             => inMemory[b] = dbState
 
 \* 3. cursorOpen and formatType are consistent

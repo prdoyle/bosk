@@ -1,14 +1,32 @@
 
+def tlaToolsVersion = 'v1.7.4'
+def tlaToolsUrl = "https://github.com/tlaplus/tlaplus/releases/download/${tlaToolsVersion}/tla2tools.jar"
+def tlaToolsJar = file("libs/tla2tools.jar")
+
 configurations {
 	tlaTools
+}
+
+tasks.register('downloadTlaTools') {
+	description = 'Download tla2tools.jar from the tlaplus GitHub release for TLC model checking'
+	group = 'verification'
+	outputs.file(tlaToolsJar)
+	doLast {
+		if (!tlaToolsJar.exists()) {
+			logger.lifecycle("Downloading tla2tools.jar from {}", tlaToolsUrl)
+			tlaToolsJar.parentFile.mkdirs()
+			tlaToolsJar.withOutputStream { out ->
+				new URL(tlaToolsUrl).withInputStream { it.transferTo(out) }
+			}
+		}
+	}
 }
 
 dependencies {
 	api project(":bosk-core")
 	api libs.mongodb
 	testImplementation libs.testcontainers.mongodb
-	tlaTools files("libs/tla2tools.jar")
-
+	tlaTools files(tlaToolsJar)
 
 	// Allows us to annotate status objects so they're handy to serialize with jackson
 	implementation platform(libs.jackson.bom)
@@ -31,6 +49,7 @@ def tlcWorkers = Runtime.runtime.availableProcessors()
 		classpath = configurations.tlaTools
 		mainClass = 'tlc2.TLC'
 		workingDir = tlaDir
+		dependsOn tasks.named('downloadTlaTools')
 		// -deadlock: report deadlock as error; -workers auto: parallel checking
 		args = ['-config', "BoskMongo_${model}.cfg", 'BoskMongo.tla', '-deadlock', '-workers', "${tlcWorkers}"]
 		ignoreExitValue = false
