@@ -1,8 +1,13 @@
 
+configurations {
+	tlaTools
+}
+
 dependencies {
 	api project(":bosk-core")
 	api libs.mongodb
 	testImplementation libs.testcontainers.mongodb
+	tlaTools files("libs/tla2tools.jar")
 
 
 	// Allows us to annotate status objects so they're handy to serialize with jackson
@@ -12,4 +17,36 @@ dependencies {
 	testImplementation project(":bosk-junit")
 	testImplementation project(":bosk-logback")
 	testImplementation project(":bosk-testing")
+}
+
+// TLA+ model checking tasks
+def tlaDir = file('TLA+')
+def tlcWorkers = Runtime.runtime.availableProcessors()
+
+['Sequoia', 'Pando', 'Refurbish'].each { model ->
+	def taskName = "tlcCheck${model}"
+	tasks.register(taskName, JavaExec) {
+		description = "Run TLC model checker on the $model specification"
+		group = 'verification'
+		classpath = configurations.tlaTools
+		mainClass = 'tlc2.TLC'
+		workingDir = tlaDir
+		// -deadlock: report deadlock as error; -workers auto: parallel checking
+		args = ['-config', "BoskMongo_${model}.cfg", 'BoskMongo.tla', '-deadlock', '-workers', "${tlcWorkers}"]
+		ignoreExitValue = false
+		timeout = Duration.ofMinutes(10)
+	}
+}
+
+tasks.register('tlcCheck') {
+	description = 'Run all TLA+ model checker specifications'
+	group = 'verification'
+	dependsOn tasks.matching { it.name.startsWith('tlcCheck') }
+}
+
+// Ensure TLA+ directory exists
+tasks.register('ensureTlaDir') {
+	doLast {
+		tlaDir.mkdirs()
+	}
 }

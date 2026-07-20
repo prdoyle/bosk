@@ -29,3 +29,7 @@ gradle-app.setting
 
 # I never use this file, and it causes more problems than it solves on Windows with Cygwin
 gradlew.bat
+
+# Bosk-Mongo TLA+ model checking
+bosk-mongo/libs/
+bosk-mongo/TLA+/states/
