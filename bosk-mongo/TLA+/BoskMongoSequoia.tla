@@ -118,11 +118,9 @@ Write(b, w, t, v) ==
        IN
        /\ dbState' = newState
        /\ dbRevision' = newRev
-       \* Queue event for all connected bosks (including the writer's own)
+       \* Queue event for all bosks (models cursor delivery from resume token)
        /\ pendingEvents' = [b2 \in Bosk |->
-            IF cursorOpen[b2]
-            THEN Append(pendingEvents[b2], event)
-            ELSE pendingEvents[b2]]
+            Append(pendingEvents[b2], event)]
        \* Record that this writer has written
        /\ wrote' = [wrote EXCEPT ![<<b, w>>] = TRUE]
        /\ UNCHANGED <<inMemory, cursorOpen, formatType, flushSeen, dbDeleted>>
@@ -208,16 +206,16 @@ ProcessEvent(b) ==
 \* CONNECTION LIFECYCLE actions
 (*************************************************************************)
 \* Open cursor: reload in-memory state from the current DB.
-\* Clear any stale events accumulated during disconnection;
-\* the new cursor delivers only future events.
+\* Stale events accumulated during disconnection remain in the queue
+\* and are either skipped (UPDATE with revision <= flushSeen) or
+\* applied (INSERT/REPLACE), modeling cursor resume-token replay.
 OpenCursor(b) ==
     /\ ~cursorOpen[b]
     /\ cursorOpen' = [cursorOpen EXCEPT ![b] = TRUE]
     /\ formatType' = [formatType EXCEPT ![b] = "sequoia"]
     /\ inMemory'  = [inMemory  EXCEPT ![b] = dbState]
     /\ flushSeen' = [flushSeen EXCEPT ![b] = dbRevision]
-    /\ pendingEvents' = [pendingEvents EXCEPT ![b] = << >>]
-    /\ UNCHANGED <<dbState, dbRevision, wrote, dbDeleted>>
+    /\ UNCHANGED <<dbState, dbRevision, pendingEvents, wrote, dbDeleted>>
 
 \* Close cursor: disconnect due to network error or other failure.
 CloseCursor(b) ==
