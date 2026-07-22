@@ -50,10 +50,30 @@ def tlcWorkers = Runtime.runtime.availableProcessors()
 		mainClass = 'tlc2.TLC'
 		workingDir = tlaDir
 		dependsOn tasks.named('downloadTlaTools')
-		// -deadlock: report deadlock as error; -workers auto: parallel checking
-		args = ['-config', "BoskMongo_${model}.cfg", 'BoskMongo.tla', '-deadlock', '-workers', "${tlcWorkers}"]
+
+		// Incremental build: inputs
+		def metaDir = file("build/tlc/${model}")
+		def successMarker = file("${metaDir}/.tlc-success")
+		def cfgFile = file("${tlaDir}/BoskMongo_${model}.cfg")
+		inputs.files(fileTree(tlaDir).matching { include '*.tla' })
+		inputs.file(cfgFile)
+		inputs.file(tlaToolsJar)
+		inputs.property('tlcArgs', "-deadlock -workers ${tlcWorkers}")
+
+		// Incremental build: outputs
+		outputs.dir(metaDir)
+		outputs.file(successMarker)
+
+		args = ['-config', "BoskMongo_${model}.cfg", 'BoskMongo.tla',
+		        '-deadlock', '-workers', "${tlcWorkers}",
+		        '-metadir', metaDir.absolutePath]
 		ignoreExitValue = false
 		timeout = Duration.ofMinutes(10)
+
+		doLast {
+			successMarker.parentFile.mkdirs()
+			successMarker.text = "TLC completed successfully at ${new Date()}"
+		}
 	}
 }
 
@@ -63,9 +83,3 @@ tasks.register('tlcCheck') {
 	dependsOn tasks.matching { it.name.startsWith('tlcCheck') }
 }
 
-// Ensure TLA+ directory exists
-tasks.register('ensureTlaDir') {
-	doLast {
-		tlaDir.mkdirs()
-	}
-}
