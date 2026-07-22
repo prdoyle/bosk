@@ -9,6 +9,7 @@ import com.mongodb.client.result.UpdateResult;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.UUID;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonInvalidOperationException;
@@ -37,6 +38,8 @@ import works.bosk.util.PerTenantValue.MultiTenant;
 import works.bosk.util.PerTenantValue.NoTenant;
 
 import static org.bson.BsonBoolean.FALSE;
+import static com.mongodb.client.model.Projections.fields;
+import static com.mongodb.client.model.Projections.include;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.dottedFieldNameOf;
 import static works.bosk.drivers.mongo.internal.BsonFormatter.referenceTo;
@@ -122,7 +125,8 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				document.getString("_id"),
 				document.getInt64(DocumentFields.revision.name()),
 				Formatter.getDiagnosticAttributesIfAny(document),
-				document.getDocument(DocumentFields.state.name())
+				document.getDocument(DocumentFields.state.name()),
+				formatter.getEpochFromFullDocument(document)
 			);
 			return new BsonAllState(switch (tenancyModel) {
 				case None _ -> NoTenant.just(bsm);
@@ -158,9 +162,34 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 	}
 
 	@Override
+	@Nullable BsonString readEpoch() {
+		LOGGER.debug("readEpoch");
+		try (MongoCursor<BsonDocument> cursor = collection
+			.findLatest(documentFilter())
+			.projection(fields(include(DocumentFields.epoch.name())))
+			.limit(1)
+			.cursor()
+		) {
+			return cursor.next().getString(DocumentFields.epoch.name(), null);
+		} catch (NoSuchElementException e) {
+			return null;
+		}
+	}
+
+	@Override
 	public void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContentsArg) {
+		initializeCollection(priorContentsArg, null);
+	}
+
+	@Override
+	public void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContentsArg, @Nullable String existingEpoch) {
 		var normalized = normalizePerTenant(priorContentsArg);
 		replaceFlushLocks(normalized.map(StateAndMetadata::revision));
+		if (existingEpoch != null) {
+			epoch = existingEpoch;
+		} else if (epoch == null) {
+			epoch = UUID.randomUUID().toString();
+		}
 		normalized.forEach((tenant, priorContents) -> {
 			// Sequoia has only one document regardless of tenancy
 			BsonValue initialState = formatter.object2bsonValue(priorContents.state(), rootRef.targetType());
@@ -221,6 +250,16 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 					// always be a fullDocument for INSERT events, and probably
 					// also REPLACE. That would imply that this case is impossible.
 					throw new UnprocessableEventException("Missing fullDocument", event.getOperationType());
+				}
+				BsonString eventEpoch = formatter.getEpochFromFullDocument(fullDocument);
+				if (epoch != null && eventEpoch != null && !eventEpoch.getValue().equals(epoch)) {
+					// The database has been externally replaced — the event belongs to a
+					// different document generation. Disconnect instead of applying stale state.
+					// On reconnect, OpenCursor will snapshot the new generation.
+					throw new UnprocessableEventException(
+						"INSERT/REPLACE event has epoch " + eventEpoch.getValue()
+							+ " but driver is on epoch " + epoch,
+						event.getOperationType());
 				}
 				BsonString docId = event.getDocumentKey().getString("_id");
 				BsonDocument attrsBson = fieldTracker.getFieldAsDocument(docId, DocumentFieldTracker.TrackedField.DIAGNOSTICS);

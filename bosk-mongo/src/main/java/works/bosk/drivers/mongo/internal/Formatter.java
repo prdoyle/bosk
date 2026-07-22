@@ -22,6 +22,7 @@ import org.bson.codecs.DecoderContext;
 import org.bson.codecs.EncoderContext;
 import org.bson.io.BasicOutputBuffer;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskContext.Tenant;
@@ -203,6 +204,13 @@ final class Formatter extends BsonFormatter {
 			return null;
 		}
 		return fullDocument.getInt64(DocumentFields.revision.name(), null);
+	}
+
+	@Nullable BsonString getEpochFromFullDocument(BsonDocument fullDocument) {
+		if (fullDocument == null) {
+			return null;
+		}
+		return fullDocument.getString(DocumentFields.epoch.name(), null);
 	}
 
 	MapValue<String> getDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {

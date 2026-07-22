@@ -68,6 +68,12 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 
 	final DocumentFieldTracker fieldTracker = new DocumentFieldTracker();
 	final FlushLock contentsFlushLock;
+	@Nullable volatile String epoch;
+
+	@Override
+	public @Nullable String epoch() {
+		return epoch;
+	}
 
 	public AbstractFormatDriver(
 		RootReference<R> rootRef,
@@ -142,6 +148,11 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 				MapValue<String> diagnosticAttributes = bsm.diagnosticAttributes() == null
 					? MapValue.empty() // It's not clear what missing attributes mean, but using null here would have the effect of leaving the old attributes in place, which seems flaky
 					: formatter.decodeDiagnosticAttributes(bsm.diagnosticAttributes());
+
+				// Record epoch from the first document we encounter
+				if (bsm.epoch() != null) {
+					epoch = bsm.epoch().getValue();
+				}
 
 				return new StateAndMetadata<>(root, revision, diagnosticAttributes);
 			});
@@ -316,6 +327,17 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 */
 	abstract @NonNull PerTenantValue<BsonInt64> readRevisionNumbersToFlush() throws FlushFailureException, InterruptedException;
 
+	/**
+	 * Returns the current epoch stored in the root database document, or {@code null}
+	 * if the document has no epoch field (pre-epoch database).
+	 * <p>
+	 * Subclasses should override this to provide an epoch check in {@link #flush()}.
+	 * The default implementation returns {@code null}, disabling the epoch check.
+	 */
+	@Nullable BsonString readEpoch() throws FlushFailureException, InterruptedException {
+		return null;
+	}
+
 	@Override
 	public void flush() throws IOException, InterruptedException {
 		var revisions = readRevisionNumbersToFlush();
@@ -325,6 +347,18 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		collection.commitTransactionIfAny();
 
 		LOGGER.debug("Revisions to flush: {}", revisions);
+
+		// Check epoch: if the database epoch differs, the document was externally
+		// replaced and we must disconnect.  The in-memory state belongs to a
+		// different document generation and must not be flushed.
+		try {
+			BsonString dbEpoch = readEpoch();
+			if (epoch != null && dbEpoch != null && !dbEpoch.getValue().equals(epoch)) {
+				throw new FlushFailureException("Database epoch mismatch: driver has " + epoch + " but database has " + dbEpoch.getValue());
+			}
+		} catch (RuntimeException e) {
+			throw new FlushFailureException("Failed to read epoch", e);
+		}
 
 		// Wait for tenants that are present in flushLocks.
 		// Any tenant missing from flushLocks must have been deleted after
@@ -392,6 +426,9 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		fieldValues.put(DocumentFields.revision.name(), revision);
 		fieldValues.put(DocumentFields.diagnostics.name(), formatter.encodeDiagnostics(context.getAttributes()));
 
+		if (epoch != null) {
+			fieldValues.put(DocumentFields.epoch.name(), new BsonString(epoch));
+		}
 		return fieldValues;
 	}
 
@@ -406,7 +443,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		BsonString _id,
 		BsonInt64 revision,
 		BsonDocument diagnosticAttributes,
-		BsonDocument state
+		BsonDocument state,
+		@Nullable BsonString epoch
 	){}
 
 	private static final Set<String> ALREADY_WARNED = newSetFromMap(new ConcurrentHashMap<>());

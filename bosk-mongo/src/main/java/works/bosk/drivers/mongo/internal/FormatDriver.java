@@ -5,6 +5,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import java.io.IOException;
 import org.bson.BsonDocument;
+import org.jspecify.annotations.Nullable;
 import works.bosk.BoskContext;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriver;
@@ -79,6 +80,26 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	 * so that a {@link #flush} after a {@link #refurbish} succeeds in waiting for the new state.
 	 */
 	void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContents);
+
+	/**
+	 * Like {@link #initializeCollection(PerTenantValue)} but preserves the given {@code existingEpoch}
+	 * instead of generating a new one. Used during refurbish to carry forward the generation
+	 * identifier so that both this driver and any observing replicas can process the initialization
+	 * events without disconnecting due to an apparent epoch mismatch.
+	 * <p>
+	 * The default implementation simply calls {@link #initializeCollection(PerTenantValue)},
+	 * discarding the epoch.
+	 */
+	default void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContents, @Nullable String existingEpoch) {
+		initializeCollection(priorContents);
+	}
+
+	/**
+	 * The generation identifier of the database contents that this driver manages.
+	 * Returns {@code null} if the driver has not yet loaded or initialized any state,
+	 * or if the database predates the epoch feature.
+	 */
+	default @Nullable String epoch() { return null; }
 
 	/**
 	 * @return a query filter that returns documents corresponding to the roots of the state tree,

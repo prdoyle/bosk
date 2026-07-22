@@ -394,7 +394,10 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.trace("Deleting state documents: {}", deletionFilter);
 				queryCollection.deleteMany(deletionFilter);
 
-				newFormatDriver.initializeCollection(allState.contents());
+				// Carry forward the existing epoch so the new driver can process
+				// the events it generates during initializeCollection without
+				// disconnecting for an apparent epoch mismatch.
+				newFormatDriver.initializeCollection(allState.contents(), formatDriver.epoch());
 			}
 
 			// We must rudely commit the transaction here, since correctness requires that
