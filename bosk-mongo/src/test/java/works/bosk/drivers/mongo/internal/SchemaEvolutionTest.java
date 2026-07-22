@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,11 +91,12 @@ public class SchemaEvolutionTest {
 		Refs fromRefs = fromBosk.buildReferences(Refs.class);
 
 		try (var _ = fromBosk.readSession()) {
-			ManifestInfo expected = fromConfig.expectedManifestInfo();
+			ManifestInfo actualInfo = fromBosk.getDriver(MainDriver.class).loadManifestInfo();
+			ManifestInfo expected = fromConfig.expectedManifestInfo(actualInfo.manifest().epoch());
 			LOGGER.debug("Confirm starting manifest is {}", expected);
 			assertEquals(
 				expected,
-				fromBosk.getDriver(MainDriver.class).loadManifestInfo()
+				actualInfo
 			);
 		}
 
@@ -120,11 +122,12 @@ public class SchemaEvolutionTest {
 
 
 		try (var _ = toBosk.readSession()) {
-			ManifestInfo expected = toConfig.expectedManifestInfo();
+			ManifestInfo actualInfo = toBosk.getDriver(MainDriver.class).loadManifestInfo();
+			ManifestInfo expected = toConfig.expectedManifestInfo(actualInfo.manifest().epoch());
 			LOGGER.debug("Confirm ending manifest is {}", expected);
 			assertEquals(
 				expected,
-				toBosk.getDriver(MainDriver.class).loadManifestInfo()
+				actualInfo
 			);
 		}
 
@@ -160,9 +163,10 @@ public class SchemaEvolutionTest {
 		LOGGER.debug("Verify that the manifest prescribes the preferred format");
 		try (var _ = toBosk.readSession()) {
 			var status = driver.readStatus();
+			var actualManifest = (Manifest) status.manifest().actual();
 			assertEquals(
-				Manifest.forFormat(toConfig.preferredFormat),
-				status.manifest().actual()
+				Manifest.forFormat(toConfig.preferredFormat, actualManifest.epoch()),
+				actualManifest
 			);
 		}
 
@@ -233,9 +237,9 @@ public class SchemaEvolutionTest {
 	}
 
 	record Configuration(DatabaseFormat preferredFormat) {
-		public ManifestInfo expectedManifestInfo() {
+		public ManifestInfo expectedManifestInfo(@Nullable String epoch) {
 			return new ManifestInfo(
-				Manifest.forFormat(preferredFormat),
+				Manifest.forFormat(preferredFormat, epoch),
 				MANIFEST_ID
 			);
 		}

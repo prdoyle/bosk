@@ -15,6 +15,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.concurrent.ExecutionException;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -334,7 +335,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			try (
 				var session = queryCollection.newSession()
 			) {
-				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
+				String epoch = UUID.randomUUID().toString();
+				Manifest manifest = Manifest.forFormat(driverSettings.preferredDatabaseFormat(), epoch);
+				FormatDriver<R> preferredDriver = newPreferredFormatDriver(manifest);
 				PerTenantValue<StateAndMetadata<R>> priorContents = PerTenantValue.from(entireState, root ->
 					new StateAndMetadata<>(root, REVISION_ZERO, diagnosticAttributes));
 				preferredDriver.initializeCollection(priorContents);
@@ -383,7 +386,15 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// that affect event processing (field tracking and flush locks, respectively).
 			synchronized (receiver) {
 				AllState<R> allState = formatDriver.loadAllState();
-				newFormatDriver = newPreferredFormatDriver();
+				Manifest oldManifest = formatDriver.manifest();
+				Manifest newManifest;
+				if (oldManifest == null) {
+					String epoch = UUID.randomUUID().toString();
+					newManifest = Manifest.forFormat(driverSettings.preferredDatabaseFormat(), epoch);
+				} else {
+					newManifest = Manifest.forFormat(driverSettings.preferredDatabaseFormat(), oldManifest.epoch());
+				}
+				newFormatDriver = newPreferredFormatDriver(newManifest);
 
 				// initializeCollection is required to replace the manifest anyway,
 				// so deleting it has no value; and if we do delete it, then every
@@ -394,10 +405,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				LOGGER.trace("Deleting state documents: {}", deletionFilter);
 				queryCollection.deleteMany(deletionFilter);
 
-				// Carry forward the existing epoch so the new driver can process
-				// the events it generates during initializeCollection without
-				// disconnecting for an apparent epoch mismatch.
-				newFormatDriver.initializeCollection(allState.contents(), formatDriver.epoch());
+				newFormatDriver.initializeCollection(allState.contents());
 			}
 
 			// We must rudely commit the transaction here, since correctness requires that
@@ -665,15 +673,15 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		}
 	}
 
-	private FormatDriver<R> newPreferredFormatDriver() {
-		return newFormatDriver(driverSettings.preferredDatabaseFormat());
+	private FormatDriver<R> newPreferredFormatDriver(@Nullable Manifest expectedManifest) {
+		return newFormatDriver(driverSettings.preferredDatabaseFormat(), expectedManifest);
 	}
 
 	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException {
 		LOGGER.debug("Detecting format");
 		Manifest manifest = loadManifest().manifest();
 		DatabaseFormat format = manifest.pando().isPresent()? manifest.pando().get() : SEQUOIA;
-		return newFormatDriver(format);
+		return newFormatDriver(format, manifest);
 	}
 
 	record ManifestInfo(Manifest manifest, @Nullable BsonString manifestId) {}
@@ -719,7 +727,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		}
 	}
 
-	private FormatDriver<R> newFormatDriver(DatabaseFormat format) {
+	private FormatDriver<R> newFormatDriver(DatabaseFormat format, @Nullable Manifest expectedManifest) {
 		return switch (format) {
 			case SequoiaFormat _ -> new SequoiaFormatDriver<>(
 				boskInfo,
@@ -727,7 +735,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				driverSettings,
 				bsonSerializer,
 				flushTimeout,
-				downstream
+				downstream,
+				expectedManifest
 			);
 			case PandoFormat pandoFormat -> new PandoFormatDriver<>(
 				boskInfo,
@@ -736,7 +745,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 				pandoFormat,
 				bsonSerializer,
 				flushTimeout,
-				downstream);
+				downstream,
+				expectedManifest);
 		};
 	}
 

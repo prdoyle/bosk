@@ -307,14 +307,6 @@ public class BsonFormatter {
 		state,
 
 		/**
-		 * A UUID that changes every time the database is re-created.
-		 * Provides a "scope" for the {@link #revision} field.
-		 * For backward compatibility: may be null, in which case revisions from different epochs are indistinguishable
-		 * and certain kinds of rapid create/delete/create cycles might not behave properly.
-		 */
-		epoch,
-
-		/**
 		 * An ever-increasing 64-bit long that is incremented every time the document changes.
 		 */
 		revision,

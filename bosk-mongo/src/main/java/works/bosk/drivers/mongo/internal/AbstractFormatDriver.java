@@ -5,6 +5,7 @@ import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -68,11 +69,11 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 
 	final DocumentFieldTracker fieldTracker = new DocumentFieldTracker();
 	final FlushLock contentsFlushLock;
-	@Nullable volatile String epoch;
+	protected final @Nullable Manifest expectedManifest;
 
 	@Override
-	public @Nullable String epoch() {
-		return epoch;
+	public @Nullable Manifest manifest() {
+		return expectedManifest;
 	}
 
 	public AbstractFormatDriver(
@@ -83,7 +84,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		TransactionalCollection collection,
 		BoskDriver downstream,
 		long flushTimeoutMS,
-		Supplier<EntireState<R>> entireStateSupplier
+		Supplier<EntireState<R>> entireStateSupplier,
+		@Nullable Manifest expectedManifest
 	) {
 		this.rootRef = rootRef;
 		this.context = context;
@@ -95,6 +97,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		this.entireStateSupplier = entireStateSupplier;
 		this.contentsFlushLock = new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS);
 		this.flushLocks = TenantLocal.in(context);
+		this.expectedManifest = expectedManifest;
 	}
 
 	@Override
@@ -148,11 +151,6 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 				MapValue<String> diagnosticAttributes = bsm.diagnosticAttributes() == null
 					? MapValue.empty() // It's not clear what missing attributes mean, but using null here would have the effect of leaving the old attributes in place, which seems flaky
 					: formatter.decodeDiagnosticAttributes(bsm.diagnosticAttributes());
-
-				// Record epoch from the first document we encounter
-				if (bsm.epoch() != null) {
-					epoch = bsm.epoch().getValue();
-				}
 
 				return new StateAndMetadata<>(root, revision, diagnosticAttributes);
 			});
@@ -262,9 +260,12 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * but outside that, we want to be as strict as possible
 	 * so incompatible database changes don't go unnoticed.
 	 */
-	protected void validateManifestEvent(ChangeStreamDocument<BsonDocument> event, Manifest effectiveManifest) throws UnprocessableEventException {
+	protected void validateManifestEvent(ChangeStreamDocument<BsonDocument> event) throws UnprocessableEventException {
 		LOGGER.debug("onManifestEvent({})", event.getOperationType().name());
 		if (event.getOperationType() == INSERT || event.getOperationType() == REPLACE) {
+			if (expectedManifest == null) {
+				throw new UnprocessableEventException("No expected manifest configured for this driver", event.getOperationType());
+			}
 			BsonDocument manifestDoc = requireNonNull(event.getFullDocument());
 			Manifest manifest;
 			try {
@@ -272,7 +273,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			} catch (UnrecognizedFormatException e) {
 				throw new UnprocessableEventException("Invalid manifest", e, event.getOperationType());
 			}
-			if (!manifest.equals(effectiveManifest)) {
+			if (!manifest.equals(expectedManifest)) {
 				throw new UnprocessableEventException("Manifest indicates format has changed", event.getOperationType());
 			}
 		} else {
@@ -328,14 +329,20 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	abstract @NonNull PerTenantValue<BsonInt64> readRevisionNumbersToFlush() throws FlushFailureException, InterruptedException;
 
 	/**
-	 * Returns the current epoch stored in the root database document, or {@code null}
-	 * if the document has no epoch field (pre-epoch database).
-	 * <p>
-	 * Subclasses should override this to provide an epoch check in {@link #flush()}.
-	 * The default implementation returns {@code null}, disabling the epoch check.
+	 * Returns the epoch from the manifest document in the database, or {@code null}
+	 * if the manifest document has no epoch field (pre-epoch database).
 	 */
 	@Nullable BsonString readEpoch() throws FlushFailureException, InterruptedException {
-		return null;
+		try (MongoCursor<BsonDocument> cursor = collection
+			.findLatest(new BsonDocument("_id", MANIFEST_ID))
+			.projection(fields(include("epoch")))
+			.limit(1)
+			.cursor()
+		) {
+			return cursor.next().getString("epoch", null);
+		} catch (NoSuchElementException e) {
+			return null;
+		}
 	}
 
 	@Override
@@ -352,9 +359,10 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		// replaced and we must disconnect.  The in-memory state belongs to a
 		// different document generation and must not be flushed.
 		try {
+			String localEpoch = epoch();
 			BsonString dbEpoch = readEpoch();
-			if (epoch != null && dbEpoch != null && !dbEpoch.getValue().equals(epoch)) {
-				throw new FlushFailureException("Database epoch mismatch: driver has " + epoch + " but database has " + dbEpoch.getValue());
+			if (localEpoch != null && dbEpoch != null && !dbEpoch.getValue().equals(localEpoch)) {
+				throw new FlushFailureException("Database epoch mismatch: driver has " + localEpoch + " but database has " + dbEpoch.getValue());
 			}
 		} catch (RuntimeException e) {
 			throw new FlushFailureException("Failed to read epoch", e);
@@ -425,10 +433,6 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		fieldValues.put(DocumentFields.state.name(), initialState);
 		fieldValues.put(DocumentFields.revision.name(), revision);
 		fieldValues.put(DocumentFields.diagnostics.name(), formatter.encodeDiagnostics(context.getAttributes()));
-
-		if (epoch != null) {
-			fieldValues.put(DocumentFields.epoch.name(), new BsonString(epoch));
-		}
 		return fieldValues;
 	}
 
@@ -443,8 +447,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		BsonString _id,
 		BsonInt64 revision,
 		BsonDocument diagnosticAttributes,
-		BsonDocument state,
-		@Nullable BsonString epoch
+		BsonDocument state
 	){}
 
 	private static final Set<String> ALREADY_WARNED = newSetFromMap(new ConcurrentHashMap<>());

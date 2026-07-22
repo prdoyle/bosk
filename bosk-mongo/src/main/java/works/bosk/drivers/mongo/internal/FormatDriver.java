@@ -82,24 +82,19 @@ sealed public interface FormatDriver<R extends StateTreeNode>
 	void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContents);
 
 	/**
-	 * Like {@link #initializeCollection(PerTenantValue)} but preserves the given {@code existingEpoch}
-	 * instead of generating a new one. Used during refurbish to carry forward the generation
-	 * identifier so that both this driver and any observing replicas can process the initialization
-	 * events without disconnecting due to an apparent epoch mismatch.
-	 * <p>
-	 * The default implementation simply calls {@link #initializeCollection(PerTenantValue)},
-	 * discarding the epoch.
+	 * The manifest document that this driver expects to find in the database.
+	 * Returns {@code null} if the driver is disconnected or has not yet been initialized.
 	 */
-	default void initializeCollection(PerTenantValue<StateAndMetadata<R>> priorContents, @Nullable String existingEpoch) {
-		initializeCollection(priorContents);
-	}
+	default @Nullable Manifest manifest() { return null; }
 
 	/**
 	 * The generation identifier of the database contents that this driver manages.
-	 * Returns {@code null} if the driver has not yet loaded or initialized any state,
-	 * or if the database predates the epoch feature.
+	 * Returns the epoch from {@link #manifest()}, or {@code null} if no manifest is set.
 	 */
-	default @Nullable String epoch() { return null; }
+	default @Nullable String epoch() {
+		var m = manifest();
+		return m == null ? null : m.epoch();
+	}
 
 	/**
 	 * @return a query filter that returns documents corresponding to the roots of the state tree,

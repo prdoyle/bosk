@@ -18,10 +18,13 @@ public record MongoStatus(
 	PerTenantValue<StateStatus> state
 ) {
 	public MongoStatus with(DatabaseFormat preferredFormat, StateTreeNode actualManifest) {
+		// The expected manifest should match the actual manifest's epoch so that
+		// isAllClear() only reports format differences, not epoch differences.
+		String epoch = actualManifest instanceof Manifest m ? m.epoch() : null;
 		return new MongoStatus(
 			this.error,
 			new ManifestStatus(
-				Manifest.forFormat(preferredFormat),
+				Manifest.forFormat(preferredFormat, epoch),
 				actualManifest
 			),
 			this.state

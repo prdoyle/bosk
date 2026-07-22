@@ -115,7 +115,7 @@ final class Formatter extends BsonFormatter {
 			if (detectedFormat == null) {
 				throw new UnrecognizedFormatException("Found none of the supported formats: " + supportedFormats);
 			}
-			HashSet<String> requiredKeys = new HashSet<>(singletonList("version"));
+			HashSet<String> requiredKeys = new HashSet<>(asList("version", "epoch"));
 			if (!keys.equals(requiredKeys)) {
 				keys.removeAll(requiredKeys);
 				if (keys.isEmpty()) {
@@ -204,13 +204,6 @@ final class Formatter extends BsonFormatter {
 			return null;
 		}
 		return fullDocument.getInt64(DocumentFields.revision.name(), null);
-	}
-
-	@Nullable BsonString getEpochFromFullDocument(BsonDocument fullDocument) {
-		if (fullDocument == null) {
-			return null;
-		}
-		return fullDocument.getString(DocumentFields.epoch.name(), null);
 	}
 
 	MapValue<String> getDiagnosticAttributesFromFullDocument(BsonDocument fullDocument) {

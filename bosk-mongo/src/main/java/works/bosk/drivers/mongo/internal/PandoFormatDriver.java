@@ -101,7 +101,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		PandoFormat format,
 		BsonSerializer bsonSerializer,
 		long flushTimeoutMS,
-		BoskDriver downstream
+		BoskDriver downstream,
+		@Nullable Manifest expectedManifest
 	) {
 		super(
 			boskInfo.rootReference(),
@@ -111,7 +112,8 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			collection,
 			downstream,
 			flushTimeoutMS,
-			() -> boskInfo.bosk().entireState()
+			() -> boskInfo.bosk().entireState(),
+			expectedManifest
 		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;
@@ -240,7 +242,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 					// This is just a way of describing what we've found in the database.
 					states.put(documentTenant, new BsonStateAndMetadata(
 						id,
-						revision, diagnosticAttributes, state, null
+						revision, diagnosticAttributes, state
 					));
 
 					partsBuffer.clear();
@@ -391,7 +393,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		BsonInt64 priorContentsRevision = readContentsRevision();
 		BsonInt64 contentsRevision = writeContentsDocument(allPriorContents, priorContentsRevision);
 		finishedContentsRevision(contentsRevision);
-		writeManifest(Manifest.forPando(format));
+		writeManifest(expectedManifest);
 	}
 
 	private void initializeTenant(Established tenant, BsonValue initialState, BsonInt64 newRevision) {
@@ -470,7 +472,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			 * but outside that, we want to be as strict as we can
 			 * so incompatible database changes don't go unnoticed.
 			 */
-			validateManifestEvent(event, Manifest.forPando(format));
+			validateManifestEvent(event);
 			return;
 		}
 		if (isContentsID(bsonDocumentID)) {
