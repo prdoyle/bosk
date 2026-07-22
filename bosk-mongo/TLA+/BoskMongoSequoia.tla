@@ -262,24 +262,35 @@ Write(b, w, t, v) ==
 
 \* Flush: the bosk declares that its in-memory state matches the database.
 \*
-\* This is the core safety mechanism. A flush succeeds only when BOTH
-\* conditions hold:
-\*   1. flushSeen >= dbRevision — the bosk has applied every event up
-\*      to and including the current database revision.
-\*   2. flushEpoch = epoch — the bosk's state belongs to the current
-\*      document generation, not a previous one.
+\* Two branches:
 \*
-\* Condition 2 is the "epoch check" that prevents the bug: after an
-\* external delete+recreate resets the revision counter, flushSeen
-\* might be >= the new dbRevision even though inMemory contains stale
-\* state from the old generation. The epoch check forces the bosk to
-\* wait until it processes the INSERT/REPLACE event (which carries the
-\* new epoch) before it can flush.
+\*   1. Success: flushSeen >= dbRevision AND flushEpoch = epoch.
+\*      The bosk is on the current document generation and has applied
+\*      every event.  Flush succeeds (no-op in the model; in the code
+\*      it signals the waiting writer).
+\*
+\*   2. Epoch mismatch: flushSeen >= dbRevision but flushEpoch # epoch.
+\*      The database has been externally replaced (new generation) but
+\*      the bosk's inMemory still holds stale state.  Instead of
+\*      flushing stale state, the bosk disconnects.  On reconnect
+\*      (OpenCursor) it will snapshot the current database state and
+\*      resume under the new epoch.
+\*
+\*      In the code this maps to: FlushLock sees epoch mismatch and
+\*      throws DisconnectedException; the writer retries after reconnect.
 Flush(b, w) ==
-    /\ formatType[b] = "sequoia"
-    /\ flushSeen[b] >= dbRevision
-    /\ flushEpoch[b] = epoch
-    /\ UNCHANGED vars
+    \/ ( /\ formatType[b] = "sequoia"
+         /\ flushSeen[b] >= dbRevision
+         /\ flushEpoch[b] = epoch
+         /\ UNCHANGED vars )
+    \/ ( /\ formatType[b] = "sequoia"
+         /\ flushSeen[b] >= dbRevision
+         /\ flushEpoch[b] # epoch
+         /\ cursorOpen'  = [cursorOpen  EXCEPT ![b] = FALSE]
+         /\ formatType'  = [formatType  EXCEPT ![b] = "disconnected"]
+         /\ UNCHANGED <<dbState, dbRevision, inMemory, pendingEvents,
+                        flushSeen, epoch, flushEpoch, wrote, dbDeleted,
+                        used>> )
 
 (*************************************************************************)
 \* DATABASE LIFECYCLE actions
@@ -357,16 +368,20 @@ ReinitializeState ==
 \* Process the next change-stream event for bosk b.
 \*
 \* Events are processed strictly in FIFO order (Head of the queue).
-\* The behaviour depends on event type and, for UPDATE events, on
-\* whether the event still belongs to the current generation.
+\* The behaviour depends on event type and, for INSERT/REPLACE and
+\* UPDATE events, on whether the event's epoch matches the bosk's
+\* current generation.
 \*
 \* Key design decision for INSERT/REPLACE events:
-\*   These carry the COMPLETE document state. They always apply,
-\*   regardless of epoch. Processing them updates inMemory to the
-\*   full new state, sets flushSeen to the event's revision, and
-\*   updates flushEpoch to the event's epoch. This is safe because
-\*   an INSERT/REPLACE represents a whole-document replacement that
-\*   supersedes all prior state — there is no conflict to resolve.
+\*   These carry the COMPLETE document state. If the event's epoch
+\*   matches the bosk's current flushEpoch, the bosk is on the same
+\*   generation as the event and applies it normally (updating inMemory,
+\*   flushSeen, and flushEpoch). If the epoch does NOT match, the
+\*   database has been externally replaced: the bosk disconnects instead
+\*   of applying the stale-cross-generation state. On reconnect
+\*   (OpenCursor) it will snapshot the current database state.
+\*   In the code this maps to: onEvent sees epoch mismatch and throws
+\*   UnprocessableEventException; MainDriver catches it and disconnects.
 \*
 \* Key design decision for UPDATE events:
 \*   These carry PARTIAL state (only changed paths). They are only
@@ -377,8 +392,7 @@ ReinitializeState ==
 \*   are also skipped (already seen or superseded).
 \*
 \* DELETE events reset flushSeen to 0 (the document is gone) but leave
-\* inMemory unchanged — the stale state persists until an INSERT/REPLACE
-\* event arrives with a fresh state.
+\* inMemory unchanged — the stale state persists until reconnect.
 ProcessEvent(b) ==
     /\ cursorOpen[b]
     /\ pendingEvents[b] # << >>
@@ -391,14 +405,23 @@ ProcessEvent(b) ==
             /\ flushSeen' = [flushSeen EXCEPT ![b] = 0]
             /\ UNCHANGED <<inMemory, dbState, dbRevision, cursorOpen, formatType,
                           wrote, dbDeleted, epoch, flushEpoch, used>> )
-        \* INSERT/REPLACE: full-state replacement — always apply.
+        \* INSERT/REPLACE: matching epoch — apply normally.
         \/ ( /\ event.type \in {"insert", "replace"}
+             /\ event.epoch = flushEpoch[b]
              /\ pendingEvents' = [pendingEvents EXCEPT ![b] = rest]
              /\ inMemory'  = [inMemory EXCEPT ![b] = event.updated]
              /\ flushSeen' = [flushSeen EXCEPT ![b] = event.revision]
              /\ flushEpoch' = [flushEpoch EXCEPT ![b] = event.epoch]
              /\ UNCHANGED <<dbState, dbRevision, cursorOpen, formatType,
                            wrote, dbDeleted, epoch, used>> )
+        \* INSERT/REPLACE: different epoch — disconnect.
+        \/ ( /\ event.type \in {"insert", "replace"}
+             /\ event.epoch # flushEpoch[b]
+             /\ pendingEvents' = [pendingEvents EXCEPT ![b] = rest]
+             /\ cursorOpen'  = [cursorOpen  EXCEPT ![b] = FALSE]
+             /\ formatType'  = [formatType  EXCEPT ![b] = "disconnected"]
+             /\ UNCHANGED <<dbState, dbRevision, inMemory, flushSeen, epoch,
+                           flushEpoch, wrote, dbDeleted, used>> )
        \* UPDATE: skip if already seen or from a different generation.
        \/ ( /\ event.type = "update"
             /\ (event.revision <= flushSeen[b] \/ event.epoch # flushEpoch[b])
@@ -547,12 +570,14 @@ FormatConsistent ==
 \*    flushSeen and flushEpoch, not the queue). If this holds, then
 \*    Flush(b, w) never succeeds when inMemory is stale.
 \*
-\*    The epoch check (flushEpoch[b] = epoch) is the fix for the
-\*    "epoch problem": after an external replacement resets the revision
+\*    The epoch check (flushEpoch[b] = epoch) prevents the "epoch
+\*    problem": after an external replacement resets the revision
 \*    counter, flushSeen might be >= the new dbRevision even though
-\*    inMemory holds stale data from the old generation. The bosk must
-\*    process the INSERT/REPLACE event (which updates flushEpoch) before
-\*    Flush can succeed.
+\*    inMemory holds stale data from the old generation. When
+\*    flushEpoch[b] # epoch, Flush disconnects instead of succeeding,
+\*    preventing stale state from being flushed downstream.
+\*    On reconnect, OpenCursor snapshots the current database state
+\*    and sets flushEpoch[b] = epoch, restoring consistency.
 FlushConsistent ==
     \A b \in Bosk :
         (cursorOpen[b] /\ flushSeen[b] >= dbRevision /\ flushEpoch[b] = epoch /\ ~dbDeleted)
