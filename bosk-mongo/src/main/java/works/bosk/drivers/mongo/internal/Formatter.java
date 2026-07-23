@@ -2,11 +2,13 @@ package works.bosk.drivers.mongo.internal;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.UpdateDescription;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.bson.BsonBinaryWriter;
 import org.bson.BsonBoolean;
 import org.bson.BsonDocument;
@@ -22,7 +24,6 @@ import org.bson.codecs.DecoderContext;
 import org.bson.codecs.EncoderContext;
 import org.bson.io.BasicOutputBuffer;
 import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.BoskContext.Tenant;
@@ -36,6 +37,7 @@ import works.bosk.drivers.mongo.BsonSerializer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toSet;
 import static works.bosk.ReferenceUtils.rawClass;
 
 /**
@@ -84,6 +86,10 @@ final class Formatter extends BsonFormatter {
 
 	private static final Set<BsonInt32> SUPPORTED_MANIFEST_VERSIONS = Set.of(new BsonInt32(1));
 
+	private static final Set<String> KNOWN_MANIFEST_KEYS = Set.copyOf(Stream.of(Manifest.class.getRecordComponents())
+		.map(RecordComponent::getName)
+		.collect(toSet()));
+
 	//
 	// Helpers to translate Bosk <-> MongoDB
 	//
@@ -115,15 +121,15 @@ final class Formatter extends BsonFormatter {
 			if (detectedFormat == null) {
 				throw new UnrecognizedFormatException("Found none of the supported formats: " + supportedFormats);
 			}
-			HashSet<String> requiredKeys = new HashSet<>(asList("version", "epoch"));
-			if (!keys.equals(requiredKeys)) {
-				keys.removeAll(requiredKeys);
-				if (keys.isEmpty()) {
-					requiredKeys.removeAll(manifest.keySet());
-					throw new UnrecognizedFormatException("Missing keys in manifest: " + requiredKeys);
-				} else {
-					throw new UnrecognizedFormatException("Unrecognized keys in manifest: " + keys);
-				}
+			Set<String> unrecognized = new HashSet<>(keys);
+			unrecognized.removeAll(KNOWN_MANIFEST_KEYS);
+			if (!unrecognized.isEmpty()) {
+				throw new UnrecognizedFormatException("Unrecognized keys in manifest: " + unrecognized);
+			}
+			Set<String> missing = new HashSet<>(singletonList("version"));
+			missing.removeAll(manifest.keySet());
+			if (!missing.isEmpty()) {
+				throw new UnrecognizedFormatException("Missing keys in manifest: " + missing);
 			}
 			if (!SUPPORTED_MANIFEST_VERSIONS.contains(manifest.getInt32("version"))) {
 				throw new UnrecognizedFormatException("Manifest version " + manifest.getInt32("version") + " not supported");
