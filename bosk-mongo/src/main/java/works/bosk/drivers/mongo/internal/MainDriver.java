@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -326,6 +327,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			detectedDriver.onHasBeenApplied(loadedState);
 
 			publishFormatDriver(detectedDriver);
+			// Note: detectFormat already set the generation ID from the manifest
 		} catch (UninitializedCollectionException e) {
 			// We log this at warn because, in production, this is a big deal.
 			// Annoying in tests, so we log it with UNINITIALIZED_COLLECTION_LOGGER so we can selectively disable it.
@@ -334,7 +336,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			try (
 				var session = queryCollection.newSession()
 			) {
-				FormatDriver<R> preferredDriver = newPreferredFormatDriver();
+				FormatDriver<R> preferredDriver = newPreferredFormatDriver(newGenerationID());
 				PerTenantValue<StateAndMetadata<R>> priorContents = PerTenantValue.from(entireState, root ->
 					new StateAndMetadata<>(root, REVISION_ZERO, diagnosticAttributes));
 				preferredDriver.initializeCollection(priorContents);
@@ -383,7 +385,14 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// that affect event processing (field tracking and flush locks, respectively).
 			synchronized (receiver) {
 				AllState<R> allState = formatDriver.loadAllState();
-				newFormatDriver = newPreferredFormatDriver();
+				Optional<Identifier> generation = formatDriver.generationId();
+				if (generation.isEmpty()) {
+					// Note: the expectation for refurbish is that incompatible bosks have been
+					// rotated out, and we can safely rewrite the collection the way we want.
+					// This includes numerous things, including the presence of a generation ID.
+					generation = newGenerationID();
+				}
+				newFormatDriver = newPreferredFormatDriver(generation);
 
 				// initializeCollection is required to replace the manifest anyway,
 				// so deleting it has no value; and if we do delete it, then every
@@ -408,6 +417,10 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		} catch (InvalidCollectionContentsException e) {
 			throw new IOException("Unable to refurbish database collection with invalid contents", e);
 		}
+	}
+
+	private static Optional<Identifier> newGenerationID() {
+		return Optional.empty();
 	}
 
 	@Override
@@ -466,6 +479,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	}
 
 	@Override
+	public Optional<Identifier> generationId() {
+		return formatDriver.generationId();
+	}
+
+	@Override
 	public void refurbish() throws IOException {
 		doRetryableDriverOperation(() -> {
 			refurbishTransaction();
@@ -479,7 +497,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		) {
 			MongoStatus partialResult = detectFormat().readStatus();
 			Manifest manifest = loadManifest().manifest(); // TODO: Avoid loading the manifest again
-			return partialResult.with(driverSettings.preferredDatabaseFormat(), manifest);
+			return partialResult.with(driverSettings.preferredDatabaseFormat(), formatDriver.generationId(), manifest);
 		}
 	}
 
@@ -662,15 +680,14 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		}
 	}
 
-	private FormatDriver<R> newPreferredFormatDriver() {
-		return newFormatDriver(driverSettings.preferredDatabaseFormat());
+	private FormatDriver<R> newPreferredFormatDriver(Optional<Identifier> generation) {
+		return newFormatDriver(generation, driverSettings.preferredDatabaseFormat());
 	}
 
 	private FormatDriver<R> detectFormat() throws UninitializedCollectionException, UnrecognizedFormatException {
 		LOGGER.debug("Detecting format");
 		Manifest manifest = loadManifest().manifest();
-		DatabaseFormat format = manifest.pando().isPresent()? manifest.pando().get() : SEQUOIA;
-		return newFormatDriver(format);
+		return newFormatDriver(manifest.generation(), manifest.pando().isPresent()? manifest.pando().get() : SEQUOIA);
 	}
 
 	record ManifestInfo(Manifest manifest, @Nullable BsonString manifestId) {}
@@ -716,10 +733,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		}
 	}
 
-	private FormatDriver<R> newFormatDriver(DatabaseFormat format) {
+	private FormatDriver<R> newFormatDriver(Optional<Identifier> generation, DatabaseFormat format) {
 		return switch (format) {
 			case SequoiaFormat _ -> new SequoiaFormatDriver<>(
 				boskInfo,
+				generation,
 				queryCollection,
 				driverSettings,
 				bsonSerializer,
@@ -728,6 +746,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			);
 			case PandoFormat pandoFormat -> new PandoFormatDriver<>(
 				boskInfo,
+				generation,
 				queryCollection,
 				driverSettings,
 				pandoFormat,

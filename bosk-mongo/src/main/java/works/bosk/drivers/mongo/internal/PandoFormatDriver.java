@@ -15,6 +15,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -96,6 +97,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 
 	PandoFormatDriver(
 		BoskInfo<R> boskInfo,
+		Optional<Identifier> generationId,
 		TransactionalCollection collection,
 		MongoDriverSettings driverSettings,
 		PandoFormat format,
@@ -108,6 +110,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			boskInfo.context(),
 			boskInfo.tenancyModel(),
 			new Formatter(boskInfo, bsonSerializer),
+			generationId,
 			collection,
 			downstream,
 			flushTimeoutMS,
@@ -391,7 +394,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		BsonInt64 priorContentsRevision = readContentsRevision();
 		BsonInt64 contentsRevision = writeContentsDocument(allPriorContents, priorContentsRevision);
 		finishedContentsRevision(contentsRevision);
-		writeManifest(Manifest.forPando(format));
+		writeManifest(Manifest.forPando(generationId, format));
 	}
 
 	private void initializeTenant(Established tenant, BsonValue initialState, BsonInt64 newRevision) {
@@ -470,7 +473,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			 * but outside that, we want to be as strict as we can
 			 * so incompatible database changes don't go unnoticed.
 			 */
-			validateManifestEvent(event, Manifest.forPando(format));
+			validateManifestEvent(event, Manifest.forPando(generationId(), format));
 			return;
 		}
 		if (isContentsID(bsonDocumentID)) {

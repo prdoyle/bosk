@@ -1,6 +1,8 @@
 package works.bosk.drivers.mongo.status;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.Optional;
+import works.bosk.Identifier;
 import works.bosk.StateTreeNode;
 import works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat;
 import works.bosk.drivers.mongo.internal.Manifest;
@@ -17,11 +19,11 @@ public record MongoStatus(
 	ManifestStatus manifest,
 	PerTenantValue<StateStatus> state
 ) {
-	public MongoStatus with(DatabaseFormat preferredFormat, StateTreeNode actualManifest) {
+	public MongoStatus with(DatabaseFormat preferredFormat, Optional<Identifier> expectedGeneration, StateTreeNode actualManifest) {
 		return new MongoStatus(
 			this.error,
 			new ManifestStatus(
-				Manifest.forFormat(preferredFormat),
+				Manifest.forFormat(expectedGeneration, preferredFormat),
 				actualManifest
 			),
 			this.state

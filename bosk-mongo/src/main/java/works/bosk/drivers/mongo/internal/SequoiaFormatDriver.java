@@ -9,6 +9,7 @@ import com.mongodb.client.result.UpdateResult;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import org.bson.BsonDocument;
 import org.bson.BsonInt64;
 import org.bson.BsonInvalidOperationException;
@@ -52,6 +53,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 
 	SequoiaFormatDriver(
 		BoskInfo<R> boskInfo,
+		Optional<Identifier> generationId,
 		TransactionalCollection collection,
 		MongoDriverSettings driverSettings,
 		BsonSerializer bsonSerializer,
@@ -63,6 +65,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			boskInfo.context(),
 			boskInfo.tenancyModel(),
 			new Formatter(boskInfo, bsonSerializer),
+			generationId,
 			collection,
 			downstream,
 			flushTimeoutMS,
@@ -181,7 +184,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			// Aside from refurbish, it's the only reason we'd want multi-document transactions,
 			// and it's not even a strong reason, because this still works correctly
 			// if interpreted as two separate events.
-			writeManifest(Manifest.forSequoia());
+			writeManifest(Manifest.forSequoia(super.generationId()));
 
 			// Update the state that we "know about"
 			finishedRevision(tenant, newRevision);
@@ -200,7 +203,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			 * but outside that, we want to be as strict as we can
 			 * so incompatible database changes don't go unnoticed.
 			 */
-			validateManifestEvent(event, Manifest.forSequoia());
+			validateManifestEvent(event, Manifest.forSequoia(generationId()));
 			return;
 		}
 		if (!DOCUMENT_FILTER.equals(event.getDocumentKey())) {

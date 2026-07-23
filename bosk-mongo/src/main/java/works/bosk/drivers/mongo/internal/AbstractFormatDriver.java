@@ -5,6 +5,7 @@ import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -25,6 +26,7 @@ import works.bosk.BoskContext;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
 import works.bosk.BoskDriver;
+import works.bosk.Identifier;
 import works.bosk.MapValue;
 import works.bosk.Reference;
 import works.bosk.RootReference;
@@ -59,6 +61,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	final BoskContext context;
 	final TenancyModel tenancyModel;
 	final Formatter formatter;
+	final Optional<Identifier> generationId;
 	final TransactionalCollection collection;
 	final BoskDriver downstream;
 	final long flushTimeoutMS;
@@ -74,6 +77,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		BoskContext context,
 		TenancyModel tenancyModel,
 		Formatter formatter,
+		Optional<Identifier> generationId,
 		TransactionalCollection collection,
 		BoskDriver downstream,
 		long flushTimeoutMS,
@@ -83,12 +87,18 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		this.context = context;
 		this.tenancyModel = tenancyModel;
 		this.formatter = formatter;
+		this.generationId = generationId;
 		this.collection = collection;
 		this.downstream = downstream;
 		this.flushTimeoutMS = flushTimeoutMS;
 		this.entireStateSupplier = entireStateSupplier;
 		this.contentsFlushLock = new FlushLock(REVISION_BEFORE_ANY.longValue(), flushTimeoutMS);
 		this.flushLocks = TenantLocal.in(context);
+	}
+
+	@Override
+	public Optional<Identifier> generationId() {
+		return generationId;
 	}
 
 	@Override

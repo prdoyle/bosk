@@ -1,6 +1,7 @@
 package works.bosk.drivers.mongo.internal;
 
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.bson.BsonDocument;
 import works.bosk.Identifier;
@@ -59,6 +60,11 @@ final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<
 
 	@Override
 	public void onEvent(ChangeStreamDocument<BsonDocument> event) {
+		throw disconnected();
+	}
+
+	@Override
+	public Optional<Identifier> generationId() {
 		throw disconnected();
 	}
 

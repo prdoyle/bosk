@@ -2,11 +2,14 @@ package works.bosk.drivers.mongo;
 
 import com.mongodb.MongoClientSettings;
 import java.io.IOException;
+import java.util.Optional;
 import works.bosk.Bosk;
 import works.bosk.BoskDriver;
 import works.bosk.BoskInfo;
 import works.bosk.DriverFactory;
+import works.bosk.Identifier;
 import works.bosk.StateTreeNode;
+import works.bosk.drivers.mongo.exceptions.DisconnectedException;
 import works.bosk.drivers.mongo.internal.FormatDriver;
 import works.bosk.drivers.mongo.internal.MainDriver;
 import works.bosk.drivers.mongo.status.MongoStatus;
@@ -25,6 +28,14 @@ import works.bosk.drivers.mongo.status.MongoStatus;
 public sealed interface MongoDriver
 	extends BoskDriver
 	permits MainDriver, FormatDriver {
+
+	/**
+	 * @return an ID for the mongo collection.
+	 * Changes when the collection is re-created from scratch, and is otherwise stable.
+	 * @throws IllegalStateException if initialization is still in progress
+	 * @throws DisconnectedException if disconnected
+	 */
+	Optional<Identifier> generationId();
 
 	/**
 	 * Deserializes and re-serializes the entire bosk contents,

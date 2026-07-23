@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.lang.reflect.AnnotatedElement;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -16,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.Bosk;
 import works.bosk.BoskConfig;
+import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.drivers.mongo.MongoDriver;
@@ -90,7 +92,7 @@ public class SchemaEvolutionTest {
 		Refs fromRefs = fromBosk.buildReferences(Refs.class);
 
 		try (var _ = fromBosk.readSession()) {
-			ManifestInfo expected = fromConfig.expectedManifestInfo();
+			ManifestInfo expected = fromConfig.expectedManifestInfo(fromBosk.getDriver(MongoDriver.class).generationId());
 			LOGGER.debug("Confirm starting manifest is {}", expected);
 			assertEquals(
 				expected,
@@ -120,7 +122,7 @@ public class SchemaEvolutionTest {
 
 
 		try (var _ = toBosk.readSession()) {
-			ManifestInfo expected = toConfig.expectedManifestInfo();
+			ManifestInfo expected = toConfig.expectedManifestInfo(driver.generationId());
 			LOGGER.debug("Confirm ending manifest is {}", expected);
 			assertEquals(
 				expected,
@@ -161,7 +163,7 @@ public class SchemaEvolutionTest {
 		try (var _ = toBosk.readSession()) {
 			var status = driver.readStatus();
 			assertEquals(
-				Manifest.forFormat(toConfig.preferredFormat),
+				Manifest.forFormat(driver.generationId(), toConfig.preferredFormat),
 				status.manifest().actual()
 			);
 		}
@@ -233,9 +235,9 @@ public class SchemaEvolutionTest {
 	}
 
 	record Configuration(DatabaseFormat preferredFormat) {
-		public ManifestInfo expectedManifestInfo() {
+		public ManifestInfo expectedManifestInfo(Optional<Identifier> instanceId) {
 			return new ManifestInfo(
-				Manifest.forFormat(preferredFormat),
+				Manifest.forFormat(instanceId, preferredFormat),
 				MANIFEST_ID
 			);
 		}
