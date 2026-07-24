@@ -62,20 +62,20 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
-	void reAddTenant_afterRemove_isNotLost(TestInfo testInfo) throws Exception {
+	void addRemoveReAdd_withEventDelay_reAddNotLost(TestInfo testInfo) throws Exception {
 		var racer = newBosk(testInfo, "ReAddRace",
 			MongoDriverSettings.Testing.builder().eventDelayMS(200).build());
 		addRemoveReAddOrFail(racer.bosk, racer.driver, "reAdd");
 	}
 
 	@Test
-	void addRemoveReAdd_noEventDelay(TestInfo testInfo) throws Exception {
+	void addRemoveReAdd_withoutEventDelay_reAddNotLost(TestInfo testInfo) throws Exception {
 		var racer = newBosk(testInfo, "NoDelay");
 		addRemoveReAddOrFail(racer.bosk, racer.driver, "reAdd");
 	}
 
 	@Test
-	void addRemoveReAdd_twoTenants(TestInfo testInfo) throws Exception {
+	void addRemoveReAdd_withTwoTenants_otherTenantUnaffected(TestInfo testInfo) throws Exception {
 		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
 		TenantId tenantB = Tenant.setTo(Identifier.from("tenantB"));
 
@@ -119,7 +119,7 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
-	void addRemoveReAdd_andReplace(TestInfo testInfo) throws Exception {
+	void addRemoveReAdd_thenReplace_replacementVisible(TestInfo testInfo) throws Exception {
 		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
 
 		var racer = newBosk(testInfo, "FullLifecycle");
@@ -154,7 +154,7 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
-	void replacementAfterRemove_reEnlists(TestInfo testInfo) throws Exception {
+	void submitReplacement_afterRemove_reEnlistsTenant(TestInfo testInfo) throws Exception {
 		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
 
 		var racer = newBosk(testInfo, "ReplacementReEnlist");
@@ -185,7 +185,7 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
-	void registerCreatedTenantInContents(TestInfo testInfo) throws Exception {
+	void conditionalCreation_registersTenantInContents(TestInfo testInfo) throws Exception {
 		// Ensures that creating a tenant using submitConditionalCreation registers it in !contents
 		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
 
@@ -208,7 +208,7 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
-	void addRemoveFlushReAdd(TestInfo testInfo) throws Exception {
+	void addRemoveReAdd_withFlushBetweenSteps_reAddNotLost(TestInfo testInfo) throws Exception {
 		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
 
 		var racer = newBosk(testInfo, "FlushBetween");
@@ -249,7 +249,7 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
-	void conditionalReplacement_againstDeadTenant_doesNotResurrect(TestInfo testInfo) throws Exception {
+	void conditionalReplacement_onDeadTenant_revisionsUnchanged(TestInfo testInfo) throws Exception {
 		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
 
 		var racer = newBosk(testInfo, "CondReplaceDead");
@@ -301,7 +301,7 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 	}
 
 	@Test
-	void conditionalDeletion_againstDeadTenant_doesNotMutateOrphan(TestInfo testInfo) throws Exception {
+	void conditionalDeletion_onDeadTenant_revisionsUnchanged(TestInfo testInfo) throws Exception {
 		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
 
 		var racer = newBosk(testInfo, "CondDeleteDead");
@@ -350,7 +350,7 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 
 	@Test
 	@Slow
-	void collectionDropAndRecreate_resetsContentsFlushLock(TestInfo testInfo) throws Exception {
+	void collectionDroppedAndRecreated_stateReloaded(TestInfo testInfo) throws Exception {
 		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
 
 		// Writer with eventDelayMS to delay the DROP event, creating a window where
