@@ -24,9 +24,11 @@ import works.bosk.drivers.mongo.PandoFormat;
 import works.bosk.logback.BoskLogFilter;
 import works.bosk.logback.ReplayLogsOnFailure;
 import works.bosk.testing.drivers.state.TestEntity;
+import works.bosk.testing.junit.Slow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static works.bosk.drivers.mongo.MongoDriverSettings.TenancyFormat.ID_PREFIX;
 import static works.bosk.drivers.mongo.internal.MainDriver.COLLECTION_NAME;
 import static works.bosk.testing.BoskTestUtils.boskName;
@@ -344,6 +346,61 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 			"!contents revision should not change after conditional deletion on dead tenant");
 		assertEquals(rootRevBefore, rootRevAfter,
 			"Orphan root document revision should not change after conditional deletion on dead tenant");
+	}
+
+	@Test
+	@Slow
+	void collectionDropAndRecreate_resetsContentsFlushLock(TestInfo testInfo) throws Exception {
+		TenantId tenantA = Tenant.setTo(Identifier.from("tenantA"));
+
+		// Writer with eventDelayMS to delay the DROP event, creating a window where
+		// the old FormatDriver is still in place while the database has been recreated
+		var writer = newBosk(testInfo, "Writer",
+			MongoDriverSettings.Testing.builder().eventDelayMS(500).build());
+		Bosk<TestEntity> bosk = writer.bosk;
+		BoskDriver driver = writer.driver;
+
+		// Advance revision counter and contentsFlushLock past the initial state
+		TestEntity rootA = TestEntity.empty(Identifier.from("tenantA"),
+			bosk.rootReference().thenCatalog(TestEntity.class, Path.just(TestEntity.Fields.catalog)));
+		try (var _ = bosk.context().withTenant(tenantA)) {
+			driver.submitConditionalCreation(bosk.rootReference(), rootA);
+		}
+		driver.flush();
+		try (var _ = bosk.context().withTenant(tenantA); var _ = bosk.readSession()) {
+			assertNotNull(bosk.rootReference().valueIfExists(), "tenantA should exist after add");
+		}
+
+		// Drop collection → DROP event arrives at writer's change stream
+		mongoService.client()
+			.getDatabase(driverSettings.database())
+			.getCollection(COLLECTION_NAME)
+			.drop();
+
+		// Replacement Bosk reinitializes the database (new generation, revision 1)
+		// This happens during the eventDelayMS window, while the old FormatDriver
+		// is still the active driver
+		new Bosk<>(
+			boskName("Replacement"),
+			TestEntity.class,
+			PandoTenantReAddTest::emptyMultiTree,
+			BoskConfig.<TestEntity>builder()
+				.tenancyModel(TenancyModel.EXPLICIT)
+				.driverFactory(driverFactory)
+				.build());
+
+		// Flush the original Bosk while the old FormatDriver is still in place.
+		// Without generation checking: reads revision 1 from the new !contents,
+		// which is ≤ contentsFlushLock.alreadySeen, so awaitRevision returns
+		// immediately. No state is loaded. flush() returns normally with stale data.
+		driver.flush();
+
+		// Without the generation fix, the writer's state still has tenantA.
+		// With the fix, the writer detects the generation change and reloads state.
+		try (var _ = bosk.context().withTenant(tenantA); var _ = bosk.readSession()) {
+			assertNull(bosk.rootReference().valueIfExists(),
+				"After collection drop and recreate, writer should no longer have tenantA");
+		}
 	}
 
 	private static long readRevision(MongoCollection<BsonDocument> coll, String documentId) {
