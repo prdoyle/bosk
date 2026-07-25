@@ -39,6 +39,13 @@ public final class ContextScopeDriver implements BoskDriver {
 	}
 
 	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		try (var _ = scopeSupplier.apply(context)) {
+			downstream.submitEntireState(newState);
+		}
+	}
+
+	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		try (var _ = scopeSupplier.apply(context)) {
 			downstream.submitReplacement(target, newValue);

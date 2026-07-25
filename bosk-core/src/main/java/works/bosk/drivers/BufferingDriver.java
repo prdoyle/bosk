@@ -51,6 +51,11 @@ public class BufferingDriver implements BoskDriver {
 	}
 
 	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		enqueue(d -> d.submitEntireState(newState));
+	}
+
+	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		enqueue(d -> d.submitReplacement(target, newValue));
 	}

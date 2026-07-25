@@ -24,6 +24,13 @@ public class RepeatingDriverConformanceTest extends DriverConformanceTest {
 			}
 
 			@Override
+			public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+				for (int i = 0; i < REPS; i++) {
+					downstream.submitEntireState(newState);
+				}
+			}
+
+			@Override
 			public <T> void submitReplacement(Reference<T> target, T newValue) {
 				for (int i = 0; i < REPS; i++) {
 					downstream.submitReplacement(target, newValue);

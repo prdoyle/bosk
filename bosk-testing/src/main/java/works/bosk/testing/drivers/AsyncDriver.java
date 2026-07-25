@@ -34,6 +34,11 @@ public class AsyncDriver implements BoskDriver {
 	}
 
 	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		submitAsyncTask("submitEntireState", () -> downstream.submitEntireState(newState));
+	}
+
+	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		submitAsyncTask("submitReplacement", () -> downstream.submitReplacement(target, newValue));
 	}

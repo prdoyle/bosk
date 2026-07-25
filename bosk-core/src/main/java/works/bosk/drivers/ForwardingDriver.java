@@ -34,6 +34,11 @@ public class ForwardingDriver implements BoskDriver {
 	}
 
 	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		downstream.submitEntireState(newState);
+	}
+
+	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		downstream.submitReplacement(target, newValue);
 	}

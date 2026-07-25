@@ -174,6 +174,12 @@ public class ReplicaSet<R extends StateTreeNode> {
 		}
 
 		@Override
+		public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+			broadcast(r -> r.driver
+				.submitEntireState(newState));
+		}
+
+		@Override
 		public <T> void submitReplacement(Reference<T> target, T newValue) {
 			broadcast(r -> r.driver
 				.submitReplacement(

@@ -57,6 +57,14 @@ public interface BoskDriver {
 	<R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException;
 
 	/**
+	 * Requests that the whole state be replaced by {@code newState}.
+	 * @param <R> the root node type. Must match the root type parameter of the {@link Bosk}.
+	 *
+	 * @see Bosk#entireState()
+	 */
+	<R extends StateTreeNode> void submitEntireState(EntireState<R> newState);
+
+	/**
 	 * Requests that the object referenced by <code>target</code> be changed to <code>newValue</code>.
 	 *
 	 * <p>

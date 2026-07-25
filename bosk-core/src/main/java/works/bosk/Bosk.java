@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
@@ -18,11 +19,15 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import works.bosk.Bosk.LocalDriver.HookRegistration;
+import works.bosk.Bosk.LocalDriver.ReadSession;
+import works.bosk.Bosk.LocalDriver.RootRef;
 import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
@@ -31,6 +36,7 @@ import works.bosk.BoskConfig.TenancyModel.None;
 import works.bosk.BoskContext.Context;
 import works.bosk.BoskContext.Tenant;
 import works.bosk.BoskContext.Tenant.Established;
+import works.bosk.BoskContext.Tenant.NotEstablished;
 import works.bosk.BoskContext.Tenant.TenantId;
 import works.bosk.BoskDriver.EntireState;
 import works.bosk.BoskDriver.EntireState.MultiTree;
@@ -48,6 +54,7 @@ import works.bosk.exceptions.NonexistentReferenceException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.exceptions.ReferenceBindingException;
 import works.bosk.util.Classes;
+import works.bosk.util.PerTenantValue;
 
 import static java.lang.Thread.holdsLock;
 import static java.util.Collections.unmodifiableCollection;
@@ -287,6 +294,14 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		}
 
 		@Override
+		public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+			try (var _ = setupMDC(name(), instanceID())) {
+				checkReplacementAccess(newState);
+				downstream.submitEntireState(newState);
+			}
+		}
+
+		@Override
 		public <T> void submitReplacement(Reference<T> target, T newValue) {
 			try (var _ = setupMDC(name(), instanceID())) {
 				assertTenantEstablished();
@@ -412,6 +427,39 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		public <RR extends StateTreeNode> EntireState<RR> initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
 			return requireNonNull(initialStateFunction.apply(Bosk.this))
 				.cast(rootType);
+		}
+
+		@Override
+		public <RR extends StateTreeNode> void submitEntireState(EntireState<RR> newStateArg) {
+			PerTenantValue<R> newRoots = PerTenantValue.from(
+				newStateArg.cast(rootRef.targetClass()),
+				Function.identity()
+			);
+			EntireState<R> newState = newStateArg.cast(rootRef.targetClass());
+			synchronized (this) {
+				// The trick here is triggering all the right hooks. The actual state replacement operation is trivial.
+
+				// First: delete tenants that have disappeared
+				var priorRoots = PerTenantValue.from(
+					requireNonNull(Bosk.this.currentState, "Bosk must be finished initializing before call to submitEntireState"),
+					Function.identity()
+				);
+				switch (priorRoots) {
+					case PerTenantValue.MultiTenant<R> p when newRoots instanceof PerTenantValue.NoTenant<R>(var newRootMap) -> {
+
+					}
+					case PerTenantValue.MultiTenant<R> p when newRoots instanceof PerTenantValue.MultiTenant<R>(var newRootMap) -> {
+						var toDelete = p.withoutAll(newRootMap.keySet());
+						toDelete.forEach((tenant, _) ->{
+							try (var _ = context.withTenant(tenant)) {
+								tryGraftDeletion(rootRef);
+							}
+						});
+					}
+					default -> { /* nothing to do */ }
+				}
+
+			}
 		}
 
 		@Override
@@ -542,8 +590,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 */
 		private <T> boolean tryGraftReplacement(Reference<T> target, T newValue) {
 			assert holdsLock(this);
-			Path targetPath = target.path();
-			if (targetPath.isEmpty()) {
+			if (target.isRoot()) {
 				// Root replacement = tenant creation/overwrite
 				@SuppressWarnings("unchecked")
 				R newRoot = (R) requireNonNull(newValue);
@@ -587,8 +634,7 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 		 */
 		private <T> boolean tryGraftDeletion(Reference<T> target) {
 			assert holdsLock(this);
-			Path targetPath = target.path();
-			if (targetPath.isEmpty()) {
+			if (target.isRoot()) {
 				// Root deletion = tenant deletion
 				currentState = switch (currentState) {
 					case null -> throw new IllegalStateException("Cannot delete from uninitialized state");
@@ -1583,6 +1629,22 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 	private void assertTenantEstablished() {
 		assert context().getTenant() instanceof Established:
 			"Tenant must be established for driver operations";
+	}
+
+	private <RR extends StateTreeNode> void checkReplacementAccess(EntireState<RR> newValues) {
+		// This isn't just an assert because it's an important integrity check
+		final Tenant contextTenant = context.getTenant();
+		switch (context.tenancyModel()) {
+			case TenancyModel _
+				when contextTenant instanceof NotEstablished _ -> { /* always ok */ }
+			case TenancyModel.None _, TenancyModel.Fixed(var _)
+				when newValues instanceof EntireState.SingleTree<RR> -> { /* ok */ }
+			case TenancyModel.Fixed(var id)
+				when newValues instanceof EntireState.MultiTree<RR>(var map)
+				&& map.keySet().equals(Set.of(Tenant.setTo(id))) -> { /* ok */ }
+			default ->
+				throw new IllegalStateException("Cannot replace value when tenant is " + contextTenant);
+		}
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(Bosk.class);
