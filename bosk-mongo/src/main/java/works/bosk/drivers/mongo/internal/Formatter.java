@@ -114,6 +114,7 @@ final class Formatter extends BsonFormatter {
 			if (detectedFormat == null) {
 				throw new UnrecognizedFormatException("Found none of the supported formats: " + supportedFormats);
 			}
+			keys.remove("generation");
 			HashSet<String> requiredKeys = new HashSet<>(singletonList("version"));
 			if (!keys.equals(requiredKeys)) {
 				keys.removeAll(requiredKeys);

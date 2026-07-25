@@ -29,6 +29,7 @@ import works.bosk.testing.junit.Slow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static works.bosk.drivers.mongo.MongoDriverSettings.TenancyFormat.ID_PREFIX;
 import static works.bosk.drivers.mongo.internal.MainDriver.COLLECTION_NAME;
 import static works.bosk.testing.BoskTestUtils.boskName;
@@ -401,6 +402,7 @@ class PandoTenantReAddTest extends AbstractMongoDriverTest {
 			assertNull(bosk.rootReference().valueIfExists(),
 				"After collection drop and recreate, writer should no longer have tenantA");
 		}
+	}
 	}
 
 	private static long readRevision(MongoCollection<BsonDocument> coll, String documentId) {

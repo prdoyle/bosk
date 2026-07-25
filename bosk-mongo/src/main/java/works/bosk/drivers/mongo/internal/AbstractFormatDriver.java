@@ -334,6 +334,8 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		// or flushing downstream.
 		collection.commitTransactionIfAny();
 
+		detectGenerationChange();
+
 		LOGGER.debug("Revisions to flush: {}", revisions);
 
 		// Wait for tenants that are present in flushLocks.
@@ -381,6 +383,25 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 			).join();
 		} catch (InterruptedException e) {
 			currentThread().interrupt();
+		}
+	}
+
+	private void detectGenerationChange() throws RevisionFieldDisruptedException {
+		if (generationId.isEmpty()) return;
+
+		try (MongoCursor<BsonDocument> cursor = collection
+			.findLatest(new BsonDocument("_id", MANIFEST_ID))
+			.cursor()
+		) {
+			if (!cursor.hasNext()) return;
+			Manifest manifest = formatter.decodeManifest(cursor.next());
+			Optional<Identifier> dbGen = manifest.generation();
+			if (dbGen.isPresent() && !dbGen.get().equals(generationId.get())) {
+				throw new RevisionFieldDisruptedException(
+					"Database generation changed from " + generationId.get() + " to " + dbGen.get());
+			}
+		} catch (UnrecognizedFormatException e) {
+			throw new RevisionFieldDisruptedException("Unable to decode manifest during generation check", e);
 		}
 	}
 

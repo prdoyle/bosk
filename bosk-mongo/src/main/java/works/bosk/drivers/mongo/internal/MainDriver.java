@@ -15,6 +15,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -420,7 +421,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	}
 
 	private static Optional<Identifier> newGenerationID() {
-		return Optional.empty();
+		return Optional.of(Identifier.from(UUID.randomUUID().toString()));
 	}
 
 	@Override
