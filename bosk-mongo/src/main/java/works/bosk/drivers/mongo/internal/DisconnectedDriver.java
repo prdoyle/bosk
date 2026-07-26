@@ -13,6 +13,12 @@ import works.bosk.util.PerTenantValue;
 @RequiredArgsConstructor
 final class DisconnectedDriver<R extends StateTreeNode> implements FormatDriver<R> {
 	private final Throwable reason;
+
+	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		throw disconnected();
+	}
+
 	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		throw disconnected();

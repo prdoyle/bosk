@@ -11,6 +11,7 @@ import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.testing.drivers.operations.ConditionalCreation;
 import works.bosk.testing.drivers.operations.DriverOperation;
 import works.bosk.testing.drivers.operations.FlushOperation;
@@ -54,6 +55,11 @@ public class ReportingDriver implements BoskDriver {
 	@Override
 	public <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		return downstream.initialState(rootType);
+	}
+
+	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		throw new NotYetImplementedException("submitEntireState");
 	}
 
 	@Override

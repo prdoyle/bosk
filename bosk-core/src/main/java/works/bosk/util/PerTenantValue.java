@@ -1,6 +1,5 @@
 package works.bosk.util;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -52,10 +51,9 @@ public sealed interface PerTenantValue<T> {
 	}
 
 	/**
-	 * A value that does not specify tenant information.
-	 * Usually suitable only for {@link works.bosk.BoskConfig.TenancyModel.Implicit implicit} tenancy models,
-	 * but could also represent one tenant's value in situations where the tenant either doesn't matter
-	 * or is known in some other way.
+	 * Not a multitenant situation: the {@link Tenant} is {@link Tenant#NONE NONE}
+	 * and there's exactly one {@code value}.
+	 * Not suitable for {@link works.bosk.BoskConfig.TenancyModel.Fixed Fixed} tenancy model.
 	 */
 	record NoTenant<T>(T value) implements PerTenantValue<T> {
 		@Override
@@ -98,7 +96,8 @@ public sealed interface PerTenantValue<T> {
 	}
 
 	/**
-	 * Zero or more values, each associated with a tenant ID.
+	 * Multitenant situation: there are zero or more tenants, each with its
+	 * own version of the data.
 	 * <p>
 	 * Tenants are ordered by their ID.
 	 */
@@ -177,10 +176,6 @@ public sealed interface PerTenantValue<T> {
 
 		public MultiTenant<T> without(TenantId key) {
 			return new MultiTenant<>(treePMap().minus(key));
-		}
-
-		public MultiTenant<T> withoutAll(Collection<TenantId> keys) {
-			return new MultiTenant<>(treePMap().minusAll(keys));
 		}
 
 		public static <IN, OUT> Collector<IN, ?, MultiTenant<OUT>> multiTenant(Function<IN, TenantId> tenantMapper, Function<IN, OUT> valueMapper) {

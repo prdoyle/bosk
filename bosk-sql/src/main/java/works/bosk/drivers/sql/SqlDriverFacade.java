@@ -7,6 +7,7 @@ import works.bosk.Identifier;
 import works.bosk.Reference;
 import works.bosk.StateTreeNode;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.jackson.JacksonSerializer;
 
 import static java.util.Objects.requireNonNull;
@@ -36,6 +37,12 @@ class SqlDriverFacade implements SqlDriver {
 	public <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		LOGGER.debug("initialState({})", rootType);
 		return impl.initialState(rootType);
+	}
+
+	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		LOGGER.debug("submitEntireState");
+		throw new NotYetImplementedException("submitEntireState");
 	}
 
 	@Override

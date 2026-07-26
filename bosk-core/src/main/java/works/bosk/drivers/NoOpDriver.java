@@ -24,6 +24,7 @@ public class NoOpDriver implements BoskDriver {
 		throw new UnsupportedOperationException();
 	}
 
+	@Override public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) { }
 	@Override public <T> void submitReplacement(Reference<T> target, T newValue) { }
 	@Override public <T> void submitConditionalReplacement(Reference<T> target, T newValue, Reference<Identifier> precondition, Identifier requiredValue) { }
 	@Override public <T> void submitConditionalCreation(Reference<T> target, T newValue) { }

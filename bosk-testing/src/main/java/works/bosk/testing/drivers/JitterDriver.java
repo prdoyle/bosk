@@ -50,6 +50,12 @@ public final class JitterDriver implements BoskDriver {
 	}
 
 	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		sleep();
+		downstream.submitEntireState(newState);
+	}
+
+	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		sleep();
 		downstream.submitReplacement(target, newValue);

@@ -35,6 +35,13 @@ final class ReceiverDriver implements OpenTelemetryDriver {
 	}
 
 	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		try (var _ = Utils.otelContextFromDiagnosticAttributes(context).makeCurrent()) {
+			downstream.submitEntireState(newState);
+		}
+	}
+
+	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		try (var _ = Utils.otelContextFromDiagnosticAttributes(context).makeCurrent()) {
 			downstream.submitReplacement(target, newValue);

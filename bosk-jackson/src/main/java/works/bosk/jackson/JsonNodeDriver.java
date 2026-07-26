@@ -52,13 +52,17 @@ public class JsonNodeDriver implements BoskDriver {
 	@Override
 	public synchronized <R extends StateTreeNode> EntireState<R> initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
 		var result = downstream.initialState(rootType);
-		contents = switch (result) {
-			case SingleTree(var r) -> NoTenant.just(mapper.convertValue(r, JsonNode.class));
-			case MultiTree(var tenantRoots) -> tenantRoots.entrySet().stream()
-				.collect(MultiTenant.withValues(v -> mapper.convertValue(v, JsonNode.class)));
-		};
+		setEntireState(result);
 		traceCurrentState("After initialState");
 		return result;
+	}
+
+	@Override
+	public synchronized <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		traceCurrentState("Before submitEntireState");
+		setEntireState(newState);
+		downstream.submitEntireState(newState);
+		traceCurrentState("After submitEntireState");
 	}
 
 	@Override
@@ -162,9 +166,16 @@ public class JsonNodeDriver implements BoskDriver {
 		};
 	}
 
-
 	private String contentsPrettyString() {
 		return mapper.convertValue(contents, JsonNode.class).toPrettyString();
+	}
+
+	private <R extends StateTreeNode> void setEntireState(EntireState<R> entireState) {
+		contents = switch (entireState) {
+			case SingleTree(var r) -> NoTenant.just(mapper.convertValue(r, JsonNode.class));
+			case MultiTree(var tenantRoots) -> tenantRoots.entrySet().stream()
+				.collect(MultiTenant.withValues(v -> mapper.convertValue(v, JsonNode.class)));
+		};
 	}
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(JsonNodeDriver.class);

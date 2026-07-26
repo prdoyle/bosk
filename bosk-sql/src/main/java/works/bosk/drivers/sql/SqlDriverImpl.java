@@ -340,6 +340,11 @@ class SqlDriverImpl implements SqlDriver {
 	}
 
 	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		throw new NotYetImplementedException("submitEntireState");
+	}
+
+	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		LOGGER.debug("submitReplacement({}, {})", target, newValue);
 		try (

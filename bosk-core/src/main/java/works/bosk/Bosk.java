@@ -19,15 +19,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import works.bosk.Bosk.LocalDriver.HookRegistration;
-import works.bosk.Bosk.LocalDriver.ReadSession;
-import works.bosk.Bosk.LocalDriver.RootRef;
 import works.bosk.BoskConfig.TenancyModel;
 import works.bosk.BoskConfig.TenancyModel.Explicit;
 import works.bosk.BoskConfig.TenancyModel.Fixed;
@@ -54,7 +50,6 @@ import works.bosk.exceptions.NonexistentReferenceException;
 import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.exceptions.ReferenceBindingException;
 import works.bosk.util.Classes;
-import works.bosk.util.PerTenantValue;
 
 import static java.lang.Thread.holdsLock;
 import static java.util.Collections.unmodifiableCollection;
@@ -431,34 +426,66 @@ public class Bosk<R extends StateTreeNode> implements BoskInfo<R> {
 
 		@Override
 		public <RR extends StateTreeNode> void submitEntireState(EntireState<RR> newStateArg) {
-			PerTenantValue<R> newRoots = PerTenantValue.from(
-				newStateArg.cast(rootRef.targetClass()),
-				Function.identity()
-			);
 			EntireState<R> newState = newStateArg.cast(rootRef.targetClass());
 			synchronized (this) {
-				// The trick here is triggering all the right hooks. The actual state replacement operation is trivial.
-
-				// First: delete tenants that have disappeared
-				var priorRoots = PerTenantValue.from(
-					requireNonNull(Bosk.this.currentState, "Bosk must be finished initializing before call to submitEntireState"),
-					Function.identity()
-				);
-				switch (priorRoots) {
-					case PerTenantValue.MultiTenant<R> p when newRoots instanceof PerTenantValue.NoTenant<R>(var newRootMap) -> {
-
-					}
-					case PerTenantValue.MultiTenant<R> p when newRoots instanceof PerTenantValue.MultiTenant<R>(var newRootMap) -> {
-						var toDelete = p.withoutAll(newRootMap.keySet());
-						toDelete.forEach((tenant, _) ->{
-							try (var _ = context.withTenant(tenant)) {
-								tryGraftDeletion(rootRef);
-							}
-						});
-					}
-					default -> { /* nothing to do */ }
+				// TODO: we ought to validate first
+				EntireState<R> priorState = Bosk.this.currentState;
+				if (priorState == null) {
+					throw new IllegalStateException("Bosk is stil initializing");
 				}
 
+				// The actual state replacement operation is trivial.
+				Bosk.this.currentState = newState;
+
+				// Now, the trick is calling all the right hooks
+				switch (tenancyModel()) {
+					case None _ -> {
+						if (newState instanceof SingleTree(var _) && priorState instanceof SingleTree(var priorRoot)) {
+							queueHooks(rootRef, priorRoot);
+						} else {
+							throw new IllegalArgumentException("Unexpected state for Implicit tenancy model");
+						}
+					}
+					case Fixed(var requiredTenant) -> {
+						// This can tolerate SingleTree or MultiTree with a single key that matches the required tenant ID
+						// TODO: validate newState
+						var priorRoot = switch (priorState) {
+							case EntireState.SingleTree<R>(var root) -> root;
+							case EntireState.MultiTree<R>(var roots) -> {
+								if (roots.keySet().equals(Set.of(new TenantId(requiredTenant)))) {
+									yield roots.firstEntry().getValue();
+								} else {
+									throw new IllegalArgumentException("TODO");
+								}
+							}
+						};
+						queueHooks(rootRef, priorRoot);
+					}
+					case Explicit _ -> {
+						if (newState instanceof MultiTree<R>(var newRoots)
+							&& priorState instanceof MultiTree(var priorRoots)) {
+
+							// First deletions, in reverse order
+							priorRoots.reversed().forEach((tenant, priorRoot) -> {
+								if (!newRoots.containsKey(tenant)) {
+									try (var _ = context.withTenant(tenant)) {
+										queueHooks(rootRef, priorRoot);
+									}
+								}
+							});
+
+							// Then added/modified tenants
+							newRoots.keySet().forEach(tenant -> {
+								try (var _ = context().withTenant(tenant)) {
+									queueHooks(rootRef, priorRoots.get(tenant));
+								}
+							});
+
+						} else {
+							throw new IllegalArgumentException("Unexpected state for Explicit tenancy model");
+						}
+					}
+				}
 			}
 		}
 

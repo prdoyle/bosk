@@ -45,6 +45,7 @@ import works.bosk.drivers.mongo.exceptions.InitialStateFailureException;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
 import works.bosk.util.PerTenantValue;
 import works.bosk.util.PerTenantValue.NoTenant;
@@ -408,6 +409,14 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		} catch (InvalidCollectionContentsException e) {
 			throw new IOException("Unable to refurbish database collection with invalid contents", e);
 		}
+	}
+
+	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		doRetryableDriverOperation(()->{
+			throw new NotYetImplementedException("Polyfills?");
+//			formatDriver.submitEntireState(newState);
+		}, "submitEntireState()", newState.getClass().getSimpleName());
 	}
 
 	@Override

@@ -52,6 +52,7 @@ import works.bosk.boson.types.DataType;
 import works.bosk.bosonSerializer.BosonSerializer;
 import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.jackson.JacksonSerializer;
 import works.bosk.jackson.JacksonSerializerConfiguration;
 
@@ -281,6 +282,11 @@ public abstract class AbstractRoundTripTest extends AbstractBoskTest {
 
 		protected PreprocessingDriver(BoskDriver downstream) {
 			this.downstream = downstream;
+		}
+
+		@Override
+		public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+			throw new NotYetImplementedException("submitEntireState");
 		}
 
 		@Override

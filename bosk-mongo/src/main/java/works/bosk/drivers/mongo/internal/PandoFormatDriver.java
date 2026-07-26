@@ -132,6 +132,11 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 	}
 
 	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		throw new NotYetImplementedException("submitEntireState");
+	}
+
+	@Override
 	public <T> void submitReplacement(Reference<T> target, T newValue) {
 		doReplacement(target, newValue);
 	}

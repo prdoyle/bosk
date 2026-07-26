@@ -32,6 +32,7 @@ import works.bosk.drivers.mongo.BsonSerializer;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 import works.bosk.drivers.mongo.internal.BsonFormatter.DocumentFields;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.NotYetImplementedException;
 import works.bosk.util.PerTenantValue;
 import works.bosk.util.PerTenantValue.MultiTenant;
 import works.bosk.util.PerTenantValue.NoTenant;
@@ -73,6 +74,11 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 				"SequoiaFormat does not support " + boskInfo.tenancyModel());
 		}
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
+	}
+
+	@Override
+	public <R extends StateTreeNode> void submitEntireState(EntireState<R> newState) {
+		throw new NotYetImplementedException("submitEntireState");
 	}
 
 	@Override
