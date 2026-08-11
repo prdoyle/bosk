@@ -395,10 +395,11 @@ public class MongoDriverRecoveryTest extends AbstractMongoDriverTest {
 
 		Bosk<TestEntity> bosk = new Bosk<>(boskName(getClass().getSimpleName()), TestEntity.class, AbstractMongoDriverTest::initialState, BoskConfig.<TestEntity>builder().driverFactory(driverFactory).build());
 
+		// The newly created bosk must have the database contents, not the fallback initial state.
+		// flush() waits through any transient unavailability until the state is loaded.
+		bosk.driver().flush();
+
 		try (var _ = bosk.readSession()) {
-			// Note: with very short timescales, this assertion can fail because the newly created bosk
-			// times out trying to read the database contents and instead uses AbstractMongoDriverTest::initialState.
-			// This is actually valid behaviour for a sufficiently impatient user.
 			assertEquals(beforeState, bosk.rootReference().value());
 		}
 
