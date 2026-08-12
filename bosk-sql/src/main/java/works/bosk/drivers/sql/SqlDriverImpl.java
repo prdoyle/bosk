@@ -525,9 +525,12 @@ class SqlDriverImpl implements SqlDriver {
 	private JsonNode readState(Connection connection) {
 		String json;
 		try {
+			// Lock the state row until commit so that concurrent submissions
+			// serialize on it instead of silently overwriting each other's writes
 			json = using(connection)
 				.select(STATE)
 				.from(BOSK)
+				.forUpdate()
 				.fetchOptional(STATE)
 				.orElseThrow(() -> new NotYetImplementedException("No state found"));
 		} catch (RuntimeException e) {
