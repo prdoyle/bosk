@@ -79,9 +79,25 @@ class SqlDriverImpl implements SqlDriver {
 
 	private final ScheduledExecutorService listener;
 
+	/**
+	 * Records the value of {@link #TEST_HOOKS} as it was at the time of the
+	 * constructor call. See {@link TestHooks}.
+	 */
+	final TestHooks testHooks = TEST_HOOKS.get();
+
 	private volatile String epoch;
 
 	private final AtomicLong lastChangeSubmittedDownstream = new AtomicLong(-1);
+
+	/**
+	 * Allows tests to install test hooks controlling the driver's internals.
+	 * <p>
+	 * This works because {@code SqlDriverImpl} is instantiated on the same
+	 * thread as the {@code Bosk}: the hooks are read here and captured at
+	 * construction, so they apply to every thread that later does database
+	 * work. See {@link TestHooks}.
+	 */
+	static final ThreadLocal<TestHooks> TEST_HOOKS = ThreadLocal.withInitial(TestHooks::noop);
 
 	SqlDriverImpl(
 		SqlDriverSettings settings,
@@ -517,6 +533,7 @@ class SqlDriverImpl implements SqlDriver {
 		} catch (RuntimeException e) {
 			throw new IllegalStateException("Unexpected error reading state from database", e);
 		}
+		testHooks.afterStateRead().run();
 		try {
 			return mapper.readTree(json);
 		} catch (JacksonException e) {
