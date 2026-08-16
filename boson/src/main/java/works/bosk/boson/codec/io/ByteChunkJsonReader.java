@@ -216,7 +216,43 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 	@Override
 	public void skipToEndOfString() {
-		while (nextStringChar() >= 0) {}
+		if (currentChunk == null) {
+			// The opening quote was the last byte of the input: an unterminated string.
+			while (nextStringChar() >= 0) {}
+			return;
+		}
+		while (true) {
+			if (currentChunkPos + Swar.BYTES > currentChunk.stop()) {
+				doCarryover();
+				if (currentChunkPos + Swar.BYTES > currentChunk.stop()) {
+					// Still not enough contiguous bytes to scan a whole word
+					// (the end of the input, or a pathologically small chunk).
+					// Finish character-by-character; this also throws for an
+					// unterminated string.
+					while (nextStringChar() >= 0) {}
+					return;
+				}
+			}
+
+			// Scan a whole word for the first byte that ends or complicates the string:
+			// a quote, a backslash, a control character, or a non-ASCII byte.
+			long word = Swar.loadLong(currentChunk.bytes(), currentChunkPos);
+			long stop = Swar.hasvalue(word, QUOTE)
+				| Swar.hasvalue(word, BACKSLASH)
+				| Swar.hasless(word, 0x20)
+				| Swar.hasHighBit(word);
+			if (stop != 0) {
+				// Advance to the first stop byte and let nextStringChar handle it:
+				// the closing quote (returns END_OF_STRING), an escape sequence,
+				// a control character (throws), or a non-ASCII character.
+				currentChunkPos += Swar.firstByteOffset(stop);
+				if (nextStringChar() < 0) {
+					return;
+				}
+			} else {
+				currentChunkPos += Swar.BYTES;
+			}
+		}
 	}
 
 	@Override
