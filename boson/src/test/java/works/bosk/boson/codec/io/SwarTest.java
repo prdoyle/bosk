@@ -58,6 +58,13 @@ class SwarTest {
 	}
 
 	@Test
+	void hasHighBit_isExact() {
+		for (long word : sampleWords()) {
+			assertEquals(exactMask(word, b -> (b & 0x80) != 0), Swar.hasHighBit(word));
+		}
+	}
+
+	@Test
 	void firstByteOffset_findsLowestSetHighBit() {
 		assertEquals(-1, Swar.firstByteOffset(0));
 		for (int byteIndex = 0; byteIndex < Swar.BYTES; byteIndex++) {
@@ -76,6 +83,17 @@ class SwarTest {
 			assertEquals(firstGenuine, Swar.firstByteOffset(mask),
 				"First flagged byte must be a genuine match");
 		}
+	}
+
+	private static long exactMask(long word, IntPredicate byteMatches) {
+		long mask = 0;
+		for (int i = 0; i < Swar.BYTES; i++) {
+			int b = (int) ((word >>> (8 * i)) & 0xFF);
+			if (byteMatches.test(b)) {
+				mask |= 1L << (8 * i + 7);
+			}
+		}
+		return mask;
 	}
 
 	private static int firstGenuineMatch(long word, IntPredicate byteMatches) {

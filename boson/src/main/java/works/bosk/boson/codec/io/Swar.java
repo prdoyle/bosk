@@ -69,6 +69,14 @@ final class Swar {
 	}
 
 	/**
+	 * Bit 7 of each byte set iff that byte is non-ASCII, i.e. its high bit is set.
+	 * Unlike the other helpers, this one is exact because it involves no arithmetic.
+	 */
+	static long hasHighBit(long word) {
+		return word & HIGH_BITS;
+	}
+
+	/**
 	 * The offset of the first byte with bit 7 set, or -1 if no byte has bit 7 set.
 	 */
 	static int firstByteOffset(long mask) {

@@ -308,6 +308,21 @@ public final class ByteChunkJsonReader implements JsonReader {
 		byte[] buf = currentChunk.bytes();
 		int limit = currentChunk.stop();
 
+		// Scan whole words for the first byte that could end the fast path:
+		// a quote, a backslash, a control character, or a non-ASCII byte.
+		while (currentPos + Swar.BYTES <= limit) {
+			long word = Swar.loadLong(buf, currentPos);
+			long stop = Swar.hasvalue(word, QUOTE)
+				| Swar.hasvalue(word, BACKSLASH)
+				| Swar.hasless(word, 0x20)
+				| Swar.hasHighBit(word);
+			if (stop != 0) {
+				currentPos += Swar.firstByteOffset(stop);
+				break;
+			}
+			currentPos += Swar.BYTES;
+		}
+
 		while (currentPos < limit) {
 			byte b = buf[currentPos];
 			if (b == '"') {
@@ -545,4 +560,7 @@ public final class ByteChunkJsonReader implements JsonReader {
 		}
 		return codePoint;
 	}
+
+	private static final byte QUOTE = '"';
+	private static final byte BACKSLASH = '\\';
 }
