@@ -221,6 +221,13 @@ public final class ByteChunkJsonReader implements JsonReader {
 			while (nextStringChar() >= 0) {}
 			return;
 		}
+		// Fast path: the closing quote is the very next character. This is the
+		// common case when skipping the tail of an already-matched member name,
+		// and it is cheaper than scanning a whole word for it.
+		if (currentChunkPos < currentChunk.stop() && currentChunk.bytes()[currentChunkPos] == '"') {
+			currentChunkPos++;
+			return;
+		}
 		while (true) {
 			if (currentChunkPos + Swar.BYTES > currentChunk.stop()) {
 				doCarryover();
@@ -344,8 +351,30 @@ public final class ByteChunkJsonReader implements JsonReader {
 		byte[] buf = currentChunk.bytes();
 		int limit = currentChunk.stop();
 
-		// Scan whole words for the first byte that could end the fast path:
-		// a quote, a backslash, a control character, or a non-ASCII byte.
+		// A string short enough to end in the next two words is scanned
+		// character-by-character, which beats word scanning for short strings.
+		int scalarLimit = Math.min(limit, currentPos + Swar.BYTES * 2);
+		while (currentPos < scalarLimit) {
+			byte b = buf[currentPos];
+			if (b == '"') {
+				// Found the end of the string
+				var start = currentChunkPos + 1; // after the opening quote
+				var length = currentPos - start;
+				currentChunkPos = currentPos + 1; // after the closing quote
+				return new String(buf, start, length, US_ASCII);
+			} else if (b == '\\' || b < 0x20) {
+				// Found a byte that can't be directly copied as a char.
+				// The inherited method already has logic for this;
+				// let's just fall back to that.
+				return JsonReader.super.consumeString();
+			} else {
+				currentPos++;
+			}
+		}
+
+		// Longer strings: scan whole words for the first byte that could end
+		// the fast path: a quote, a backslash, a control character, or a
+		// non-ASCII byte.
 		while (currentPos + Swar.BYTES <= limit) {
 			long word = Swar.loadLong(buf, currentPos);
 			long stop = Swar.hasvalue(word, QUOTE)
