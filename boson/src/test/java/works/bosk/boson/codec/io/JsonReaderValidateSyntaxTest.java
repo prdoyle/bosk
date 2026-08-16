@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static works.bosk.boson.codec.Token.END_TEXT;
 import static works.bosk.boson.codec.io.ByteChunkJsonReader.CARRYOVER_BYTES;
+import static works.bosk.boson.codec.io.ByteChunkJsonReader.MIN_CHUNK_SIZE;
 
 /**
  * Tests the {@link JsonReader#validateSyntax(CharSequence)} method.
@@ -28,9 +29,9 @@ public class JsonReaderValidateSyntaxTest {
 	@BeforeEach
 	void setup() {
 		String text = "1234567890".repeat(4).substring(0, 22);
-		reader = parameter.factory().create(text, 11);
+		reader = parameter.factory().create(text, MIN_CHUNK_SIZE);
 
-		assertEquals(5, CARRYOVER_BYTES);
+		assertEquals(7, CARRYOVER_BYTES);
 
 		reader.validateSyntax("1234");
 		reader.validateSyntax("");

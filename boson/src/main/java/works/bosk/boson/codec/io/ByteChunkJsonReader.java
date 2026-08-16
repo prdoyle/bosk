@@ -21,12 +21,14 @@ import static works.bosk.boson.codec.Token.NUMBER;
 public final class ByteChunkJsonReader implements JsonReader {
 	/**
 	 * The number of bytes that must be carried over from one chunk to the next
-	 * to ensure that we can always parse a JSON string character that crosses a chunk boundary.
+	 * to ensure that the reader can always operate on contiguous bytes across a chunk boundary.
 	 * The largest JSON string character is an escaped 4-byte UTF-8 character,
 	 * which takes 6 bytes total (backslash, 'u', and 4 hex digits),
-	 * so we need to carry over at most 5 bytes.
+	 * and SWAR scanning loads 8 bytes at a time into a single word.
+	 * Both require 8 contiguous bytes, and since we only carry over bytes when
+	 * fewer than 8 remain in the current chunk, we never need to carry more than 7.
 	 */
-	static final int CARRYOVER_BYTES = 5;
+	static final int CARRYOVER_BYTES = 7;
 
 	/**
 	 * The purpose of carryover is to ensure we always have at least 1+CARRYOVER_BYTES

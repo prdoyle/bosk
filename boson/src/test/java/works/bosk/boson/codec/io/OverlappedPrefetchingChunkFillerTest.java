@@ -56,12 +56,16 @@ class OverlappedPrefetchingChunkFillerTest {
 	@Test
 	void multipleTinyBuffers() {
 		int bytesPerChunk = MIN_CHUNK_SIZE - CARRYOVER_BYTES;
-		byte[] data = "abcdef".repeat(bytesPerChunk).getBytes(UTF_8);
-		try (ChunkFiller prefetcher = new OverlappedPrefetchingChunkFiller(new ByteArrayInputStream(data), MIN_CHUNK_SIZE, 3)) {
-			for (int i = 0; i < bytesPerChunk; i++) {
+		// A payload exactly one chunk long, so that a chunk's contents
+		// can't be mistaken for its neighbor's.
+		String payload = "0123456789abcdef".substring(0, bytesPerChunk);
+		int numChunks = 3;
+		byte[] data = payload.repeat(numChunks).getBytes(UTF_8);
+		try (ChunkFiller prefetcher = new OverlappedPrefetchingChunkFiller(new ByteArrayInputStream(data), MIN_CHUNK_SIZE, numChunks)) {
+			for (int i = 0; i < numChunks; i++) {
 				ByteChunk buf = prefetcher.nextChunk();
-				assertEquals(6, buf.length());
-				assertArrayEquals("abcdef".getBytes(UTF_8), Arrays.copyOfRange(buf.bytes(), buf.start(), buf.stop()));
+				assertEquals(bytesPerChunk, buf.length());
+				assertArrayEquals(payload.getBytes(UTF_8), Arrays.copyOfRange(buf.bytes(), buf.start(), buf.stop()));
 				prefetcher.recycleChunk(buf);
 			}
 			assertNull(prefetcher.nextChunk());
