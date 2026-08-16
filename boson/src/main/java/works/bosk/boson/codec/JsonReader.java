@@ -275,7 +275,8 @@ public sealed interface JsonReader extends AutoCloseable permits
 	 * consume the quote more directly.
 	 */
 	default void consumeEndOfString() {
-		assert nextStringChar() == END_OF_STRING;
+		int nextChar = nextStringChar();
+		assert nextChar == END_OF_STRING;
 	}
 
 	/**

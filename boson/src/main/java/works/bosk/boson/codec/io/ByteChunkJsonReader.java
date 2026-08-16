@@ -255,7 +255,8 @@ public final class ByteChunkJsonReader implements JsonReader {
 			currentChunkPos++;
 		} else {
 			// Cross-chunk or unexpected: fall back to the default semantics.
-			assert nextStringChar() == END_OF_STRING;
+			int nextChar = nextStringChar();
+			assert nextChar == END_OF_STRING;
 		}
 	}
 
