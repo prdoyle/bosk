@@ -21,14 +21,12 @@ import static works.bosk.boson.codec.Token.NUMBER;
 public final class ByteChunkJsonReader implements JsonReader {
 	/**
 	 * The number of bytes that must be carried over from one chunk to the next
-	 * to ensure that the reader can always operate on contiguous bytes across a chunk boundary.
+	 * to ensure that we can always parse a JSON string character that crosses a chunk boundary.
 	 * The largest JSON string character is an escaped 4-byte UTF-8 character,
 	 * which takes 6 bytes total (backslash, 'u', and 4 hex digits),
-	 * and SWAR scanning loads 8 bytes at a time into a single word.
-	 * Both require 8 contiguous bytes, and since we only carry over bytes when
-	 * fewer than 8 remain in the current chunk, we never need to carry more than 7.
+	 * so we need to carry over at most 5 bytes.
 	 */
-	static final int CARRYOVER_BYTES = 7;
+	static final int CARRYOVER_BYTES = 5;
 
 	/**
 	 * The purpose of carryover is to ensure we always have at least 1+CARRYOVER_BYTES
@@ -216,49 +214,48 @@ public final class ByteChunkJsonReader implements JsonReader {
 
 	@Override
 	public void skipToEndOfString() {
-		if (currentChunk == null) {
-			// The opening quote was the last byte of the input: an unterminated string.
-			while (nextStringChar() >= 0) {}
-			return;
-		}
-		// Fast path: the closing quote is the very next character. This is the
-		// common case when skipping the tail of an already-matched member name,
-		// and it is cheaper than scanning a whole word for it.
-		if (currentChunkPos < currentChunk.stop() && currentChunk.bytes()[currentChunkPos] == '"') {
-			currentChunkPos++;
-			return;
-		}
-		while (true) {
-			if (currentChunkPos + Swar.BYTES > currentChunk.stop()) {
-				doCarryover();
-				if (currentChunkPos + Swar.BYTES > currentChunk.stop()) {
-					// Still not enough contiguous bytes to scan a whole word
-					// (the end of the input, or a pathologically small chunk).
-					// Finish character-by-character; this also throws for an
-					// unterminated string.
-					while (nextStringChar() >= 0) {}
-					return;
-				}
-			}
+		while (nextStringChar() >= 0) {}
+	}
 
-			// Scan a whole word for the first byte that ends or complicates the string:
-			// a quote, a backslash, a control character, or a non-ASCII byte.
+	@Override
+	public void skipStringChars(int n) {
+		if (n < 0) {
+			throw new IllegalArgumentException("Must skip a non-negative number of characters, got " + n);
+		}
+		// Skip runs of clean ASCII bytes in bulk; decode the rest one character at a time.
+		while (n >= Swar.BYTES && currentChunk != null && currentChunkPos + Swar.BYTES <= currentChunk.stop()) {
 			long word = Swar.loadLong(currentChunk.bytes(), currentChunkPos);
 			long stop = Swar.hasvalue(word, QUOTE)
 				| Swar.hasvalue(word, BACKSLASH)
 				| Swar.hasless(word, 0x20)
 				| Swar.hasHighBit(word);
 			if (stop != 0) {
-				// Advance to the first stop byte and let nextStringChar handle it:
-				// the closing quote (returns END_OF_STRING), an escape sequence,
-				// a control character (throws), or a non-ASCII character.
-				currentChunkPos += Swar.firstByteOffset(stop);
-				if (nextStringChar() < 0) {
-					return;
-				}
-			} else {
-				currentChunkPos += Swar.BYTES;
+				break;
 			}
+			currentChunkPos += Swar.BYTES;
+			n -= Swar.BYTES;
+		}
+		for (int i = n; i > 0; --i) {
+			int c = nextStringChar();
+			if (Character.MIN_SURROGATE <= c && c <= Character.MAX_SURROGATE) {
+				// A surrogate pair counts as one character in this context.
+				c = nextStringChar();
+			}
+			if (c < 0) {
+				if (i != 1) {
+					throw new JsonSyntaxException("Unexpected end of string while skipping characters");
+				}
+			}
+		}
+	}
+
+	@Override
+	public void consumeEndOfString() {
+		if (currentChunk != null && currentChunkPos < currentChunk.stop() && currentChunk.bytes()[currentChunkPos] == '"') {
+			currentChunkPos++;
+		} else {
+			// Cross-chunk or unexpected: fall back to the default semantics.
+			assert nextStringChar() == END_OF_STRING;
 		}
 	}
 
