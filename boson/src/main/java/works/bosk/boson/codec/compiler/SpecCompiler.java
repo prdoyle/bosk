@@ -11,7 +11,11 @@ import java.lang.classfile.TypeKind;
 import java.lang.classfile.attribute.SourceFileAttribute;
 import java.lang.classfile.instruction.SwitchCase;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.DynamicCallSiteDesc;
+import java.lang.constant.MethodHandleDesc;
 import java.lang.constant.MethodTypeDesc;
+import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -327,10 +331,6 @@ public class SpecCompiler {
 			return name + "_" + index;
 		}
 
-		void _load(CodeBuilder cb, ClassDesc owner) {
-			cb.getstatic(owner, completeFieldName(), type);
-		}
-
 		/**
 		 * Assumes the value to be stored is on top of the operand stack
 		 */
@@ -435,11 +435,11 @@ public class SpecCompiler {
 			LocalVariable result = allocate(returnKind);
 
 			// Get this MH in the right place on the call stack before things get hairy
-			var afterType = curryAndLoad(node.after().handle(), "after");
+			var after = curryHandle(node.after().handle(), "after");
 
 			// Call `before` leaving its result on the stack
-			var beforeType = curryAndLoad(node.before().handle(), "before");
-			_invokeExact(beforeType);
+			var before = curryHandle(node.before().handle(), "before");
+			_invokeExact(before.type(), before.fieldName());
 
 			// Parse and store the result so we can use it twice
 			_parseAny(node.child());
@@ -448,7 +448,7 @@ public class SpecCompiler {
 			// At this stage, the operand stack already has the `after` handle and the callback context value if any.
 			// The third argument to the `after` handle is the parsed object
 			result.load(codeBuilder);
-			_invokeExact(afterType);
+			_invokeExact(after.type(), after.fieldName());
 
 			// The result of this whole process is the parsed object
 			result.load(codeBuilder);
@@ -456,8 +456,8 @@ public class SpecCompiler {
 
 		private void _parseComputed(ComputedSpec node) {
 			MethodHandle supplier = node.supplier().handle();
-			var mt = curryAndLoad(supplier, supplier.type().returnType().getSimpleName() + "_supplier");
-			_invokeExact(mt);
+			var mh = curryHandle(supplier, supplier.type().returnType().getSimpleName() + "_supplier");
+			_invokeExact(mh.type(), mh.fieldName());
 		}
 
 		private void _parseBigNumber(BigNumberNode node) {
@@ -483,9 +483,9 @@ public class SpecCompiler {
 			} catch (NoSuchMethodException | IllegalAccessException e) {
 				throw new IllegalStateException(e);
 			}
-			var mt = curryAndLoad(valueOf, node.enumType().getSimpleName() + "_valueOf");
+			var mh = curryHandle(valueOf, node.enumType().getSimpleName() + "_valueOf");
 			_parseStringValue();
-			_invokeExact(mt);
+			_invokeExact(mh.type(), mh.fieldName());
 		}
 
 		private void _parseArray(ArrayNode node) {
@@ -501,7 +501,7 @@ public class SpecCompiler {
 			_skipToken(START_ARRAY);
 
 			LocalVariable accumulator = allocate(REFERENCE);
-			_invokeExact(curryAndLoad(acc.creator().handle(), "acc_creator"));
+			_invokeCurried(acc.creator().handle(), "acc_creator");
 			accumulator.store(codeBuilder);
 
 			codeBuilder.labelBinding(loop);
@@ -513,11 +513,11 @@ public class SpecCompiler {
 			);
 
 			codeBuilder.labelBinding(element);
-			var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
+			var integrator = curryHandle(acc.integrator().handle(), "acc_integrator");
 			accumulator.load(codeBuilder);
 			_parseAny(node.elementNode());
-			_invokeExact(integratorType);
-			if (integratorType.returnType() != void.class) {
+			_invokeExact(integrator.type(), integrator.fieldName());
+			if (integrator.type().returnType() != void.class) {
 				accumulator.store(codeBuilder);
 			}
 			codeBuilder.goto_w(loop);
@@ -528,9 +528,9 @@ public class SpecCompiler {
 			codeBuilder.labelBinding(endArray);
 			_skipToken(END_ARRAY);
 
-			var finisherType = curryAndLoad(acc.finisher().handle(), "acc_finisher");
+			var finisher = curryHandle(acc.finisher().handle(), "acc_finisher");
 			accumulator.load(codeBuilder);
-			_invokeExact(finisherType);
+			_invokeExact(finisher.type(), finisher.fieldName());
 
 		}
 
@@ -545,7 +545,7 @@ public class SpecCompiler {
 			_skipToken(START_OBJECT);
 
 			LocalVariable accumulator = allocate(nodeReturnTypeKind(node));
-			_invokeExact(curryAndLoad(acc.creator().handle(), "acc_creator"));
+			_invokeCurried(acc.creator().handle(), "acc_creator");
 			accumulator.store(codeBuilder);
 
 			codeBuilder.labelBinding(loop);
@@ -566,10 +566,10 @@ public class SpecCompiler {
 			LocalVariable handlerResultLocal = null;
 			var keyHandler = acc.keyHandler();
 			boolean hasHandlerResult = !DataType.VOID.equals(keyHandler.returnType());
-			var keyHandlerMt = curryAndLoad(keyHandler.handle(), "keyHandler");
+			var keyHandlerMh = curryHandle(keyHandler.handle(), "keyHandler");
 			accumulator.load(codeBuilder);
 			keyLocal.load(codeBuilder);
-			_invokeExact(keyHandlerMt);
+			_invokeExact(keyHandlerMh.type(), keyHandlerMh.fieldName());
 			if (hasHandlerResult) {
 				TypeKind handlerKind = TypeKind.fromDescriptor(
 					keyHandler.returnType().leastUpperBoundClass().descriptorString());
@@ -582,15 +582,15 @@ public class SpecCompiler {
 			LocalVariable valueLocal = allocate(valueKind);
 			valueLocal.store(codeBuilder);
 
-			var integratorType = curryAndLoad(acc.integrator().handle(), "acc_integrator");
+			var integrator = curryHandle(acc.integrator().handle(), "acc_integrator");
 			accumulator.load(codeBuilder);
 			keyLocal.load(codeBuilder);
 			valueLocal.load(codeBuilder);
 			if (hasHandlerResult) {
 				handlerResultLocal.load(codeBuilder);
 			}
-			_invokeExact(integratorType);
-			if (integratorType.returnType() != void.class) {
+			_invokeExact(integrator.type(), integrator.fieldName());
+			if (integrator.type().returnType() != void.class) {
 				accumulator.store(codeBuilder);
 			}
 			codeBuilder.goto_w(loop);
@@ -601,9 +601,9 @@ public class SpecCompiler {
 			codeBuilder.labelBinding(endObject);
 			_skipToken(END_OBJECT);
 
-			var finisherType = curryAndLoad(acc.finisher().handle(), "acc_finisher");
+			var finisher = curryHandle(acc.finisher().handle(), "acc_finisher");
 			accumulator.load(codeBuilder);
-			_invokeExact(finisherType);
+			_invokeExact(finisher.type(), finisher.fieldName());
 		}
 
 		private void _parseMaybeNull(MaybeNullSpec node) {
@@ -626,17 +626,25 @@ public class SpecCompiler {
 
 		private void _parseAndConvert(RepresentAsSpec node) {
 			MethodHandle fromHandle = node.fromRepresentation().handle();
-			var mt = curryAndLoad(fromHandle, "from" + fromHandle.type().parameterType(0).getSimpleName());
+			var mh = curryHandle(fromHandle, "from" + fromHandle.type().parameterType(0).getSimpleName());
 			_parseAny(node.representation());
-			_invokeExact(mt);
+			_invokeExact(mh.type(), mh.fieldName());
 		}
 
-		private MethodType curryAndLoad(MethodHandle object, String name) {
+		/**
+		 * A curried method handle together with the name of the static field that holds it.
+		 */
+		private record CurriedMethod(MethodType type, String fieldName) {}
+
+		private CurriedMethod curryHandle(MethodHandle object, String name) {
 			MethodHandle sanitized = sanitized(object);
-			currier
-				.curry(name, sanitized, MethodHandle.class.describeConstable().get())
-				._load(codeBuilder, ClassDesc.of(className));
-			return sanitized.type();
+			CurriedValue curriedValue = currier.curry(name, sanitized, MethodHandle.class.describeConstable().get());
+			return new CurriedMethod(sanitized.type(), curriedValue.completeFieldName());
+		}
+
+		private void _invokeCurried(MethodHandle handle, String name) {
+			var mh = curryHandle(handle, name);
+			_invokeExact(mh.type(), mh.fieldName());
 		}
 
 		/**
@@ -670,13 +678,14 @@ public class SpecCompiler {
 			}
 		}
 
-		private void _invokeExact(MethodType type) {
+		private void _invokeExact(MethodType type, String fieldName) {
 			lineInfo(codeBuilder, 1);
-			codeBuilder.invokevirtual(
-				MethodHandle.class.describeConstable().get(),
-				"invokeExact",
-				type.describeConstable().get()
-			);
+			codeBuilder.invokedynamic(
+				DynamicCallSiteDesc.of(
+					BOOTSTRAP_DESC,
+					fieldName, // The call site name; the bootstrap ignores it
+					type.describeConstable().get(),
+					fieldName));
 		}
 
 		private void _parsePrimitiveNumber(PrimitiveNumberNode node) {
@@ -744,7 +753,7 @@ public class SpecCompiler {
 
 			// All the local variables should have their values now.
 			// Time to call the finisher
-			var mt = curryAndLoad(fixedObjectNode.finisher().handle(), "fixedObject_finisher");
+			var finisher = curryHandle(fixedObjectNode.finisher().handle(), "fixedObject_finisher");
 			fixedObjectNode.memberSpecs().forEach((name, node) -> {
 				var local = componentLocalsByName.get(name);
 				local.load(codeBuilder);
@@ -754,7 +763,7 @@ public class SpecCompiler {
 					codeBuilder.checkcast(cd(expectedType));
 				}
 			});
-			_invokeExact(mt);
+			_invokeExact(finisher.type(), finisher.fieldName());
 		}
 
 		private void _loadDefault(TypeKind typeKind) {
@@ -977,6 +986,16 @@ public class SpecCompiler {
 	static final ClassDesc VOID = ClassDesc.ofDescriptor("V");
 
 	private static final AtomicLong CLASS_COUNTER = new AtomicLong(0);
+
+	/**
+	 * A handle to {@link CompiledParserRuntime#bootstrap}, used as the bootstrap
+	 * method of the {@code invokedynamic} instructions that call curried method handles.
+	 */
+	private static final DirectMethodHandleDesc BOOTSTRAP_DESC = MethodHandleDesc.ofMethod(
+		DirectMethodHandleDesc.Kind.STATIC,
+		cd(CompiledParserRuntime.class),
+		"bootstrap",
+		mtd(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, String.class));
 
 	/**
 	 * The {@link ClassFile} API's verifier gives better error messages than the
