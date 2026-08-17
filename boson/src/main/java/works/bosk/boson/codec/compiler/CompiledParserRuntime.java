@@ -1,10 +1,5 @@
 package works.bosk.boson.codec.compiler;
 
-import java.lang.invoke.CallSite;
-import java.lang.invoke.ConstantCallSite;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -40,28 +35,6 @@ public abstract class CompiledParserRuntime extends SharedParserRuntime {
 			objects = curriedArrays.remove(key);
 		}
 		return requireNonNull(objects);
-	}
-
-	/**
-	 * The bootstrap method for {@code invokedynamic} call sites in the generated code.
-	 * <p>
-	 * The call site's single static argument is the name of a {@code static final
-	 * MethodHandle} field in the caller class, and the call site's type is that
-	 * handle's exact type. The method reads the field and binds the handle as the
-	 * permanent target of a {@link ConstantCallSite}. Because the target is constant,
-	 * the JIT can see through the handle and inline its lambda form, whatever
-	 * combinators it may contain.
-	 * <p>
-	 * The method is a pure function of its arguments: it reads an immutable field and
-	 * retains nothing, so it is safe for the JVM to invoke it more than once (for
-	 * example, if the caller class is redefined or loaded by several class loaders).
-	 *
-	 * @param fieldName the name of the {@code static final MethodHandle} field to invoke
-	 */
-	public static CallSite bootstrap(MethodHandles.Lookup lookup, String name, MethodType type, String fieldName) throws Throwable {
-		MethodHandle getter = lookup.findStaticGetter(lookup.lookupClass(), fieldName, MethodHandle.class);
-		MethodHandle target = (MethodHandle) getter.invokeExact();
-		return new ConstantCallSite(target);
 	}
 
 }
