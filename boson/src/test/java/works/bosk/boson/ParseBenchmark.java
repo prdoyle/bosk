@@ -1,7 +1,9 @@
 package works.bosk.boson;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -42,6 +44,7 @@ import static works.bosk.boson.mapping.TypeMap.Settings.DEFAULT;
 @Measurement(iterations = 6, time = 1, timeUnit = SECONDS)
 public class ParseBenchmark {
 	private char[] json;
+	private byte[] bigFileBytes;
 	private ObjectReader objectReader;
 	private ObjectReader listReader;
 	private ManualTest manualTest;
@@ -50,6 +53,11 @@ public class ParseBenchmark {
 	private Parser compiled;
 	private Parser compiledExperimental;
 	private Parser listParser;
+
+	@Setup(Level.Trial)
+	public void loadBigFile() throws IOException {
+		bigFileBytes = Files.readAllBytes(Path.of(BIG_FILE).toAbsolutePath());
+	}
 
 	@Setup(Level.Iteration) // Called once per iteration
 	public void setup() {
@@ -147,6 +155,15 @@ public class ParseBenchmark {
 		try (
 			var in = new FileInputStream(file.toFile());
 		) {
+			return listParser.parse(new ByteChunkJsonReader(new OverlappedPrefetchingChunkFiller(in)));
+		}
+	}
+
+	@Benchmark
+	public Object compiled_list_memory() throws IOException {
+		// Same in-memory input as jackson_list uses for the file, so the
+		// comparison is not distorted by disk I/O.
+		try (var in = new ByteArrayInputStream(bigFileBytes)) {
 			return listParser.parse(new ByteChunkJsonReader(new OverlappedPrefetchingChunkFiller(in)));
 		}
 	}
