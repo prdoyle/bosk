@@ -29,8 +29,8 @@ public class ForwardingDriver implements BoskDriver {
 	}
 
 	@Override
-	public <R extends StateTreeNode> R initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
-		return downstream.initialState(rootType);
+	public <R extends StateTreeNode> R initialState() throws InvalidTypeException, IOException, InterruptedException {
+		return downstream.initialState();
 	}
 
 	@Override

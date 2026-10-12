@@ -33,9 +33,9 @@ class SqlDriverFacade implements SqlDriver {
 	}
 
 	@Override
-	public <R extends StateTreeNode> R initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
-		LOGGER.debug("initialState({})", rootType);
-		return impl.initialState(rootType);
+	public <R extends StateTreeNode> R initialState() throws InvalidTypeException, IOException, InterruptedException {
+		LOGGER.debug("initialState");
+		return impl.initialState();
 	}
 
 	@Override

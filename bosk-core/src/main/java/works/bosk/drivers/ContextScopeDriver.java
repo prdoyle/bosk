@@ -32,9 +32,9 @@ public final class ContextScopeDriver implements BoskDriver {
 	}
 
 	@Override
-	public <R extends StateTreeNode> R initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public <R extends StateTreeNode> R initialState() throws InvalidTypeException, IOException, InterruptedException {
 		try (var _ = scopeSupplier.apply(context)) {
-			return downstream.initialState(rootType);
+			return downstream.initialState();
 		}
 	}
 

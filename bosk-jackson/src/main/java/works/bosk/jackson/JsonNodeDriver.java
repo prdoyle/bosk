@@ -47,8 +47,8 @@ public class JsonNodeDriver implements BoskDriver {
 	}
 
 	@Override
-	public synchronized <R extends StateTreeNode> R initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
-		var result = downstream.initialState(rootType);
+	public synchronized <R extends StateTreeNode> R initialState() throws InvalidTypeException, IOException, InterruptedException {
+		var result = downstream.<R>initialState();
 		contents = mapper.convertValue(result, JsonNode.class);
 		traceCurrentState("After initialState");
 		return result;
