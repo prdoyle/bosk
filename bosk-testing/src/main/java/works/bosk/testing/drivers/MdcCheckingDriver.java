@@ -41,9 +41,9 @@ public final class MdcCheckingDriver implements BoskDriver {
 	}
 
 	@Override
-	public <R extends StateTreeNode> R initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public <R extends StateTreeNode> R initialState() throws InvalidTypeException, IOException, InterruptedException {
 		checkMDC();
-		return downstream.initialState(rootType);
+		return downstream.initialState();
 	}
 
 	@Override

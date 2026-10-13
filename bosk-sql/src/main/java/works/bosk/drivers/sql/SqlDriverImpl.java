@@ -261,8 +261,9 @@ class SqlDriverImpl implements SqlDriver {
 	}
 
 	@Override
-	public <R extends StateTreeNode> R initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException {
+	public <R extends StateTreeNode> R initialState() throws InvalidTypeException, IOException, InterruptedException {
 		// TODO: Consider a disconnected mode where we delegate downstream if something goes wrong
+		Type rootType = rootRef.targetType();
 		LOGGER.debug("initialState({})", rootType);
 		try (
 			var connection = connectionSource.get()
@@ -274,7 +275,7 @@ class SqlDriverImpl implements SqlDriver {
 			if (stateAndEpoch == null) {
 				LOGGER.debug("No current state; initializing {} table from downstream", BOSK);
 				this.epoch = UUID.randomUUID().toString();
-				result = downstream.initialState(rootType);
+				result = downstream.initialState();
 				String stateJson = mapper.writeValueAsString(result);
 
 				using(connection)

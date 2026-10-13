@@ -32,8 +32,6 @@ public interface BoskDriver {
 	 * is empty, and could use the resulting initial state to initialize the
 	 * database.
 	 *
-	 * @param rootType The class of the root state tree node.
-	 * Enables a lot of type inference.
 	 * @throws InvalidTypeException as a convenience to support initialization logic
 	 * that creates {@link Reference References} (which is very common) so that implementations
 	 * do not need to catch that exception and wrap it or otherwise deal with it:
@@ -43,7 +41,7 @@ public interface BoskDriver {
 	 * but it can be used downstream of a {@link ForwardingDriver} provided there is
 	 * another downstream driver that can provide the initial state instead.
 	 */
-	<R extends StateTreeNode> R initialState(Class<R> rootType) throws InvalidTypeException, IOException, InterruptedException;
+	<R extends StateTreeNode> R initialState() throws InvalidTypeException, IOException, InterruptedException;
 
 	/**
 	 * Requests that the object referenced by <code>target</code> be changed to <code>newValue</code>.

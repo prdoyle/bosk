@@ -107,7 +107,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		this.hookRegistrar = requireNonNull(boskConfig.registrarFactory().build(boskInfo, this::localRegisterHook));
 
 		try {
-			this.currentState = ingressDriver.initialState(rootRef.targetClass());
+			this.currentState = ingressDriver.initialState();
 		} catch (InvalidTypeException | IOException | InterruptedException e) {
 			initializationFuture.completeExceptionally(e);
 			throw new IllegalArgumentException("Error computing initial state: " + e.getMessage(), e);
@@ -185,9 +185,10 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		}
 
 		@Override
-		public <RR extends StateTreeNode> RR initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
+		@SuppressWarnings("unchecked")
+		public <RR extends StateTreeNode> RR initialState() throws InvalidTypeException, IOException, InterruptedException {
 			try (var _ = setupMDC(name, instanceID)) {
-				return rootType.cast(rootRef.targetClass().cast(requireNonNull(downstream.initialState(rootType))));
+				return (RR) rootRef.targetClass().cast(requireNonNull(downstream.initialState()));
 			}
 		}
 
@@ -249,8 +250,9 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		}
 
 		@Override
-		public <RR extends StateTreeNode> RR initialState(Class<RR> rootType) throws InvalidTypeException, IOException, InterruptedException {
-			return rootType.cast(requireNonNull(initialStateFunction.apply((Bosk<R>) BoskBase.this)));
+		@SuppressWarnings("unchecked")
+		public <RR extends StateTreeNode> RR initialState() throws InvalidTypeException, IOException, InterruptedException {
+			return (RR) rootRef.targetClass().cast(requireNonNull(initialStateFunction.apply((Bosk<R>) BoskBase.this)));
 		}
 
 		@Override
@@ -750,8 +752,8 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		}
 
 		@Override
-		public <TT extends VariantCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> variantCaseClass, Path path) throws InvalidTypeException {
-			return this.then(Classes.taggedUnion(variantCaseClass), path);
+		public <TT extends TaggedUnionCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> taggedUnionCaseClass, Path path) throws InvalidTypeException {
+			return this.then(Classes.taggedUnion(taggedUnionCaseClass), path);
 		}
 
 		/**
@@ -864,8 +866,8 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		}
 
 		@Override
-		public <TT extends VariantCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> variantCaseClass, String... segments) throws InvalidTypeException {
-			return rootRef.thenTaggedUnion(variantCaseClass, path.then(segments));
+		public <TT extends TaggedUnionCase> Reference<TaggedUnion<TT>> thenTaggedUnion(Class<TT> taggedUnionCaseClass, String... segments) throws InvalidTypeException {
+			return rootRef.thenTaggedUnion(taggedUnionCaseClass, path.then(segments));
 		}
 
 		@SuppressWarnings("unchecked")

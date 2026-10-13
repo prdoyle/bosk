@@ -10,6 +10,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.mongodb.connection.ServerDescription;
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -51,6 +52,7 @@ import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
 import static com.mongodb.client.model.Sorts.ascending;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static works.bosk.ReferenceUtils.rawClass;
 import static works.bosk.drivers.mongo.MongoDriverSettings.DatabaseFormat.SEQUOIA;
 import static works.bosk.drivers.mongo.MongoDriverSettings.InitialDatabaseUnavailableMode.DISCONNECT;
 import static works.bosk.drivers.mongo.internal.Formatter.REVISION_ZERO;
@@ -217,7 +219,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 
 
 			// Build the receiver
-			Class<R> rootType = boskInfo.rootReference().targetClass();
+			Type rootType = boskInfo.rootReference().targetType();
 			ChangeListener listener = this.listener = new Listener(new RemoteCallable<>(
 				attrs -> doInitialState(rootType, attrs)));
 			var factory = testProbes.listenerFactory();
@@ -239,7 +241,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	}
 
 	@Override
-	public <RR extends StateTreeNode> RR initialState(Class<RR> rootType) throws InvalidTypeException, InterruptedException, IOException {
+	@SuppressWarnings("unchecked")
+	public <RR extends StateTreeNode> RR initialState() throws InvalidTypeException, InterruptedException, IOException {
+		Type rootType = boskInfo.rootReference().targetType();
 		try (var _ = beginDriverOperation("initialState({})", rootType)) {
 			// The actual loading of the initial state happens on the ChangeReceiver thread.
 			// Here, we just wait for that to finish and deal with the consequences.
@@ -256,7 +260,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 					// so a throwing probe fails the Bosk constructor.
 					testProbes.onDisruption().accept(result.fallbackReason());
 				}
-				return rootType.cast(result.state());
+				return (RR) rawClass(rootType).cast(result.state());
 			} catch (ExecutionException e) {
 				switch (e.getCause()) {
 					case InitialStateFailureException i -> {
@@ -292,12 +296,12 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	 * because it's important that this logic finishes before processing any change events,
 	 * and no other change events can arrive concurrently.
 	 *
-	 * @param diagnosticAttributes the attributes from the {@link #initialState(Class) initialState} call
+	 * @param diagnosticAttributes the attributes from the {@link #initialState() initialState} call
 	 * @throws DatabaseLoadException if unable to load the initial state from the database
 	 * @throws DownstreamInitialStateException if we attempt to delegate {@link #initialState} to
 	 * the {@link #downstream} driver and it throws an exception
 	 */
-	private InitialStateResult<R> doInitialState(Class<R> rootType, MapValue<String> diagnosticAttributes) throws InitialStateException {
+	private InitialStateResult<R> doInitialState(Type rootType, MapValue<String> diagnosticAttributes) throws InitialStateException {
 		// This establishes a safe fallback in case things go wrong. It also causes any
 		// calls to driver update methods to wait until we're finished here. (There shouldn't
 		// be any such calls while initialState is still running, but this ensures that if any
@@ -327,7 +331,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// We log this at warn because, in production, this is a big deal.
 			// Annoying in tests, so we log it with UNINITIALIZED_COLLECTION_LOGGER so we can selectively disable it.
 			UNINITIALIZED_COLLECTION_LOGGER.warn("Database collection is uninitialized; initializing now. ({})", e.getMessage());
-			entireState = callDownstreamInitialState(rootType);
+			entireState = callDownstreamInitialState();
 			try (
 				var session = queryCollection.newSession()
 			) {
@@ -358,9 +362,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	/**
 	 * @throws DownstreamInitialStateException only
 	 */
-	private R callDownstreamInitialState(Class<R> rootType) throws DownstreamInitialStateException {
+	private R callDownstreamInitialState() throws DownstreamInitialStateException {
 		try {
-			return downstream.initialState(rootType);
+			return downstream.initialState();
 		} catch (RuntimeException | Error | InvalidTypeException | IOException | InterruptedException e) {
 			LOGGER.error("Downstream driver failed to compute initial state", e);
 			throw new DownstreamInitialStateException("Fatal error: downstream driver failed to compute initial state", e);
@@ -665,7 +669,7 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 					LOGGER.info("Unable to load initial state from database; will proceed with downstream.initialState", cause);
 					setDisconnectedDriver(cause, formatDriver);
 					try {
-						initialStateTask.complete(new InitialStateResult<>(callDownstreamInitialState(boskInfo.rootReference().targetClass()), null));
+						initialStateTask.complete(new InitialStateResult<>(callDownstreamInitialState(), null));
 					} catch (DownstreamInitialStateException e) {
 						// The main thread gets an InitialStateFailureException
 						var mainThreadException = new InitialStateFailureException("Unable to obtain initial state from MongoDB or downstream driver", e);

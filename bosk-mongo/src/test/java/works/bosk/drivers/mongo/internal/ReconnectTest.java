@@ -321,7 +321,7 @@ public class ReconnectTest extends AbstractMongoDriverTest {
 			BoskConfig.<TestEntity>builder().driverFactory((b, d) -> {
 				BoskDriver failingDownstream = new ForwardingDriver(d) {
 					@Override
-					public <R extends StateTreeNode> R initialState(Class<R> rootType) throws IOException {
+					public <R extends StateTreeNode> R initialState() throws IOException {
 						throw thrown;
 					}
 				};
