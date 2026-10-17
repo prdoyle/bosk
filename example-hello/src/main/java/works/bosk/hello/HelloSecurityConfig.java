@@ -61,11 +61,11 @@ class HelloSecurityConfig {
 		OpaqueTokenIntrospector introspector,
 		@Value("${bosk.web.maintenance.path:/bosk/state}") String maintenancePath
 	) throws Exception {
-		// This example has no browser session: the maintenance endpoints authenticate with a bearer
-		// token and the other endpoints are public, so there are no ambient credentials to forge.
-		// That is why CSRF protection is disabled here.
+		// The maintenance endpoints are a stateless bearer-token API, so there is no browser
+		// session or ambient credential for a CSRF attack to use. CSRF protection stays on for
+		// every other request; only the maintenance path is exempt.
 		http
-			.csrf(csrf -> csrf.disable())
+			.csrf(csrf -> csrf.ignoringRequestMatchers(maintenancePath + "/**"))
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers(maintenancePath + "/**").hasAuthority("bosk:state")
 				.anyRequest().permitAll())
