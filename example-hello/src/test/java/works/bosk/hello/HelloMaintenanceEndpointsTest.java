@@ -149,6 +149,13 @@ public class HelloMaintenanceEndpointsTest {
 	}
 
 	@Test
+	void get_withUnknownToken_isUnauthorized() throws Exception {
+		mvc.perform(get("/bosk/state/targets/" + INITIAL_TARGET.id())
+				.header("Authorization", "Bearer unknown"))
+			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void put_withoutToken_isUnauthorized() throws Exception {
 		mvc.perform(put("/bosk/state/targets/" + INITIAL_TARGET.id())
 				.contentType(APPLICATION_JSON)
