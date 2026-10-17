@@ -51,6 +51,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.security:spring-security-test'
 	openTelemetryJavaAgent 'io.opentelemetry.javaagent:opentelemetry-javaagent:2.32.0'
 	implementation 'io.opentelemetry:opentelemetry-exporter-jaeger:1.34.1'
 	implementation('io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.32.0')
@@ -60,6 +61,11 @@ dependencies {
 	implementation project(':bosk-logback')
 	implementation project(':bosk-opentelemetry')
 	implementation project(':bosk-graphql')
+}
+
+tasks.withType(Test).configureEach {
+	// Spring Security's MockMvc CSRF support replaces a final field reflectively.
+	jvmArgs += '--enable-final-field-mutation=ALL-UNNAMED'
 }
 
 tasks.register('run', JavaExec) {
