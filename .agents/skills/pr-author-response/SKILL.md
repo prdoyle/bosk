@@ -43,4 +43,7 @@ Pay particular attention to comments from the maintainer (login `prdoyle`). They
 - Keep the PR description current. After each push, if the new commits change what the PR does or which
   files it touches, update the description (`gh pr edit <PR> --body "..."`); the description should
   describe the PR as it now stands, not as it was when it opened.
+- Don't edit an earlier reply to refresh a commit hash after a rebase. GitHub retains the old commits,
+  so a pre-rebase hash is still a working link; rewriting the comment makes the conversation look like
+  it was edited after the fact. Mention the new hash in a new reply if it matters.
 - If a comment was posted by mistake, delete it: `gh api repos/{owner}/{repo}/pulls/comments/{comment_id} --method DELETE`.
