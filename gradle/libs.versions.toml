@@ -37,7 +37,7 @@ logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "lo
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 mongodb = { module = "org.mongodb:mongodb-driver-sync", version="5.13.0" }
 mysql = { module = "com.mysql:mysql-connector-j", version = "26.7.0" }
-opentelemetry = { module="io.opentelemetry:opentelemetry-sdk", version="1.66.0" }
+opentelemetry = { module="io.opentelemetry:opentelemetry-sdk", version="1.67.0" }
 pcollections = { module = "org.pcollections:pcollections", version.ref="pcollections" }
 postgresql = { module = "org.postgresql:postgresql", version = "42.7.14" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
@@ -61,4 +61,4 @@ testcontainers-toxiproxy = { module = "org.testcontainers:testcontainers-toxipro
 
 [plugins]
 nexus = { id = "io.github.gradle-nexus.publish-plugin", version="2.0.0" }
-spotbugs = { id = "com.github.spotbugs", version = "6.5.12" }
+spotbugs = { id = "com.github.spotbugs", version = "6.5.13" }
