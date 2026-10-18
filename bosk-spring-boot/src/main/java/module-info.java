@@ -42,15 +42,27 @@ import works.bosk.spring.boot.ReadSessionFilter;
  *       <li>{@code NONE} — the endpoints are not registered. This is the default.</li>
  *     </ul>
  *     <p>
- *     These endpoints support ETags via the {@code If-Match} and {@code If-None-Match} headers, exposing a
- *     limited ability to do conditional updates. Nodes participating in this feature must have a field named
- *     {@code revision} of type {@link works.bosk.Identifier Identifier}. Using the {@code If-*} headers on such
- *     a node has the following effects:
+ *     A {@code GET} response for a node with a field named {@code revision} of type
+ *     {@link works.bosk.Identifier Identifier} includes a strong {@code ETag} whose value is that
+ *     revision. The ETag is quoted and percent-encoded using the same scheme as path
+ *     segments, so any revision string is supported and the result is always a valid
+ *     strong ETag. Nodes without such a field, {@code 404} responses, and {@code 202}
+ *     write responses have no ETag.
+ *     <p>
+ *     {@code PUT} and {@code DELETE} accept these ETags in the {@code If-Match} and
+ *     {@code If-None-Match} headers, exposing a limited ability to do conditional updates.
+ *     Clients should treat the ETag as opaque and send it back verbatim. Using the {@code If-*}
+ *     headers on such a node has the following effects:
  *     <ul>
  *       <li>{@code If-None-Match: *} — if the node already exists, no action is taken.</li>
- *       <li>{@code If-Match: {ID}} — if the node does not exist, or its {@code revision} field has a different
- *       value, no action is taken.</li>
+ *       <li>{@code If-Match: {ETag}} — if the node does not exist, or its {@code revision} field
+ *       has a different value, no action is taken.</li>
  *     </ul>
+ *     Precondition failures are asynchronous no-ops: the endpoint still returns {@code 202 Accepted},
+ *     and a client that needs to know whether a write applied must {@code GET} the node again.
+ *     A syntactically valid {@code If-Match} value that does not encode a revision is a
+ *     {@code 400 Bad Request}, as is supplying {@code If-Match} for a node without a suitable
+ *     {@code revision} field.
  *     Spring Security's default {@code StrictHttpFirewall} rejects URLs containing percent-encoded slashes
  *     or percent signs, so identifiers containing those characters are unreachable through the endpoints
  *     while Spring Security is present unless the application customizes its {@code HttpFirewall}.
