@@ -1018,7 +1018,9 @@ A `GET` of a node with a field named `revision` of type `Identifier` includes an
 The value is percent-encoded using the same scheme as path segments, so any revision string works;
 treat it as opaque and send it back verbatim in `If-Match`. Nodes without a `revision` field, `404`
 responses, and `202` write responses have no ETag. A precondition mismatch is still a `202` no-op,
-because writes are asynchronous; `GET` the node again to see whether the write applied. A
+because writes are asynchronous; this is how a client avoids the
+[lost update problem](https://www.w3.org/1999/04/Editing/). `GET` the node again with
+`Cache-Control: no-cache` to flush prior updates before checking whether the write applied. A
 syntactically valid `If-Match` value that does not encode a revision is a `400`, as is using
 `If-Match` on a node without a `revision` field.
 
