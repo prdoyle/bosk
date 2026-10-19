@@ -453,6 +453,18 @@ To delete such nodes, call `BoskDriver.submitDeletion`.
 When applied, a deletion causes the node (and all its children) to become nonexistent.
 The semantic nuances are similar to those of replacement.
 
+#### Batching and transactions
+
+`BoskDriver` deliberately has no way to submit several updates as a single batch or transaction.
+Each update stands on its own, which keeps driver implementations simple:
+they don't need to reason about atomicity or isolation across operations,
+and applications can't create deadlocks by combining operations.
+A batch primitive would also allow atomicity to vary from one backend to another,
+reintroducing the behaviour gap between local development and production that Bosk is meant to eliminate.
+
+Instead, atomicity is achieved by modelling the unit that must change atomically as a single state tree node,
+which can then be published with one update.
+
 #### Conditional updates
 
 The replacement and deletion operations each have corresponding _conditional_ forms.
@@ -463,6 +475,10 @@ For example, `submitConditionalReplacement(target, newValue, precondition, requi
 `submitConditionalDeletion` is similar.
 
 A third kind of conditional update, called `submitConditionalCreation`, is like `submitReplacement` except ignored if the target node already exists.
+
+Conditional updates avoid the [lost update problem](https://www.w3.org/1999/04/Editing/) for read-modify-write decisions without transactions: they give compare-and-set semantics.
+Read the relevant observation in a read session, compute the new value, and submit a conditional update guarded by a precondition on an `Identifier`-valued node that represents the observation (or its version).
+If the observation changed in the meantime, the update is silently ignored rather than overwriting the other update with a decision based on stale data.
 
 #### `flush()`
 
@@ -1002,7 +1018,9 @@ A `GET` of a node with a field named `revision` of type `Identifier` includes an
 The value is percent-encoded using the same scheme as path segments, so any revision string works;
 treat it as opaque and send it back verbatim in `If-Match`. Nodes without a `revision` field, `404`
 responses, and `202` write responses have no ETag. A precondition mismatch is still a `202` no-op,
-because writes are asynchronous; `GET` the node again to see whether the write applied. A
+because writes are asynchronous; this is how a client avoids the
+[lost update problem](https://www.w3.org/1999/04/Editing/). `GET` the node again with
+`Cache-Control: no-cache` to flush prior updates before checking whether the write applied. A
 syntactically valid `If-Match` value that does not encode a revision is a `400`, as is using
 `If-Match` on a node without a `revision` field.
 

@@ -58,8 +58,12 @@ import works.bosk.spring.boot.ReadSessionFilter;
  *       <li>{@code If-Match: {ETag}} — if the node does not exist, or its {@code revision} field
  *       has a different value, no action is taken.</li>
  *     </ul>
- *     Precondition failures are asynchronous no-ops: the endpoint still returns {@code 202 Accepted},
- *     and a client that needs to know whether a write applied must {@code GET} the node again.
+ *     These conditional writes let a client avoid the
+ *     <a href="https://www.w3.org/1999/04/Editing/">lost update problem</a>:
+ *     a write is ignored if another client changed the node's revision first.
+ *     Precondition failures are asynchronous no-ops: the endpoint still returns {@code 202 Accepted}.
+ *     To check whether a write applied, {@code GET} the node with {@code Cache-Control: no-cache},
+ *     which flushes prior updates before reading.
  *     A syntactically valid {@code If-Match} value that does not encode a revision is a
  *     {@code 400 Bad Request}, as is supplying {@code If-Match} for a node without a suitable
  *     {@code revision} field.
