@@ -872,25 +872,16 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		testProbes.prePublicationWaitAction().run();
 		formatDriverLock.lock();
 		try {
-			// There's a race here: the formatDriver could have recovered after we tried to use it
-			// but before we acquired the lock. Let's double-check now to avoid an unnecessary wait
-			// for an event that may already have happened.
-			//
-			// Note: this presupposes that, when we tried to use the formatDriver, it was (or soon
-			// became) a DisconnectedDriver. If instead it was a healthy driver that has since been
-			// replaced, then skipping the wait is exactly right: the operation failed for a reason
-			// unrelated to the current driver's health, and retrying with the replacement driver is
-			// the correct course of action.
-
+			// The driver may have recovered before we acquired the lock; the loop's
+			// first predicate check handles that without waiting.
+			long remainingNanos = reinitializationTimeout.toNanos();
+			while (formatDriver instanceof DisconnectedDriver<R> && remainingNanos > 0) {
+				LOGGER.debug("Waiting for MongoDB to reconnect for {} ms", MILLISECONDS.convert(remainingNanos, NANOSECONDS));
+				remainingNanos = formatDriverChanged.awaitNanos(remainingNanos);
+			}
 			if (formatDriver instanceof DisconnectedDriver<R>) {
-				LOGGER.debug("Waiting for new FormatDriver for {} ms", reinitializationTimeout.toMillis());
-				boolean success = formatDriverChanged.await(reinitializationTimeout.toMillis(), MILLISECONDS);
-				if (!success) {
-					LOGGER.warn("Timed out waiting for MongoDB to recover; will retry anyway, but the operation may fail");
-					logTimeoutDiagnostics(description, null);
-				}
-			} else {
-				LOGGER.debug("FormatDriver is already {}; no need to wait", formatDriver.getClass().getSimpleName());
+				LOGGER.warn("Timed out waiting for MongoDB to reconnect; will retry anyway, but the operation may fail");
+				logTimeoutDiagnostics(description, null);
 			}
 		} catch (InterruptedException e) {
 			// In a library, it's hard to know what a user expects when interrupting a thread.
