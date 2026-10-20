@@ -11,6 +11,7 @@ import com.mongodb.connection.ServerDescription;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -81,9 +82,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private final Formatter formatter;
 
 	private final long timescaleMS;
-	private final long flushTimeout;
-	private final long queryTimeout;
-	private final long reinitializationTimeout;
+	private final Duration flushTimeout;
+	private final Duration queryTimeout;
+	private final Duration reinitializationTimeout;
 
 	/**
 	 * {@link MongoClient#close()} throws if called more than once.
@@ -176,11 +177,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// have to wait out a reconnect first.
 			// (The flush retries once, so it can take twice this long before
 			// throwing a FlushFailureException.)
-			flushTimeout = 4L * timescaleMS;
+			flushTimeout = Duration.ofMillis(4L * timescaleMS);
 
 			// The query client's operation timeout, taken from the settings that
 			// build the client, so the diagnostic summary cannot drift from it.
-			queryTimeout = clients.queryTimeoutMS();
+			queryTimeout = clients.queryTimeout();
 
 			// How long an operation waits for the change stream to recover and
 			// publish a new FormatDriver. This is the sum of the steps of one
@@ -193,10 +194,10 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			//
 			// = 8 * timescaleMS, plus a little extra so we don't cut off a cycle
 			// that is about to succeed.
-			reinitializationTimeout = 10L * timescaleMS;
+			reinitializationTimeout = Duration.ofMillis(10L * timescaleMS);
 
 			LOGGER.debug("Timeouts: timescale={}ms flushTimeout={}ms queryTimeout={}ms reinitializationTimeout={}ms",
-				timescaleMS, flushTimeout, queryTimeout, reinitializationTimeout);
+				timescaleMS, flushTimeout.toMillis(), queryTimeout.toMillis(), reinitializationTimeout.toMillis());
 
 			var clientFactory = testProbes.clientFactory();
 
@@ -882,8 +883,8 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// the correct course of action.
 
 			if (formatDriver instanceof DisconnectedDriver<R>) {
-				LOGGER.debug("Waiting for new FormatDriver for {} ms", reinitializationTimeout);
-				boolean success = formatDriverChanged.await(reinitializationTimeout, MILLISECONDS);
+				LOGGER.debug("Waiting for new FormatDriver for {} ms", reinitializationTimeout.toMillis());
+				boolean success = formatDriverChanged.await(reinitializationTimeout.toMillis(), MILLISECONDS);
 				if (!success) {
 					LOGGER.warn("Timed out waiting for MongoDB to recover; will retry anyway, but the operation may fail");
 					logTimeoutDiagnostics(description, null);
@@ -944,9 +945,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private String diagnosticSummary() {
 		StringBuilder result = new StringBuilder()
 			.append("timescaleMS=").append(timescaleMS)
-			.append(", flushTimeoutMS=").append(flushTimeout)
-			.append(", queryTimeoutMS=").append(queryTimeout)
-			.append(", reinitializationTimeoutMS=").append(reinitializationTimeout);
+			.append(", flushTimeoutMS=").append(flushTimeout.toMillis())
+			.append(", queryTimeoutMS=").append(queryTimeout.toMillis())
+			.append(", reinitializationTimeoutMS=").append(reinitializationTimeout.toMillis());
 		long minRoundTripMS = measuredMinRoundTripMS();
 		if (minRoundTripMS < 0) {
 			result.append(", roundTrip=not measured yet");

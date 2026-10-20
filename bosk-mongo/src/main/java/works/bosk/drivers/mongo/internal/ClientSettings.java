@@ -3,6 +3,7 @@ package works.bosk.drivers.mongo.internal;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.ReadConcern;
 import com.mongodb.WriteConcern;
+import java.time.Duration;
 import works.bosk.drivers.mongo.MongoDriverSettings;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -14,13 +15,13 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * They are built together because they share a common core and all their
  * timeouts are derived from {@link MongoDriverSettings#timescaleMS()}.
  *
- * @param queryTimeoutMS the query client's operation timeout, exposed so
+ * @param queryTimeout the query client's operation timeout, exposed so
  * {@link MainDriver}'s diagnostic summary can report the value the client
  * actually uses
  */
 record ClientSettings(
 	MongoClientSettings query,
-	long queryTimeoutMS,
+	Duration queryTimeout,
 	MongoClientSettings changeStream,
 	long changeStreamMaxAwaitTimeMS
 ) {
@@ -38,7 +39,7 @@ record ClientSettings(
 		// half of it (2 * timescaleMS, the same as the change-stream client)
 		// and connecting gets a quarter, leaving the command at least the
 		// remaining quarter.
-		long queryTimeout = 4L * timescaleMS;
+		Duration queryTimeout = Duration.ofMillis(4L * timescaleMS);
 
 		// The change-stream client can't use the driver's operation timeout,
 		// because on a change stream an operation timeout is a CURSOR_LIFETIME
@@ -96,7 +97,7 @@ record ClientSettings(
 		// Queries must not hang indefinitely, so they use the driver's operation
 		// timeout, which is deliberately larger than the phase budgets above.
 		MongoClientSettings query = MongoClientSettings.builder(common)
-			.timeout(queryTimeout, MILLISECONDS)
+			.timeout(queryTimeout.toMillis(), MILLISECONDS)
 			.build();
 
 		return new ClientSettings(query, queryTimeout, changeStream, changeStreamMaxAwaitTimeMS);

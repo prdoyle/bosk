@@ -1,5 +1,6 @@
 package works.bosk.drivers.mongo.internal;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.Semaphore;
@@ -35,7 +36,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  * both the current <code>epoch</code> and the current <code>revision</code> number.
  */
 class FlushLock {
-	private final long flushTimeoutMS;
+	private final Duration flushTimeout;
 	private final Lock queueLock = new ReentrantLock();
 	final PriorityBlockingQueue<Waiter> queue = new PriorityBlockingQueue<>();
 	private final Optional<BsonString> epoch;
@@ -49,9 +50,9 @@ class FlushLock {
 	 * too old, and we'll wait forever for intervening revisions that have already happened;
 	 * too new, and we'll proceed immediately without waiting for revisions that haven't happened yet.
 	 */
-	public FlushLock(Optional<BsonString> epoch, long revisionAlreadySeen, long flushTimeoutMS) {
+	public FlushLock(Optional<BsonString> epoch, long revisionAlreadySeen, Duration flushTimeout) {
 		LOGGER.debug("New flush lock at epoch {} revision {} [{}]", epoch, revisionAlreadySeen, identityHashCode(this));
-		this.flushTimeoutMS = flushTimeoutMS;
+		this.flushTimeout = flushTimeout;
 		this.epoch = epoch;
 		this.alreadySeen = revisionAlreadySeen;
 	}
@@ -105,7 +106,7 @@ class FlushLock {
 		}
 		if (mustWait) {
 			LOGGER.debug("Awaiting revision {} > {} [{}]", revisionValue, past, identityHashCode(this));
-			if (!semaphore.tryAcquire(flushTimeoutMS, MILLISECONDS)) {
+			if (!semaphore.tryAcquire(flushTimeout.toMillis(), MILLISECONDS)) {
 				throw new FlushFailureException("Timed out waiting for revision " + revisionValue + " > " + alreadySeen);
 			}
 			if (isClosed) {

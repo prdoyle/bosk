@@ -16,14 +16,14 @@ class FlushLockTest {
 
 	@Test
 	void awaitRevision_alreadySeenRevision_doesNotEnqueueWaiter() throws InterruptedException, FlushFailureException {
-		FlushLock lock = new FlushLock(Optional.empty(), 100, 5000);
+		FlushLock lock = new FlushLock(Optional.empty(), 100, Duration.ofSeconds(5));
 		lock.awaitRevision(new BsonInt64(50)); // already seen; returns immediately
 		assertEquals(0, lock.queue.size(), "Waiting on an already-seen revision must not enqueue a waiter");
 	}
 
 	@Test
 	void awaitRevision_newRevision_wakesWhenFinished() throws InterruptedException {
-		FlushLock lock = new FlushLock(Optional.empty(), 0, 5000);
+		FlushLock lock = new FlushLock(Optional.empty(), 0, Duration.ofSeconds(5));
 		Thread awaiting = new Thread(() -> {
 			try {
 				lock.awaitRevision(new BsonInt64(10));
@@ -44,7 +44,7 @@ class FlushLockTest {
 		// when publishFormatDriver closes the old format driver's FlushLock,
 		// a thread waiting in awaitRevision must throw DisconnectedException
 		// rather than silently succeeding as though the revision had arrived.
-		FlushLock lock = new FlushLock(Optional.empty(), 0, 5000);
+		FlushLock lock = new FlushLock(Optional.empty(), 0, Duration.ofSeconds(5));
 		AtomicReference<Throwable> failure = new AtomicReference<>();
 		Thread awaiting = new Thread(() -> {
 			try {

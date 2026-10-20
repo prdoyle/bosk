@@ -5,6 +5,7 @@ import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.OperationType;
 import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.UpdateResult;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -47,7 +48,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 		TransactionalCollection collection,
 		MongoDriverSettings driverSettings,
 		BsonSerializer bsonSerializer,
-		long flushTimeoutMS,
+		Duration flushTimeout,
 		BoskDriver downstream
 	) {
 		super(
@@ -56,7 +57,7 @@ final class SequoiaFormatDriver<R extends StateTreeNode> extends AbstractFormatD
 			new Formatter(boskInfo, bsonSerializer),
 			collection,
 			downstream,
-			flushTimeoutMS
+			flushTimeout
 		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 	}
