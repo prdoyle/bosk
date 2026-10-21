@@ -11,7 +11,6 @@ import org.bson.BsonString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import works.bosk.drivers.mongo.exceptions.DisconnectedException;
-import works.bosk.exceptions.FlushFailureException;
 
 import static java.lang.System.identityHashCode;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -86,7 +85,7 @@ class FlushLock {
 		return revision.longValue() <= alreadySeen;
 	}
 
-	void awaitRevision(BsonInt64 revision) throws InterruptedException, FlushFailureException {
+	void awaitRevision(BsonInt64 revision) throws InterruptedException, FlushTimeoutException {
 		long revisionValue = revision.longValue();
 		Semaphore semaphore = new Semaphore(0);
 		long past;
@@ -107,7 +106,7 @@ class FlushLock {
 		if (mustWait) {
 			LOGGER.debug("Awaiting revision {} > {} [{}]", revisionValue, past, identityHashCode(this));
 			if (!semaphore.tryAcquire(flushTimeout.toMillis(), MILLISECONDS)) {
-				throw new FlushFailureException("Timed out waiting for revision " + revisionValue + " > " + alreadySeen);
+				throw new FlushTimeoutException("Timed out waiting for revision " + revisionValue + " > " + alreadySeen);
 			}
 			if (isClosed) {
 				// This happens if the FormatDriver is defunct already,

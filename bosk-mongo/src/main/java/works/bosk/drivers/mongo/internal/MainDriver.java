@@ -47,6 +47,7 @@ import works.bosk.drivers.mongo.exceptions.InitialStateFailureException;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.RetryableFlushException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
@@ -469,8 +470,30 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.<InterruptedException, IOException>doRetryableDriverOperation(() -> {
 				formatDriver.flush();
 			}, "flush");
+		} catch (IOException e) {
+			throw classifyFlushFailure(e, reinitializationTimeout);
 		} catch (RuntimeException e) {
-			throw new FlushFailureException(e);
+			throw classifyFlushFailure(e, reinitializationTimeout);
+		}
+	}
+
+	static IOException classifyFlushFailure(IOException e, Duration retryAfter) {
+		if (e instanceof FlushTimeoutException) {
+			return new RetryableFlushException(e, retryAfter);
+		} else {
+			return e;
+		}
+	}
+
+	static IOException classifyFlushFailure(RuntimeException e, Duration retryAfter) {
+		if (e instanceof ImmediateReconnectException) {
+			// Immediate-reconnect conditions aren't retryable-later conditions. If this
+			// escaped the receiver, it's a persistent revision/format problem.
+			return new FlushFailureException(e);
+		} else if (e instanceof DisconnectedException) {
+			return new RetryableFlushException(e, retryAfter);
+		} else {
+			return new FlushFailureException(e);
 		}
 	}
 

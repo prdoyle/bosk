@@ -38,6 +38,7 @@ import works.bosk.drivers.mongo.exceptions.DisconnectedException;
 import works.bosk.drivers.mongo.internal.TestParameters.ParameterSet;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.RetryableFlushException;
 import works.bosk.junit.InjectFields;
 import works.bosk.junit.InjectFrom;
 import works.bosk.junit.Injected;
@@ -272,7 +273,9 @@ public class ReconnectTest extends AbstractMongoDriverTest {
 		mongoService.disruptConnection(failureMode);
 		tearDownActions.add(()->mongoService.restoreConnection(failureMode));
 
-		assertThrows(FlushFailureException.class, driver::flush);
+		RetryableFlushException failure = assertThrows(RetryableFlushException.class, driver::flush);
+		assertEquals(Duration.ofMillis(10L * SHORT_TIMESCALE), failure.retryAfter(),
+			"The flush failure should advertise the driver's recovery budget");
 
 		LOGGER.debug("Register hook");
 		bosk.hookRegistrar().registerHook("populateListing", refs.catalog(), ref -> {

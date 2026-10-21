@@ -144,7 +144,8 @@ public interface BoskDriver {
 	 * {@link FlushFailureException} only after those attempts fail, such as when timeouts have elapsed.
 	 *
 	 * <p>
-	 * This usually should not throw runtime exceptions: those can be wrapped as {@link FlushFailureException}.
+	 * This usually should not throw runtime exceptions: those can be wrapped as
+	 * {@link FlushFailureException} or one of its subtypes.
 	 *
 	 * <p>
 	 * (We say "usually" above because the stackable driver architecture allows all kinds of

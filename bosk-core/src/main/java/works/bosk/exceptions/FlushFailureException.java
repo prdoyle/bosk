@@ -20,6 +20,11 @@ import works.bosk.BoskDriver;
  * from its own downstream driver) should let it propagate as-is rather than wrapping
  * it in a {@code FlushFailureException}: the caller is already expected to handle
  * {@link IOException}.
+ *
+ * <p>
+ * If the driver knows the condition may clear on its own, it should throw
+ * {@link RetryableFlushException} instead, which carries
+ * a {@linkplain RetryableFlushException#retryAfter() retry hint}.
  */
 public class FlushFailureException extends IOException {
 	public FlushFailureException(String message) { super(message); }

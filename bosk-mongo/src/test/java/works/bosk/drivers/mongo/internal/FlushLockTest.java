@@ -11,6 +11,7 @@ import works.bosk.exceptions.FlushFailureException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FlushLockTest {
 
@@ -19,6 +20,12 @@ class FlushLockTest {
 		FlushLock lock = new FlushLock(Optional.empty(), 100, Duration.ofSeconds(5));
 		lock.awaitRevision(new BsonInt64(50)); // already seen; returns immediately
 		assertEquals(0, lock.queue.size(), "Waiting on an already-seen revision must not enqueue a waiter");
+	}
+
+	@Test
+	void awaitRevision_timeout_throwsFlushTimeoutException() {
+		FlushLock lock = new FlushLock(Optional.empty(), 0, Duration.ofMillis(10));
+		assertThrows(FlushTimeoutException.class, () -> lock.awaitRevision(new BsonInt64(10)));
 	}
 
 	@Test
