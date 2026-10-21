@@ -1,5 +1,6 @@
 package works.bosk.spring.boot;
 
+import jakarta.servlet.ServletContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
@@ -39,9 +40,11 @@ class BoskMaintenanceAutoConfiguration {
 	MaintenanceEndpoints maintenanceEndpoints(
 		Bosk<?> bosk,
 		ObjectMapper mapper,
-		JacksonSerializer jackson
+		JacksonSerializer jackson,
+		WebProperties properties,
+		ServletContext servletContext
 	) {
-		return new MaintenanceEndpoints(bosk, mapper, jackson);
+		return new MaintenanceEndpoints(bosk, mapper, jackson, properties, servletContext);
 	}
 
 	/**

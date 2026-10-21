@@ -26,9 +26,11 @@ import works.bosk.spring.boot.ReadSessionFilter;
 
 import static ch.qos.logback.classic.Level.ERROR;
 import static ch.qos.logback.classic.Level.OFF;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
 import static org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.http.MediaType.TEXT_HTML;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -73,6 +75,14 @@ public class HelloMaintenanceEndpointsTest {
 	@AfterEach
 	void cleanup() {
 		MDC.remove(BOSK_INSTANCE_ID);
+	}
+
+	@Test
+	void swaggerPage_isServed() throws Exception {
+		mvc.perform(get("/swagger.html"))
+			.andExpect(status().isOk())
+			.andExpect(content().contentTypeCompatibleWith(TEXT_HTML))
+			.andExpect(content().string(containsString("SwaggerUIBundle")));
 	}
 
 	@ParameterizedTest

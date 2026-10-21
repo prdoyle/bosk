@@ -76,6 +76,22 @@ import works.bosk.spring.boot.ReadSessionFilter;
  *     A syntactically valid {@code If-Match} value that does not encode a revision is a
  *     {@code 400 Bad Request}, as is supplying {@code If-Match} for a node without a suitable
  *     {@code revision} field.
+ *     <p>
+ *     A {@code GET} of {@code openapi.json} beneath the maintenance path returns an OpenAPI 3.1
+ *     document describing these endpoints and the JSON representation of the state tree. The
+ *     document is generated from the state tree's types and is covered by the same authentication
+ *     rules as the endpoints themselves.
+ *     <p>
+ *     The document uses the same JSON representation as the endpoints. A record is an object.
+ *     {@code Optional} and {@code Phantom} fields are omitted when empty and are not required;
+ *     a {@code Phantom} is always empty. Implicit {@code @Self} and {@code @Enclosing} references
+ *     are omitted from the JSON but remain readable as paths. A {@code Catalog} is an array of
+ *     single-entry objects keyed by identifier. A {@code SideTable} is {@code valuesById} plus a
+ *     {@code domain} reference, and a {@code Listing} is {@code ids} plus a {@code domain}
+ *     reference. A {@code TaggedUnion} is a single-property object named after its tag.
+ *     {@code Identifier} and {@code Reference} are strings, {@code ListValue} is an array, and
+ *     {@code MapValue} is an object.
+ *     <p>
  *     Spring Security's default {@code StrictHttpFirewall} rejects URLs containing percent-encoded slashes
  *     or percent signs, so identifiers containing those characters are unreachable through the endpoints
  *     while Spring Security is present unless the application customizes its {@code HttpFirewall}.

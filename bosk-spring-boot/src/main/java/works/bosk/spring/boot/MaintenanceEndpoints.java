@@ -1,5 +1,6 @@
 package works.bosk.spring.boot;
 
+import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import works.bosk.Bosk;
 import works.bosk.Entity;
 import works.bosk.EnumerableByIdentifier;
@@ -53,6 +55,11 @@ import static works.bosk.spring.boot.WebProperties.DEFAULT_MAINTENANCE_PATH;
  * Precondition mismatches are asynchronous no-ops: the endpoint still returns
  * {@code 202 Accepted}, and a client that needs to know whether the write applied must
  * {@code GET} the node again.
+ * <p>
+ * A {@code GET} of {@code openapi.json} beneath the maintenance path returns an OpenAPI 3.1
+ * document describing the endpoints and the state tree's JSON representation.
+ * The document is generated from the state tree's types and is covered by the same
+ * authentication rules as the endpoints themselves.
  */
 @RestController
 @RequestMapping("${bosk.web.maintenance.path:" + DEFAULT_MAINTENANCE_PATH + "}")
@@ -60,6 +67,8 @@ public class MaintenanceEndpoints {
 	private final Bosk<?> bosk;
 	private final ObjectMapper mapper;
 	private final JacksonSerializer jackson;
+	private final String maintenancePath;
+	private final ObjectNode openApiDocument;
 
 	/**
 	 * Whether each node type has a {@code revision} field of type {@link Identifier}.
@@ -72,11 +81,15 @@ public class MaintenanceEndpoints {
 	MaintenanceEndpoints(
 		Bosk<?> bosk,
 		ObjectMapper mapper,
-		JacksonSerializer jackson
+		JacksonSerializer jackson,
+		WebProperties properties,
+		ServletContext servletContext
 	) {
 		this.bosk = bosk;
 		this.mapper = mapper;
 		this.jackson = jackson;
+		this.maintenancePath = properties.maintenance().path();
+		this.openApiDocument = BoskOpenApi.documentFor(bosk, maintenancePath, servletContext.getContextPath());
 	}
 
 	@GetMapping(produces = APPLICATION_JSON_VALUE, path = {"", "{*path}"})
@@ -94,6 +107,19 @@ public class MaintenanceEndpoints {
 		} catch (NonexistentReferenceException e) {
 			throw new ResponseStatusException(NOT_FOUND, "Object does not exist: " + ref, e);
 		}
+	}
+
+	/**
+	 * Returns an OpenAPI 3.1 description of the maintenance endpoints for this Bosk.
+	 * <p>
+	 * The document is generated from the state tree's types at initialization.
+	 * It is served beneath the maintenance path so that the application's security rules
+	 * cover it along with the endpoints it describes.
+	 */
+	@GetMapping(produces = APPLICATION_JSON_VALUE, path = "openapi.json")
+	ObjectNode getOpenApi(HttpServletRequest req) {
+		LOGGER.debug("{} {}", req.getMethod(), req.getRequestURI());
+		return openApiDocument;
 	}
 
 	@PutMapping(consumes = APPLICATION_JSON_VALUE, path = {"", "{*path}"})

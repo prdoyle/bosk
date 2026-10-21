@@ -130,3 +130,50 @@ they require an immediate internal reconnect or a data fix, not a client retry.
 The `Retry-After` value is `reinitializationTimeout` (`10 × timescaleMS`, 100 s by default),
 because that is the driver's own worst-case wait for the change stream to recover and publish a
 new `FormatDriver`. The filter rounds it up to whole seconds, with a minimum of 1.
+
+### OpenAPI document
+
+`BoskOpenApi` generates an OpenAPI 3.1 document from the state tree's types, and
+`MaintenanceEndpoints` serves it at `openapi.json` beneath the maintenance path. The user-facing
+description is [OPENAPI.md](OPENAPI.md).
+
+The document is served under the maintenance path deliberately. It describes the same data that the
+endpoints expose, so it belongs inside the same authentication perimeter. Keeping it there means
+the application's existing `requestMatchers(path + "/**")` rule covers it, and
+`MaintenanceEndpointSecurityCheck` continues to pass without learning about a second path.
+
+The document is generated eagerly when the maintenance endpoints bean is created. Its inputs are
+the state tree's type and the servlet context path, both fixed for the application's lifetime, so
+there is no need to generate it per request or to cache it by request context path.
+
+The generator has no dependency on springdoc. Springdoc describes annotated controller methods, and
+the maintenance controller is a single generic wildcard mapping, so springdoc would produce one
+opaque operation with an unconstrained body. The useful information is in the state tree's types,
+which only Bosk can enumerate.
+
+`BoskOpenApi` must mirror `JacksonSerializer`, not Jackson's default record mapping. The
+representations that commonly surprise people are:
+
+- `Catalog` is an array of single-entry objects, not an object keyed by identifier.
+- `SideTable` and `Listing` have their own object shapes with a `domain` reference.
+- A tagged union is a single-property object named after its tag, so OpenAPI's `discriminator`
+  does not apply; the schema is a `oneOf`.
+- `Optional` fields are absent rather than `null`. `Phantom` fields do not appear in the JSON and
+  are always empty.
+- Implicit `@Self` and `@Enclosing` references do not appear in the JSON, but they remain readable
+  as paths. Their paths are GET-only; the serializer computes them and rejects a body that supplies
+  one.
+
+The path walk uses `PathCompiler` indirectly through `Reference.then`, so every path in the document
+is one Bosk accepts, and the type used to build its schema is the type Bosk reports for that path.
+Tagged-union cases are path segments in Bosk. They are read-only: replacing or deleting a case
+throws, and so does replacing or deleting anything below it because the rewrite has to pass back
+through the case. The walk therefore carries a read-only flag through a case subtree.
+
+Two limitations are deliberate:
+
+- Recursive types are expanded until a record type repeats along the current path. The schema
+  `$ref`s show the recursion, but the path list does not grow without bound.
+- A `PUT` to an ordinary record field is supported, but a `DELETE` is not, because only container
+  entries and `Optional` fields are deletable. The document omits the operations Bosk cannot
+  perform rather than documenting a `400`.

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Bosk maintenance API</title>
+	<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.34.0/swagger-ui.css">
+</head>
+<body>
+<div style="padding: 1rem; background: #1b1b1b; color: #fff">
+	<strong>Bosk maintenance API</strong>
+	<input id="token" type="password" placeholder="Bearer token" style="margin-left: 1rem; padding: 0.4rem">
+	<button id="load">Load API</button>
+	<span id="status"></span>
+</div>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5.34.0/swagger-ui-bundle.js"></script>
+<script>
+	const token = document.getElementById('token');
+	const status = document.getElementById('status');
+
+	async function load() {
+		const value = token.value.trim().replace(/^Bearer\s+/i, '');
+		if (!value) {
+			status.textContent = 'Enter a token first.';
+			return;
+		}
+
+		status.textContent = 'Loading...';
+		try {
+			const response = await fetch('/bosk/state/openapi.json', {
+				headers: {Authorization: 'Bearer ' + value}
+			});
+			if (!response.ok) {
+				throw new Error(response.status + ' ' + response.statusText);
+			}
+			SwaggerUIBundle({
+				spec: await response.json(),
+				dom_id: '#swagger-ui',
+				requestInterceptor: (request) => {
+					request.headers.Authorization = 'Bearer ' + value;
+					return request;
+				}
+			});
+			status.textContent = '';
+		} catch (error) {
+			status.textContent = 'Could not load: ' + error.message;
+		}
+	}
+
+	document.getElementById('load').addEventListener('click', load);
+	token.addEventListener('keydown', (event) => {
+		if (event.key === 'Enter') {
+			load();
+		}
+	});
+</script>
+</body>
+</html>

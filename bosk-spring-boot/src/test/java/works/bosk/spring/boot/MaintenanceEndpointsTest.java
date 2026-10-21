@@ -20,7 +20,10 @@ import works.bosk.BoskConfig;
 import works.bosk.Catalog;
 import works.bosk.Entity;
 import works.bosk.Identifier;
+import works.bosk.Reference;
 import works.bosk.StateTreeNode;
+import works.bosk.annotations.Self;
+import works.bosk.exceptions.InvalidTypeException;
 import works.bosk.jackson.JacksonSerializer;
 
 import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
@@ -35,6 +38,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static works.bosk.testing.BoskTestUtils.boskName;
 
@@ -55,13 +59,20 @@ class MaintenanceEndpointsTest {
 	@Autowired
 	ObjectMapper mapper;
 
+	public record State(
+		Catalog<Target> targets,
+		Catalog<Versioned> versioned,
+		Catalog<Parent> parents,
+		SelfRef selfRef
+	) implements StateTreeNode {}
+
 	public record Target(Identifier id, String name) implements Entity {}
-
 	public record Versioned(Identifier id, Identifier revision, String value) implements Entity {}
+	public record Parent(Identifier id, Catalog<Child> children) implements Entity {}
+	public record Child(Identifier id) implements Entity {}
+	public record SelfRef(String value, @Self Reference<SelfRef> self) implements StateTreeNode {}
 
-	public record State(Catalog<Target> targets, Catalog<Versioned> versioned) implements StateTreeNode {}
-
-	static State initialState() {
+	static State initialState(Bosk<State> bosk) throws InvalidTypeException {
 		return new State(
 			Catalog.of(
 				new Target(Identifier.from("plain"), "plain"),
@@ -71,7 +82,9 @@ class MaintenanceEndpointsTest {
 			Catalog.of(
 				VERSIONED_1,
 				VERSIONED_2
-			)
+			),
+			Catalog.empty(),
+			new SelfRef("value", bosk.rootReference().then(SelfRef.class, "selfRef"))
 		);
 	}
 
@@ -84,7 +97,7 @@ class MaintenanceEndpointsTest {
 			return new Bosk<>(
 				boskName(),
 				State.class,
-				_ -> initialState(),
+				bosk -> initialState(bosk),
 				BoskConfig.simple()
 			);
 		}
@@ -111,14 +124,79 @@ class MaintenanceEndpointsTest {
 	}
 
 	@BeforeEach
-	void resetState() {
-		bosk.driver().submitReplacement(bosk.rootReference(), initialState());
+	void resetState() throws InvalidTypeException {
+		bosk.driver().submitReplacement(bosk.rootReference(), initialState(bosk));
 	}
 
 	@Test
 	void anonymous_isDenied() throws Exception {
 		mockMvc.perform(get("/bosk/targets/plain"))
 			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void anonymousOpenApi_isDenied() throws Exception {
+		mockMvc.perform(get("/bosk/openapi.json"))
+			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void getOpenApi_returnsDocument() throws Exception {
+		mockMvc.perform(get("/bosk/openapi.json")
+				.with(user("tester")))
+			.andExpect(status().isOk())
+			.andExpect(content().contentTypeCompatibleWith(APPLICATION_JSON))
+			.andExpect(jsonPath("$.openapi").value("3.1.0"))
+			.andExpect(jsonPath("$.paths['/bosk']").exists())
+			.andExpect(jsonPath("$.paths['/bosk/versioned/{versionedId}']").exists())
+			.andExpect(jsonPath("$.paths['/bosk/parents/{parentId}/children/{childId}']").exists());
+	}
+
+	@Test
+	void getSelfReference_omitsImplicitField() throws Exception {
+		mockMvc.perform(get("/bosk/selfRef")
+				.with(user("tester")))
+			.andExpect(status().isOk())
+			.andExpect(content().string("{\"value\":\"value\"}"));
+	}
+
+	@Test
+	void getSelfReferencePath_returnsReference() throws Exception {
+		mockMvc.perform(get("/bosk/selfRef/self")
+				.with(user("tester")))
+			.andExpect(status().isOk())
+			.andExpect(content().string("\"/selfRef\""));
+	}
+
+	@Test
+	void putUnderMissingEnclosingNode_isAcceptedButNoOp() throws Exception {
+		mockMvc.perform(put("/bosk/parents/missing/children/child")
+				.with(user("tester"))
+				.with(csrf())
+				.contentType(APPLICATION_JSON)
+				.content("{\"id\":\"child\"}"))
+			.andExpect(status().isAccepted());
+		mockMvc.perform(get("/bosk/parents/missing/children/child")
+				.with(user("tester")))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void deleteUnderMissingEnclosingNode_isAcceptedButNoOp() throws Exception {
+		mockMvc.perform(delete("/bosk/parents/missing/children/child")
+				.with(user("tester"))
+				.with(csrf()))
+			.andExpect(status().isAccepted());
+	}
+
+	@Test
+	void putWithInvalidPath_isNotFound() throws Exception {
+		mockMvc.perform(put("/bosk/targets/plain/nonexistent")
+				.with(user("tester"))
+				.with(csrf())
+				.contentType(APPLICATION_JSON)
+				.content("{}"))
+			.andExpect(status().isNotFound());
 	}
 
 	@Test
