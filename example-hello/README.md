@@ -24,6 +24,14 @@ the `bosk-spring-boot` module creates `GET`, `PUT`, and `DELETE` endpoints
 under `/bosk/state` (the default) that allow users to view and modify the bosk contents over HTTP.
 Set `bosk.web.maintenance.path` to serve them under a different path.
 
+#### OpenAPI UI
+
+The example also serves a small Swagger UI page at `/swagger.html`. Enter the bearer token
+(`example-bearer-token` by default) and click **Load API**. The page fetches
+`/bosk/state/openapi.json` with that token and renders the document; the maintenance endpoints
+remain authenticated. Swagger UI itself is loaded from the unpkg CDN, and the page assumes the
+default maintenance path.
+
 #### Security
 
 The maintenance endpoints run in `AUTHENTICATED` mode, so the application must authenticate requests
