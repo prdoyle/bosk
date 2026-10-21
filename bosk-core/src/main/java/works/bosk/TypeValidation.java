@@ -1,6 +1,5 @@
 package works.bosk;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -229,9 +228,9 @@ public final class TypeValidation {
 					continue;
 				}
 				if (!isFinal(field.getModifiers())) {
-					throw new InvalidFieldTypeException(nodeClass, field.getName(), "Field is not final " + fieldDebugInfo(field));
+					throw new InvalidFieldTypeException(nodeClass, field.getName(), "Field is not final " + field.toGenericString());
 				} else if (field.getType().isArray()){
-					throw new InvalidFieldTypeException(nodeClass, field.getName(), "Field is an array, whose entries are not final " + fieldDebugInfo(field));
+					throw new InvalidFieldTypeException(nodeClass, field.getName(), "Field is an array, whose entries are not final " + field.toGenericString());
 				}
 			}
 		}
@@ -287,16 +286,6 @@ public final class TypeValidation {
 
 	static boolean isBetween(char start, char end, int codePoint) {
 		return start <= codePoint && codePoint <= end;
-	}
-
-	private static String fieldDebugInfo(Field field) {
-		StringBuilder sb = new StringBuilder("{");
-		sb.append(Modifier.toString(field.getModifiers()));
-		for (Annotation annotation: field.getAnnotations()) {
-			sb.append(" ").append(annotation.annotationType().getSimpleName());
-		}
-		sb.append("}");
-		return sb.toString();
 	}
 
 	private static final List<Class<?>> SIMPLE_VALUE_CLASSES = asList(
