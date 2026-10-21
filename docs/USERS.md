@@ -1030,6 +1030,12 @@ because writes are asynchronous; this is how a client avoids the
 syntactically valid `If-Match` value that does not encode a revision is a `400`, as is using
 `If-Match` on a node without a `revision` field.
 
+A `GET` of `openapi.json` beneath the maintenance path returns an OpenAPI 3.1 document describing
+the endpoints and the JSON representation of the state tree. It is available whenever the
+maintenance endpoints are, and the application's authentication rule for the maintenance path
+covers it too. See [bosk-spring-boot/OPENAPI.md](../bosk-spring-boot/OPENAPI.md) for the mapping
+between Bosk types and the document.
+
 ### Serialization: `bosk-jackson`
 
 The `bosk-jackson` module uses the Jackson library to support JSON serialization and deserialization.
