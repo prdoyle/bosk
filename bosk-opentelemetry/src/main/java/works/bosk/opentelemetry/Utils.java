@@ -35,19 +35,11 @@ class Utils {
 	 * On the getter side, it's simplest to deal with plain old OTel keys.
 	 * Any prefixes are stripped off while we're building the carrier map.
 	 */
-	private static final TextMapGetter<Map<String, String>> MAP_GETTER = new TextMapGetter<>() {
-		@Override
-		public Iterable<String> keys(Map<String, String> carrier) {
-			return carrier.keySet();
-		}
-
-		@Override
-		public String get(Map<String, String> carrier, String key) {
-			if (carrier == null) {
-				return null;
-			} else {
-				return carrier.get(key);
-			}
+	private static final TextMapGetter<Map<String, String>> MAP_GETTER = (carrier, key) -> {
+		if (carrier == null) {
+			return null;
+		} else {
+			return carrier.get(key);
 		}
 	};
 
