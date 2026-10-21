@@ -8,6 +8,7 @@ import com.mongodb.client.model.changestream.UpdateDescription;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -77,7 +78,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 		MongoDriverSettings driverSettings,
 		PandoFormat format,
 		BsonSerializer bsonSerializer,
-		long flushTimeoutMS,
+		Duration flushTimeout,
 		BoskDriver downstream
 	) {
 		super(
@@ -86,7 +87,7 @@ final class PandoFormatDriver<R extends StateTreeNode> extends AbstractFormatDri
 			new Formatter(boskInfo, bsonSerializer),
 			collection,
 			downstream,
-			flushTimeoutMS
+			flushTimeout
 		);
 		this.description = getClass().getSimpleName() + ": " + driverSettings;
 		this.settings = driverSettings;

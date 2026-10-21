@@ -11,6 +11,7 @@ import com.mongodb.connection.ServerDescription;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -46,6 +47,7 @@ import works.bosk.drivers.mongo.exceptions.InitialStateFailureException;
 import works.bosk.drivers.mongo.status.MongoStatus;
 import works.bosk.exceptions.FlushFailureException;
 import works.bosk.exceptions.InvalidTypeException;
+import works.bosk.exceptions.RetryableFlushException;
 import works.bosk.logging.MappedDiagnosticContext.MDCScope;
 
 import static com.mongodb.MongoException.TRANSIENT_TRANSACTION_ERROR_LABEL;
@@ -81,9 +83,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private final Formatter formatter;
 
 	private final long timescaleMS;
-	private final long flushTimeout;
-	private final long queryTimeout;
-	private final long reinitializationTimeout;
+	private final Duration flushTimeout;
+	private final Duration queryTimeout;
+	private final Duration reinitializationTimeout;
 
 	/**
 	 * {@link MongoClient#close()} throws if called more than once.
@@ -176,11 +178,11 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			// have to wait out a reconnect first.
 			// (The flush retries once, so it can take twice this long before
 			// throwing a FlushFailureException.)
-			flushTimeout = 4L * timescaleMS;
+			flushTimeout = Duration.ofMillis(4L * timescaleMS);
 
 			// The query client's operation timeout, taken from the settings that
 			// build the client, so the diagnostic summary cannot drift from it.
-			queryTimeout = clients.queryTimeoutMS();
+			queryTimeout = clients.queryTimeout();
 
 			// How long an operation waits for the change stream to recover and
 			// publish a new FormatDriver. This is the sum of the steps of one
@@ -193,10 +195,10 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			//
 			// = 8 * timescaleMS, plus a little extra so we don't cut off a cycle
 			// that is about to succeed.
-			reinitializationTimeout = 10L * timescaleMS;
+			reinitializationTimeout = Duration.ofMillis(10L * timescaleMS);
 
 			LOGGER.debug("Timeouts: timescale={}ms flushTimeout={}ms queryTimeout={}ms reinitializationTimeout={}ms",
-				timescaleMS, flushTimeout, queryTimeout, reinitializationTimeout);
+				timescaleMS, flushTimeout.toMillis(), queryTimeout.toMillis(), reinitializationTimeout.toMillis());
 
 			var clientFactory = testProbes.clientFactory();
 
@@ -468,8 +470,30 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 			this.<InterruptedException, IOException>doRetryableDriverOperation(() -> {
 				formatDriver.flush();
 			}, "flush");
+		} catch (IOException e) {
+			throw classifyFlushFailure(e, reinitializationTimeout);
 		} catch (RuntimeException e) {
-			throw new FlushFailureException(e);
+			throw classifyFlushFailure(e, reinitializationTimeout);
+		}
+	}
+
+	static IOException classifyFlushFailure(IOException e, Duration retryAfter) {
+		if (e instanceof FlushTimeoutException) {
+			return new RetryableFlushException(e, retryAfter);
+		} else {
+			return e;
+		}
+	}
+
+	static IOException classifyFlushFailure(RuntimeException e, Duration retryAfter) {
+		if (e instanceof ImmediateReconnectException) {
+			// Immediate-reconnect conditions aren't retryable-later conditions. If this
+			// escaped the receiver, it's a persistent revision/format problem.
+			return new FlushFailureException(e);
+		} else if (e instanceof DisconnectedException) {
+			return new RetryableFlushException(e, retryAfter);
+		} else {
+			return new FlushFailureException(e);
 		}
 	}
 
@@ -871,25 +895,16 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 		testProbes.prePublicationWaitAction().run();
 		formatDriverLock.lock();
 		try {
-			// There's a race here: the formatDriver could have recovered after we tried to use it
-			// but before we acquired the lock. Let's double-check now to avoid an unnecessary wait
-			// for an event that may already have happened.
-			//
-			// Note: this presupposes that, when we tried to use the formatDriver, it was (or soon
-			// became) a DisconnectedDriver. If instead it was a healthy driver that has since been
-			// replaced, then skipping the wait is exactly right: the operation failed for a reason
-			// unrelated to the current driver's health, and retrying with the replacement driver is
-			// the correct course of action.
-
+			// The driver may have recovered before we acquired the lock; the loop's
+			// first predicate check handles that without waiting.
+			long remainingNanos = reinitializationTimeout.toNanos();
+			while (formatDriver instanceof DisconnectedDriver<R> && remainingNanos > 0) {
+				LOGGER.debug("Waiting for MongoDB to reconnect for {} ms", MILLISECONDS.convert(remainingNanos, NANOSECONDS));
+				remainingNanos = formatDriverChanged.awaitNanos(remainingNanos);
+			}
 			if (formatDriver instanceof DisconnectedDriver<R>) {
-				LOGGER.debug("Waiting for new FormatDriver for {} ms", reinitializationTimeout);
-				boolean success = formatDriverChanged.await(reinitializationTimeout, MILLISECONDS);
-				if (!success) {
-					LOGGER.warn("Timed out waiting for MongoDB to recover; will retry anyway, but the operation may fail");
-					logTimeoutDiagnostics(description, null);
-				}
-			} else {
-				LOGGER.debug("FormatDriver is already {}; no need to wait", formatDriver.getClass().getSimpleName());
+				LOGGER.warn("Timed out waiting for MongoDB to reconnect; will retry anyway, but the operation may fail");
+				logTimeoutDiagnostics(description, null);
 			}
 		} catch (InterruptedException e) {
 			// In a library, it's hard to know what a user expects when interrupting a thread.
@@ -944,9 +959,9 @@ public final class MainDriver<R extends StateTreeNode> implements MongoDriver {
 	private String diagnosticSummary() {
 		StringBuilder result = new StringBuilder()
 			.append("timescaleMS=").append(timescaleMS)
-			.append(", flushTimeoutMS=").append(flushTimeout)
-			.append(", queryTimeoutMS=").append(queryTimeout)
-			.append(", reinitializationTimeoutMS=").append(reinitializationTimeout);
+			.append(", flushTimeoutMS=").append(flushTimeout.toMillis())
+			.append(", queryTimeoutMS=").append(queryTimeout.toMillis())
+			.append(", reinitializationTimeoutMS=").append(reinitializationTimeout.toMillis());
 		long minRoundTripMS = measuredMinRoundTripMS();
 		if (minRoundTripMS < 0) {
 			result.append(", roundTrip=not measured yet");

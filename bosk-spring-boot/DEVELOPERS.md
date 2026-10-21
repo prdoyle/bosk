@@ -109,3 +109,24 @@ a guarantee the endpoint cannot make. A mismatch remains a `202` no-op.
 `MaintenanceEndpoints` memoizes whether each node type has a suitable `revision` field.
 `Reference.then` throws when the field is absent, and that absence is normal for many node types,
 so the endpoint asks once per type with `Reference.thenIfValid` and reuses the answer.
+
+### Flush failures and fresh reads
+
+`ReadSessionFilter` calls `BoskDriver.flush()` for requests with `Cache-Control: no-cache`.
+`RetryableFlushException` means the driver cannot currently confirm the state and the caller
+should retry; it carries a `Duration retryAfter` hint. The filter maps it to `503` with
+`Retry-After` and a stable JSON body, and does not call the rest of the chain. Other
+`IOException`s are left alone.
+
+`MainDriver.flush()` only translates the database-health failures that make client retry
+appropriate: a plain `DisconnectedException`, or a `FlushTimeoutException` (the revision did
+not arrive in time). Both become `RetryableFlushException`. A `MongoException` while reading
+the revision stays an ordinary `FlushFailureException` (500), because the underlying
+`MongoException` may be permanent, such as a security or command error. Revision and format
+problems (`RevisionDisruptedException`, `EpochMismatchException`,
+`RevisionFieldDisruptedException`) also stay at 500, as does `ImmediateReconnectException`:
+they require an immediate internal reconnect or a data fix, not a client retry.
+
+The `Retry-After` value is `reinitializationTimeout` (`10 × timescaleMS`, 100 s by default),
+because that is the driver's own worst-case wait for the change stream to recover and publish a
+new `FormatDriver`. The filter rounds it up to whole seconds, with a minimum of 1.

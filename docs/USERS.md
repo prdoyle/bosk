@@ -987,6 +987,12 @@ This is a consequence of Sequoia's design simplicity; specifically, its avoidanc
 each HTTP request (see the `bosk-spring-boot` module javadoc), and provides the maintenance
 endpoints described below.
 
+Requests with `Cache-Control: no-cache` ask for a fresh read. If the flush fails with a
+`RetryableFlushException` because the driver cannot currently confirm the state, the response is
+`503 Service Unavailable` with a `Retry-After` header and a small JSON body such as
+`{"error":"bosk_flush_failed","message":"...","retryAfterSeconds":100}`. The request does not reach
+the rest of the filter chain. Other `IOException`s keep their normal error handling.
+
 #### Maintenance endpoints
 
 The maintenance endpoints give direct HTTP access to the state tree. Because they expose full read

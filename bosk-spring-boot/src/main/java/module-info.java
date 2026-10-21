@@ -18,6 +18,15 @@ import works.bosk.spring.boot.ReadSessionFilter;
  *     If you need finer control over sessions, consider using
  *     {@link works.bosk.Bosk#supersedingReadSession() Bosk.supersedingReadSession()} rather than disabling
  *     automatic read sessions globally.
+ *     <p>
+ *     A request with {@code Cache-Control: no-cache} asks for a fresh read: the filter calls
+ *     {@link works.bosk.BoskDriver#flush()} before opening the read session. If the flush fails with a
+ *     {@link works.bosk.exceptions.RetryableFlushException RetryableFlushException} because the driver cannot
+ *     currently confirm the state, the filter responds with {@code 503 Service Unavailable},
+ *     a {@code Retry-After} header in seconds, and a JSON body containing
+ *     {@code "error": "bosk_flush_failed"} and the advertised delay. The request does not reach the
+ *     rest of the filter chain. Other {@code IOException}s are not converted and retain their usual
+ *     error handling.
  *   </li>
  *   <li>
  *     <b>Maintenance endpoints</b> — The

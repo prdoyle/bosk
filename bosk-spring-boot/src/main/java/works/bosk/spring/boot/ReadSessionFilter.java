@@ -5,6 +5,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,8 +16,11 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.filter.OncePerRequestFilter;
 import works.bosk.Bosk;
 import works.bosk.exceptions.NoReadSessionException;
+import works.bosk.exceptions.RetryableFlushException;
 
 import static org.springframework.http.HttpHeaders.CACHE_CONTROL;
+import static org.springframework.http.HttpHeaders.RETRY_AFTER;
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 @Component
 @ControllerAdvice
@@ -36,6 +41,9 @@ public class ReadSessionFilter extends OncePerRequestFilter {
 				// not just the flush operation.
 				Thread.currentThread().interrupt();
 				throw new ServletException(e);
+			} catch (RetryableFlushException e) {
+				writeFlushFailure(response, e);
+				return;
 			}
 		}
 		if (automaticallyOpenReadSession(request)) {
@@ -56,6 +64,23 @@ public class ReadSessionFilter extends OncePerRequestFilter {
 			case "GET", "HEAD", "OPTIONS" -> true;
 			default -> false;
 		};
+	}
+
+	private static void writeFlushFailure(HttpServletResponse response, RetryableFlushException e) throws IOException {
+		long retryAfterSeconds = retryAfterSeconds(e.retryAfter());
+		response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+		response.setHeader(RETRY_AFTER, Long.toString(retryAfterSeconds));
+		response.setContentType(APPLICATION_JSON_VALUE);
+		response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+		response.getWriter().write(
+			"{\"error\":\"bosk_flush_failed\","
+				+ "\"message\":\"The server could not confirm that the state is up to date.\","
+				+ "\"retryAfterSeconds\":" + retryAfterSeconds + "}");
+		LOGGER.debug("Flush failed; returning 503 with retryAfterSeconds={}", retryAfterSeconds, e);
+	}
+
+	private static long retryAfterSeconds(Duration retryAfter) {
+		return Math.max(1, (retryAfter.toMillis() + 999) / 1000);
 	}
 
 	@ExceptionHandler(NoReadSessionException.class)

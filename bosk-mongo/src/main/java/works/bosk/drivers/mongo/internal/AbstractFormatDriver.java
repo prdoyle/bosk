@@ -4,6 +4,7 @@ import com.mongodb.MongoException;
 import com.mongodb.MongoInterruptedException;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
@@ -45,7 +46,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	final Formatter formatter;
 	final TransactionalCollection collection;
 	final BoskDriver downstream;
-	final long flushTimeoutMS;
+	final Duration flushTimeout;
 
 	final AtomicReference<FlushLock> flushLock = new AtomicReference<>(null);
 
@@ -57,14 +58,14 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 		Formatter formatter,
 		TransactionalCollection collection,
 		BoskDriver downstream,
-		long flushTimeoutMS
+		Duration flushTimeout
 	) {
 		this.rootRef = rootRef;
 		this.context = context;
 		this.formatter = formatter;
 		this.collection = collection;
 		this.downstream = downstream;
-		this.flushTimeoutMS = flushTimeoutMS;
+		this.flushTimeout = flushTimeout;
 	}
 
 	@Override
@@ -125,7 +126,7 @@ abstract non-sealed class AbstractFormatDriver<R extends StateTreeNode> implemen
 	 * Must be called before {@link FormatDriver#onHasBeenApplied} or any event processing.
 	 */
 	protected void replaceFlushLock(Optional<BsonString> epoch, BsonInt64 revisionNumber) {
-		flushLock.set(new FlushLock(epoch, revisionNumber.longValue(), flushTimeoutMS));
+		flushLock.set(new FlushLock(epoch, revisionNumber.longValue(), flushTimeout));
 	}
 
 	abstract BsonStateAndMetadata readBsonStateAndMetadata() throws InvalidCollectionContentsException;
