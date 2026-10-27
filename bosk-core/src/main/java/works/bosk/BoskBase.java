@@ -511,30 +511,9 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 							if (ex == null) {
 								break;
 							}
-							// Run the task in a separate virtual thread to prevent ThreadLocals from propagating.
-							// This is slightly tragic, because usually ThreadLocal propagation works just the
-							// way we'd want, but not always. Given the choices "always, sometimes, never", if
-							// we can't achieve "always", then the bosk philosophy prefers "never" over "sometimes".
-							FutureTask<Void> task = new FutureTask<>(ex, null);
-							Thread hookThread = hookThreadBuilder.start(task);
 							try {
-								task.get();
-							} catch (ExecutionException e) {
-								try {
-									throw e.getCause();
-								} catch (RuntimeException | Error cause) {
-									throw cause;
-								} catch (Throwable t) {
-									throw new AssertionError("Hook runnable should catch and wrap checked exceptions", t);
-								}
+								runHookTask(ex);
 							} catch (InterruptedException e) {
-								// The interrupt is intended for the hook work in flight here.
-								// Deliver it to the running hook, per the BoskHook contract,
-								// and await its termination before proceeding. This is intended
-								// to mimic structured concurrency (StructuredTaskScope.close()):
-								// cancel the in-flight subtasks and wait for them to terminate.
-								hookThread.interrupt();
-								awaitTermination(hookThread);
 								Thread.currentThread().interrupt();
 								HOOK_LOGGER.warn("Interrupted while running hooks; the running hook was interrupted and terminated, and the remaining queued hooks are deferred to the next update", e);
 								return;
@@ -577,6 +556,39 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 				// succeed in acquiring the permit and will itself drain the queue.
 
 			} while (!hookExecutionQueue.isEmpty());
+		}
+
+		/**
+		 * Runs a single hook call on a fresh virtual thread, so that ThreadLocals from
+		 * the caller do not propagate into user hook code.
+		 */
+		private void runHookTask(Runnable ex) throws InterruptedException {
+			// Run the task in a separate virtual thread to prevent ThreadLocals from propagating.
+			// This is slightly tragic, because usually ThreadLocal propagation works just the
+			// way we'd want, but not always. Given the choices "always, sometimes, never", if
+			// we can't achieve "always", then the bosk philosophy prefers "never" over "sometimes".
+			FutureTask<Void> task = new FutureTask<>(ex, null);
+			Thread hookThread = hookThreadBuilder.start(task);
+			try {
+				task.get();
+			} catch (ExecutionException e) {
+				try {
+					throw e.getCause();
+				} catch (RuntimeException | Error cause) {
+					throw cause;
+				} catch (Throwable t) {
+					throw new AssertionError("Hook runnable should catch and wrap checked exceptions", t);
+				}
+			} catch (InterruptedException e) {
+				// The interrupt is intended for the hook work in flight here.
+				// Deliver it to the running hook, per the BoskHook contract,
+				// and await its termination before proceeding. This is intended
+				// to mimic structured concurrency (StructuredTaskScope.close()):
+				// cancel the in-flight subtasks and wait for them to terminate.
+				hookThread.interrupt();
+				awaitTermination(hookThread);
+				throw e;
+			}
 		}
 
 		/**
