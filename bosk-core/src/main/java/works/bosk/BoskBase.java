@@ -425,7 +425,9 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 			assert holdsLock(this);
 			R rootForHook = currentRoot();
 			for (HookRegistration<?> reg : hooks) {
-				triggerQueueingOfHooks(target, priorRoot, rootForHook, reg);
+				if (reg.matchesTarget(target)) {
+					triggerQueueingOfHooks(target, priorRoot, rootForHook, reg);
+				}
 			}
 		}
 
@@ -636,6 +638,22 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		}
 
 		/**
+		 * @return whether this hook's scope matches the path of {@code target}
+		 */
+		boolean matchesTarget(Reference<?> target) {
+			int relativeDepth = target.path().length() - scope.path().length();
+			if (relativeDepth >= 0) {
+				// target may be the scope object or a descendant
+				Path candidate = target.path().truncatedBy(relativeDepth);
+				return scope.path().matches(candidate);
+			} else {
+				// target may be an ancestor of the scope object
+				Path enclosingScope = scope.path().truncatedBy(-relativeDepth);
+				return enclosingScope.matches(target.path());
+			}
+		}
+
+		/**
 		 * Calls <code>action</code> for every object whose path matches <code>scope</code> that
 		 * was changed by a driver event targeting <code>target</code>.
 		 *
@@ -644,26 +662,21 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		 * @param target    The object specified by the driver event
 		 * @param action    The operation to perform for each matching object that could have changed
 		 */
-		void triggerAction(@Nullable R priorRoot, R newRoot, Reference<?> target, Consumer<Reference<S>> action) {			Reference<S> effectiveScope;
-			int relativeDepth = target.path().length() - scope.path().length();
-			if (relativeDepth >= 0) {
-				// target may be the scope object or a descendant
-				Path candidate = target.path().truncatedBy(relativeDepth);
-				if (scope.path().matches(candidate)) {
-					effectiveScope = scope.boundBy(candidate);
-				} else {
-					return;
-				}
-			} else {
-				// target may be an ancestor of the scope object
-				Path enclosingScope = scope.path().truncatedBy(-relativeDepth);
-				if (enclosingScope.matches(target.path())) {
-					effectiveScope = scope.boundBy(target.path());
-				} else {
-					return;
-				}
+		void triggerAction(@Nullable R priorRoot, R newRoot, Reference<?> target, Consumer<Reference<S>> action) {
+			if (matchesTarget(target)) {
+				triggerCascade(boundScopeFor(target), priorRoot, newRoot, action);
 			}
-			triggerCascade(effectiveScope, priorRoot, newRoot, action);
+		}
+
+		/**
+		 * @return this hook's scope bound to the path of a target that {@link #matchesTarget matches}
+		 */
+		private Reference<S> boundScopeFor(Reference<?> target) {
+			assert matchesTarget(target);
+			int relativeDepth = target.path().length() - scope.path().length();
+			return relativeDepth >= 0
+				? scope.boundBy(target.path().truncatedBy(relativeDepth))
+				: scope.boundBy(target.path());
 		}
 
 		String name() {
