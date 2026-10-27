@@ -13,7 +13,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -241,7 +240,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	 */
 	private final class LocalDriver implements BoskDriver {
 		final Bosk.DefaultStateFunction<R> initialStateFunction;
-		final Deque<Runnable> hookExecutionQueue = new ConcurrentLinkedDeque<>();
+		final Deque<InterruptibleRunnable> hookQueue = new ConcurrentLinkedDeque<>();
 		final Semaphore hookExecutionPermit = new Semaphore(1);
 
 		public LocalDriver(Bosk.DefaultStateFunction<R> initialStateFunction) {
@@ -346,7 +345,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 			synchronized (this) {
 				HookRegistration<T> reg = new HookRegistration<>(name, scope, action, hooks.size());
 				hooks.add(reg);
-				triggerQueueingOfHooks(rootRef, null, currentState, reg);
+				hookQueue.addLast(() -> expand(null, currentState, rootRef, context.getAttributes(), reg.index(), reg.index() + 1));
 			}
 			drainQueueIfAllowed();
 		}
@@ -424,25 +423,43 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		private <T> void queueHooks(Reference<T> target, @Nullable R priorRoot) {
 			assert holdsLock(this);
 			R rootForHook = currentRoot();
-			for (HookRegistration<?> reg : hooks) {
-				if (reg.matchesTarget(target)) {
-					triggerQueueingOfHooks(target, priorRoot, rootForHook, reg);
+			int hookEnd = hooks.size();
+			boolean anyMatch = false;
+			for (int i = 0; i < hookEnd; i++) {
+				if (hooks.get(i).matchesTarget(target)) {
+					anyMatch = true;
+					break;
 				}
+			}
+			if (anyMatch) {
+				MapValue<String> diagnosticAttributes = context.getAttributes();
+				hookQueue.addLast(() -> expand(priorRoot, rootForHook, target, diagnosticAttributes, 0, hookEnd));
 			}
 		}
 
-		/**
-		 * For a given {@link HookRegistration}, queues up a call to {@link BoskHook#onChanged}
-		 * for each matching object that changed between <code>priorRoot</code> and <code>rootForHook</code>
-		 * when <code>target</code> was updated. If <code>priorRoot</code> is null, the hook is called
-		 * on every matching object that exists in <code>rootForHook</code>.
-		 */
-		private <T, S> void triggerQueueingOfHooks(Reference<T> target, @Nullable R priorRoot, R rootForHook, HookRegistration<S> reg) {
-			MapValue<String> diagnosticAttributes = context.getAttributes();
+		private void expand(@Nullable R priorRoot, R rootForHook, Reference<?> target, MapValue<String> diagnosticAttributes, int hookStart, int hookEnd) throws InterruptedException {
+			for (int i = hookStart; i < hookEnd; i++) {
+				runHookFor(hookAt(i), priorRoot, rootForHook, target, diagnosticAttributes);
+			}
+		}
+
+		private <S> void runHookFor(HookRegistration<S> reg, @Nullable R priorRoot, R rootForHook, Reference<?> target, MapValue<String> diagnosticAttributes) throws InterruptedException {
 			reg.triggerAction(priorRoot, rootForHook, target, changedRef -> {
-				HOOK_LOGGER.debug("Hook: queue {}({}) due to {}", reg.name(), changedRef, target);
-				hookExecutionQueue.addLast(hookTask(reg, changedRef, rootForHook, diagnosticAttributes));
+				HOOK_LOGGER.debug("Hook: trigger {}({}) due to {}", reg.name(), changedRef, target);
+				runHook(reg, changedRef, rootForHook, diagnosticAttributes);
 			});
+		}
+
+		private <S> void runHook(HookRegistration<S> reg, Reference<S> changedRef, R rootForHook, MapValue<String> diagnosticAttributes) throws InterruptedException {
+			runHookTask(hookTask(reg, changedRef, rootForHook, diagnosticAttributes));
+		}
+
+		private HookRegistration<?> hookAt(int index) {
+			synchronized (this) {
+				HookRegistration<?> registration = hooks.get(index);
+				assert registration.index() == index;
+				return registration;
+			}
 		}
 
 		private <S> Runnable hookTask(HookRegistration<S> reg, Reference<S> changedRef, R rootForHook, MapValue<String> diagnosticAttributes) {
@@ -509,12 +526,12 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 								HOOK_LOGGER.debug("Interrupted; deferring the remaining queued hooks");
 								return;
 							}
-							Runnable ex = hookExecutionQueue.pollFirst();
-							if (ex == null) {
+							InterruptibleRunnable work = hookQueue.pollFirst();
+							if (work == null) {
 								break;
 							}
 							try {
-								runHookTask(ex);
+								work.run();
 							} catch (InterruptedException e) {
 								Thread.currentThread().interrupt();
 								HOOK_LOGGER.warn("Interrupted while running hooks; the running hook was interrupted and terminated, and the remaining queued hooks are deferred to the next update", e);
@@ -557,7 +574,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 				// if another thread queues another hook after this point, that thread will also
 				// succeed in acquiring the permit and will itself drain the queue.
 
-			} while (!hookExecutionQueue.isEmpty());
+			} while (!hookQueue.isEmpty());
 		}
 
 		/**
@@ -623,6 +640,27 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		localDriver.registerHook(name, requireNonNull(scope), requireNonNull(action));
 	}
 
+	@FunctionalInterface
+	interface HookAction<S> {
+		void execute(Reference<S> ref) throws InterruptedException;
+	}
+
+	/**
+	 * Queued hook work: the expansion of one update's hooks.
+	 *
+	 * <p>
+	 * Expansion runs each hook as it finds it, so it can wait for a hook, and hence
+	 * can be interrupted. It uses the roots, update target, and diagnostic attributes
+	 * captured when the work was queued, not the values current at drain time,
+	 * because hooks must see the state and context of the update that triggered them.
+	 * The range of hook registrations is frozen at that point too, so a hook
+	 * registered later does not receive an earlier update.
+	 */
+	@FunctionalInterface
+	interface InterruptibleRunnable {
+		void run() throws InterruptedException;
+	}
+
 	// Inner class can't be a record
 	final class HookRegistration<S> {
 		private final String name;
@@ -662,7 +700,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		 * @param target    The object specified by the driver event
 		 * @param action    The operation to perform for each matching object that could have changed
 		 */
-		void triggerAction(@Nullable R priorRoot, R newRoot, Reference<?> target, Consumer<Reference<S>> action) {
+		void triggerAction(@Nullable R priorRoot, R newRoot, Reference<?> target, HookAction<S> action) throws InterruptedException {
 			if (matchesTarget(target)) {
 				triggerCascade(boundScopeFor(target), priorRoot, newRoot, action);
 			}
@@ -716,6 +754,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		}
 	}
 
+
 	/**
 	 * Recursive helper routine that calls the given action for all objects matching <code>effectiveScope</code> that
 	 * are different between <code>priorRoot</code> and <code>newRoot</code>.
@@ -730,7 +769,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	 * @param action         The operation to perform for each matching object that is different between the two roots
 	 * @param <S>            The type of the hook scope object
 	 */
-	final <S> void triggerCascade(Reference<S> effectiveScope, @Nullable R priorRoot, R newRoot, Consumer<Reference<S>> action) {
+	final <S> void triggerCascade(Reference<S> effectiveScope, @Nullable R priorRoot, R newRoot, HookAction<S> action) throws InterruptedException {
 		if (effectiveScope.path().numParameters() == 0) {
 			// effectiveScope points at a single node that may have changed
 			//
@@ -740,7 +779,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 				LOGGER.debug("Hook: skip unchanged {}", effectiveScope);
 			} else {
 				// We've found something that changed
-				action.accept(effectiveScope);
+				action.execute(effectiveScope);
 			}
 		} else {
 			// There's at least one parameter that hasn't been bound yet. This means
