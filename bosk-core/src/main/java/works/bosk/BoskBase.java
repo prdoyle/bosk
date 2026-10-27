@@ -436,33 +436,37 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		 * on every matching object that exists in <code>rootForHook</code>.
 		 */
 		private <T, S> void triggerQueueingOfHooks(Reference<T> target, @Nullable R priorRoot, R rootForHook, HookRegistration<S> reg) {
-			MapValue<String> attributes = context.getAttributes();
+			MapValue<String> diagnosticAttributes = context.getAttributes();
 			reg.triggerAction(priorRoot, rootForHook, target, changedRef -> {
 				HOOK_LOGGER.debug("Hook: queue {}({}) due to {}", reg.name(), changedRef, target);
-				hookExecutionQueue.addLast(() -> {
-					// We use two nested try statements here so that the "finally" clause runs within the diagnostic scope
-					try (
-						var _ = setupMDC(name, instanceID);
-						var _ = context.withOnly(attributes)
-					) {
-						try (var _ = newReadSession(rootForHook)) {
-							HOOK_LOGGER.debug("Hook: RUN {}({})", reg.name(), changedRef);
-							reg.hook().onChanged(changedRef);
-						} catch (InterruptedException e) {
-							HOOK_LOGGER.warn("Bosk hook \"{}\" was interrupted; proceeding", reg.name(), e);
-						} catch (RuntimeException e) {
-							HOOK_LOGGER.error("Bosk hook \"{}\" terminated with an exception, which usually indicates a bug. State updates may have been lost", reg.name(), e);
-
-							// Note that we don't catch Error. The practical reason is to allow users to write
-							// unit tests that throw AssertionError from hooks, but the bigger reason is that
-							// Errors indicate that something has gone dreadfully wrong, and we probably should
-							// not attempt to continue.
-						} finally {
-							HOOK_LOGGER.debug("Hook: end {}({})", reg.name(), changedRef);
-						}
-					}
-				});
+				hookExecutionQueue.addLast(hookTask(reg, changedRef, rootForHook, diagnosticAttributes));
 			});
+		}
+
+		private <S> Runnable hookTask(HookRegistration<S> reg, Reference<S> changedRef, R rootForHook, MapValue<String> diagnosticAttributes) {
+			return () -> {
+				// We use two nested try statements here so that the "finally" clause runs within the diagnostic scope
+				try (
+					var _ = setupMDC(name, instanceID);
+					var _ = context.withOnly(diagnosticAttributes)
+				) {
+					try (var _ = newReadSession(rootForHook)) {
+						HOOK_LOGGER.debug("Hook: RUN {}({})", reg.name(), changedRef);
+						reg.hook().onChanged(changedRef);
+					} catch (InterruptedException e) {
+						HOOK_LOGGER.warn("Bosk hook \"{}\" was interrupted; proceeding", reg.name(), e);
+					} catch (RuntimeException e) {
+						HOOK_LOGGER.error("Bosk hook \"{}\" terminated with an exception, which usually indicates a bug. State updates may have been lost", reg.name(), e);
+
+						// Note that we don't catch Error. The practical reason is to allow users to write
+						// unit tests that throw AssertionError from hooks, but the bigger reason is that
+						// Errors indicate that something has gone dreadfully wrong, and we probably should
+						// not attempt to continue.
+					} finally {
+						HOOK_LOGGER.debug("Hook: end {}({})", reg.name(), changedRef);
+					}
+				}
+			};
 		}
 
 		/**
