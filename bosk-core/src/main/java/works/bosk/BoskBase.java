@@ -520,10 +520,11 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 				if (hookExecutionPermit.tryAcquire()) {
 					try {
 						while (true) {
-							// An interrupt means "stop"; quit before starting another hook,
-							// leaving the remaining queued hooks for a later update.
+							// An interrupt means "stop", not "pause": we do not
+							// resume the backlog on some later, unrelated update.
 							if (Thread.currentThread().isInterrupted()) {
-								HOOK_LOGGER.debug("Interrupted; deferring the remaining queued hooks");
+								HOOK_LOGGER.debug("Interrupted; clearing the remaining queued hooks");
+								hookQueue.clear();
 								return;
 							}
 							InterruptibleRunnable work = hookQueue.pollFirst();
@@ -533,8 +534,9 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 							try {
 								work.run();
 							} catch (InterruptedException e) {
+								hookQueue.clear();
 								Thread.currentThread().interrupt();
-								HOOK_LOGGER.warn("Interrupted while running hooks; the running hook was interrupted and terminated, and the remaining queued hooks are deferred to the next update", e);
+								HOOK_LOGGER.warn("Interrupted while running hooks; the running hook was interrupted and terminated, and the remaining queued hooks were discarded", e);
 								return;
 							}
 						}
