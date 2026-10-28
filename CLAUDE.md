@@ -270,6 +270,12 @@ Wrangler interfaces (e.g. `OneMemberWrangler`, `MemberWrangler`, `Gatherer`) mus
 - Bosk treats reads and writes very differently
   - Some other projects perceive a symmetry between these two operations
   - The bosk philosophy is that they have nothing in common and are handled by entirely separate mechanisms. (This is almost a corollary of representing data with immutable structures.)
+- Prefer failure modes that recover unattended. Bosk aims to be self-repairing over time: if a
+  temporary problem resolves itself, Bosk should recover on its own, without an operator or a restart.
+  When a design can either fail permanently or degrade and recover, prefer the latter.
+  - Hook delivery degrades into overload mode and catches up rather than failing updates that
+    would leave a server permanently behind its latest state.
+  - `bosk-mongo` recovers when a database that was damaged is repaired.
 - Jackson serialization and deserialization are not symmetric, and assuming otherwise causes bugs.
   Serialization is value-driven: Jackson derives each value's serializer from the value itself, so
   serialize values directly rather than setting a declared write type, which can resolve a type
