@@ -1323,4 +1323,4 @@ _Segment_: A portion of a path between slashes. The path `/a/b/c` has three segm
 
 _Submit_: (of an update) to be sent to the driver for subsequent execution.
 
-_Trigger_: (of a hook) to be queued for execution. A hook is triggered whenever its scope node is updated. The execution may happen immediately, or it may happen later, depending on the circumstances.
+_Trigger_: (of a hook) to determine that the hook must run for a particular reference, because an update changed it.
