@@ -464,7 +464,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		}
 
 		private <S> void runHookFor(HookRegistration<S> reg, @Nullable R priorRoot, R rootForHook, Reference<?> target, MapValue<String> diagnosticAttributes) throws InterruptedException {
-			reg.triggerAction(priorRoot, rootForHook, target, changedRef -> {
+			reg.triggerAction(priorRoot, rootForHook, target, (changedRef, existedBefore, existsAfter) -> {
 				HOOK_LOGGER.debug("Hook: trigger {}({}) due to {}", reg.name(), changedRef, target);
 				runHook(reg, changedRef, rootForHook, diagnosticAttributes);
 			});
@@ -662,9 +662,13 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		localDriver.registerHook(name, requireNonNull(scope), requireNonNull(action));
 	}
 
+	/**
+	 * Receives each reference whose value changed, along with its existence
+	 * before and after the change.
+	 */
 	@FunctionalInterface
 	interface HookAction<S> {
-		void execute(Reference<S> ref) throws InterruptedException;
+		void execute(Reference<S> ref, boolean existedBefore, boolean existsAfter) throws InterruptedException;
 	}
 
 	/**
@@ -801,7 +805,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 				LOGGER.debug("Hook: skip unchanged {}", effectiveScope);
 			} else {
 				// We've found something that changed
-				action.execute(effectiveScope);
+				action.execute(effectiveScope, priorValue != null, currentValue != null);
 			}
 		} else {
 			// There's at least one parameter that hasn't been bound yet. This means
