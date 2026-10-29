@@ -260,7 +260,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	 */
 	private final class LocalDriver implements BoskDriver {
 		final Bosk.DefaultStateFunction<R> initialStateFunction;
-		final Deque<InterruptibleRunnable> hookQueue = new ConcurrentLinkedDeque<>();
+		final Deque<PendingHookTrigger<R>> hookQueue = new ConcurrentLinkedDeque<>();
 		final Semaphore hookExecutionPermit = new Semaphore(1);
 
 		public LocalDriver(Bosk.DefaultStateFunction<R> initialStateFunction) {
@@ -365,7 +365,13 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 			synchronized (this) {
 				HookRegistration<T> reg = new HookRegistration<>(name, scope, action, hooks.size());
 				hooks.add(reg);
-				hookQueue.addLast(() -> expand(null, currentState, rootRef, context.getAttributes(), reg.index(), reg.index() + 1));
+				hookQueue.addLast(new PendingHookTrigger<>(
+					null,
+					requireNonNull(currentState),
+					rootRef,
+					context.getAttributes(),
+					reg.index(),
+					reg.index() + 1));
 			}
 			drainQueueIfAllowed();
 		}
@@ -452,14 +458,19 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 				}
 			}
 			if (anyMatch) {
-				MapValue<String> diagnosticAttributes = context.getAttributes();
-				hookQueue.addLast(() -> expand(priorRoot, rootForHook, target, diagnosticAttributes, 0, hookEnd));
+				hookQueue.addLast(new PendingHookTrigger<>(
+					priorRoot,
+					rootForHook,
+					target,
+					context.getAttributes(),
+					0,
+					hookEnd));
 			}
 		}
 
-		private void expand(@Nullable R priorRoot, R rootForHook, Reference<?> target, MapValue<String> diagnosticAttributes, int hookStart, int hookEnd) throws InterruptedException {
-			for (int i = hookStart; i < hookEnd; i++) {
-				runHookFor(hookAt(i), priorRoot, rootForHook, target, diagnosticAttributes);
+		private void execute(PendingHookTrigger<R> trigger) throws InterruptedException {
+			for (int i = trigger.hookStart(); i < trigger.hookEnd(); i++) {
+				runHookFor(hookAt(i), trigger.priorRoot(), trigger.rootForHook(), trigger.target(), trigger.diagnosticAttributes());
 			}
 		}
 
@@ -547,12 +558,12 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 								hookQueue.clear();
 								return;
 							}
-							InterruptibleRunnable work = hookQueue.pollFirst();
+							PendingHookTrigger<R> work = hookQueue.pollFirst();
 							if (work == null) {
 								break;
 							}
 							try {
-								work.run();
+								execute(work);
 							} catch (InterruptedException e) {
 								hookQueue.clear();
 								Thread.currentThread().interrupt();
@@ -672,20 +683,24 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	}
 
 	/**
-	 * Queued hook work: the expansion of one update's hooks.
+	 * Queued hook work: one update's pending trigger.
 	 *
 	 * <p>
-	 * Expansion runs each hook as it finds it, so it can wait for a hook, and hence
+	 * Triggering runs each hook as it finds it, so it can wait for a hook, and hence
 	 * can be interrupted. It uses the roots, update target, and diagnostic attributes
-	 * captured when the work was queued, not the values current at drain time,
+	 * captured when the trigger was queued, not the values current at drain time,
 	 * because hooks must see the state and context of the update that triggered them.
 	 * The range of hook registrations is frozen at that point too, so a hook
 	 * registered later does not receive an earlier update.
 	 */
-	@FunctionalInterface
-	interface InterruptibleRunnable {
-		void run() throws InterruptedException;
-	}
+	private record PendingHookTrigger<RR>(
+		@Nullable RR priorRoot,
+		RR rootForHook,
+		Reference<?> target,
+		MapValue<String> diagnosticAttributes,
+		int hookStart,
+		int hookEnd
+	) {}
 
 	// Inner class can't be a record
 	final class HookRegistration<S> {
