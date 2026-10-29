@@ -17,6 +17,8 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import works.bosk.annotations.Hook;
 import works.bosk.annotations.ReferencePath;
 import works.bosk.exceptions.InvalidTypeException;
@@ -144,6 +146,7 @@ public class HooksTest extends AbstractBoskTest {
 			}
 		});
 
+		LOGGER.debug("Submitting an update on another thread, which will run the blocking hook");
 		Thread submitter = new Thread(() ->
 			bosk.driver().submitReplacement(refs.child(newChildID),
 				new TestChild(newChildID, "newChild", TestEnum.OK, Catalog.empty())));
@@ -155,6 +158,44 @@ public class HooksTest extends AbstractBoskTest {
 		submitter.join(10_000);
 		assertFalse(submitter.isAlive(), "submitReplacement must return after the hook is interrupted");
 		assertTrue(hookTerminated.get(), "The hook must terminate before submitReplacement returns");
+	}
+
+	@Test
+	void hookRegisteredWhileBacklogIsQueued_seesOnlyCurrentState() throws InterruptedException {
+		Identifier newChildID = Identifier.from("newChild");
+		CountDownLatch firstHookStarted = new CountDownLatch(1);
+		CountDownLatch gate = new CountDownLatch(1);
+		LOGGER.debug("Registering a blocking hook on {} that will hold the drain permit", refs.child(newChildID));
+		bosk.hookRegistrar().registerHook("blocking", refs.child(newChildID), _ -> {
+			firstHookStarted.countDown();
+			try {
+				gate.await();
+			} catch (InterruptedException e) {
+				throw new AssertionError("Unexpected interrupt", e);
+			}
+		});
+
+		Thread submitter = new Thread(() ->
+			bosk.driver().submitReplacement(refs.child(newChildID),
+				new TestChild(newChildID, "first", TestEnum.OK, Catalog.empty())));
+		submitter.start();
+		assertTrue(firstHookStarted.await(10, SECONDS), "The first hook must start running");
+
+		LOGGER.debug("Queuing a second update and registering a late hook while the permit is held");
+		bosk.driver().submitReplacement(refs.childString(newChildID), "second");
+		bosk.hookRegistrar().registerHook("late", refs.child(newChildID), recorder.hookNamed("late"));
+
+		LOGGER.debug("Releasing the blocking hook");
+		gate.countDown();
+		submitter.join(10_000);
+		assertFalse(submitter.isAlive(), "The submitter must finish draining the hooks");
+
+		LOGGER.debug("Checking that the late hook saw only the current state");
+		TestChild expected = new TestChild(newChildID, "second", TestEnum.OK, Catalog.empty());
+		assertEquals(
+			singletonList(new HookRecorder.Event("late", HookRecorder.Event.Kind.CHANGED, refs.child(newChildID), expected)),
+			recorder.events(),
+			"The late hook must see the current state once, not the updates queued before it was registered");
 	}
 
 	@ParameterizedTest
@@ -750,4 +791,6 @@ public class HooksTest extends AbstractBoskTest {
 			this.submit = submit;
 		}
 	}
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(HooksTest.class);
 }
