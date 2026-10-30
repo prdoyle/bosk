@@ -9,6 +9,9 @@ public interface HookRegistrar {
 	 * object is updated.
 	 *
 	 * <p>
+	 * In standard mode, the following apply.
+	 *
+	 * <p>
 	 * The <code>scope</code> reference can be parameterized.
 	 * Upon any change to any matching node, or any parent or child of a matching node,
 	 * the <code>hook</code> will be called with a {@link Bosk.ReadSession} that captures
@@ -28,6 +31,12 @@ public interface HookRegistrar {
 	 * <p>
 	 * Before returning, runs the hook on the current bosk state.
 	 *
+	 * <p>
+	 * If hook work falls behind updates, Bosk may enter <em>overload mode</em> and
+	 * compact notifications. A hook may then be called once for several changes to the
+	 * same reference, may see a later state than the one immediately after the
+	 * triggering update, and may not be called at all for a reference that exists only
+	 * briefly.
 	 */
 	<T> void registerHook(String name, Reference<T> scope, BoskHook<T> hook);
 }

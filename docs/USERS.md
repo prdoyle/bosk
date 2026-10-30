@@ -565,8 +565,9 @@ bosk.registerHook("Widget changed", bosk.anyWidget, ref -> {
 });
 ```
 
-The hook call-back occurs inside a read session containing a state snapshot taken immediately after the triggering update occurred.
-This means there are no race conditions between bosk reads in a hook versus other bosk updates happening in parallel.
+In standard mode, the hook call-back occurs inside a read session containing a state snapshot taken immediately after the triggering update occurred.
+If hook work falls behind, Bosk may enter [overload mode](#overload-mode), where a hook may see a later snapshot instead.
+In either case, there are no race conditions between bosk reads in a hook versus other bosk updates happening in parallel.
 
 Hooks run on separate threads from the one that submitted the triggering update,
 and so they do not inherit that thread's MDC.
@@ -582,12 +583,13 @@ If a hook needs information to be available on every invocation,
 that information belongs in the bosk state tree, which the hook's read session makes accessible,
 rather than in the diagnostic attributes.
 
-If a single update triggers multiple hooks, the hooks will run in the order they were registered.
+In standard mode, if a single update triggers multiple hooks, the hooks run in the order they were registered.
+Overload mode gives up that ordering guarantee because it compacts notifications.
 
 #### Breadth-first ordering
 
 It is fairly common for hooks to perform bosk updates, and these could themselves trigger additional hooks.
-Triggered hooks are queued, and are run in the order they were queued.
+In standard mode, triggered hooks are queued, and are run in the order they were queued.
 
 For example, if one update triggers two hooks A and B, and then A performs an update that triggers hook C,
 B will run before C. The hooks will reliably run in the order A, B, C.
@@ -605,6 +607,40 @@ bosk heavily favours consistency, and employs a convention that can be implement
 updates from B are never visible in C's read session.
 Whatever confusion this might cause, that confusion will be encountered during initial application development,
 rather than providing surprises when moving to a different environment for production.
+
+#### Overload mode
+
+If hook work falls behind updates, the local driver bounds its backlog by entering _overload mode_.
+The limit is measured in queued hook executions: one per hook registration that matches a queued update,
+so a single update can contribute several.
+It defaults to 1000 and can be changed with `BoskConfig.hookOverloadThreshold`.
+A value of zero starts in overload mode, and a value of one enters it on the first update,
+so hooks always see compacted notifications against the latest state.
+
+In overload mode, the driver _compacts_ hook work as updates arrive.
+Compaction walks each update's changes and records one pending notification per hook registration and reference,
+without running the hooks yet.
+Those notifications are delivered in batches against the latest state, so:
+
+- A hook may see a state from a later point instead of the state immediately after the change that triggered it.
+- Hooks do not fire on every state change; intermediate states may be skipped.
+- A hook may not fire at all if a reference in its scope is created and then deleted before it runs.
+- Compacted notifications do not carry update diagnostic attributes, because no single update originated them.
+
+Compaction also keeps the work bounded:
+queued updates hold state snapshots, so once the limit is reached, later updates add only their pending notifications,
+which are bounded by the state tree rather than by the number of updates.
+
+Once the compacted backlog clears, the driver runs a bounded standard-mode _probation_
+to check whether it has caught up.
+During the probation, updates are delivered one at a time, as they would be in standard mode.
+If the probation spends its whole budget without reaching the limit again,
+the driver runs one final compacted generation and returns to standard mode.
+If the limit is reached first, it returns to overload mode.
+An overflow soon after a successful probation means that probation was too short,
+so the next one gets a larger budget; sustained standard delivery brings the budget back down.
+
+Most applications are not expected to reach the limit.
 
 #### Exception handling
 
@@ -1300,6 +1336,8 @@ For example, a typical bosk path might look like `/exampleService/tenants/-tenan
 
 _Apply_: When an update has been _applied_ to the bosk, it (or a later update) will be reflected in a subsequent read session
 
+_Compact_: (of triggered hooks) to reduce pending hook executions into a smaller, lossy representation during overload mode. Compaction keeps at most one pending execution per hook registration and reference, but not intermediate states, ordering, or diagnostic attributes.
+
 _Driver_: An object that accepts and processes bosk updates
 
 _Entity_: A state tree node with an `id` field, which can participate in certain bosk features.
@@ -1324,3 +1362,4 @@ _Segment_: A portion of a path between slashes. The path `/a/b/c` has three segm
 _Submit_: (of an update) to be sent to the driver for subsequent execution.
 
 _Trigger_: (of a hook) to determine that the hook must run for a particular reference, because an update changed it.
+

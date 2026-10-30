@@ -2,10 +2,34 @@ package works.bosk;
 
 import static java.util.Objects.requireNonNull;
 
+/**
+ * @param driverFactory         the factory used to build the driver stack
+ * @param registrarFactory      the factory used to build the hook registrar
+ * @param hookOverloadThreshold the number of queued hook executions at which the driver starts
+ *                              compacting. Each update adds one execution per matching hook
+ *                              registration. Zero disables standard-mode delivery: every update
+ *                              is compacted.
+ */
 public record BoskConfig<R extends StateTreeNode> (
 	DriverFactory<R> driverFactory,
-	RegistrarFactory registrarFactory
+	RegistrarFactory registrarFactory,
+	int hookOverloadThreshold
 ) {
+
+	public BoskConfig {
+		driverFactory = requireNonNull(driverFactory);
+		registrarFactory = requireNonNull(registrarFactory);
+		if (hookOverloadThreshold < 0) {
+			throw new IllegalArgumentException("hookOverloadThreshold must not be negative");
+		}
+	}
+
+	/**
+	 * Uses the default hook overload threshold.
+	 */
+	public BoskConfig(DriverFactory<R> driverFactory, RegistrarFactory registrarFactory) {
+		this(driverFactory, registrarFactory, DEFAULT_HOOK_OVERLOAD_THRESHOLD);
+	}
 
 	/**
 	 * Calls {@code BoskConfig.builder().build()} and returns the result.
@@ -38,6 +62,7 @@ public record BoskConfig<R extends StateTreeNode> (
 	public static class Builder<R extends StateTreeNode> {
 		private DriverFactory<R> driverFactory;
 		private RegistrarFactory registrarFactory;
+		private int hookOverloadThreshold = DEFAULT_HOOK_OVERLOAD_THRESHOLD;
 
 		Builder() {
 			driverFactory = simpleDriver();
@@ -54,19 +79,26 @@ public record BoskConfig<R extends StateTreeNode> (
 			return this;
 		}
 
+		public Builder<R> hookOverloadThreshold(int hookOverloadThreshold) {
+			this.hookOverloadThreshold = hookOverloadThreshold;
+			return this;
+		}
+
 		public BoskConfig<R> build() {
 			return new BoskConfig<>(
 				this.driverFactory,
-				this.registrarFactory
+				this.registrarFactory,
+				this.hookOverloadThreshold
 			);
 		}
 
 		@Override
 		public String toString() {
-			return "BoskConfig.Builder(driverFactory=" + this.driverFactory + ", registrarFactory=" + this.registrarFactory + ")";
+			return "BoskConfig.Builder(driverFactory=" + this.driverFactory + ", registrarFactory=" + this.registrarFactory + ", hookOverloadThreshold=" + this.hookOverloadThreshold + ")";
 		}
 	}
 
+	private static final int DEFAULT_HOOK_OVERLOAD_THRESHOLD = 1000;
 	private static final DriverFactory<?> SIMPLE_DRIVER_FACTORY = (_, d) -> d;
 	private static final RegistrarFactory SIMPLE_REGISTRAR_FACTORY = (_, d) -> d;
 }
