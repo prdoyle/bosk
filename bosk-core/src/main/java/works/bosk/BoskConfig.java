@@ -7,7 +7,8 @@ import static java.util.Objects.requireNonNull;
  * @param registrarFactory      the factory used to build the hook registrar
  * @param hookOverloadThreshold the number of queued hook executions at which the driver starts
  *                              compacting. Each update adds one execution per matching hook
- *                              registration.
+ *                              registration. Zero disables standard-mode delivery: every update
+ *                              is compacted.
  */
 public record BoskConfig<R extends StateTreeNode> (
 	DriverFactory<R> driverFactory,

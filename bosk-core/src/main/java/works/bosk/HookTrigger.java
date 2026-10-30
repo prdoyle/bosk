@@ -20,7 +20,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * {@code hookCount} is the number of registrations in that range that match the
  * update target. It is fixed when the trigger is created and used for the
- * overload limit.
+ * overload limit and for probation accounting.
  */
 record HookTrigger<RR>(
 	@Nullable RR priorRoot,

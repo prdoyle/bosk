@@ -15,7 +15,9 @@ import org.slf4j.LoggerFactory;
 
 import static java.lang.Thread.holdsLock;
 import static java.util.Objects.requireNonNull;
+import static works.bosk.OverloadController.Mode.CATCH_UP;
 import static works.bosk.OverloadController.Mode.OVERLOAD;
+import static works.bosk.OverloadController.Mode.PROBATION;
 import static works.bosk.OverloadController.Mode.STANDARD;
 import static works.bosk.PendingHookSet.PendingHooks;
 import static works.bosk.logging.MappedDiagnosticContext.setupMDC;
@@ -31,8 +33,7 @@ import static works.bosk.logging.MappedDiagnosticContext.setupMDC;
  * holds. If it reaches {@link BoskConfig#hookOverloadThreshold}, the driver enters
  * overload mode and each update is instead compacted into {@link #overloadPending}:
  * at most one pending call per hook registration and reference, run against a later
- * state snapshot. Overload mode ends only when an interrupt discards the remaining
- * hook work. See the user's guide for the guarantees each mode provides.
+ * state snapshot. See the user's guide for the guarantees each mode provides.
  *
  * <p>
  * The driver's monitor guards this object, because accepting a trigger has to
@@ -166,7 +167,8 @@ final class HookRunner<R extends StateTreeNode> {
 									LOGGER.debug("Hook: overload batch with {} paths", batch.pending().size());
 									runPendingBatch(batch);
 								}
-								case STANDARD -> {
+								case CATCH_UP -> runCatchUpBatch(buildBatch());
+								case STANDARD, PROBATION -> {
 									HookTrigger<R> work;
 									synchronized (monitor) {
 										// A concurrent overflow may have switched modes
@@ -186,6 +188,7 @@ final class HookRunner<R extends StateTreeNode> {
 										break drain;
 									}
 									execute(work);
+									overloadController.recordWork(work.hookCount());
 								}
 							}
 						} catch (InterruptedException e) {
@@ -195,6 +198,7 @@ final class HookRunner<R extends StateTreeNode> {
 							return;
 						}
 					}
+					reportCaughtUp();
 				} finally {
 					drainPermit.release();
 				}
@@ -258,6 +262,23 @@ final class HookRunner<R extends StateTreeNode> {
 		} else {
 			hookQueue.addLast(trigger);
 			overloadController.recordQueuedWork(trigger.hookCount());
+		}
+	}
+
+	/**
+	 * Reports to the controller when the drain has nothing left to do, so that it
+	 * can decide whether to try standard delivery again.
+	 *
+	 * <p>
+	 * Reporting here, rather than when a particular update arrives, means the mode
+	 * changes only when the drain is quiet: a hook that submits updates during a
+	 * batch cannot change the mode under the batch's feet.
+	 */
+	private void reportCaughtUp() {
+		synchronized (monitor) {
+			if (hookQueue.isEmpty() && overloadPending.isEmpty()) {
+				overloadController.hookWorkDrained();
+			}
 		}
 	}
 
@@ -342,6 +363,26 @@ final class HookRunner<R extends StateTreeNode> {
 		synchronized (monitor) {
 			return new CompactedBatch<>(overloadPending.detach(), bosk.currentRoot());
 		}
+	}
+
+	/**
+	 * Runs one catch-up batch, or finishes catch-up if the backlog is empty.
+	 */
+	private void runCatchUpBatch(CompactedBatch<R> batch) throws InterruptedException {
+		if (batch.pending().isEmpty()) {
+			synchronized (monitor) {
+				if (!overloadPending.isEmpty() || !hookQueue.isEmpty()) {
+					// Work arrived while this batch was being prepared; it will
+					// be run by the next catch-up batch.
+					return;
+				}
+				overloadController.catchUpFinished();
+			}
+			LOGGER.info("Hook backlog returned to normal; leaving overload mode");
+			return;
+		}
+		LOGGER.debug("Hook: final catch-up batch with {} paths", batch.pending().size());
+		runPendingBatch(batch);
 	}
 
 	/**

@@ -2,9 +2,13 @@ package works.bosk;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static works.bosk.OverloadController.Mode.OVERLOAD;
+import static works.bosk.OverloadController.Mode.PROBATION;
 import static works.bosk.OverloadController.Mode.STANDARD;
 
 public class OverloadModeTest extends AbstractBoskTest {
@@ -264,7 +269,7 @@ public class OverloadModeTest extends AbstractBoskTest {
 	}
 
 	@ParameterizedTest
-	@CsvSource({"0, OVERLOAD", "1, OVERLOAD"})
+	@CsvSource({"0, OVERLOAD", "1, PROBATION"})
 	void smallThresholdsCompactEveryUpdate(int threshold, OverloadController.Mode restingMode) throws InterruptedException, InvalidTypeException {
 		Bosk<TestRoot> alwaysOverloadBosk = new Bosk<>(
 			"overload-permanent-test-" + threshold,
@@ -311,6 +316,112 @@ public class OverloadModeTest extends AbstractBoskTest {
 	}
 
 	@Test
+	void quietBacklogStartsProbationThenCommitsToStandard() throws InterruptedException, InvalidTypeException {
+		Bosk<TestRoot> probationBosk = new Bosk<>(
+			"overload-probation-test",
+			TestRoot.class,
+			AbstractBoskTest::initialState,
+			BoskConfig.<TestRoot>builder().hookOverloadThreshold(3).build());
+		Refs probationRefs = probationBosk.rootReference().buildReferences(Refs.class);
+		Reference<String> stringRef = probationRefs.childString(Identifier.from("child1"));
+
+		BlockingHook hook = new BlockingHook();
+		probationBosk.hookRegistrar().registerHook("string", stringRef, hook);
+		hook.seen.clear();
+
+		hook.blockNext();
+		Thread updater = new Thread(() -> probationBosk.driver().submitReplacement(stringRef, "v1"));
+		updater.start();
+		hook.awaitStarted();
+
+		probationBosk.driver().submitReplacement(stringRef, "v2");
+		probationBosk.driver().submitReplacement(stringRef, "v3");
+		probationBosk.driver().submitReplacement(stringRef, "v4");
+		probationBosk.driver().submitReplacement(stringRef, "v5");
+
+		hook.unblock();
+		updater.join(10_000);
+		assertFalse(updater.isAlive(), "The updating thread should finish");
+		assertEquals(List.of("v1", "v5", "v5"), hook.seen,
+			"The flushed queue and the compacted backlog should each report the latest state");
+		assertEquals(PROBATION, probationBosk.hookMode(), "A drained backlog should leave the driver on probation");
+
+		probationBosk.driver().submitReplacement(stringRef, "v6");
+		assertEquals(PROBATION, probationBosk.hookMode(), "A probation should deliver updates one at a time");
+		probationBosk.driver().submitReplacement(stringRef, "v7");
+		probationBosk.driver().submitReplacement(stringRef, "v8");
+
+		assertEquals(STANDARD, probationBosk.hookMode(), "A completed probation should enter standard mode");
+		assertEquals(List.of("v1", "v5", "v5", "v6", "v7", "v8"), hook.seen,
+			"The probation should deliver each remaining update separately");
+	}
+
+	@Test
+	void probationOverflowReturnsToOverload() throws InterruptedException, InvalidTypeException {
+		Bosk<TestRoot> probationBosk = new Bosk<>(
+			"overload-probation-failure-test",
+			TestRoot.class,
+			AbstractBoskTest::initialState,
+			BoskConfig.<TestRoot>builder().hookOverloadThreshold(3).build());
+		Refs probationRefs = probationBosk.rootReference().buildReferences(Refs.class);
+		Reference<String> stringRef = probationRefs.childString(Identifier.from("child1"));
+
+		BlockingHook hook = new BlockingHook();
+		probationBosk.hookRegistrar().registerHook("string", stringRef, hook);
+		hook.seen.clear();
+
+		startOverloadAndDrainToProbation(probationBosk, stringRef, hook);
+		assertEquals(PROBATION, probationBosk.hookMode(), "A drained backlog should leave the driver on probation");
+
+		hook.blockNext();
+		Thread updater = new Thread(() -> probationBosk.driver().submitReplacement(stringRef, "v8"));
+		updater.start();
+		hook.awaitStarted();
+		assertEquals(PROBATION, probationBosk.hookMode(), "A probation should deliver updates one at a time");
+
+		probationBosk.driver().submitReplacement(stringRef, "v9");
+		probationBosk.driver().submitReplacement(stringRef, "v10");
+		probationBosk.driver().submitReplacement(stringRef, "v11");
+		probationBosk.driver().submitReplacement(stringRef, "v12");
+
+		assertEquals(OVERLOAD, probationBosk.hookMode(), "Overflowing during a probation should return to overload mode");
+
+		hook.unblock();
+		updater.join(10_000);
+		assertFalse(updater.isAlive(), "The updating thread should finish");
+		assertEquals(List.of("v1", "v5", "v5", "v8", "v12", "v12"), hook.seen,
+			"The failed probation should compact the queued updates into the latest state");
+		assertEquals(PROBATION, probationBosk.hookMode(), "A drained backlog should leave the driver on probation again");
+	}
+
+	@Test
+	void probationSuccessCompactsFinalCatchUpBatch() throws InterruptedException, InvalidTypeException {
+		Bosk<TestRoot> catchUpBosk = new Bosk<>(
+			"overload-final-catch-up-test",
+			TestRoot.class,
+			AbstractBoskTest::initialState,
+			BoskConfig.<TestRoot>builder().hookOverloadThreshold(5).build());
+		Refs catchUpRefs = catchUpBosk.rootReference().buildReferences(Refs.class);
+		Reference<String> stringRef = catchUpRefs.childString(Identifier.from("child1"));
+
+		CatchUpHook hook = new CatchUpHook(catchUpBosk, stringRef);
+		catchUpBosk.hookRegistrar().registerHook("string", stringRef, hook);
+		hook.seen.clear();
+		hook.nextValue.set(13);
+		hook.probationSubmissions.set(5);
+		hook.catchUpSubmissions.set(3);
+
+		startOverloadWithBlockedBatch(catchUpBosk, stringRef, hook);
+		assertEquals(PROBATION, catchUpBosk.hookMode(), "A drained backlog should leave the driver on probation");
+
+		catchUpBosk.driver().submitReplacement(stringRef, "v12");
+
+		assertEquals(STANDARD, catchUpBosk.hookMode(), "A completed catch-up should enter standard mode");
+		assertEquals(List.of("v1", "v11", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v20"), hook.seen,
+			"The probation should deliver each update, and the catch-up should compact its batch");
+	}
+
+	@Test
 	void interruptDiscardsUnrunHookWork() throws InterruptedException {
 		Identifier childID = Identifier.from("interruptedChild");
 		Reference<TestChild> childRef = refs.child(childID);
@@ -341,6 +452,103 @@ public class OverloadModeTest extends AbstractBoskTest {
 		bosk.driver().submitReplacement(stringRef, "afterInterrupt");
 
 		assertTrue(secondHookRan.await(10, SECONDS), "A later update should run the hooks again");
+	}
+
+	private static void startOverloadAndDrainToProbation(Bosk<TestRoot> bosk, Reference<String> stringRef, BlockingHook hook) throws InterruptedException {
+		hook.blockNext();
+		Thread updater = new Thread(() -> bosk.driver().submitReplacement(stringRef, "v1"));
+		updater.start();
+		hook.awaitStarted();
+
+		bosk.driver().submitReplacement(stringRef, "v2");
+		bosk.driver().submitReplacement(stringRef, "v3");
+		bosk.driver().submitReplacement(stringRef, "v4");
+		bosk.driver().submitReplacement(stringRef, "v5");
+
+		hook.unblock();
+		updater.join(10_000);
+		assertFalse(updater.isAlive(), "The updating thread should finish");
+		assertEquals(List.of("v1", "v5", "v5"), hook.seen,
+			"The flushed queue and the compacted backlog should each report the latest state");
+	}
+
+	/**
+	 * Starts with an overload batch blocked so updates submitted now are compacted
+	 * when the batch finishes, leaving the driver on probation.
+	 */
+	private static void startOverloadWithBlockedBatch(Bosk<TestRoot> bosk, Reference<String> stringRef, CatchUpHook hook) throws InterruptedException {
+		hook.blockNext();
+		Thread updater = new Thread(() -> bosk.driver().submitReplacement(stringRef, "v1"));
+		updater.start();
+		hook.awaitStarted();
+
+		for (int i = 2; i <= 11; i++) {
+			bosk.driver().submitReplacement(stringRef, "v" + i);
+		}
+
+		hook.unblock();
+		updater.join(10_000);
+		assertFalse(updater.isAlive(), "The updating thread should finish");
+		assertEquals(List.of("v1", "v11", "v11"), hook.seen,
+			"The flushed queue and the compacted backlog are separate batches, each reporting the latest state");
+	}
+
+	private static final class CatchUpHook implements BoskHook<String> {
+		final Bosk<TestRoot> bosk;
+		final Reference<String> stringRef;
+		final List<String> seen = new CopyOnWriteArrayList<>();
+		final AtomicInteger probationSubmissions = new AtomicInteger();
+		final AtomicInteger catchUpSubmissions = new AtomicInteger();
+		final AtomicInteger nextValue = new AtomicInteger(12);
+		final BlockingQueue<CountDownLatch> blocks = new LinkedBlockingQueue<>();
+		final Semaphore blockStarted = new Semaphore(0);
+		volatile CountDownLatch currentBlock;
+
+		CatchUpHook(Bosk<TestRoot> bosk, Reference<String> stringRef) {
+			this.bosk = bosk;
+			this.stringRef = stringRef;
+		}
+
+		void blockNext() {
+			blocks.add(new CountDownLatch(1));
+		}
+
+		void awaitStarted() throws InterruptedException {
+			assertTrue(blockStarted.tryAcquire(10, SECONDS), "The blocking hook should start");
+		}
+
+		void unblock() {
+			currentBlock.countDown();
+		}
+
+		@Override
+		public void onChanged(Reference<String> reference) throws InterruptedException {
+			seen.add(reference.valueIfExists());
+			CountDownLatch release = blocks.poll();
+			if (release != null) {
+				currentBlock = release;
+				blockStarted.release();
+				release.await();
+			}
+			switch (bosk.hookMode()) {
+				case PROBATION -> {
+					if (probationSubmissions.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
+						submitNext();
+					}
+				}
+				case CATCH_UP -> {
+					for (int remaining = catchUpSubmissions.getAndSet(0); remaining > 0; remaining--) {
+						submitNext();
+					}
+				}
+				default -> {
+				}
+			}
+		}
+
+		private void submitNext() {
+			bosk.driver().submitReplacement(stringRef, "v" + nextValue.getAndIncrement());
+		}
 	}
 
 	private static final class BlockingHook implements BoskHook<String> {
