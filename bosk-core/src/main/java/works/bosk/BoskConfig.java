@@ -2,6 +2,10 @@ package works.bosk;
 
 import static java.util.Objects.requireNonNull;
 
+/**
+ * @param driverFactory    the factory used to build the driver stack
+ * @param registrarFactory the factory used to build the hook registrar
+ */
 public record BoskConfig<R extends StateTreeNode> (
 	DriverFactory<R> driverFactory,
 	RegistrarFactory registrarFactory
