@@ -41,6 +41,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	final String name;
 	final Identifier instanceID = Identifier.from(randomUUID().toString());
 	final BoskContext context;
+	final int hookOverloadThreshold;
 
 	final IngressDriver ingressDriver;
 	final LocalDriver localDriver;
@@ -73,6 +74,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	 */
 	protected BoskBase(String name, Type rootType, Bosk.DefaultStateFunction<R> defaultStateFunction, BoskConfig<R> boskConfig) {
 		this.name = requireNonNull(name);
+		this.hookOverloadThreshold = boskConfig.hookOverloadThreshold();
 		this.pathCompiler = PathCompiler.withSourceType(requireNonNull(rootType)); // Required before rootRef
 		this.localDriver = new LocalDriver(requireNonNull(defaultStateFunction));
 		this.rootRef = new RootRef(rootType);
@@ -232,9 +234,11 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	 * </li><li>
 	 * Hooks are run sequentially: no hook begins until the previous one finishes.
 	 * </li><li>
-	 * Hooks are run in <em>breadth-first</em> fashion:
+	 * In standard mode, hooks are run in <em>breadth-first</em> fashion:
 	 * hooks triggered by one update run before any hooks triggered by subsequent updates,
 	 * even if those hooks themselves submit more updates.
+	 * Overload mode compacts work from several updates into one batch, so it does not
+	 * promise that ordering.
 	 * </li></ol>
 	 * <p>
 	 * Satisfying all of these simultaneously is tricky, especially because we can't just put
@@ -248,7 +252,7 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	 */
 	private final class LocalDriver implements BoskDriver {
 		final Bosk.DefaultStateFunction<R> initialStateFunction;
-		final HookRunner<R> hookRunner = new HookRunner<>((Bosk<R>) BoskBase.this, this);
+		final HookRunner<R> hookRunner = new HookRunner<>((Bosk<R>) BoskBase.this, this, hookOverloadThreshold);
 
 		public LocalDriver(Bosk.DefaultStateFunction<R> initialStateFunction) {
 			this.initialStateFunction = initialStateFunction;
@@ -437,6 +441,10 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 	 */
 	final <T> void localRegisterHook(String name, @NonNull Reference<T> scope, @NonNull BoskHook<T> action) {
 		localDriver.registerHook(name, requireNonNull(scope), requireNonNull(action));
+	}
+
+	OverloadController.Mode hookMode() {
+		return localDriver.hookRunner.mode();
 	}
 
 	/**
