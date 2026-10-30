@@ -80,13 +80,8 @@ final class HookRunner<R extends StateTreeNode> {
 		assert holdsLock(monitor);
 		R rootForHook = bosk.currentRoot();
 		int hookEnd = hooks.size();
-		boolean anyMatch = false;
-		for (int i = 0; i < hookEnd; i++) {
-			if (hooks.get(i).matchesTarget(target)) {
-				anyMatch = true;
-				break;
-			}
-		}
+		boolean anyMatch = hooks.subList(0, hookEnd).stream()
+			.anyMatch(hook -> hook.matchesTarget(target));
 		if (anyMatch) {
 			accept(new HookTrigger<>(
 				priorRoot,
