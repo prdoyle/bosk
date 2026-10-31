@@ -78,8 +78,7 @@ final class HookRunner<R extends StateTreeNode> {
 			bosk.rootRef,
 			bosk.context.getAttributes(),
 			reg.index(),
-			reg.index() + 1,
-			1));
+			reg.index() + 1));
 	}
 
 	/**
@@ -97,18 +96,16 @@ final class HookRunner<R extends StateTreeNode> {
 		assert holdsLock(monitor);
 		R rootForHook = bosk.currentRoot();
 		int hookEnd = hooks.size();
-		int hookCount = (int) hooks.subList(0, hookEnd).stream()
-			.filter(hook -> hook.matchesTarget(target))
-			.count();
-		if (hookCount > 0) {
+		boolean anyMatch = hooks.subList(0, hookEnd).stream()
+			.anyMatch(hook -> hook.matchesTarget(target));
+		if (anyMatch) {
 			accept(new HookTrigger<>(
 				priorRoot,
 				rootForHook,
 				target,
 				bosk.context.getAttributes(),
 				0,
-				hookEnd,
-				hookCount));
+				hookEnd));
 		}
 	}
 
@@ -180,7 +177,7 @@ final class HookRunner<R extends StateTreeNode> {
 										}
 										work = hookQueue.pollFirst();
 										if (work != null) {
-											overloadController.recordDequeuedWork(work.hookCount());
+											overloadController.recordDequeuedTrigger();
 										}
 									}
 									if (work == null) {
@@ -188,7 +185,7 @@ final class HookRunner<R extends StateTreeNode> {
 										break drain;
 									}
 									execute(work);
-									overloadController.recordWork(work.hookCount());
+									overloadController.recordCompletedTrigger();
 								}
 							}
 						} catch (InterruptedException e) {
@@ -261,7 +258,7 @@ final class HookRunner<R extends StateTreeNode> {
 			compact(trigger, overloadPending);
 		} else {
 			hookQueue.addLast(trigger);
-			overloadController.recordQueuedWork(trigger.hookCount());
+			overloadController.recordQueuedTrigger();
 		}
 	}
 
@@ -322,7 +319,7 @@ final class HookRunner<R extends StateTreeNode> {
 		assert holdsLock(monitor);
 		List<HookTrigger<R>> result = new ArrayList<>(hookQueue);
 		hookQueue.clear();
-		overloadController.clearQueuedWork();
+		overloadController.clearQueuedTriggers();
 		return result;
 	}
 

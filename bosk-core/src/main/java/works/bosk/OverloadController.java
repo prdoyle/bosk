@@ -9,26 +9,26 @@ import static works.bosk.OverloadController.Mode.PROBATION;
 import static works.bosk.OverloadController.Mode.STANDARD;
 
 /**
- * Decides which delivery mode the hook runner is in, and how much work to allow
- * before leaving overload mode.
+ * Decides which delivery mode the hook runner is in, and how many queued triggers
+ * to allow before leaving overload mode.
  *
  * <p>
- * The hook runner reports the events that drive this state machine: enqueued and
- * dequeued hook executions, completed standard or probation work, and an empty
- * backlog. This class turns those events into mode transitions and probation
- * budgets; it knows nothing about the queue's contents, triggers, or hook calls.
+ * The hook runner reports the events that drive this state machine: queued and
+ * dequeued triggers, completed triggers, and an empty backlog. This class turns
+ * those events into mode transitions and probation budgets; it knows nothing
+ * about the queue's contents or the hooks they run.
  *
  * <p>
  * Overload mode is left through a bounded standard-mode probation. The probation
  * starts when the compacted backlog has drained, and runs subsequent updates
- * one at a time. It succeeds if it spends its whole budget of hook work without
+ * one at a time. It succeeds if it spends its whole budget of triggers without
  * overflowing the queue. A successful probation enters {@link Mode#CATCH_UP}, a
  * transient mode that runs one final compacted generation before the driver
  * returns to standard mode.
  *
  * <p>
  * A standard-mode overflow soon after a successful probation means the probation
- * was too short. The next probation uses twice as much hook work as its budget.
+ * was too short. The next probation uses twice as many triggers as its budget.
  * After sustained standard-mode work, the multiplier decays linearly back to one.
  */
 final class OverloadController {
@@ -68,12 +68,12 @@ final class OverloadController {
 
 	private final int overloadThreshold;
 	/**
-	 * Hook executions represented by the runner's queue: one per hook registration
-	 * matching each queued update. The queue itself stays with the runner; this total
-	 * lives here so that the threshold decision does too. Guarded by this object's
-	 * monitor.
+	 * Queued triggers: one per update that matches at least one hook registration,
+	 * and one per hook registration. The queue itself stays with the runner; this
+	 * total lives here so that the threshold decision does too. Guarded by this
+	 * object's monitor.
 	 */
-	private int queuedHookCount;
+	private int queuedTriggerCount;
 
 	/**
 	 * Volatile because the draining thread reads the mode outside the driver's monitor.
@@ -112,13 +112,13 @@ final class OverloadController {
 	}
 
 	/**
-	 * Records hook executions added to the queue, entering overload mode if they
-	 * reach the threshold.
+	 * Records a trigger added to the queue, entering overload mode if the queued
+	 * triggers reach the threshold.
 	 */
-	synchronized void recordQueuedWork(int units) {
+	synchronized void recordQueuedTrigger() {
 		assert !mode.isCompacting() : "Only standard-style delivery queues work";
-		queuedHookCount += units;
-		if (queuedHookCount >= overloadThreshold) {
+		queuedTriggerCount++;
+		if (queuedTriggerCount >= overloadThreshold) {
 			LOGGER.warn("Hook backlog has reached the threshold ({}); entering overload mode", overloadThreshold);
 			if (mode == STANDARD) {
 				enterOverload();
@@ -129,17 +129,17 @@ final class OverloadController {
 	}
 
 	/**
-	 * Records hook executions removed from the queue.
+	 * Records a trigger removed from the queue.
 	 */
-	synchronized void recordDequeuedWork(int units) {
-		queuedHookCount -= units;
+	synchronized void recordDequeuedTrigger() {
+		queuedTriggerCount--;
 	}
 
 	/**
-	 * Forgets the queued hook executions, as when the queue is drained or discarded.
+	 * Forgets the queued triggers, as when the queue is drained or discarded.
 	 */
-	synchronized void clearQueuedWork() {
-		queuedHookCount = 0;
+	synchronized void clearQueuedTriggers() {
+		queuedTriggerCount = 0;
 	}
 
 	synchronized long probeBudget() {
@@ -157,7 +157,7 @@ final class OverloadController {
 		assert mode == STANDARD : "Overload mode is entered from standard mode";
 		if (postProbationOverflowWindow) {
 			probeMultiplier = Math.multiplyExact(probeMultiplier, 2);
-			LOGGER.debug("Probation was too short; doubling the probe budget to {} hook executions", probeBudget());
+			LOGGER.debug("Probation was too short; doubling the probe budget to {} triggers", probeBudget());
 		}
 		mode = OVERLOAD;
 		postProbationOverflowWindow = false;
@@ -175,34 +175,32 @@ final class OverloadController {
 		if (mode == OVERLOAD && !isPermanentOverload()) {
 			mode = PROBATION;
 			probeRemaining = probeBudget();
-			LOGGER.debug("Starting a probation with {} hook executions of budget", probeRemaining);
+			LOGGER.debug("Starting a probation with a budget of {} triggers", probeRemaining);
 		}
 	}
 
 	/**
-	 * Records completed hook work in whichever mode the driver is in.
-	 *
-	 * @param units the number of hook registrations that matched the update
+	 * Records a completed trigger in whichever mode the driver is in.
 	 */
-	synchronized void recordWork(int units) {
+	synchronized void recordCompletedTrigger() {
 		switch (mode) {
-			case STANDARD -> recordStandardWork(units);
-			case PROBATION -> recordProbationWork(units);
+			case STANDARD -> recordStandardWork();
+			case PROBATION -> recordProbationWork();
 			case OVERLOAD, CATCH_UP ->
 				// The hook's own update changed the mode while the hook ran, so this
-				// work does not belong to the current mode's budget.
-				LOGGER.debug("Ignoring completed work in {} mode", mode);
+				// trigger does not belong to the current mode's budget.
+				LOGGER.debug("Ignoring a completed trigger in {} mode", mode);
 		}
 	}
 
 	/**
-	 * Records completed standard-mode hook work. The first threshold's worth of
-	 * work validates a preceding probation; after that, each threshold's worth
-	 * slowly reduces an inflated probe multiplier.
+	 * Records completed standard-mode work. The first threshold's worth of
+	 * triggers validates a preceding probation; after that, each threshold's
+	 * worth slowly reduces an inflated probe multiplier.
 	 */
-	private void recordStandardWork(int units) {
+	private void recordStandardWork() {
 		if (postProbationOverflowWindow) {
-			standardExecutions += units;
+			standardExecutions++;
 			if (standardExecutions >= overloadThreshold) {
 				postProbationOverflowWindow = false;
 				standardExecutions = 0;
@@ -210,21 +208,21 @@ final class OverloadController {
 				LOGGER.debug("Probation validated by sustained standard delivery");
 			}
 		} else {
-			decayExecutions += units;
+			decayExecutions++;
 			if (decayExecutions >= overloadThreshold) {
 				decayExecutions = 0;
 				if (probeMultiplier > 1) {
 					probeMultiplier--;
-					LOGGER.debug("Decaying the probe budget to {} hook executions", probeBudget());
+					LOGGER.debug("Decaying the probe budget to {} triggers", probeBudget());
 				}
 			}
 		}
 	}
 
-	private void recordProbationWork(int units) {
+	private void recordProbationWork() {
 		assert mode == PROBATION : "Probation work only occurs in probation mode";
-		probeRemaining -= units;
-		LOGGER.trace("Probation work: {} executions; {} of the budget remains", units, probeRemaining);
+		probeRemaining--;
+		LOGGER.trace("Probation: {} triggers of the budget remain", probeRemaining);
 		if (probeRemaining <= 0) {
 			mode = CATCH_UP;
 			LOGGER.debug("Probation spent its budget; entering catch-up");
@@ -236,7 +234,7 @@ final class OverloadController {
 	 */
 	synchronized void reset() {
 		mode = isPermanentOverload() ? OVERLOAD : STANDARD;
-		queuedHookCount = 0;
+		queuedTriggerCount = 0;
 		probeRemaining = 0;
 		postProbationOverflowWindow = false;
 		standardExecutions = 0;

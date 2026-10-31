@@ -16,11 +16,6 @@ import org.jspecify.annotations.Nullable;
  * Expanding the trigger runs each hook in that range as it finds it, so it can
  * wait for a hook, and hence can be interrupted. Expanding it into
  * {@link PendingHookSet} merely records the notifications.
- *
- * <p>
- * {@code hookCount} is the number of registrations in that range that match the
- * update target. It is fixed when the trigger is created and used for the
- * overload limit and for probation accounting.
  */
 record HookTrigger<RR>(
 	@Nullable RR priorRoot,
@@ -28,6 +23,5 @@ record HookTrigger<RR>(
 	Reference<?> target,
 	MapValue<String> diagnosticAttributes,
 	int hookStart,
-	int hookEnd,
-	int hookCount
+	int hookEnd
 ) {}

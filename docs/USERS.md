@@ -611,10 +611,10 @@ rather than providing surprises when moving to a different environment for produ
 #### Overload mode
 
 If hook work falls behind updates, the local driver bounds its backlog by entering _overload mode_.
-The limit is measured in queued hook executions: one per hook registration that matches a queued update,
-so a single update can contribute several.
+The limit is measured in queued hook triggers: one per update that matches at least one hook registration,
+and one per hook registration.
 It defaults to 1000 and can be changed with `BoskConfig.hookOverloadThreshold`.
-A value of zero starts in overload mode, and a value of one enters it on the first update,
+A value of zero starts in overload mode, and a value of one enters it on the first queued trigger,
 so hooks always see compacted notifications against the latest state.
 
 In overload mode, the driver _compacts_ hook work as updates arrive.
@@ -627,8 +627,8 @@ Those notifications are delivered in batches against the latest state, so:
 - A hook may not fire at all if a reference in its scope is created and then deleted before it runs.
 - Compacted notifications do not carry update diagnostic attributes, because no single update originated them.
 
-Compaction also keeps the work bounded:
-queued updates hold state snapshots, so once the limit is reached, later updates add only their pending notifications,
+Compaction also bounds the memory:
+each queued trigger holds state snapshots, so once the limit is reached, later updates add only their pending notifications,
 which are bounded by the state tree rather than by the number of updates.
 
 Once the compacted backlog clears, the driver runs a bounded standard-mode _probation_
