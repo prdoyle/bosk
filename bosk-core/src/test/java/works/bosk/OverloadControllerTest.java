@@ -21,7 +21,7 @@ class OverloadControllerTest {
 
 	@Test
 	void probeBudgetIsProportionalToTheQueueLimit() {
-		assertEquals(1000, new OverloadController(1000).probeBudget(), "The probe budget should be one limit's worth of hook work");
+		assertEquals(1000, new OverloadController(1000).probeBudget(), "The probe budget should be one limit's worth of triggers");
 	}
 
 	@Test
@@ -29,7 +29,7 @@ class OverloadControllerTest {
 		startOverload();
 		controller.hookWorkDrained();
 		assertEquals(PROBATION, controller.mode(), "Starting a probation should enter probation mode");
-		assertEquals(10, controller.probeRemaining(), "The probation should have one queue length of executions");
+		assertEquals(10, controller.probeRemaining(), "The probation should have one queue length of triggers");
 	}
 
 	@Test
@@ -37,35 +37,36 @@ class OverloadControllerTest {
 		startOverload();
 		controller.hookWorkDrained();
 		for (int i = 0; i < 9; i++) {
-			controller.recordWork(1);
+			controller.recordCompletedTrigger();
 			assertEquals(PROBATION, controller.mode(), "The probation should not finish early");
 		}
-		controller.recordWork(1);
+		controller.recordCompletedTrigger();
 		assertEquals(CATCH_UP, controller.mode(), "A successful probation should start the final catch-up");
 	}
 
 	@Test
-	void queuedWorkReachesTheThreshold() {
-		controller.recordQueuedWork(9);
-		assertEquals(STANDARD, controller.mode(), "Nine queued executions should be below the threshold");
-		controller.recordQueuedWork(1);
+	void queuedTriggersReachTheThreshold() {
+		queueTriggers(9);
+		assertEquals(STANDARD, controller.mode(), "Nine queued triggers should be below the threshold");
+		controller.recordQueuedTrigger();
 		assertEquals(OVERLOAD, controller.mode(), "Reaching the threshold should enter overload mode");
 	}
 
 	@Test
-	void dequeuedWorkReducesTheCount() {
-		controller.recordQueuedWork(9);
-		controller.recordDequeuedWork(2);
-		controller.recordQueuedWork(2);
-		assertEquals(STANDARD, controller.mode(), "Dequeued work should no longer count toward the threshold");
+	void dequeuedTriggersReduceTheCount() {
+		queueTriggers(9);
+		controller.recordDequeuedTrigger();
+		controller.recordDequeuedTrigger();
+		queueTriggers(2);
+		assertEquals(STANDARD, controller.mode(), "Dequeued triggers should no longer count toward the threshold");
 	}
 
 	@Test
-	void clearQueuedWorkForgetsTheCount() {
-		controller.recordQueuedWork(9);
-		controller.clearQueuedWork();
-		controller.recordQueuedWork(9);
-		assertEquals(STANDARD, controller.mode(), "Cleared work should not count toward the threshold");
+	void clearQueuedTriggersForgetsTheCount() {
+		queueTriggers(9);
+		controller.clearQueuedTriggers();
+		queueTriggers(9);
+		assertEquals(STANDARD, controller.mode(), "Cleared triggers should not count toward the threshold");
 	}
 
 	@Test
@@ -89,18 +90,18 @@ class OverloadControllerTest {
 	}
 
 	@Test
-	void resetForgetsQueuedWork() {
+	void resetForgetsQueuedTriggers() {
 		startOverload();
 		controller.reset();
-		controller.recordQueuedWork(9);
-		assertEquals(STANDARD, controller.mode(), "Reset should forget queued work");
+		queueTriggers(9);
+		assertEquals(STANDARD, controller.mode(), "Reset should forget queued triggers");
 	}
 
 	@Test
 	void probationFailureReturnsToOverload() {
 		startOverload();
 		controller.hookWorkDrained();
-		controller.recordQueuedWork(10);
+		queueTriggers(10);
 		assertEquals(OVERLOAD, controller.mode(), "A probation overflow should return to overload mode");
 	}
 
@@ -114,18 +115,18 @@ class OverloadControllerTest {
 	void earlyStandardOverflowDoublesTheProbeBudget() {
 		completeSuccessfulProbation();
 		assertEquals(10, controller.probeBudget(), "The base probe budget should be unchanged");
-		controller.recordQueuedWork(10);
+		queueTriggers(10);
 		assertEquals(20, controller.probeBudget(), "An early standard overflow should double the probe budget");
 	}
 
 	@Test
 	void repeatedEarlyOverflowsKeepDoublingTheProbeBudget() {
 		completeSuccessfulProbation();
-		controller.recordQueuedWork(10);
+		queueTriggers(10);
 		completeSuccessfulProbation();
-		controller.recordQueuedWork(10);
+		queueTriggers(10);
 		completeSuccessfulProbation();
-		controller.recordQueuedWork(10);
+		queueTriggers(10);
 		assertEquals(80, controller.probeBudget(), "The probe budget should keep doubling without a cap");
 	}
 
@@ -133,48 +134,54 @@ class OverloadControllerTest {
 	void lateStandardOverflowDoesNotGrowTheProbeBudget() {
 		completeSuccessfulProbation();
 		for (int i = 0; i < 10; i++) {
-			controller.recordWork(1);
+			controller.recordCompletedTrigger();
 		}
-		controller.recordQueuedWork(10);
+		queueTriggers(10);
 		assertEquals(10, controller.probeBudget(), "A validated probation should not be extended by a later overflow");
 	}
 
 	@Test
 	void probeBudgetDecaysAfterSustainedStandardWork() {
 		completeSuccessfulProbation();
-		controller.recordQueuedWork(10);
+		queueTriggers(10);
 		assertEquals(20, controller.probeBudget(), "An early overflow should double the probe budget");
 
 		completeSuccessfulProbation();
 		for (int i = 0; i < 20; i++) {
-			controller.recordWork(1);
+			controller.recordCompletedTrigger();
 		}
 		assertEquals(10, controller.probeBudget(), "Sustained standard work should decay the multiplier linearly");
 	}
 
 	/**
-	 * Queues a threshold's worth of work, which the drain would then remove before
-	 * the backlog empties, leaving the controller in overload mode.
+	 * Queues a threshold's worth of triggers, which the drain would then remove
+	 * before the backlog empties, leaving the controller in overload mode.
 	 */
 	private void startOverload() {
-		controller.recordQueuedWork(10);
-		controller.clearQueuedWork();
+		queueTriggers(10);
+		controller.clearQueuedTriggers();
 	}
 
 	private void completeSuccessfulProbation() {
 		if (controller.mode() == STANDARD) {
-			controller.recordQueuedWork(10);
+			queueTriggers(10);
 		}
 		// The queue drains into the first overload batch before the backlog empties.
-		controller.clearQueuedWork();
+		controller.clearQueuedTriggers();
 		long budget = controller.probeBudget();
 		controller.hookWorkDrained();
 		for (long i = 1; i < budget; i++) {
-			controller.recordWork(1);
+			controller.recordCompletedTrigger();
 			assertEquals(PROBATION, controller.mode(), "The probation should continue");
 		}
-		controller.recordWork(1);
+		controller.recordCompletedTrigger();
 		controller.catchUpFinished();
 		assertEquals(STANDARD, controller.mode(), "The catch-up should enter standard mode");
+	}
+
+	private void queueTriggers(int count) {
+		for (int i = 0; i < count; i++) {
+			controller.recordQueuedTrigger();
+		}
 	}
 }

@@ -239,7 +239,26 @@ public class OverloadModeTest extends AbstractBoskTest {
 	}
 
 	@Test
-	void thresholdOfTwoAllowsOneQueuedExecutionBeforeOverload() throws InterruptedException, InvalidTypeException {
+	void oneUpdateMatchingSeveralHooksQueuesOneTrigger() throws InterruptedException, InvalidTypeException {
+		Bosk<TestRoot> multiHookBosk = new Bosk<>(
+			"overload-multi-hook-test",
+			TestRoot.class,
+			AbstractBoskTest::initialState,
+			BoskConfig.<TestRoot>builder().hookOverloadThreshold(2).build());
+		Refs multiHookRefs = multiHookBosk.rootReference().buildReferences(Refs.class);
+		Reference<String> stringRef = multiHookRefs.childString(Identifier.from("child1"));
+		multiHookBosk.hookRegistrar().registerHook("specific", stringRef, ref -> {});
+		multiHookBosk.hookRegistrar().registerHook("parameterized", multiHookRefs.anyChildString(), ref -> {});
+		assertEquals(STANDARD, multiHookBosk.hookMode(), "The registration triggers should have drained");
+
+		multiHookBosk.driver().submitReplacement(stringRef, "v1");
+
+		assertEquals(STANDARD, multiHookBosk.hookMode(),
+			"One update should queue one trigger, however many hooks it matches");
+	}
+
+	@Test
+	void thresholdOfTwoAllowsOneQueuedTriggerBeforeOverload() throws InterruptedException, InvalidTypeException {
 		Bosk<TestRoot> thresholdBosk = new Bosk<>(
 			"overload-queue-threshold-test",
 			TestRoot.class,
@@ -258,10 +277,10 @@ public class OverloadModeTest extends AbstractBoskTest {
 		assertEquals(STANDARD, thresholdBosk.hookMode(), "The first execution should run in standard mode");
 
 		thresholdBosk.driver().submitReplacement(stringRef, "v2");
-		assertEquals(STANDARD, thresholdBosk.hookMode(), "One queued execution should be allowed");
+		assertEquals(STANDARD, thresholdBosk.hookMode(), "One queued trigger should be allowed");
 
 		thresholdBosk.driver().submitReplacement(stringRef, "v3");
-		assertEquals(OVERLOAD, thresholdBosk.hookMode(), "The second queued execution should reach the threshold");
+		assertEquals(OVERLOAD, thresholdBosk.hookMode(), "The second queued trigger should reach the threshold");
 
 		hook.unblock();
 		updater.join(10_000);
