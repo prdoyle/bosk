@@ -642,6 +642,19 @@ so the next one gets a larger budget; sustained standard delivery brings the bud
 
 Most applications are not expected to reach the limit.
 
+#### Interrupting hooks
+
+A hook that submits updates can feed itself, so a bug can turn it into a loop that runs forever.
+`Bosk.interruptHooks()` is a last resort for that situation.
+It interrupts the hook that is currently running, and discards every queued or compacted notification that has not run yet.
+It works in both standard and overload mode.
+
+The interrupt is delivered to the hook as described by `BoskHook`.
+Interruption is cooperative: a hook that ignores interrupts keeps running, and the thread draining hooks waits for it to finish.
+The call returns after delivering the interrupt; it does not wait for the hook itself.
+State updates that have already been applied are not undone, and the hook remains registered, so a later update can trigger it again.
+Calling `interruptHooks()` when no hook work is pending has no lasting effect.
+
 #### Exception handling
 
 Any `Exception` thrown by a hook is caught, logged, and ignored.

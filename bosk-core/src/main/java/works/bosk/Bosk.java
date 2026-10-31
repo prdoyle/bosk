@@ -135,6 +135,30 @@ public non-sealed class Bosk<R extends StateTreeNode> extends BoskBase<R> implem
 	}
 
 	/**
+	 * Interrupts the hook currently running and abandons all queued and pending
+	 * hook work.
+	 *
+	 * <p>
+	 * This is a last resort for a hook that has gone into a feedback loop, or that
+	 * is otherwise doing more work than the application can tolerate. The running
+	 * hook receives an interrupt, as described by {@link BoskHook}. Every queued
+	 * and compacted notification that has not yet run is discarded.
+	 *
+	 * <p>
+	 * This does not undo state updates that have already been applied, and it
+	 * does not unregister any hook. A later update can trigger the same hook
+	 * again. Interruption is cooperative: a hook that does not respond to
+	 * interrupts cannot be forced to stop.
+	 *
+	 * <p>
+	 * The interrupt is delivered whether or not bosk is in overload mode. It is
+	 * safe to call this when no hook work is in progress.
+	 */
+	public final void interruptHooks() {
+		localInterruptHooks();
+	}
+
+	/**
 	 * <strong>Evolution note</strong>: we need better handling of the driver stack.
 	 * For now, we just provide access to the topmost driver, but code should be able
 	 * to look up any driver on the stack. We need to think carefully about how we

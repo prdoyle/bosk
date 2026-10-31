@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,9 +51,20 @@ final class HookRunner<R extends StateTreeNode> {
 	private final PendingHookSet overloadPending = new PendingHookSet();
 	private final OverloadController overloadController;
 	private final Semaphore drainPermit = new Semaphore(1);
+	private final AtomicLong interruptGeneration = new AtomicLong();
 	private final Thread.Builder hookThreadBuilder = Thread
 		.ofVirtual()
 		.name("bosk-hook-", 1);
+
+	/**
+	 * The hook currently running on its own virtual thread, if any.
+	 *
+	 * <p>
+	 * {@link #interruptHooks()} uses this to deliver an interrupt to the hook
+	 * itself. It is also how the drainer knows not to start another hook after
+	 * an operator has asked for the work to stop.
+	 */
+	private volatile Thread currentHookThread;
 
 	HookRunner(Bosk<R> bosk, Object monitor, int hookOverloadThreshold) {
 		this.bosk = bosk;
@@ -114,6 +126,36 @@ final class HookRunner<R extends StateTreeNode> {
 	}
 
 	/**
+	 * Interrupts the hook currently running, and abandons all queued and pending
+	 * hook work.
+	 *
+	 * <p>
+	 * The interrupt generation lets the drainer distinguish this deliberate
+	 * abandonment from an ordinary interrupt of the thread that happens to be
+	 * draining. A drainer that observes a new generation stops without setting
+	 * its own interrupt flag, so an operator can stop hook work without
+	 * disturbing the application thread that was running it.
+	 *
+	 * <p>
+	 * This is cooperative: if the running hook ignores the interrupt, this
+	 * method cannot force it to stop.
+	 */
+	void interruptHooks() {
+		interruptGeneration.incrementAndGet();
+		Thread hookThread;
+		synchronized (monitor) {
+			hookThread = currentHookThread;
+			hookQueue.clear();
+			overloadPending.clear();
+			overloadController.reset();
+		}
+		if (hookThread != null) {
+			hookThread.interrupt();
+		}
+		LOGGER.debug("Hook work interrupted by request");
+	}
+
+	/**
 	 * Runs queued hooks in a "breadth-first" fashion: all hooks "H" triggered by
 	 * any single hook "G" will run before any consequent hooks triggered by "H".
 	 *
@@ -142,10 +184,16 @@ final class HookRunner<R extends StateTreeNode> {
 	void drainIfAllowed() {
 		do {
 			if (drainPermit.tryAcquire()) {
+				long generation = interruptGeneration.get();
 				try {
 					LOGGER.debug("Draining hook work");
 					drain:
 					while (true) {
+						if (interruptGeneration.get() != generation) {
+							LOGGER.debug("Hook work interrupted by request; clearing the remaining queued hooks");
+							clearHookWork();
+							return;
+						}
 						// An interrupt means "stop", not "pause": we do not
 						// resume the backlog on some later, unrelated update.
 						if (Thread.currentThread().isInterrupted()) {
@@ -162,9 +210,9 @@ final class HookRunner<R extends StateTreeNode> {
 										break drain;
 									}
 									LOGGER.debug("Hook: overload batch with {} paths", batch.pending().size());
-									runPendingBatch(batch);
+									runPendingBatch(batch, generation);
 								}
-								case CATCH_UP -> runCatchUpBatch(buildBatch());
+								case CATCH_UP -> runCatchUpBatch(buildBatch(), generation);
 								case STANDARD, PROBATION -> {
 									HookTrigger<R> work;
 									synchronized (monitor) {
@@ -184,10 +232,14 @@ final class HookRunner<R extends StateTreeNode> {
 										LOGGER.debug("Hook queue is empty");
 										break drain;
 									}
-									execute(work);
+									execute(work, generation);
 									overloadController.recordCompletedTrigger();
 								}
 							}
+						} catch (HookWorkInterrupted e) {
+							clearHookWork();
+							LOGGER.debug("Hook work interrupted by request; discarded the remaining queued hooks");
+							return;
 						} catch (InterruptedException e) {
 							clearHookWork();
 							Thread.currentThread().interrupt();
@@ -279,8 +331,9 @@ final class HookRunner<R extends StateTreeNode> {
 		}
 	}
 
-	private void execute(HookTrigger<R> trigger) throws InterruptedException {
+	private void execute(HookTrigger<R> trigger, long generation) throws InterruptedException {
 		for (int i = trigger.hookStart(); i < trigger.hookEnd(); i++) {
+			checkInterruptGeneration(generation);
 			executeHook(hookAt(i), trigger);
 		}
 	}
@@ -365,12 +418,16 @@ final class HookRunner<R extends StateTreeNode> {
 	/**
 	 * Runs one catch-up batch, or finishes catch-up if the backlog is empty.
 	 */
-	private void runCatchUpBatch(CompactedBatch<R> batch) throws InterruptedException {
+	private void runCatchUpBatch(CompactedBatch<R> batch, long generation) throws InterruptedException {
 		if (batch.pending().isEmpty()) {
 			synchronized (monitor) {
 				if (!overloadPending.isEmpty() || !hookQueue.isEmpty()) {
 					// Work arrived while this batch was being prepared; it will
 					// be run by the next catch-up batch.
+					return;
+				}
+				if (overloadController.mode() != CATCH_UP) {
+					// An operator abandoned the work while this batch was being prepared.
 					return;
 				}
 				overloadController.catchUpFinished();
@@ -379,7 +436,7 @@ final class HookRunner<R extends StateTreeNode> {
 			return;
 		}
 		LOGGER.debug("Hook: final catch-up batch with {} paths", batch.pending().size());
-		runPendingBatch(batch);
+		runPendingBatch(batch, generation);
 	}
 
 	/**
@@ -393,12 +450,13 @@ final class HookRunner<R extends StateTreeNode> {
 	 * an interrupt abandons all hook work, and bosk does not try to continue after an
 	 * error.
 	 */
-	private void runPendingBatch(CompactedBatch<R> batch) throws InterruptedException {
+	private void runPendingBatch(CompactedBatch<R> batch, long generation) throws InterruptedException {
 		try {
 			for (var entry : batch.pending().entrySet()) {
 				Path path = entry.getKey();
 				PendingHooks hooks = entry.getValue();
 				for (int hookIndex = hooks.toRun().nextSetBit(0); hookIndex >= 0; hookIndex = hooks.toRun().nextSetBit(hookIndex + 1)) {
+					checkInterruptGeneration(generation);
 					if (Thread.currentThread().isInterrupted()) {
 						throw new InterruptedException();
 					}
@@ -408,6 +466,9 @@ final class HookRunner<R extends StateTreeNode> {
 					runPendingHook(hookAt(hookIndex), path, batch.snapshot(), existedAtBaseline);
 				}
 			}
+		} catch (HookWorkInterrupted e) {
+			// The whole backlog is being abandoned; do not put it back.
+			throw e;
 		} catch (RuntimeException e) {
 			LOGGER.debug("Hook batch failed; requeueing the notifications that did not run", e);
 			overloadPending.mergeEarlier(batch.pending());
@@ -439,6 +500,26 @@ final class HookRunner<R extends StateTreeNode> {
 	private boolean hasHookWork() {
 		synchronized (monitor) {
 			return !hookQueue.isEmpty() || !overloadPending.isEmpty();
+		}
+	}
+
+	/**
+	 * @throws HookWorkInterrupted if an operator has asked for the current hook
+	 * work to be abandoned since the drain began
+	 */
+	private void checkInterruptGeneration(long generation) {
+		if (interruptGeneration.get() != generation) {
+			throw new HookWorkInterrupted();
+		}
+	}
+
+	/**
+	 * Abandons the current drain without disposing of queued work, which
+	 * {@link #interruptHooks()} has already done.
+	 */
+	private static final class HookWorkInterrupted extends RuntimeException {
+		HookWorkInterrupted() {
+			super(null, null, false, false);
 		}
 	}
 
@@ -480,6 +561,7 @@ final class HookRunner<R extends StateTreeNode> {
 		// choices "always, sometimes, never", if we can't achieve "always", then
 		// the bosk philosophy prefers "never" over "sometimes".
 		Thread hookThread = hookThreadBuilder.start(task);
+		currentHookThread = hookThread;
 		try {
 			task.get();
 		} catch (ExecutionException e) {
@@ -498,6 +580,8 @@ final class HookRunner<R extends StateTreeNode> {
 			hookThread.interrupt();
 			awaitTermination(hookThread);
 			throw e;
+		} finally {
+			currentHookThread = null;
 		}
 	}
 

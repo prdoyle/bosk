@@ -447,6 +447,10 @@ abstract sealed class BoskBase<R extends StateTreeNode> permits Bosk {
 		return localDriver.hookRunner.mode();
 	}
 
+	final void localInterruptHooks() {
+		localDriver.hookRunner.interruptHooks();
+	}
+
 	/**
 	 * A path is "vetted" if we've already called {@link #pathCompiler}.{@link PathCompiler#targetTypeOf} on it.
 	 */

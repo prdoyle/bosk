@@ -7,6 +7,7 @@ package works.bosk;
  * interrupted (for example, because a driver is shutting down or disconnecting),
  * bosk delivers the interrupt to the running hook so it can stop promptly;
  * implementations should therefore be written to respond to interruption.
+ * An application can request this deliberately with {@link Bosk#interruptHooks()}.
  */
 public interface BoskHook<T> {
 	/**
